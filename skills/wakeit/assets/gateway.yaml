@@ -1,0 +1,9 @@
+version: 1
+listen: 127.0.0.1:8080
+public_url: http://127.0.0.1:8080
+database_url_env: WAKEIT_DATABASE_URL
+nats_url: nats://127.0.0.1:4222
+nats_public_url: ws://127.0.0.1:8081
+nats_auth_dir: ./nats
+nats_replicas: 1
+log_limit_bytes: 20971520

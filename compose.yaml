@@ -1,0 +1,61 @@
+services:
+  init:
+    build: .
+    image: wakeit:local
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /data/auth
+        chown 10001:10001 /data/auth
+        if [ ! -f /data/auth/operator.seed ]; then
+          runuser -u wakeit -- wakeit gateway nats-init --dir /data/auth --host 0.0.0.0 --port 4222 --ws-port 8081
+        fi
+    volumes: ["identity:/data/auth"]
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: wakeit
+      POSTGRES_DB: wakeit
+      POSTGRES_PASSWORD: ${WAKEIT_POSTGRES_PASSWORD:?Set WAKEIT_POSTGRES_PASSWORD in .env}
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wakeit -d wakeit"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  nats:
+    image: nats:2.15-alpine
+    user: "10001:10001"
+    command: ["--config", "/data/auth/nats.conf"]
+    volumes: ["identity:/data/auth"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+    ports: ["127.0.0.1:8081:8081"]
+    restart: unless-stopped
+  migrate:
+    image: wakeit:local
+    command: ["gateway", "migrate", "--config", "/app/gateway.yaml"]
+    environment:
+      WAKEIT_DATABASE_URL: postgres://wakeit:${WAKEIT_POSTGRES_PASSWORD}@postgres:5432/wakeit
+    volumes: ["identity:/data/auth:ro"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      init: {condition: service_completed_successfully}
+  gateway:
+    image: wakeit:local
+    environment:
+      WAKEIT_DATABASE_URL: postgres://wakeit:${WAKEIT_POSTGRES_PASSWORD}@postgres:5432/wakeit
+      WAKEIT_PUBLIC_URL: ${WAKEIT_PUBLIC_URL:-http://localhost:8080}
+      WAKEIT_NATS_PUBLIC_URL: ${WAKEIT_NATS_PUBLIC_URL:-ws://localhost:8081}
+      RUST_LOG: wakeit=info,tower_http=warn
+    volumes: ["identity:/data/auth:ro"]
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      nats: {condition: service_started}
+    restart: unless-stopped
+volumes:
+  identity: {}
+  postgres: {}

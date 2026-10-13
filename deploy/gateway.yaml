@@ -1,0 +1,9 @@
+version: 1
+listen: 0.0.0.0:8080
+public_url: http://localhost:8080
+database_url_env: WAKEIT_DATABASE_URL
+nats_url: nats://nats:4222
+nats_public_url: ws://localhost:8081
+nats_auth_dir: /data/auth
+nats_replicas: 1
+log_limit_bytes: 20971520

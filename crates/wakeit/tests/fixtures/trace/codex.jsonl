@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"fixture"}
+{"type":"item.started","item":{"id":"cmd-1","type":"command_execution","command":"printf 中文","status":"in_progress"}}
+{"type":"item.started","item":{"id":"tool-2","type":"mcp_tool_call","tool":"search","arguments":{"query":"资料"},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"cmd-1","type":"command_execution","command":"printf 中文","aggregated_output":"中文","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"private","type":"reasoning","text":"private should never appear"}}
+{"type":"item.completed","item":{"id":"msg-final","type":"agent_message","text":"# 完成\n\n报告"}}
+{"type":"turn.completed","usage":{"input_tokens":1}}

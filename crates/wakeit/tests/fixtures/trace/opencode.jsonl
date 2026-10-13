@@ -1,0 +1,6 @@
+{"type":"step_start","timestamp":1791900000000,"part":{"id":"step"}}
+{"type":"tool_use","timestamp":1791900001000,"part":{"id":"cmd-1","tool":"bash","state":{"status":"completed","input":{"command":"printf 中文"},"output":"中文","time":{"start":1791900000000,"end":1791900001000}}}}
+{"type":"tool_use","timestamp":1791900001000,"part":{"id":"tool-2","tool":"read","state":{"status":"running","input":{"filePath":"README"},"time":{"start":1791900000500}}}}
+{"type":"reasoning","part":{"text":"private should never appear"}}
+{"type":"text","timestamp":1791900002000,"part":{"id":"msg-final","messageID":"message-final","text":"# 完成\n\n报告"}}
+{"type":"step_finish","timestamp":1791900002000,"part":{"id":"step-end"}}

@@ -1,0 +1,46 @@
+version: 1
+id: custom-models
+name: Custom Model Service
+mode: async
+parameters:
+  model: {type: string, label: 模型}
+  provider: {type: string, label: Provider}
+  reasoning: {type: string, label: 推理强度}
+models:
+  command: python3
+  args: [/opt/my-agent/adapter.py, models]
+  env_from:
+    SERVICE_TOKEN: MY_AGENT_SERVICE_TOKEN
+    SERVICE_URL: MY_AGENT_SERVICE_URL
+  timeout: 25s
+submit:
+  command: python3
+  args:
+    - /opt/my-agent/adapter.py
+    - submit
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+    - when_set: provider
+      args: [--provider, '{{parameters.provider}}']
+    - when_set: reasoning
+      args: [--reasoning, '{{parameters.reasoning}}']
+  stdin: '{{task.prompt}}'
+  env_from:
+    SERVICE_TOKEN: MY_AGENT_SERVICE_TOKEN
+    SERVICE_URL: MY_AGENT_SERVICE_URL
+  timeout: 60s
+status:
+  command: python3
+  args: [/opt/my-agent/adapter.py, status, '{{job.id}}']
+  env_from:
+    SERVICE_TOKEN: MY_AGENT_SERVICE_TOKEN
+    SERVICE_URL: MY_AGENT_SERVICE_URL
+  timeout: 10s
+cancel:
+  command: python3
+  args: [/opt/my-agent/adapter.py, cancel, '{{job.id}}']
+  env_from:
+    SERVICE_TOKEN: MY_AGENT_SERVICE_TOKEN
+    SERVICE_URL: MY_AGENT_SERVICE_URL
+  timeout: 30s
+poll_interval: 5s

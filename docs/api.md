@@ -1,0 +1,121 @@
+# REST API v1
+
+基路径 `/api/v1`，JSON 请求与响应。错误为 `{"error":"说明"}`。需要登录的接口支持 `Authorization: Bearer <token>`；WebUI 使用 HttpOnly 会话 Cookie。
+
+Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gateway.public_url。API Key 请求不依赖 Cookie。权限变更和 API Key 撤销立即从共享数据库生效。
+
+| 接口 | 请求或结果 | 权限 |
+|---|---|---|
+| POST `/session` | `{username,password}`，设置 Cookie 并返回会话 token | 未登录 |
+| GET / DELETE `/session` | 当前用户 / 退出 | Viewer |
+| GET `/tasks` | 支持 page、page_size、q、runner、agent、enabled；含 last_run | Viewer |
+| GET `/tasks/{id}` | 单个 Task | Viewer |
+| PUT `/tasks/{id}` | `{config,expected_revision}`；新建版本为 null，更新须匹配 | Operator |
+| POST `/tasks/{id}/archive`、`/tasks/{id}/restore` | `{expected_revision}`，归档或恢复为暂停 | Operator |
+| POST `/tasks/{id}/runs` | 返回 `{id}` | Operator |
+| POST `/schedule/preview` | Schedule 对象，返回接下来五次 UTC 时间 | Viewer |
+| GET `/runs` | 支持 page、page_size、q、runner、agent、task、state、before | Viewer |
+| GET `/runs/{id}` | Run、状态、结果、配置快照 | Viewer |
+| GET `/runs/{id}/events?after=0` | 按游标读取，最多 500 个事件 | Viewer |
+| GET `/runs/{id}/stream?after=0` | SSE，事件名 run_event，支持 Last-Event-ID | Viewer |
+| POST `/runs/{id}/cancel` | 保存取消请求；确认完成后才进入 cancelled | Operator |
+| POST `/runs/{id}/retry` | 创建关联的新 Run | Operator |
+| POST `/runs/{id}/resolve` | `{state,reason}`；仅 unknown，记录核对说明 | Operator |
+| GET `/runners`、`/agents` | 设备及其公开适配能力 | Viewer |
+| GET `/agents/templates/{id}` | 内置模板 YAML | Viewer |
+| POST `/runners/enrollment` | 一次性设备注册 token | Admin |
+| POST `/runners/{id}/revoke` | 撤销设备；报告 broker_revocation_pending | Admin |
+| GET `/users` | 工作区成员；支持 page/page_size，分页结果含 active_admins | Admin |
+| POST `/users` | `{username,password,role}` 创建启用账号 | Admin |
+| PUT `/users/{id}` | `{role?,active?}`，省略字段保持当前值；禁止移除最后一名有效管理员 | Admin |
+| POST `/users/{id}/password` | `{password}` 重置密码，撤销全部登录与 API Key | Admin |
+| POST `/invites` | `{role}`，返回 token 和邀请链接 | Admin |
+| POST `/invites/accept` | `{token,username,password}` | 邀请持有人 |
+| GET / POST `/tokens` | API Key 元数据支持 page/page_size / `{name,expires_at?}` 创建，secret 仅返回一次 | Viewer |
+| DELETE `/tokens/{id}` | 撤销本人 API Key | Viewer |
+| GET / PUT `/settings` | 时区与日志/运行保留天数；写需要 Admin | Viewer / Admin |
+| GET `/audit` | 最近 100 个审计记录 | Admin |
+
+触发和重试要求 `Idempotency-Key`，同一用户、操作目标和键返回相同 Run ID。不同键且存在冲突执行时返回 409。编辑版本冲突也返回 409。
+
+设备使用独立 Token，不能调用用户 API。设备接口为 `/device/enroll`、`/device/hello`、`/device/heartbeat`、`/device/claim`，由 Runner 自动处理。设备注册要求一次性令牌及用户 NKey 公钥，私钥由设备生成并保存。
+
+健康检查：`/health/live`、`/health/ready`。Prometheus 格式指标：`/metrics`，需要 Admin Token，包含调度延迟、Outbox 积压、设备离线和各 Run 状态数量。
+
+动态 OpenAPI 文档位于 `/api/v1/openapi.json`。可用 `wakeit schema openapi`、`wakeit schema task`、`wakeit schema agent` 导出定义。
+
+## 即时能力 API
+
+- `GET /api/v1/meta`：公开返回 `{version:"0.1.0"}`。
+- `GET /api/v1/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
+- `POST /api/v1/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
+
+查询错误分别返回 400（目录/适配错误）、403（角色限制）、404（设备不存在或已吊销）、503（离线）、504（超时）。成功但无模型的响应是空数组。CLI 与 WebUI 保存 Task.parameters，Run.execution_snapshot 提供最终解析参数和工作目录。
+
+## 列表分页与搜索
+
+WebUI 使用 `GET /tasks?page=1&page_size=20` 与 `GET /runs?page=1&page_size=20`。传入 page 时返回 `{items,total,page,page_size}`，page 从 1 开始，page_size 默认为 20、最大为 100。总数与本页数据在同一条 PostgreSQL 查询中读取；排序增加唯一 ID 作为同时间记录的次序。持续新增或编辑记录时，翻页会反映当前数据，而非固定历史快照。
+
+q 在名称、ID、指令、工作目录、Runner、Agent 字段上进行不区分大小写的部分匹配；空格分隔的词按顺序匹配，百分号与下划线作为字面字符处理。runner 和 agent 按名称/ID 精确筛选；任务可用 enabled 筛选启用/暂停，运行可用 state 筛选状态。所有读取均保留 Viewer 权限要求。未传 page 的调用返回数组，运行最多 100 条；CLI 与脚本可显式请求分页。
+
+全局搜索的 Runner、Agent 使用公开目录进行匹配；Settings 搜索可见设置项，Viewer/Operator 不提供成员或工作区管理入口。搜索不读取个人 Token 的值。
+
+## 设置页接口
+
+`GET /timezones` 需 Viewer 身份，返回 Gateway 内置时区库实际支持的名称数组，按名称排序并去重。设置页通过该目录搜索选择时区，目录请求失败显示重试，保留现有选值。
+
+`GET /users?page=1&page_size=20` 返回 `{items,total,page,page_size,active_admins}`，成员包含 id、username、role、active、created_at，按 created_at 和 id 升序排列。active_admins 是整个工作区有效管理员总数。角色修改仍由 Gateway 原子保护最后一名管理员；前端提交时保留成员已有 active 值。
+
+`GET /tokens?page=1&page_size=20` 返回 `{items,total,page,page_size}`，仅包含当前用户的 API Key 元数据：id、name、created_at、expires_at，按创建时间和 id 倒序排列。查询不返回密钥。上述接口不传 page 时返回数组；分页规则与 Tasks/Runs 相同。创建 API Key 名称去除首尾空白且不能为空。
+
+创建 API Key 时 `expires_at` 可选，省略或为 `null` 表示不过期；指定值须为未来的 RFC 3339 时间。列表中的 `expires_at: null` 同样表示不过期。已有 Key 的到期时间保持不变；浏览器登录会话仍为 7 天。
+
+WebUI 将邀请链接和新 API Key 密钥限制在创建弹窗内，关闭或离开后清除；创建结果不进入 Query 缓存、URL、本地存储、日志或通知。工作区编辑有离开保护，成员及 API Key 操作独立刷新各自查询。
+
+## Agent 过程
+
+Runner 的 Agent 清单提供 trace_supported。Run.execution_snapshot 保存执行时的能力、解析参数和目录，历史记录不依赖当前 Runner 的适配配置。旧运行没有该能力快照时显示“此运行未记录过程”，不会从日志推断 Trace。
+
+`GET /runs/{id}/events?kind=trace&after=0` 仅返回 trace 与 trace_status，按事件 id 升序，每批最多 500 条。继续使用最后一条 id 作为 after，直到返回不足 500 条；它与日志缓冲区独立。不给 kind 则返回全部事件，其他 kind 值按事件种类精确筛选。SSE 仍发送全部事件，支持 Last-Event-ID 跨 Gateway 重连，前端按节点稳定 id 和首次序号聚合，迟到的进行中快照不覆盖完成节点。权限均为 Viewer。
+
+事件行包含 id、run_id、seq、kind、data、created_at；trace 的 data 遵循 StreamRecord.data 的 TraceNode Schema，内容可用状态为 trace_status 的 status: incomplete、truncated、expired。Run 状态事件职责保持不变，没有新增 Trace 表或调度接口。
+
+## 成员账号与任务归档
+
+成员新建复用现有用户名和密码校验。停用或重置密码，在同一事务中撤销全部会话与 API Key；启用账号不恢复旧凭据。角色和状态可独立修改，省略的字段保留当前值。操作自身账号同样适用；修改自身密码后需要重新登录。审计仅记录操作者、目标和操作种类，不包含密码。首位管理员仍通过 gateway bootstrap 初始化。
+
+Task 返回可空 archived_at；GET /tasks 默认排除归档任务，archived=true 仅返回归档任务，支持原有分页与筛选，要求 Operator。GET /tasks/{id} 仍可查看归档任务。归档和恢复通过 expected_revision 检查版本，冲突为 409；重复同状态操作不递增版本和审计。归档撤销所有 queued Run，starting/running 继续，unknown 不变；禁止编辑、触发与重试。恢复保持暂停、next_at 为空，重新启用后从当前时间计算，不补跑归档期间任务。Task ID 始终保留。
+
+Run 列表和详情增加 task_archived，反映所属任务的当前归档状态；执行快照不变，历史仍遵循保留策略。归档任务的取消、核对状态与内容读取权限不变。
+
+## Moments 结果时间线
+
+WebUI 的 `/` 为 Moments，任务工作台为 `/tasks`。Moments 仅手动刷新，以工作区时区和完成时间展示所有来源的已结束 Run；归档任务的历史仍可见。没有完成时间，以及 queued、starting、running、unknown 状态的 Run 不进入动态。
+
+- `GET /moments/days?before=YYYY-MM-DD&limit=14`：返回 `{timezone,today,total_runs,days:[{date,count}],next_before}`。默认 14 个有记录的日期，日期倒序，before 为排他的本地日期游标。总数覆盖所有符合条件的记录，不受分页影响。
+- `GET /moments?date=YYYY-MM-DD&cursor=...&limit=20&timezone=...`：返回 `{timezone,date,items,next_cursor}`，按 finished_at、id 倒序分页。timezone 可携带日期目录返回值；工作区时区变化时返回 409，需刷新目录重新分组。两个接口 limit 范围 1–100，权限为 Viewer。
+- 条目包含 id、task_id、name、state、reason、finished_at、runner、agent、logo、preview、format、has_more、truncated，不返回指令或整份配置。preview 最多 2048 个 Unicode 字符；format 为 markdown 或 json，has_more 表示仍有正文，truncated 表示原始结果已被保留策略截断。全文通过既有 `/runs/{id}` 读取，不从日志生成。
+
+日期只做分组，所有条目统一展示最高 240px 的预览，长内容提供“阅读全文”和“收起”。日期和条目均支持继续加载；手动刷新保留阅读位置及全文展开状态，返回页面保留本次访问状态，刷新浏览器后重置。报告不写入浏览器持久化存储。
+
+
+## 会话检查与续聊
+
+`POST /runners/{id}/agents/{agent}/sessions/inspect` 接收 `{cwd,id}`，要求 Admin 或 Operator，Core NATS 查询超时30秒。响应为 `{version:1,id,cwd,persisted:true}`；不存在、不持久化、目录不符、设备离线或适配查询失败时返回明确错误。检查不会创建 Task、Run 或会话。Task 保存不要求设备在线，执行前始终重新检查。
+
+Agent 目录增加 `session_supported`；Task.config 增加可选 `session: {id}`。Run 列表及详情增加可空 `session`：`{id,runner_id,agent,cwd,ready,reason}`，来自实际执行元数据，不修改配置快照。Moments 摘要增加 `continuation_available`。所有角色可读取并复制续聊命令，创建绑定任务仍要求 Operator。会话可用性并不保证当前未被其他执行占用，本地续聊和 Runner 启动时均重新校验。
+
+
+`POST /runners/{id}/agents/{agent}/sessions/query` 接收 `{cwd,q?,cursor?}`，Admin/Operator可用，超时30秒。返回 `{version:1,sessions:[{id,title,cwd,updated_at}],next_cursor}`，每页20条。搜索匹配标题及完整ID，游标沿用同一目录和查询条件。Runner Agent清单增加 `session_list_supported`，不支持目录发现时只提供手填。
+
+Run.session增加可空command，为Runner执行时生成的原生Agent续聊命令（包含目录切换），WebUI不自行推测命令。Moments.continuation_available仅在会话可用且存在该命令时为true。未记录会话的历史Run保持不变；已确认的会话可由Runner从本地适配快照补充原生命令，不重新执行Agent。
+
+## Device authorization
+
+`GET /api/v1/meta` adds `public_url` and `install` (explicit preview release, manifest, checksums and package base URL). No secrets are included. The topbar Agent Prompt uses this configured origin.
+
+Device-flow endpoints accept JSON. `POST /oauth/device/code` accepts `{name,os,register_runner,allowed_roots}` and returns `device_code,user_code,verification_uri,verification_uri_complete,expires_in:600,interval:5`. `POST /oauth/token` accepts `{grant_type:"urn:ietf:params:oauth:grant-type:device_code",device_code}`. Errors include `authorization_pending`, `slow_down` (increase interval by five seconds), `access_denied`, `expired_token`, `invalid_grant`. A successful exchange returns `access_token,token_type,user` once; loss before local persistence requires reauthorization.
+
+`GET /device-authorizations/{user_code}` and `POST .../approve|deny` require a Web session cookie; API keys and bearer sessions cannot approve. Cookie writes require existing CSRF headers/origin checks. Merely loading a URL never approves. Requests and rate limits live in PostgreSQL, codes are hashed, and responses use no-store. Approval and exchange recheck active account and role.
+
+Admin/Operator may register; Viewer may authorize CLI-only. Revocation remains Admin-only. `POST /runners/connect` accepts `request_id,public_key,name,allowed_roots,timestamp,signature` and requires Operator plus Ed25519/NKey proof over canonical JSON produced by `device_auth::proof`. Persist request ID and private key before calling. Retrying the same signed identity reissues the device bearer and invalidates the prior bearer; different keys, owners, revoked devices and name conflicts are rejected. OAuth-issued setup keys cannot change the approved name or roots.

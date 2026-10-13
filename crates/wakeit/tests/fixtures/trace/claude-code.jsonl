@@ -1,0 +1,5 @@
+{"type":"system","subtype":"init"}
+{"type":"assistant","message":{"id":"message-1","content":[{"type":"thinking","thinking":"private should never appear"},{"type":"tool_use","id":"cmd-1","name":"Bash","input":{"command":"printf 中文"}},{"type":"tool_use","id":"tool-2","name":"Read","input":{"file_path":"README"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"cmd-1","content":"中文","is_error":false}]}}
+{"type":"assistant","message":{"id":"message-2","content":[{"type":"text","text":"# 完成\n\n报告"}]}}
+{"type":"result","subtype":"success","result":"# 完成\n\n报告"}

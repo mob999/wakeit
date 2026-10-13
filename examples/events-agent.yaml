@@ -1,0 +1,10 @@
+version: 1
+id: custom-events
+name: Custom Events
+mode: sync
+submit:
+  command: python3
+  args: [/opt/my-agent/events-adapter.py]
+  stdin: '{{task.prompt}}'
+output:
+  format: events

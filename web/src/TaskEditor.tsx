@@ -1,0 +1,528 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Clock, ChevronRight } from 'lucide-react'
+import { api, time, type Task, type TaskConfig, type Runner } from './api'
+import { Button, Field, Modal } from './ui'
+import { ChoicePicker } from './ChoicePicker'
+import { AgentLogo } from './AgentLogo'
+import { DirectoryPicker } from './DirectoryPicker'
+import { ModelPicker, ParameterFields } from './ModelPicker'
+import { createTaskId, taskIdSuffix } from './taskId'
+import { SessionBinding } from './sessions/SessionBinding'
+export type TaskDefaults = {
+  runner: string
+  agent?: string
+  cwd?: string
+  parameters?: Record<string, string>
+  session?: { id: string } | null
+}
+export function TaskEditor({
+  task,
+  defaultTimezone,
+  defaults,
+  onClose,
+}: {
+  task?: Task
+  defaultTimezone: string
+  defaults?: TaskDefaults
+  onClose: () => void
+}) {
+  const client = useQueryClient()
+  const runners = useQuery<Runner[]>({
+    queryKey: ['runners'],
+    queryFn: () => api('/runners'),
+    refetchInterval: 3000,
+  })
+  const [step, setStep] = useState<'task' | 'time'>('task')
+  const [suffix] = useState(taskIdSuffix)
+  const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({})
+  const [config, setConfig] = useState<TaskConfig>(() =>
+    task
+      ? { ...task.config, parameters: task.config.parameters ?? {} }
+      : {
+          version: 1,
+          id: '',
+          name: '',
+          runner: defaults?.runner ?? '',
+          agent: defaults?.agent ?? '',
+          cwd: defaults?.cwd ?? '',
+          prompt: '',
+          parameters: defaults?.parameters ?? {},
+          session: defaults?.session ?? null,
+          enabled: true,
+          schedule: { cron: '0 9 * * *', timezone: defaultTimezone },
+          execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
+        },
+  )
+  const [error, setError] = useState('')
+  const [scheduleType, setScheduleType] = useState(
+    config.schedule?.every
+      ? 'every'
+      : config.schedule?.at
+        ? 'at'
+        : config.schedule
+          ? 'cron'
+          : 'manual',
+  )
+  const selectedRunner = runners.data?.find(
+    (r) => r.name === config.runner || r.id === config.runner,
+  )
+  const selectedAgent = selectedRunner?.agents.find((a) => a.id === config.agent)
+  const hasAdvanced =
+    !!selectedAgent?.session_supported ||
+    !!config.session ||
+    Object.keys(selectedAgent?.parameters ?? {}).some((key) => key !== 'model')
+  const preview = useQuery<string[]>({
+    queryKey: ['preview', config.schedule],
+    queryFn: () => api('/schedule/preview', 'POST', config.schedule),
+    enabled: step === 'time' && !!config.schedule,
+    retry: false,
+  })
+  const change = (key: keyof TaskConfig, value: any) =>
+    setConfig((c) => ({
+      ...c,
+      [key]: value,
+      ...(key === 'cwd' && value !== c.cwd ? { session: null } : {}),
+      ...(key === 'name' && !task ? { id: createTaskId(value, suffix) } : {}),
+    }))
+  const validateTask = () => {
+    if (!config.name.trim()) throw new Error('请填写任务名称')
+    if (!config.prompt.trim()) throw new Error('请填写指令')
+    if (!selectedRunner || selectedRunner.revoked) throw new Error('请选择 Runner')
+    const agent = selectedRunner.agents.find((a) => a.id === config.agent)
+    if (!agent) throw new Error('请选择该 Runner 的 Agent')
+    if (!config.cwd.trim()) throw new Error('请选择工作目录')
+    if (config.session && !config.session.id.trim()) throw new Error('请填写会话 ID')
+    if (config.session && !agent.session_supported) throw new Error('该 Agent 不支持绑定会话')
+    for (const [key, value] of Object.entries(config.parameters)) {
+      const spec = agent.parameters[key]
+      if (!spec) throw new Error(`未知参数：${key}`)
+      if (spec.type !== 'string' || new TextEncoder().encode(value).length > 4096)
+        throw new Error(`参数无效：${spec.label || key}`)
+      const resolved = value || spec.default
+      if (resolved && spec.enum?.length && !spec.enum.includes(resolved))
+        throw new Error(`请选择有效的${spec.label || key}`)
+    }
+  }
+  const advance = () => {
+    if (save.isPending) return
+    try {
+      validateTask()
+      setError('')
+      setStep('time')
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const save = useMutation({
+    mutationFn: async () => {
+      try {
+        validateTask()
+      } catch (e) {
+        setStep('task')
+        throw e
+      }
+      try {
+        if (!validDuration(config.execution.timeout))
+          throw new Error('请填写有效的执行超时（1 秒至 366 天）')
+        if (!validDuration(config.execution.start_grace))
+          throw new Error('请填写有效的允许延迟（1 秒至 366 天）')
+        if (config.schedule) await api('/schedule/preview', 'POST', config.schedule)
+      } catch (e) {
+        setStep('time')
+        throw e
+      }
+      const next = { ...config, id: task?.id ?? createTaskId(config.name, suffix) }
+      return api(`/tasks/${encodeURIComponent(next.id)}`, 'PUT', {
+        config: next,
+        expected_revision: task?.revision ?? null,
+      })
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['tasks'] })
+      onClose()
+    },
+    onError: (e) => setError(e.message),
+  })
+  return (
+    <Modal
+      open
+      onOpenChange={(v) => !v && !save.isPending && onClose()}
+      title={task ? '编辑任务' : '新建任务'}
+      wide
+    >
+      <div className="tabs modal-tabs" role="tablist" aria-label="任务编辑">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={step === 'task'}
+          className={step === 'task' ? 'active' : ''}
+          disabled={save.isPending}
+          onClick={() => {
+            setStep('task')
+            setError('')
+          }}
+        >
+          任务
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={step === 'time'}
+          className={step === 'time' ? 'active' : ''}
+          disabled={save.isPending}
+          onClick={advance}
+        >
+          时间
+        </button>
+      </div>
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault()
+          setError('')
+          if (save.isPending) return
+          if (step === 'task') advance()
+          else save.mutate()
+        }}
+      >
+        <div className="modal-body">
+          <fieldset className="editor-fields" disabled={save.isPending}>
+            <div hidden={step !== 'task'} inert={step !== 'task'}>
+              <div className="task-core">
+                <Field label="任务名称">
+                  <input
+                    autoFocus
+                    value={config.name}
+                    onChange={(e) => change('name', e.target.value)}
+                    required
+                    placeholder="每日仓库检查"
+                  />
+                </Field>
+                <Field label="指令">
+                  <textarea
+                    value={config.prompt}
+                    onChange={(e) => change('prompt', e.target.value)}
+                    required
+                    rows={4}
+                    placeholder="描述希望 Agent 完成的工作…"
+                  />
+                </Field>
+                <div className="form-grid">
+                  <Field label="Runner">
+                    <ChoicePicker
+                      label="Runner"
+                      searchable
+                      placeholder="选择设备"
+                      disabled={save.isPending}
+                      value={selectedRunner?.name ?? config.runner}
+                      options={(runners.data ?? [])
+                        .filter((r) => !r.revoked)
+                        .map((r) => ({
+                          value: r.name,
+                          label: r.name,
+                          status: r.online ? undefined : '离线',
+                        }))}
+                      onChange={(value) =>
+                        value === selectedRunner?.name
+                          ? undefined
+                          : setConfig((c) => ({
+                              ...c,
+                              runner: value,
+                              cwd: '',
+                              agent: '',
+                              parameters: {},
+                              session: null,
+                            }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Agent">
+                    <ChoicePicker
+                      label="Agent"
+                      searchable
+                      placeholder="选择 Agent"
+                      disabled={save.isPending || !selectedRunner}
+                      value={config.agent}
+                      options={(selectedRunner?.agents ?? []).map((a) => ({
+                        value: a.id,
+                        label: a.name,
+                        keywords: a.id,
+                        icon: <AgentLogo name={a.name} logo={a.logo} />,
+                        status: a.available ? undefined : '未检测到',
+                      }))}
+                      onChange={(value) =>
+                        setConfig((c) =>
+                          value === c.agent
+                            ? c
+                            : { ...c, agent: value, parameters: {}, session: null },
+                        )
+                      }
+                    />
+                  </Field>
+                </div>
+                <DirectoryPicker
+                  runner={selectedRunner}
+                  value={config.cwd}
+                  onChange={(value) => change('cwd', value)}
+                />
+                <ModelPicker
+                  key={`${selectedRunner?.id}/${config.agent}`}
+                  runner={selectedRunner}
+                  agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
+                  cwd={config.cwd}
+                  values={config.parameters}
+                  onChange={(values) => change('parameters', values)}
+                  onOptionsChange={setModelOptions}
+                  submitting={save.isPending}
+                />
+              </div>
+              {hasAdvanced && (
+                <details className="advanced-settings">
+                  <summary>
+                    <ChevronRight size={14} />
+                    <span>高级设置</span>
+                  </summary>
+                  <div className="advanced-body">
+                    {(selectedAgent?.session_supported || config.session) && (
+                      <SessionBinding
+                        runner={selectedRunner}
+                        agent={selectedAgent}
+                        cwd={config.cwd}
+                        value={config.session ?? null}
+                        disabled={save.isPending}
+                        onChange={(session) => change('session', session)}
+                      />
+                    )}
+                    <ParameterFields
+                      disabled={save.isPending}
+                      agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
+                      values={config.parameters}
+                      options={modelOptions}
+                      onChange={(values) => change('parameters', values)}
+                    />
+                  </div>
+                </details>
+              )}
+            </div>
+            <div hidden={step !== 'time'} inert={step !== 'time'}>
+              <div className="form-grid">
+                <Field label="类型">
+                  <ChoicePicker
+                    label="类型"
+                    value={scheduleType}
+                    disabled={save.isPending}
+                    options={[
+                      { value: 'cron', label: 'Cron' },
+                      { value: 'every', label: '固定间隔' },
+                      { value: 'at', label: '一次性执行' },
+                      { value: 'manual', label: '手动执行' },
+                    ]}
+                    onChange={(value) => {
+                      const type = value
+                      setScheduleType(type)
+                      change(
+                        'schedule',
+                        type === 'manual'
+                          ? null
+                          : {
+                              timezone: config.schedule?.timezone ?? defaultTimezone,
+                              ...(type === 'cron'
+                                ? { cron: '0 9 * * *' }
+                                : type === 'every'
+                                  ? { every: '1h' }
+                                  : { at: new Date(Date.now() + 3600000).toISOString() }),
+                            },
+                      )
+                    }}
+                  />
+                </Field>
+                {config.schedule && (
+                  <Field label="时区">
+                    <input
+                      value={config.schedule.timezone}
+                      onChange={(e) =>
+                        change('schedule', { ...config.schedule, timezone: e.target.value })
+                      }
+                    />
+                  </Field>
+                )}
+              </div>
+              {config.schedule && (
+                <Field
+                  label={
+                    scheduleType === 'cron'
+                      ? 'Cron 表达式'
+                      : scheduleType === 'every'
+                        ? '间隔'
+                        : '执行时间'
+                  }
+                  hint={scheduleType === 'cron' ? '分钟 小时 日期 月份 星期' : undefined}
+                >
+                  <input
+                    className="mono"
+                    value={
+                      config.schedule.cron ?? config.schedule.every ?? config.schedule.at ?? ''
+                    }
+                    onChange={(e) =>
+                      change('schedule', { ...config.schedule, [scheduleType]: e.target.value })
+                    }
+                    required
+                  />
+                </Field>
+              )}
+              {config.schedule && (
+                <div className="preview">
+                  <Clock size={13} />
+                  <div>
+                    <span>接下来的执行时间</span>
+                    {preview.error ? (
+                      <small className="error">{preview.error.message}</small>
+                    ) : (
+                      preview.data?.map((t) => (
+                        <small key={t}>
+                          {time(t, config.schedule!.timezone || defaultTimezone)}{' '}
+                          {config.schedule!.timezone || defaultTimezone}
+                        </small>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+              <details className="advanced-settings">
+                <summary>
+                  <ChevronRight size={14} />
+                  <span>高级设置</span>
+                </summary>
+                <div className="advanced-body">
+                  <div className="form-grid">
+                    <Field label="执行超时">
+                      <input
+                        value={config.execution.timeout}
+                        onChange={(e) =>
+                          change('execution', { ...config.execution, timeout: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="允许延迟">
+                      <input
+                        value={config.execution.start_grace}
+                        onChange={(e) =>
+                          change('execution', { ...config.execution, start_grace: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="错过执行">
+                      <ChoicePicker
+                        label="错过执行"
+                        value={config.execution.misfire}
+                        disabled={save.isPending}
+                        options={[
+                          { value: 'latest', label: '补最近一次' },
+                          { value: 'skip', label: '跳过' },
+                        ]}
+                        onChange={(value) =>
+                          change('execution', { ...config.execution, misfire: value })
+                        }
+                      />
+                    </Field>
+                    <Field label="执行重叠">
+                      <ChoicePicker
+                        label="执行重叠"
+                        value={config.execution.overlap}
+                        disabled={save.isPending}
+                        options={[
+                          { value: 'skip', label: '跳过新触发' },
+                          { value: 'allow', label: '允许并行' },
+                        ]}
+                        onChange={(value) =>
+                          change('execution', { ...config.execution, overlap: value })
+                        }
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </fieldset>
+        </div>
+        <div className="modal-footer">
+          {error && (
+            <span className="error" role="alert">
+              {error}
+            </span>
+          )}
+          <Button type="button" disabled={save.isPending} onClick={onClose}>
+            取消
+          </Button>
+          {step === 'time' && (
+            <Button
+              type="button"
+              disabled={save.isPending}
+              onClick={() => {
+                setStep('task')
+                setError('')
+              }}
+            >
+              上一步
+            </Button>
+          )}
+          <Button variant="solid" type="submit" disabled={save.isPending}>
+            {step === 'task' ? '下一步' : save.isPending ? '正在保存…' : '保存任务'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function validDuration(value: string) {
+  const units: Record<string, number> = {
+    ns: 1e-9,
+    nsec: 1e-9,
+    nanos: 1e-9,
+    us: 1e-6,
+    usec: 1e-6,
+    µs: 1e-6,
+    ms: 0.001,
+    msec: 0.001,
+    millis: 0.001,
+    s: 1,
+    sec: 1,
+    secs: 1,
+    second: 1,
+    seconds: 1,
+    m: 60,
+    min: 60,
+    mins: 60,
+    minute: 60,
+    minutes: 60,
+    h: 3600,
+    hr: 3600,
+    hrs: 3600,
+    hour: 3600,
+    hours: 3600,
+    d: 86400,
+    day: 86400,
+    days: 86400,
+    w: 604800,
+    wk: 604800,
+    wks: 604800,
+    week: 604800,
+    weeks: 604800,
+    M: 2630016,
+    month: 2630016,
+    months: 2630016,
+    y: 31557600,
+    yr: 31557600,
+    yrs: 31557600,
+    year: 31557600,
+    years: 31557600,
+  }
+  let seconds = 0
+  const rest = value.trim().replace(/(\d+(?:\.\d+)?)\s*([a-zMµ]+)/g, (_part, number, unit) => {
+    seconds += Number(number) * (units[unit] ?? NaN)
+    return ''
+  })
+  return !rest.trim() && Number.isFinite(seconds) && seconds >= 1 && seconds <= 366 * 86400
+}

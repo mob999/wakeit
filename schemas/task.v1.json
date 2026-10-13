@@ -1,0 +1,159 @@
+{
+  "$defs": {
+    "Execution": {
+      "additionalProperties": false,
+      "properties": {
+        "misfire": {
+          "$ref": "#/$defs/Misfire",
+          "default": "latest"
+        },
+        "overlap": {
+          "$ref": "#/$defs/Overlap",
+          "default": "skip"
+        },
+        "start_grace": {
+          "default": "1h",
+          "type": "string"
+        },
+        "timeout": {
+          "default": "1h",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Misfire": {
+      "enum": [
+        "skip",
+        "latest"
+      ],
+      "type": "string"
+    },
+    "Overlap": {
+      "enum": [
+        "skip",
+        "allow"
+      ],
+      "type": "string"
+    },
+    "Schedule": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cron": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "every": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timezone": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "SessionBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agent": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "enabled": {
+      "default": true,
+      "type": "boolean"
+    },
+    "execution": {
+      "$ref": "#/$defs/Execution",
+      "default": {
+        "misfire": "latest",
+        "overlap": "skip",
+        "start_grace": "1h",
+        "timeout": "1h"
+      }
+    },
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string"
+    },
+    "schedule": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Schedule"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "session": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SessionBinding"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "version": {
+      "default": 1,
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "runner",
+    "agent",
+    "cwd",
+    "prompt"
+  ],
+  "title": "TaskConfig",
+  "type": "object"
+}

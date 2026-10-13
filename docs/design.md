@@ -1,0 +1,200 @@
+# WebUI 样式基准
+
+视觉基准为 [ghdiff](https://github.com/GalvinGao/ghdiff)，主要对照 src/globals.css、ReviewHeader、ReviewSidebar、PullRow 与 ui/buttonClass。wakeit 的组件独立实现，使用同一组中性色和控件尺度。
+
+| 项目 | Light | Dark |
+|---|---|---|
+| 主画布 | #ffffff | #0a0a0a |
+| 顶栏、侧栏、列表底色 | #f5f5f5 | #171717 |
+| 选中行、菜单 | #ffffff | #1f1f1f |
+| 细边框 | #e5e5e5 | #262626 |
+| 正文 | #0a0a0a | #fafafa |
+| 次要文字 | #525252 | #a3a3a3 |
+| 主按钮 | 黑底白字 | 白底黑字 |
+
+使用系统无衬线字体；命令、配置、Cron、路径、日志使用平台等宽字体。顶栏 44px，小按钮 28px，圆角 6px，图标保持单色。状态使用与 ghdiff 一致的 GitHub Primer 成功、等待、失败颜色。
+
+布局保持可调整宽度的列表与详情工作台。列表使用紧凑行和轻选中背景；详情使用分隔线、配置和日志区域。后续页面沿用这些变量与组件，避免另起一套颜色、字体、间距体系。
+
+滚动条沿用 ghdiff 的原生 CSS 样式：8px 透明轨道，滑块两侧各 2px 透明留白、圆角和次要文字色，悬停及拖动逐步加深；Firefox 使用标准 thin 滚动条，高对比度模式保留浏览器默认。列表、详情、弹窗、编辑框和横向滚动统一使用该样式。
+
+文本输入、文本区和下拉控件聚焦时只加深原有 1px 边框，不叠加外圈或阴影；文本区不提供拖拽缩放手柄。
+
+![Tasks 深色](screenshots/tasks-dark.png)
+
+![Runs 浅色](screenshots/run-light.png)
+
+## 0.1.0 工作台更新
+
+顶栏左区展示 Logo、Wakeit 与折叠按钮；中间展示当前页面面包屑及透明图标操作，右区展示弱化等宽版本 0.1.0、主题按钮和用户菜单。删除工作区圆点/文字、顶栏标语和侧栏重复版本。侧栏图标为 ListTodo、History、Monitor、Settings2（搜索范围 Agents 使用 Bot），保持单色和 16px 尺寸。
+
+目录选择器使用同一套 Radix 弹窗与紧凑行。先选 Runner 和目录再查询模型，适配能力决定是否提供搜索下拉，失败、空列表和无接口时采用手填，不显示静态或旧结果。模型、目录、任务编辑器和布局独立为组件。
+
+## 紧凑任务编辑与全局搜索
+
+任务编辑统一为“任务 / 时间”两页。任务页显示名称、指令、Runner/Agent、目录和模型；其余 Agent 参数折叠在高级设置中。下一步只校验草稿，不保存。时间页直接显示调度类型、时区、输入和五次预览，超时及执行策略折叠；手动执行隐藏时间输入和预览，在该页保存。任务 ID 在内部由名称（中文转拼音，英文保留大小写）加随机后缀生成，编辑时保持 ID；表单不展示 ID 或生成过程。
+
+主侧栏提供唯一搜索入口，可通过 Cmd/Ctrl+K 打开。搜索弹窗沿用工作台的中性色、细边框、紧凑控件和单色图标。范围可多选 Tasks、Runs、Runners、Agents、Settings；不选则跨范围搜索。选中范围后显示对应筛选项，结果按对象分组；点击结果进入详情，应用筛选后各页面共享筛选状态，清除筛选恢复全部列表。Tasks、Runs 及任务执行历史均使用服务端分页，每页 20 条。第二侧栏只保留列表、操作和页码。
+
+产品文案仅包含字段、数据、操作与必要的错误/后果说明。删除页面简介、底部自动更新说明、并发编辑实现说明、接入协议说明及登录页标语；开发约定与适配教程保留在文档中。
+
+显示品牌统一为 Wakeit，命令及配置标识保留 wakeit。搜索筛选行使用固定范围列与等宽控件列，重置通用表单的底部外边距；范围名称与控件纵向居中对齐，窄屏将范围名称单独放在行首。
+
+## 统一工作台
+
+Tasks、Runs、Runners、Settings 共用可调宽度的列表与详情骨架；第二侧栏背景、选中行、详情标题、分隔线及滚动一致。第一侧栏保持唯一搜索入口，不提供独立 Agents 导航。窄屏显示列表，选择后进入详情，通过面包屑返回列表，不产生横向滚动；深链接直接进入详情。
+
+Runners 每页 20 台，列表显示名称、连接状态、系统和并发占用，按名称及 ID 排序。选中对象通过 URL 保留，查询刷新不改变选择。详情有概览、Agents 两个页签；概览展示系统、版本、并发、最近连接和执行范围。创建任务预选 Runner，吊销位于 Admin 的设备操作菜单。
+
+Agent 完整配置仍属于 Runner。Agents 页签展示该设备实际上报的名称、版本、检测状态；展开一行查看执行模式、取消能力、模型发现能力及只读参数默认值。设备连接状态与 Agent 检测状态分别呈现。创建任务预选 Runner 与 Agent；模型目录仍在任务编辑器选定 cwd 后查询。适配模板和 Schema 通过 CLI、API 与文档提供，设备页不展示模板入口。
+
+全局搜索保留 Agents 范围，结果按 Runner + Agent 标识，点击进入 `/runners?runner=ID&section=agents&agent=AGENT_ID` 并展开该行；点击具体结果清除另一个设备/Agent 范围中的冲突条件以保证精确定位。应用 Agents 筛选进入设备的 Agents 页签；设备须有匹配的 Agent，详情只展示匹配项，与 Runners 筛选取交集。同名适配的能力不跨设备合并。
+
+Settings 第二侧栏展示工作区、成员、API Key 及归档任务；分类标题合并至顶栏面包屑，卡片占满可用宽度，滚动位于详情区域最右侧。工作区采用 64px 设置行，表格行高 48px、按钮高 28px。窄屏字段上下排列。
+
+工作区时区可搜索选择，保留天数输入宽 96px，单位在控件外；修改后出现取消/保存栏。成员角色为文字菜单；邀请及 API Key 创建进入弹窗，密钥仅显示一次。成员与 API Key 每页 20 条，总数仅在分页区域显示，详情标题不显示计数。API Key 创建使用 Plus 图标，默认不过期，可选择预设期限或自定义时间。
+
+Admin 默认工作区，Operator/Viewer 仅有个人 API Key。`/settings?section=workspace|members|tokens` 和全局搜索定位对应分类，手动选择清除 Settings 范围的筛选。未保存保护覆盖分类、侧栏、全局搜索、面包屑、退出登录和页面关闭；后台刷新不覆盖输入。
+
+![Runner Agents 浅色](screenshots/runners-agents-light.png)
+
+![Runner Agents 深色](screenshots/runners-agents-dark.png)
+
+![设置页浅色](screenshots/settings-workspace-light.png)
+
+![设置页深色](screenshots/settings-workspace-dark.png)
+
+详情层级统一使用面包屑：Tasks → 任务、Runs → 执行、Runners → 设备 → Agents → 当前 Agent、Settings → 分类。祖先节点可点击，当前节点只显示文字；窄屏同样通过根节点返回列表，不提供单独的返回按钮。设置面包屑遵守未保存保护。
+
+Runner 的 Agent 表格占满详情内容宽度，采用细边框、6px 圆角、弱化表头和统一 48px 行高。列为 Agent、版本、检测状态、操作；行内创建任务使用无边框 ListPlus 图标和可访问名称。Agent 只显示一行名称，旁边使用配置中的官方 Logo；缺省或加载失败显示首字母。
+
+## Tasks / Runs 列表与运行内容
+
+两个列表使用相同的三行结构：任务名称与状态、Runner 图标和名称及 Agent Logo 与显示名、时间。字段之间使用图标和留白，不使用装饰分隔点；Run ID 与触发来源仅出现在详情。Runs 面包屑为 Runs → 任务名称 → 执行时间，任务节点可进入对应任务。
+
+运行名称、执行时间与操作合并至顶栏面包屑及操作区，正文不重复显示大标题；状态仅在左侧列表展示。页签为执行、详情。执行页固定过程→结果；运行中展开过程，成功且有非空结果后强制折叠过程、展开结果，每个 Run 仅一次，之后用户手动展开不被刷新覆盖。成功无结果、失败、取消及未知状态展示必要提示，不将日志当报告。详情页日志默认展开、执行信息默认折叠；设备、目录、解析参数、时间、来源、完整 ID、任务 YAML 和状态事件均保留。切换页签不丢失工具展开、原文模式或跟随输出状态。
+
+字符串结果使用 Markdown 阅读视图，支持表格、列表、代码块及链接，并可切换原文或复制。JSON 结果保留结构化原文，不猜测摘要；成功空结果显示未返回结果，持久化截断结果明确标记。阅读视图沿用中性色、紧凑字号与细边框，HTML 经白名单清理后展示，仅 span 可带受限文本样式；危险链接协议不进入可点击链接。
+
+![Runs Markdown 浅色](screenshots/runs-result-light.png)
+
+![Runs Markdown 深色](screenshots/runs-result-dark.png)
+
+## 按钮与工作台边缘
+
+工具栏和行内操作统一使用 28×28px 透明图标按钮，图标 16px，圆角 6px，无可见边框、底色和阴影。默认次要颜色，悬停时出现轻灰背景；取消执行、撤销 API Key 的图标悬停时使用失败色。图标始终可见，通过可访问名称和 Radix Tooltip 标识操作；悬停延迟 400ms，键盘聚焦立即显示。
+
+公共 Button 使用 ghost、solid 两种外观；弹窗和表单的提交保留文字主按钮，次要操作使用透明文字按钮。目录、模型等输入控件保留边框，刷新等辅助操作采用图标。导航、页签、搜索范围和角色菜单保留文字。
+
+移除 Tasks、Runs、Runners 侧栏标题计数、Runs 装饰波形、执行历史及 Agents 页签计数。Task、Run 顶栏操作区分别提供复制真实 Task ID、Run ID 的图标，复制成功仅短暂显示 Check；Task 标题不再重复打印 ID。分页总数继续放在列表底部。
+
+分隔线参考 [ghdiff PaneResizeHandle](https://github.com/GalvinGao/ghdiff/blob/21902f4cdd153b749787c5bff7a6c01a4b9521c8/src/components/PaneResizeHandle.tsx)：列表自身的 1px 边框是可见分界，8px 的透明拖拽区域覆盖其边缘，不占额外布局列。悬停、聚焦、拖拽时出现细高亮；支持方向键调整、双击恢复默认宽度，保留用户宽度设置。
+
+一级导航同样可拖拽，默认宽 144px，可调 128–280px；折叠后宽 44px，仅显示导航图标及 Tooltip。保存展开宽度与折叠偏好，展开恢复此前宽度；拖拽即时响应，折叠使用 200ms 宽度过渡并遵循减少动画偏好。两处分隔线都使用同一组件；内容区自动预留宽度，窗口变窄不覆盖已保存的宽度。
+
+顶栏左区与一级导航共用宽度和 1px 分界线，分隔线贯穿顶部。展开时显示 Logo、Wakeit 与折叠按钮；折叠后只保留可展开的 Logo。版本和用户菜单一直位于右上角。手机默认图标导航，展开以覆盖层显示文字导航，关闭后恢复图标，不覆盖桌面偏好。
+
+执行历史和最近执行行按内容分配 Runner、Agent 名称的宽度，不再固定为 80px。空间足够时显示完整名称，窄屏分成两行并保留时间和状态。
+
+![一级导航折叠浅色](screenshots/navigation-collapsed-light.png)
+
+![一级导航折叠深色](screenshots/navigation-collapsed-dark.png)
+
+Agent 过程采用细分隔线的纵向列表，显示类型图标、标题、状态和已知耗时；工具/命令展开输入、输出，消息使用与结果一致的 Markdown 渲染。只呈现 Agent 的公开事件，不增加平台调度链路或推理内容。能力缺失、历史未记录、等待、截断和过期分别显示简短状态。
+
+## 选择控件与 Run 内容层级
+
+任务编辑器的 Runner、Agent、模型和枚举共用 ChoicePicker。Runner 和 Agent 支持搜索，状态单独右对齐；Agent 展示等字号 Logo 与名称。弹层与触发器等宽，支持键盘、焦点恢复和窄屏边界；不改变离线选择、模型发现和手填规则。
+
+全部工作台沿用 Runner Agents 表格的容器：1px 细边框、6px 圆角、无阴影，浅色表头约44px、数据行48px、卡片间距16px。内容区左右留白18px，窄屏Run区12px，卡片占满可用宽度。属性以标签/值行展示，内部使用分隔线，不给字段和Trace节点重复套卡片。
+
+任务概览依次展示调度、指令、执行内容、最近执行；指令独立成卡片，位于第二行；最近执行与执行历史只保留一行表头，名称和列名同排，窄屏保留名称。表头与数据行通过共享列轨道对齐，设备/Agent和执行时间不再按每行内容独立计算宽度。Run的过程/输出、结果、日志和执行信息采用同一折叠卡片，操作放表头右侧。Trace使用动作、状态、耗时的固定对齐列，真实未知耗时以破折号表示，不推断时间。原文、输入输出和配置留在展开内容内，Markdown代码保留轻背景。
+
+Runner概览、工作区设置、成员/Token表格和搜索结果分组共用相同边框、表头与行样式。登录与全部弹窗统一6px边框及标题/内容/操作区域；任务编辑高级分组、目录和选择器沿用相同控件语言。报告与过程共用页面滚动，长日志保留跟随与独立滚动。
+
+![任务选择控件浅色](screenshots/task-choice-light.png)
+
+![任务选择控件深色](screenshots/task-choice-dark.png)
+
+![全页面卡片：任务](screenshots/cards-task-1440-light.png)
+
+![全页面卡片：运行](screenshots/cards-run-1440-light.png)
+
+![全页面卡片：成员](screenshots/cards-members-1440-light.png)
+
+![全页面卡片：搜索](screenshots/cards-search-light.png)
+
+![API Key 创建](screenshots/settings-api-key-light.png)
+
+![API Key 创建深色](screenshots/settings-api-key-dark.png)
+
+![API Key 自定义到期时间窄屏](screenshots/settings-api-key-mobile.png)
+
+Settings 新增归档任务分类，Admin、Operator 可见；保持原默认分类。成员表格为成员/角色/状态/操作四列，标题提供 Plus 新建账号与邀请图标，行内使用角色菜单及 MoreHorizontal 操作菜单。归档表格展示任务、Runner、Agent、归档时间、恢复图标；均使用现有容器和分页。任务详情提供 Archive 图标及确认；已归档任务只读，恢复后保持暂停。
+
+![成员管理](screenshots/members-management-light.png)
+
+![创建账号](screenshots/member-create-light.png)
+
+![成员管理深色](screenshots/members-management-dark.png)
+
+![成员管理窄屏](screenshots/members-management-mobile.png)
+
+### Moments
+
+Moments 位于 Tasks 上方，是 `/` 默认主页；Tasks 使用 `/tasks`。不使用第二侧栏。沿用整宽细边框容器、弱化表头、透明图标按钮和等字号 Agent Logo。完成时间按工作区时区分组，左侧时间与贯穿所有日期的中性竖线节点，日期与右侧卡片左对齐；卡片表头包含任务名称、设备、Agent、状态与操作，正文仅展示结果及必要原因。窄屏把时间移至卡片上方，避免挤压正文。
+
+日期不折叠，不按单条数量提供例外。所有结果采用预览与阅读全文，预览最高 240px；短结果不显示展开入口。每批 14 个日期，日期内每批 20 条。首次进入加载，之后仅用户刷新，不轮询、不因聚焦或重连自动更新。失败保留实际原因，报告支持 Markdown、表格、代码与 JSON。返回运行详情后保留当前访问的阅读位置，浏览器重载重置；正文不持久化到本地存储。
+
+![Moments 浅色](screenshots/moments-1440-light.png)
+
+![Moments 深色](screenshots/moments-1440-dark.png)
+
+![Moments 窄屏](screenshots/moments-390-dark.png)
+
+
+### 目录选择
+
+参考 [VS Code Simple File Dialog](https://code.visualstudio.com/docs/editing/getting-started/tips-and-tricks#simple-file-dialog)，使用路径输入与紧凑目录列表。打开时进入已选目录；未选择时进入本次访问最后选择的目录，首次使用只有一个允许根目录则直接进入。多根目录可从根目录按钮切换，不扫描整棵文件树。
+
+单击选择、双击或右侧箭头进入，方向键选择、Tab 补全进入、Enter 进入、Ctrl/⌘ Enter 确认、Alt+↑ 返回上级、Escape 取消。可以粘贴绝对路径，或输入当前目录内的名称筛选；筛选会继续读取该目录的剩余分页，不漏掉第 200 项之后的匹配。默认隐藏点开头的目录，提供显隐按钮。中文、空格和 Windows 路径按 Runner 原样保留。
+
+确认前重新向 Runner 校验目录，删除或符号链接越界时不提交旧结果；等待校验时关闭弹窗不会迟到地修改任务。正文不增加实现说明。
+
+![目录选择浅色](screenshots/directory-picker-1440-light.png)
+
+![目录选择深色](screenshots/directory-picker-1440-dark.png)
+
+![目录选择窄屏](screenshots/directory-picker-390-dark.png)
+
+## 顶栏上下文与正文起点
+
+页面面包屑是唯一的页面标题，固定在 44px 顶栏内。Tasks、Runs、Runners、Settings 正文删除重复的面包屑、大标题与操作行；第二侧栏仍保留列表标题和新建入口。正文直接从页签或内容开始，卡片、表格及分区标题保留。
+
+页面操作在面包屑右侧，使用细分隔线与版本、主题、账号区分开。窄屏将页面操作收进“页面操作”图标入口，保留原操作的权限、禁用和确认状态；仅查看列表时顶栏只显示列表名称。设置分类切换及根面包屑继续遵守未保存保护。
+
+Moments 正文不再重复显示标题或刷新栏，桌面距离顶栏 16px，窄屏 12px。日期文字中心对齐时间线，不显示日期圆点；日期文字覆盖线条，条目节点和连续时间线保留。窄屏为日期预留左侧空间，长日期不超出边界。
+
+![Moments 顶栏与日期](screenshots/moments-1440-light.png)
+
+![Moments 窄屏](screenshots/moments-390-light.png)
+
+![Task 顶栏](screenshots/header-tasks-1440.png)
+
+![Run 顶栏](screenshots/header-runs-1440.png)
+
+## Markdown 扩展
+
+结果、Moments 与 Trace 消息统一使用 react-markdown，启用 GFM、remark-math / KaTeX、rehype-highlight 和受限 HTML。带语言的代码块提供语法高亮；diff 的新增、删除分别使用成功与失败色，未知语言仍显示原文。行内公式使用 `$…$`，独立公式使用 `$$` 包围的块。
+
+HTML 先经 rehype-raw 解析，受限文本样式处理后经 rehype-sanitize 清理，再生成公式与高亮。span 允许 color、background-color、font-weight、font-style、text-decoration；颜色允许 CSS 颜色名称、十六进制和 rgb/hsl 值，不接受 URL、变量、布局或任意 CSS。代码块里的 HTML 始终是源码。
+
+mermaid 代码块按需加载 Mermaid，随明暗主题重绘。图表使用 strict 模式，清理后的 SVG 在独立无脚本沙箱内展示；不能覆盖工作台样式或启动页面回调。源码保留在紧凑折叠区；语法或加载失败显示简短状态并保留源码，不影响其余报告。正文和源码不进入本地存储。
+
+参考：[rehype-sanitize](https://github.com/rehypejs/rehype-sanitize)、[remark-math](https://github.com/remarkjs/remark-math)、[Mermaid](https://mermaid.js.org/config/usage.html)。
+
+![Markdown 扩展浅色](screenshots/markdown-1440-light.png)
+
+![Markdown 扩展深色](screenshots/markdown-1440-dark.png)
+
+![Markdown 扩展窄屏](screenshots/markdown-390-dark.png)

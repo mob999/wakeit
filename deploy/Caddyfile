@@ -1,0 +1,6 @@
+{$WAKEIT_WEB_HOST} {
+    reverse_proxy gateway-1:8080 gateway-2:8080
+}
+{$WAKEIT_MQ_HOST} {
+    reverse_proxy nats-1:8081 nats-2:8081 nats-3:8081
+}

@@ -1,0 +1,17 @@
+version: 1
+id: daily-review
+name: 每日仓库检查
+runner: dev-server
+agent: codex
+parameters: {} # 可填写 model、reasoning 等该适配声明的参数
+cwd: /srv/my-project
+prompt: |
+  检查仓库当前状态，整理需要关注的问题并生成报告。
+schedule:
+  cron: '0 9 * * *'
+  timezone: Asia/Shanghai
+execution:
+  timeout: 1h
+  start_grace: 1h
+  overlap: skip
+  misfire: latest
