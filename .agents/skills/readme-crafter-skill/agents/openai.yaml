@@ -1,0 +1,4 @@
+interface:
+  display_name: "README Crafter"
+  short_description: "Write, improve, and audit repository READMEs with project-specific structure and quality checks."
+  default_prompt: "Use $readme-crafter-skill to write or improve this repository's README."

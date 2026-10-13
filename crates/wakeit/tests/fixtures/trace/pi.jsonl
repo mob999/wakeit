@@ -1,0 +1,11 @@
+{"type":"session","version":3,"id":"fixture"}
+{"type":"tool_execution_start","toolCallId":"cmd-1","toolName":"bash","args":{"command":"printf 中文"}}
+{"type":"tool_execution_start","toolCallId":"tool-2","toolName":"read","args":{"path":"README"}}
+{"type":"tool_execution_end","toolCallId":"cmd-1","toolName":"bash","result":{"content":[{"type":"text","text":"中文"}]},"isError":false}
+{"type":"message_start","message":{"role":"assistant","timestamp":1791900000000,"content":[],"stopReason":"pending"}}
+{"type":"message_update","assistantMessageEvent":{"type":"thinking_delta","contentIndex":0,"delta":"private should never appear"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":1,"delta":"# 完成\n"}}
+{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":1,"delta":"\n报告"}}
+{"type":"message_end","message":{"role":"assistant","timestamp":1791900000000,"content":[{"type":"text","text":"# 完成\n\n报告"}],"stopReason":"stop"}}
+{"type":"agent_end","willRetry":false}
+{"type":"agent_settled","aborted":false}

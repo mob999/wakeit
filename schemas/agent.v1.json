@@ -1,0 +1,273 @@
+{
+  "$defs": {
+    "AgentMode": {
+      "enum": [
+        "sync",
+        "async"
+      ],
+      "type": "string"
+    },
+    "CommandArg": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "properties": {
+            "args": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "when_set": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "when_set",
+            "args"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CommandSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CommandArg"
+          },
+          "type": "array"
+        },
+        "command": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "env_from": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "stdin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeout": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "type": "object"
+    },
+    "OutputFormat": {
+      "enum": [
+        "text",
+        "json",
+        "jsonl",
+        "events"
+      ],
+      "type": "string"
+    },
+    "OutputSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/OutputFormat",
+          "default": "text"
+        },
+        "result_pointer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ParameterSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enum": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "label": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "default": "string",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "SessionAdapter": {
+      "additionalProperties": false,
+      "properties": {
+        "inspect": {
+          "$ref": "#/$defs/CommandSpec"
+        },
+        "interactive": {
+          "$ref": "#/$defs/CommandSpec"
+        },
+        "list": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommandSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resume": {
+          "$ref": "#/$defs/CommandSpec"
+        }
+      },
+      "required": [
+        "inspect",
+        "resume",
+        "interactive"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cancel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CommandSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "detect": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CommandSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "logo": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mode": {
+      "$ref": "#/$defs/AgentMode"
+    },
+    "models": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CommandSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "output": {
+      "$ref": "#/$defs/OutputSpec",
+      "default": {
+        "format": "text",
+        "result_pointer": null
+      }
+    },
+    "parameters": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ParameterSpec"
+      },
+      "default": {},
+      "type": "object"
+    },
+    "poll_interval": {
+      "default": "5s",
+      "type": "string"
+    },
+    "session": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SessionAdapter"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CommandSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "submit": {
+      "$ref": "#/$defs/CommandSpec"
+    },
+    "version": {
+      "default": 1,
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "mode",
+    "submit"
+  ],
+  "title": "AgentConfig",
+  "type": "object"
+}

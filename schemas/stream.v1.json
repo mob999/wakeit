@@ -1,0 +1,199 @@
+{
+  "$defs": {
+    "LogRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "diagnostic": {
+          "type": "boolean"
+        },
+        "stream": {
+          "default": "stdout",
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "SessionInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "persisted": {
+          "type": "boolean"
+        },
+        "version": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "cwd",
+        "persisted"
+      ],
+      "type": "object"
+    },
+    "TraceKind": {
+      "enum": [
+        "message",
+        "tool",
+        "command"
+      ],
+      "type": "string"
+    },
+    "TraceNode": {
+      "additionalProperties": false,
+      "properties": {
+        "finished_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "input": {
+          "default": null
+        },
+        "kind": {
+          "$ref": "#/$defs/TraceKind"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "output": {
+          "default": null
+        },
+        "parent_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/TraceState"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "title",
+        "occurred_at"
+      ],
+      "type": "object"
+    },
+    "TraceState": {
+      "enum": [
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/TraceNode"
+        },
+        "type": {
+          "const": "trace",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/LogRecord"
+        },
+        "type": {
+          "const": "log",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "data": true,
+        "type": {
+          "const": "result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/SessionInfo"
+        },
+        "type": {
+          "const": "session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "data"
+      ],
+      "type": "object"
+    }
+  ],
+  "properties": {
+    "version": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "title": "StreamRecord",
+  "type": "object",
+  "unevaluatedProperties": false
+}

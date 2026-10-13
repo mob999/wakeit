@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wakeit"
+  short_description: "部署 Wakeit、管理任务和开发 Agent 适配器"
+  default_prompt: "Use $wakeit to connect to or deploy a Gateway, manage scheduled Agent tasks, or develop an adapter."

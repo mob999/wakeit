@@ -1,0 +1,27 @@
+version: 1
+id: custom-service
+name: Custom Agent Service
+mode: async
+submit:
+  command: python3
+  args: [/opt/my-agent/adapter.py, submit]
+  stdin: '{{task.prompt}}'
+  env_from:
+    SERVICE_TOKEN: MY_AGENT_SERVICE_TOKEN
+    SERVICE_URL: MY_AGENT_SERVICE_URL
+  timeout: 60s
+status:
+  command: python3
+  args: [/opt/my-agent/adapter.py, status, '{{job.id}}']
+  env_from:
+    SERVICE_TOKEN: MY_AGENT_SERVICE_TOKEN
+    SERVICE_URL: MY_AGENT_SERVICE_URL
+  timeout: 10s
+cancel:
+  command: python3
+  args: [/opt/my-agent/adapter.py, cancel, '{{job.id}}']
+  env_from:
+    SERVICE_TOKEN: MY_AGENT_SERVICE_TOKEN
+    SERVICE_URL: MY_AGENT_SERVICE_URL
+  timeout: 30s
+poll_interval: 5s

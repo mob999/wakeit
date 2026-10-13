@@ -1,0 +1,10 @@
+version: 1
+id: custom-agent
+name: Custom Agent
+mode: sync
+submit:
+  command: /absolute/path/to/agent
+  args: [run]
+  stdin: '{{task.prompt}}'
+output:
+  format: text

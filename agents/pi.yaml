@@ -1,0 +1,73 @@
+version: 1
+id: pi
+name: Pi
+logo: /agent-logos/pi.svg
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+  provider: {type: string, label: Provider}
+  reasoning: {type: string, label: 推理强度}
+models:
+  command: wakeit
+  args: [adapter, models, pi]
+  timeout: 25s
+submit:
+  command: wakeit
+  args:
+    - adapter
+    - stream
+    - pi
+    - '--'
+    - pi
+    - --mode
+    - json
+    - --print
+    - --name
+    - '{{session.title}}'
+    - when_set: provider
+      args: [--provider, '{{parameters.provider}}']
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+    - when_set: reasoning
+      args: [--thinking, '{{parameters.reasoning}}']
+  stdin: '{{task.prompt}}'
+session:
+  list:
+    command: wakeit
+    args: [adapter, session, list, pi, --limit, '10000']
+    timeout: 25s
+  inspect:
+    command: wakeit
+    args: [adapter, session, inspect, pi, '{{session.id}}']
+    timeout: 20s
+  resume:
+    command: wakeit
+    args:
+      - adapter
+      - session
+      - resume
+      - pi
+      - '{{session.id}}'
+      - '--'
+      - pi
+      - --session
+      - '{{session.id}}'
+      - --mode
+      - json
+      - --print
+      - when_set: provider
+        args: [--provider, '{{parameters.provider}}']
+      - when_set: model
+        args: [--model, '{{parameters.model}}']
+      - when_set: reasoning
+        args: [--thinking, '{{parameters.reasoning}}']
+    stdin: '{{task.prompt}}'
+  interactive:
+    command: pi
+    args: ['--session', '{{session.id}}']
+detect:
+  command: pi
+  args: [--version]
+  timeout: 10s
+output:
+  format: events

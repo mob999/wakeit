@@ -1,0 +1,83 @@
+name: release
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm, cache-dependency-path: web/package-lock.json}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci && npm run build
+        working-directory: web
+      - run: cargo build --locked --release --target ${{ matrix.target }}
+      - name: Verify native executable and package binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          suffix=''
+          if [[ "$TARGET" == *windows* ]]; then suffix='.exe'; fi
+          binary="target/$TARGET/release/wakeit$suffix"
+          "$binary" --version
+          "$binary" update --help
+          python scripts/package-release.py binary --target "$TARGET" --input "$binary" --output .local/release-native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wakeit-${{ matrix.target }}
+          path: .local/release-native/*
+  assemble:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wakeit-*
+          path: .local/native-artifacts
+      - name: Assemble verified release contract
+        env:
+          TAG: ${{ github.ref_name }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          args=()
+          if [[ "$IS_TAG" == 'true' ]]; then args=(--tag "$TAG"); fi
+          python scripts/package-release.py assemble --input .local/native-artifacts --output .local/release "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wakeit-release-bundle
+          path: .local/release/*
+      - name: Publish official tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" .local/release/* --verify-tag --title "Wakeit $TAG" --generate-notes --prerelease
