@@ -28,7 +28,7 @@ cargo build --locked --examples
 python3 scripts/integration.py --pg-bin /path/to/postgresql/bin --keep-running
 ```
 
-保持该隔离测试栈运行，另一个终端执行：
+浏览器回归不在 CI 中运行。需要本地验证界面时，保持该隔离测试栈运行，另一个终端执行：
 
 ```sh
 cd web
