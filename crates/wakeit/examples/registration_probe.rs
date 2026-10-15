@@ -50,6 +50,20 @@ async fn main() -> Result<()> {
         post(body(&nkeys::KeyPair::new_user())?).await?.status() == 403,
         "wrong key cannot recover registration"
     );
+    let stranger = nkeys::KeyPair::new_user();
+    let mut collision = body(&stranger)?;
+    let request_id = uuid::Uuid::new_v4();
+    let timestamp = chrono::Utc::now().timestamp();
+    collision["request_id"] = json!(request_id);
+    collision["timestamp"] = json!(timestamp);
+    collision["signature"] = json!(hex::encode(
+        stranger
+            .sign(wakeit::device_auth::proof(request_id, &name, &roots, timestamp).as_bytes())?
+    ));
+    ensure!(
+        post(collision).await?.status() == 409,
+        "another registration must not take an existing Runner name"
+    );
     println!(
         "PASS signed registration recovery preserves Runner identity, rotates credentials and rejects a different key"
     );
