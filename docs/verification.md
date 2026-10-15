@@ -160,6 +160,6 @@ Moments 后续视觉修正将日期对齐至卡片左侧，并以单一连续轴
 - Pi 使用独立临时 HOME、工作目录与 PATH，只提供本地 `magpie / codex/gpt-6.1-sol` 所需配置，禁用扩展、MCP、已有 skill 与提示模板。输入来自真实 WebUI 复制操作，原样提供；用户只完成 Operator 浏览器登录与授权，再回复“已授权”。Pi 自行下载校验并安装 CLI、保存连接、注册 Runner、安装 LaunchAgent、检查在线与 Agent 能力及跨目录访问，没有创建或执行任务。
 - 独立复核公开包哈希、Operator 身份、工作目录范围、Pi 可用、自启配置；重复 setup 保留 Runner 身份与范围，重启服务后重新取得租约并恢复查询。测试完成后移除临时服务、HOME、原始工具日志及复制的模型凭据，仅保留脱敏工具元数据和验收摘要。
 - 原本机 Gateway 与 CLI 更新为已校验的公开包，热重载预览地址保持不变。升级前备份，现有记录校验一致，Runner runtime ID 保持不变，Agent 登录与模型配置未改动。
-- CI 对齐测试在单一渲染帧读取弹层与勾号几何信息；大输出 fixture 保留超过 3MB 中文输出、实时 Trace、结果及 Journal 重开断言，避免将数千次 FULL fsync 当作正确性测试。5000+ 条事件读取继续由服务与浏览器场景覆盖。verify 仅在 main push、PR 与手动运行时触发，同一 PR 新提交取消旧运行。
+- CI 对齐测试在单一渲染帧读取弹层与勾号几何信息；大输出 fixture 保留超过 3MB 中文输出、实时 Trace、结果及 Journal 重开断言，避免将数千次 FULL fsync 当作正确性测试。5000+ 条事件读取继续由服务与浏览器场景覆盖。verify 仅在 main push、PR 与手动运行时触发，同一 PR 新提交取消旧运行。浏览器回归改为本地手动验证；CI 不安装 Chromium 或执行 Playwright，仅保留构建、Rust 检查和后端服务集成。
 
 当前开发流程使用关联 Issue 的 `<type>(<scope>)/<description>` 分支和 PR，不强推、不改写已推送提交或标签。main 强制 PR、四项 Actions 检查、更新至最新主分支及解决讨论；禁止删除和强推，管理员同样遵守。参见 [Issue #1](https://github.com/mob999/wakeit/issues/1) 与 [PR #2](https://github.com/mob999/wakeit/pull/2)。
