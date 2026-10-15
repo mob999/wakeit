@@ -57,7 +57,7 @@ fn newest(releases: Vec<Release>) -> Option<(Version, Release)> {
 
 struct Github {
     http: reqwest::Client,
-    token: String,
+    token: Option<String>,
     base: String,
 }
 impl Github {
@@ -67,16 +67,17 @@ impl Github {
         } else {
             path.into()
         };
-        // Asset API URLs are authenticated; never forward our token to an
+        // Asset API URLs may use authentication; never forward a token to an
         // arbitrary manifest URL. reqwest strips credentials across redirects.
         ensure!(
             url.starts_with(&format!("{}/repos/{REPO}/", self.base)),
             "invalid GitHub asset URL"
         );
-        let response = self
-            .http
-            .get(url)
-            .bearer_auth(&self.token)
+        let mut request = self.http.get(url);
+        if let Some(token) = &self.token {
+            request = request.bearer_auth(token);
+        }
+        let response = request
             .header(
                 "Accept",
                 if octets {
@@ -90,9 +91,7 @@ impl Github {
             .map_err(|_| anyhow::anyhow!("GitHub request failed; check the network connection"))?;
         match response.status().as_u16() {
             401 | 403 => bail!("GitHub authentication, repository permission or rate limit error"),
-            404 => bail!(
-                "private repository or release asset is inaccessible; check GitHub credentials"
-            ),
+            404 => bail!("repository or release asset is inaccessible"),
             code if !(200..300).contains(&code) => bail!("GitHub returned HTTP {code}"),
             _ => {}
         }
@@ -207,12 +206,12 @@ fn verify_checksum(bytes: &[u8], expected: &str) -> Result<()> {
     );
     Ok(())
 }
-async fn credentials() -> Result<String> {
+async fn credentials() -> Result<Option<String>> {
     for name in ["WAKEIT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"] {
         if let Ok(value) = std::env::var(name)
             && !value.trim().is_empty()
         {
-            return Ok(value.trim().into());
+            return Ok(Some(value.trim().into()));
         }
     }
     let result = tokio::time::timeout(
@@ -230,10 +229,10 @@ async fn credentials() -> Result<String> {
     {
         let token = String::from_utf8(output.stdout).unwrap_or_default();
         if !token.trim().is_empty() {
-            return Ok(token.trim().into());
+            return Ok(Some(token.trim().into()));
         }
     }
-    bail!("set WAKEIT_GITHUB_TOKEN (repository Contents: read), or sign in with gh auth login")
+    Ok(None)
 }
 
 /// Verify a downloaded candidate before asking the OS to replace this process's
@@ -400,7 +399,7 @@ pub async fn run(check_only: bool, json: bool) -> Result<()> {
 mod tests {
     use super::*;
     use axum::{
-        Router,
+        Json, Router,
         http::{HeaderMap, StatusCode},
         response::IntoResponse,
         routing::get,
@@ -443,7 +442,7 @@ mod tests {
         });
         Github {
             http: reqwest::Client::new(),
-            token: "fixture-secret".into(),
+            token: Some("fixture-secret".into()),
             base,
         }
     }
@@ -466,6 +465,18 @@ mod tests {
         let error = client.releases().await.unwrap_err().to_string();
         assert!(error.contains("inaccessible"));
         assert!(!error.contains("fixture-secret"));
+    }
+    #[tokio::test]
+    async fn public_release_check_does_not_require_github_login() {
+        let mut client = github(Router::new().route(
+            "/repos/mob999/wakeit/releases",
+            get(|headers: HeaderMap| async move {
+                assert!(!headers.contains_key("authorization"));
+                Json(serde_json::json!([{"tag_name":"v0.1.0","draft":false,"prerelease":true,"assets":[]}]))
+            }),
+        )).await;
+        client.token = None;
+        assert!(client.releases().await.unwrap().is_none());
     }
     #[tokio::test]
     async fn asset_urls_must_stay_on_the_repository_api() {
