@@ -270,10 +270,20 @@ test('one session control auto-inspects, clears errors on selection, and permits
     await page.setViewportSize({ width, height: 900 })
     await control.click()
     const selected = page.getByRole('option', { name: '每次新建', exact: true })
-    const row = (await selected.boundingBox())!
-    const mark = (await selected.locator('.choice-option-meta svg').boundingBox())!
-    expect(row.x + row.width - mark.x - mark.width).toBeCloseTo(8, 1)
-    expect(Math.abs(mark.y + mark.height / 2 - row.y - row.height / 2)).toBeLessThanOrEqual(0.5)
+    // Radix may reposition the popup after a viewport change. Measure both
+    // rectangles in one frame, then wait for the actual alignment invariant.
+    await expect
+      .poll(() =>
+        selected.evaluate((element) => {
+          const row = element.getBoundingClientRect()
+          const mark = element.querySelector('.choice-option-meta svg')!.getBoundingClientRect()
+          return {
+            right: Math.round((row.right - mark.right) * 10) / 10,
+            centered: Math.abs(mark.y + mark.height / 2 - row.y - row.height / 2) <= 0.5,
+          }
+        }),
+      )
+      .toEqual({ right: 8, centered: true })
     await page.screenshot({ path: `test-results/session-check-${width}.png` })
     await page.keyboard.press('Escape')
   }

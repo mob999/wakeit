@@ -117,7 +117,7 @@ const gate = setInterval(() => {
   if (!fs.existsSync(process.env.WAKEIT_TRACE_RELEASE)) return;
   clearInterval(gate);
   console.log('{malformed}');
-  for (let i=0;i<5500;i++) send('log',{text:'中文'.repeat(80)+'\n'});
+  for (let i=0;i<128;i++) send('log',{text:'中文'.repeat(4000)+'\n'});
   send('trace',{id:'cmd',kind:'command',status:'succeeded',title:'执行',input:'中文',output:'done',occurred_at:'2026-10-14T01:00:02Z',started_at:'2026-10-14T01:00:00Z',finished_at:'2026-10-14T01:00:02Z'});
   send('result','# 完成\n\n报告');
 },20);
@@ -143,9 +143,9 @@ const gate = setInterval(() => {
             &t,
             id,
             None,
-            // This fixture stresses >5000 durable writes, not timeout behavior.
-            // Windows CI filesystem flushing can exceed the old 30s budget.
-            Duration::from_secs(if cfg!(windows) { 180 } else { 30 }),
+            // Keep stdout above 3 MB without turning this correctness test into
+            // a benchmark of thousands of FULL SQLite fsyncs on CI disks.
+            Duration::from_secs(60),
             tokio_util::sync::CancellationToken::new(),
             Some(sink),
         )
@@ -195,6 +195,17 @@ const gate = setInterval(() => {
         records
             .iter()
             .any(|s| serde_json::from_str::<Value>(s).unwrap()["kind"] == "trace_status")
+    );
+    let log_bytes: usize = records
+        .iter()
+        .filter_map(|s| {
+            let v: Value = serde_json::from_str(s).unwrap();
+            (v["kind"] == "log").then(|| v["data"]["text"].as_str().unwrap_or("").len())
+        })
+        .sum();
+    assert!(
+        log_bytes > 3_000_000,
+        "the final result must survive multi-megabyte stdout"
     );
     let count = records.len();
     journal.pool.close().await;

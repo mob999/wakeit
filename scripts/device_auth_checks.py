@@ -1,5 +1,5 @@
 """Device-flow integration contracts against two real Gateway processes."""
-import hashlib,json,time,urllib.request,uuid,os,pathlib,subprocess,tempfile
+import hashlib,json,time,urllib.request,uuid,os,pathlib,subprocess,tempfile,re
 from integration import ROOT,BIN
 from integration import call,expect_status,APIError
 
@@ -50,6 +50,26 @@ def verify(api,base,other,sql,tokens,check):
             p=subprocess.run([str(BIN),*args],env=environment or env,cwd=cwd or directory,text=True,capture_output=True)
             assert (p.returncode==0)==success,p.stderr
             return p
+        # A machine without a browser can still authorize through the printed URL.
+        empty=root/'empty-path';empty.mkdir()
+        no_browser=dict(env,PATH=str(empty))
+        process=subprocess.Popen([str(BIN),'login','--gateway',base],env=no_browser,cwd=directory,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        try:
+            lines=[]
+            while len(lines)<10:
+                line=process.stderr.readline()
+                assert line,'CLI ended without a verification URL'
+                lines.append(line)
+                match=re.search(r'user_code=([A-Z2-9]{8})',line)
+                if match:break
+            assert match,'verification URL was not printed'
+            decide({'user_code':match.group(1)},tokens['viewer'])
+            stdout,stderr=process.communicate(timeout=20)
+            assert process.returncode==0,stderr
+            assert 'Open the URL above in your browser' in stderr
+            assert 'access_token' not in stdout and 'device_code' not in stdout
+        finally:
+            if process.poll() is None:process.kill();process.wait()
         cli('login','--gateway',base,'--username','operator')
         listing=json.loads(cli('connection','list').stdout);name=listing['current']
         nested=root/'different-directory';nested.mkdir()
@@ -62,7 +82,7 @@ def verify(api,base,other,sql,tokens,check):
         p=subprocess.run([str(ROOT/'target/debug/examples/registration_probe'),base,str(file),directory],text=True,capture_output=True)
         assert p.returncode==0,p.stderr
         # No service manager on PATH: registration and profiles survive the failed install.
-        restricted=dict(env,PATH=str(root/'empty-path'));(root/'empty-path').mkdir()
+        restricted=dict(env,PATH=str(empty))
         failed=cli('setup','--gateway',base,'--runner-name','no-service-'+uuid.uuid4().hex[:8],'--allow-root',directory,success=False,environment=restricted)
         assert 'autostart is unfinished' in failed.stderr,failed.stderr
         profile=json.loads(cli('connection','list').stdout);assert profile['current']==name
@@ -70,7 +90,7 @@ def verify(api,base,other,sql,tokens,check):
         before=config_files[0].read_bytes()
         cli('setup','--gateway',base,'--allow-root',directory,success=False,environment=restricted)
         assert config_files[0].read_bytes()==before
-    check('CLI Gateway-scoped profiles across directories, signed registration response-loss recovery, rejected identity takeover and resumable service-manager failure')
+    check('CLI manual-browser fallback, Gateway-scoped profiles across directories, signed registration recovery, name conflicts, rejected identity takeover and resumable service-manager failure')
     # Revoke the newly issued personal key and check the other Gateway immediately.
     rows=call(base,'/api/v1/tokens',token=key); own=next(t for t in rows if t['id']==hashlib.sha256(key.encode()).hexdigest())
     call(base,'/api/v1/tokens/'+own['id'],'DELETE',token=key);expect_status(lambda:call(other,'/api/v1/session',token=key),401)

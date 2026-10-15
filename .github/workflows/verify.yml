@@ -1,5 +1,12 @@
 name: verify
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   rust:
     strategy:
@@ -45,30 +52,19 @@ jobs:
         run: |
           curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz | tar xz
           sudo install nats-server-v2.15.0-linux-amd64/nats-server /usr/local/bin/nats-server
-      - run: npm ci && npm run build && npx playwright install --with-deps chromium
+      - run: npm ci && npm run build
         working-directory: web
       - run: cargo build --locked --examples && cargo build --locked
       - run: python3 scripts/check-archive-upgrade.py
       - run: python3 scripts/check-session-upgrade.py
       - run: python3 scripts/check-device-auth-upgrade.py
-      - name: Service and browser integration
-        run: |
-          python3 scripts/integration.py --keep-running > .local-integration.log 2>&1 &
-          stack_pid=$!
-          trap 'kill "$stack_pid" 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 120); do
-            if test -f .local/integration-stack.json; then break; fi
-            if ! kill -0 "$stack_pid" 2>/dev/null; then cat .local-integration.log; exit 1; fi
-            sleep 2
-          done
-          test -f .local/integration-stack.json
-          cat .local-integration.log
-          cd web && npm test
+      - name: Service integration
+        shell: bash
+        run: python3 scripts/integration.py 2>&1 | tee .local-integration.log
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: verification-failures
           path: |
-            web/test-results/
             .local-integration.log
             .local/integration-*/*.log

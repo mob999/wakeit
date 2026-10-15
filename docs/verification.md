@@ -147,3 +147,17 @@ Moments 后续视觉修正将日期对齐至卡片左侧，并以单一连续轴
 - pre-archive与pre-session旧基线分别验证事务升级、私有完整备份、数据保持、幂等和未知基线拒绝；全新数据库仅运行唯一初始迁移。
 
 - 已有会话目录覆盖Admin/Operator权限、双Gateway、目录边界、中文搜索、20条游标分页、无接口和空列表；三种已装Agent的只读真实查询已通过。原生命令导出覆盖POSIX实际执行、中文/空格/引号、注入字面量与目录切换失败，以及PowerShell引用/路径；不导出prompt或环境值。
+
+## Agent Prompt、浏览器授权与自动接入（2026-10-15）
+
+- Linux、macOS、Windows 的 Rust / fmt / clippy / 原生替换检查通过；46 个 PostgreSQL / NATS 集成场景及 85 个 Chromium 场景通过。旧基线升级验证备份、保留数据、幂等及未知校验和拒绝。
+- 设备授权覆盖 Operator 注册、Viewer 仅 CLI、Web 会话和 CSRF、跨 Gateway 批准/一次兑换、等待与限速、拒绝、过期、停用和降权、Key 撤销、no-store。CLI 检查覆盖跨目录连接、地址隔离、浏览器不可用时的手动链接、签名恢复、名称冲突、错误私钥拒绝及自启失败后恢复。
+- 五个平台的公开 `v0.1.0` 预览包构建完成；匿名下载 macOS arm64 包，同时匹配 manifest 和 SHA256SUMS。普通更新仍忽略预览版。
+- Pi 使用独立临时 HOME、工作目录与 PATH，只提供本地 `magpie / codex/gpt-6.1-sol` 所需配置，禁用扩展、MCP、已有 skill 与提示模板。输入来自真实 WebUI 复制操作，原样提供；用户只完成 Operator 浏览器登录与授权，再回复“已授权”。Pi 自行下载校验并安装 CLI、保存连接、注册 Runner、安装 LaunchAgent、检查在线与 Agent 能力及跨目录访问，没有创建或执行任务。
+- 独立复核公开包哈希、Operator 身份、工作目录范围、Pi 可用、自启配置；重复 setup 保留 Runner 身份与范围，重启服务后重新取得租约并恢复查询。测试完成后移除临时服务、HOME、原始工具日志及复制的模型凭据，仅保留脱敏工具元数据和验收摘要。
+- 原本机 Gateway 更新为已校验的公开包，CLI 同步更新，热重载预览地址保持不变。升级前备份，现有记录校验一致，Runner runtime ID 保持不变，Agent 登录与模型配置未改动。
+- CI 对齐测试在单一渲染帧读取弹层与勾号几何信息；大输出 fixture 保留超过 3MB 中文输出、实时 Trace、结果及 Journal 重开断言，避免将数千次 FULL fsync 当作正确性测试。5000+ 条事件读取继续由服务与浏览器场景覆盖。verify 仅在 main push、PR 与手动运行时触发，同一 PR 新提交取消旧运行。浏览器回归改为本地手动验证；CI 不安装 Chromium 或执行 Playwright，仅保留构建、Rust 检查和后端服务集成。
+
+当前开发流程使用关联 Issue 的 `<type>(<scope>)/<description>` 分支和 PR，不强推、不改写已推送提交或标签。main 强制 PR、四项 Actions 检查、更新至最新主分支及解决讨论；禁止删除和强推，管理员同样遵守。参见 [Issue #1](https://github.com/mob999/wakeit/issues/1) 与 [PR #2](https://github.com/mob999/wakeit/pull/2)。
+
+公开仓库的更新检查支持匿名请求；已有 GitHub 凭据仍可选用。无凭据实测正确返回 no_release（当前只有预览包），不将预览版当作正式升级。匿名请求、认证请求和下载校验的 7 项更新测试通过。
