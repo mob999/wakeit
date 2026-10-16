@@ -191,7 +191,7 @@ export function Layout({
               ))}
               <TooltipTarget label="@mob999/wakeit" enabled={collapsed}>
                 <a
-                  className="nav-item nav-bottom repository-link"
+                  className="nav-bottom repository-link"
                   href="https://github.com/mob999/wakeit"
                   target="_blank"
                   rel="noopener noreferrer"
