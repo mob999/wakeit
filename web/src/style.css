@@ -1103,6 +1103,33 @@ input:disabled {
   margin-left: 2px;
   white-space: nowrap;
 }
+.changelog-trigger {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  cursor: pointer;
+  height: 28px;
+  border-radius: 6px;
+}
+.changelog-trigger:hover {
+  color: var(--ink);
+}
+.changelog-trigger:disabled {
+  cursor: default;
+}
+.changelog-body .markdown-result > :first-child {
+  margin-top: 0;
+}
+.changelog-body .markdown-result > :last-child {
+  margin-bottom: 0;
+}
+.changelog-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .model-query-state {
   display: flex;
   align-items: center;

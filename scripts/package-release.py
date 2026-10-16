@@ -8,6 +8,7 @@ import re
 import shutil
 import tarfile
 import tomllib
+from changelog import validate
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = (
@@ -37,6 +38,9 @@ def main():
     if args.tag:
         if not re.fullmatch(r'v\d+\.\d+\.\d+', args.tag) or args.tag != f'v{version}':
             raise SystemExit('Formal release tag must exactly match the package version')
+    notes = validate((ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'),
+                     (ROOT / 'CHANGELOG.zh-CN.md').read_text(encoding='utf-8'), version)
+    (args.output / 'release-notes.md').write_text(notes[version] + '\n', encoding='utf-8')
     assets = {}
     lines = []
     for target in TARGETS:

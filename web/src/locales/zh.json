@@ -443,5 +443,8 @@
   "runner.needsVerification_one": "{{count}} 个待核对",
   "runner.needsVerification_other": "{{count}} 个待核对",
   "unit.days_one": "天",
-  "unit.days_other": "天"
+  "unit.days_other": "天",
+  "更新日志": "更新日志",
+  "更新日志 {{version}}": "更新日志 {{version}}",
+  "无法加载更新日志": "无法加载更新日志"
 }

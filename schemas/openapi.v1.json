@@ -600,6 +600,23 @@
         "title": "ArchiveBody",
         "type": "object"
       },
+      "Changelog": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "content"
+        ],
+        "title": "Changelog",
+        "type": "object"
+      },
       "Claim": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
@@ -2096,6 +2113,108 @@
             "sessionCookie": []
           }
         ]
+      }
+    },
+    "/api/v1/changelog": {
+      "get": {
+        "operationId": "get__changelog",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lang",
+            "schema": {
+              "default": "en",
+              "enum": [
+                "en",
+                "zh"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Changelog"
+                }
+              }
+            },
+            "description": "Curated Markdown bundled with this Gateway, current version first."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid JSON shape"
+          }
+        },
+        "security": []
       }
     },
     "/api/v1/device-authorizations/{user_code}": {

@@ -3,6 +3,7 @@ pub mod agy_adapter;
 pub mod api;
 pub mod auth;
 pub mod bus;
+pub mod changelog;
 pub mod cline_adapter;
 pub mod config;
 pub mod gateway;

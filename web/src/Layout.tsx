@@ -24,6 +24,7 @@ import { PageHeaderContext } from './PageHeader'
 import { LanguageSwitch } from './LanguageSwitch'
 import { BrandMark } from './BrandMark'
 import { AgentPrompt, type GatewayMeta } from './onboarding/AgentPrompt'
+import { Changelog } from './Changelog'
 export function Layout({
   user,
   dark,
@@ -117,7 +118,7 @@ export function Layout({
             <div className="header-breadcrumbs" ref={setBreadcrumbs} />
             <div className="header-page-actions" ref={setActions} />
             <div className="top-actions">
-              <span className="brand-version">{meta.data?.version ?? '…'}</span>
+              <Changelog version={meta.data?.version} />
               <LanguageSwitch />
               <AgentPrompt meta={meta.data} />
               <IconButton label={tr('切换主题')} onClick={onTheme}>

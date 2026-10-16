@@ -178,6 +178,7 @@ pub fn router(app: App) -> Router {
         .route("/metrics", get(metrics))
         .merge(crate::device_auth::routes())
         .route("/api/v1/meta", get(meta))
+        .merge(crate::changelog::routes())
         .route("/api/v1/runners/{id}/directories", get(directories))
         .route(
             "/api/v1/runners/{id}/agents/{agent}/models/query",

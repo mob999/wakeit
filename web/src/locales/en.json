@@ -443,5 +443,8 @@
   "runner.needsVerification_one": "{{count}} needs verification",
   "runner.needsVerification_other": "{{count}} need verification",
   "unit.days_one": "day",
-  "unit.days_other": "days"
+  "unit.days_other": "days",
+  "更新日志": "Changelog",
+  "更新日志 {{version}}": "Changelog {{version}}",
+  "无法加载更新日志": "Unable to load changelog"
 }
