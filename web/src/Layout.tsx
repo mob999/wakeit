@@ -189,6 +189,24 @@ export function Layout({
                   </Link>
                 </TooltipTarget>
               ))}
+              <TooltipTarget label="@mob999/wakeit" enabled={collapsed}>
+                <a
+                  className="nav-bottom repository-link"
+                  href="https://github.com/mob999/wakeit"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="GitHub: @mob999/wakeit"
+                >
+                  <img
+                    className="repository-mark"
+                    src={dark ? '/github-mark-white.svg' : '/github-mark-black.svg'}
+                    width={16}
+                    height={16}
+                    alt=""
+                  />
+                  <span className="nav-label">@mob999/wakeit</span>
+                </a>
+              </TooltipTarget>
             </aside>
             {!collapsed && !narrow && (
               <PaneResizeHandle
