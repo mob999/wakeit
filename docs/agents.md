@@ -7,12 +7,12 @@ Runner 调用设备上已安装、已登录的原生 CLI，不安装 Agent、不
 | `codex` | `codex` | 支持 | 原生查询或手填 | 支持 |
 | `claude-code` | `claude` | 支持 | 手填 | 支持 |
 | `pi` | `pi` | 支持 | 原生查询或手填 | 支持 |
-| `opencode` | `opencode` | 支持 | 原生查询或手填 | 支持 |
+| `opencode` | `opencode` | 工具完成后更新 | 原生查询或手填 | 支持 |
 | `kimi-code` | `kimi`，Kimi Code 2.x | 支持 | 手填 | 只读查询原生会话、精确绑定及原生命令续聊 |
 | `agy` | Google Antigravity CLI 的 `agy` | 支持 | 原生 `models` 查询或手填 | 本轮不声明 |
 | `gemini-cli` | `gemini` | 支持 | 手填 | 本轮不声明 |
 | `cursor` | `cursor-agent` | 支持 | 手填 | 不声明 |
-| `copilot` | `copilot` | 文本输出 | 手填 | 不声明 |
+| `copilot` | `copilot` | 支持 | 手填 | 不声明 |
 | `cline` | `cline` | 支持 | 手填 | 不声明 |
 | `goose` | `goose`（AAIF / Block） | 支持 | 手填 | 不声明 |
 | `qwen-code` | `qwen` | 支持 | 手填 | 不声明 |
@@ -47,11 +47,13 @@ wakeit adapter detect gemini-cli
 
 ## Kimi Code
 
-依据 [MoonshotAI/kimi-code](https://github.com/MoonshotAI/kimi-code) 的当前命令行协议，使用 `kimi --prompt TEXT --output-format stream-json`；完整指令作为单独参数传递，不通过 shell 拼接。原生接口未提供本适配可用的标准输入指令入口，超长指令仍受操作系统命令行长度限制，尤其是 Windows。
+使用 `wakeit adapter kimi` 驱动已安装的 Kimi Code 2.x。普通 `--prompt --output-format stream-json` 会聚合完整消息，不能保证逐步实时输出，因此不再用于此适配。
 
-消息和工具调用转换为公开过程；`session.resume_hint` 提供实际完整会话 ID。会话列表只读 `KIMI_CODE_HOME`（默认用户目录的 `.kimi-code`）下的 `session_index.jsonl`，仅对当前真实工作目录读取 `state.json`，确认 ID、目录及持久化状态。标题使用原生保存值，不从第一条 query 或日志推测，也不伪造 Wakeit 标题。原生不存在或目录不符时，绑定失败，不退回新建。
+辅助命令为每次执行启动一个仅监听 `127.0.0.1` 的 `kimi web --no-open` 子进程，通过[官方本地 Server API](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/server-api.html)订阅真实 `assistant.delta`、`tool.call.started`、`tool.result` 和 `turn.ended`。先确认订阅成功再提交一次指令，并处理原生心跳；绑定已有会话先通过空的会话级配置调用加载原生上下文，不覆盖已有配置。消息以完整快照更新，工具输出不混入最终报告；只有原生 `completed` 及正常进程退出才发布报告。子进程与 Runner 共用进程树，取消或失败时结束本次执行及其本地服务，不连接用户自行启动的 Kimi 服务，也不打开浏览器。
 
-原生 provider 查询会初始化或刷新配置，因此本轮没有 `models` 接口；模型手填。适配不读取认证配置，不启动 SDK 做会话查询，也不修改原生会话元数据。详见[固定版本的协议来源](../crates/wakeit/tests/fixtures/kimi-code/README.md)。
+新建会话使用原生 API 的 `title` 字段保存“任务名-wakeit-时间戳”；绑定已有会话保持原标题。标题与上下文由 Kimi 自己持久化，不直接改写其状态文件。服务地址来自与子进程 PID 匹配的本地登记，认证使用其私密 `server.token`，不会写入 Wakeit 事件、日志、命令行或 URL。API 密钥和 Agent 登录凭据不读取、不复制、不修改。
+
+会话发现仍只读 `KIMI_CODE_HOME`（默认 `.kimi-code`）中的原生索引及匹配工作目录的 `state.json`，精确校验完整 ID、真实目录和持久化状态。模型沿用本地默认值或任务显式参数；绑定时未覆盖模型则保留原生绑定，不增加静态模型目录。协议来源与真实验收范围见 [Kimi 验证记录](../crates/wakeit/tests/fixtures/kimi-code/README.md)。
 
 ## Antigravity CLI（agy）
 
@@ -71,7 +73,7 @@ wakeit adapter detect gemini-cli
 
 [Cursor 官方输出协议](https://cursor.com/docs/cli/reference/output-format)提供完整消息、工具开始与完成、最终 `result`；适配使用 `cursor-agent --print --output-format stream-json`，按稳定工具 ID 更新过程。官方安装器仍提供 `cursor-agent` 别名，避免与编辑器的 `cursor` 命令混淆。不添加 `--force`：按照[原生 headless 约定](https://cursor.com/docs/cli/headless)，默认不强制应用文件修改；这不等同操作系统只读沙箱，需要写入的用户应明确配置原生权限。
 
-[GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/overview)使用原始标准输入传递指令，`--silent --no-ask-user --output-format text` 只返回最终文本。它不是旧版 `gh copilot` 扩展，不默认添加允许所有工具或扩大目录范围的参数。保留原生工具权限：无人值守时需要的权限应事先明确配置。没有公开验证的普通 prompt JSONL 事件契约，因此不把 SDK 事件套作 CLI Trace。
+[GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-programmatic-reference)使用原始标准输入传递指令，`--no-ask-user --output-format json` 返回原生 JSONL。按实际 CLI 1.0.98 输出解析公开消息、工具开始与完成；只在成功的原生结果记录和进程退出后发布一次最终报告，不读取隐藏推理。它不是旧版 `gh copilot` 扩展，也不套用 SDK 或 workflow 的事件格式。保留原生工具权限，不默认添加允许所有工具或扩大目录范围的参数；无人值守时需要的权限应事先明确配置。
 
 [Qwen Code headless 协议](https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/headless.md)的完整 assistant 消息、tool_use / tool_result 和最终 result 使用独立适配解析，不沿用 Gemini 的事件格式。只有成功终态提供最终报告；工具输出、未完成消息和隐藏推理不冒充报告。
 
@@ -79,7 +81,7 @@ wakeit adapter detect gemini-cli
 
 ## Cline
 
-使用当前 [Cline CLI JSONL](https://github.com/cline/cline/blob/main/docs/cli/cli-reference.mdx#json-output-for-agent-runs)，通过标准输入传递指令。解析公开消息、按 `toolCallId` 关联的工具输入、进度与结果，保留源事件时间；不展示隐藏推理。`agent_event.done` 不是最终报告，必须收到 `run_result` 且 `finishReason: completed`；停止、失败或原生非零退出不发布局部答案。
+使用当前 [Cline CLI JSONL](https://github.com/cline/cline/blob/main/docs/cli/cli-reference.mdx#json-output-for-agent-runs)，通过 `--` 后的独立 argv 传递指令，保留多行、中文及 shell 字面量；当前 3.0.72 的管道输入不能可靠启动任务。解析公开消息、按 `toolCallId` 关联的工具输入、进度与结果，保留源事件时间；不展示隐藏推理。`agent_event.done` 不是最终报告，必须收到 `run_result` 且 `finishReason: completed`；停止、失败或原生非零退出不发布局部答案。
 
 模型、Provider、推理强度按原生参数传入；不修改登录配置或凭据。当前原生一次性模式默认自动批准工具，Wakeit 不额外扩大权限；请只在准备好的执行目录和原生策略下使用。原生会话和模型目录未声明。合成事件与来源见 [Cline fixture](../crates/wakeit/tests/fixtures/cline-provenance.md)。
 
@@ -93,4 +95,4 @@ wakeit adapter detect gemini-cli
 
 Aider、Continue、OpenHands、Crush、Kilo、Droid、Amp、Vibe、Auggie、Qoder、Kiro 本轮只保留调研记录，不新增模板。没有非交互 CLI 的 IDE 产品也不通过编辑器启动器伪装为无人值守适配。
 
-新增的原生协议 fixtures 均为按官方结构编写的合成数据，不含用户会话或凭据。Kimi 已核对本机 2.1.1 的帮助、版本及只读会话查询；其它新增 CLI 使用协议及进程桥接验证，不声称真实模型调用已通过。任务编辑器只列出所选 Runner 检测到的 Agent；Runner 的 Agents 页仍显示完整检测状态。已有任务绑定不会因检测状态变化而自动替换。
+新增的原生协议 fixtures 均为按官方结构编写的合成数据，不含用户会话或凭据。完整的逐 Agent 真实调用、Magpie 兼容性、功能缺口及认证限制见 [适配验收记录](agent-verification.md)。任务编辑器只列出所选 Runner 检测到的 Agent；Runner 的 Agents 页仍显示完整检测状态。已有任务绑定不会因检测状态变化而自动替换。

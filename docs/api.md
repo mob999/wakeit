@@ -6,6 +6,7 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 
 | 接口 | 请求或结果 | 权限 |
 |---|---|---|
+| GET `/changelog?lang=zh\|en` | `{version,content}`，随 Gateway 交付的 Markdown 更新日志；默认英文，其他语言返回 400 | 公开 |
 | POST `/session` | `{username,password}`，设置 Cookie 并返回会话 token | 未登录 |
 | GET / DELETE `/session` | 当前用户 / 退出 | Viewer |
 | GET `/tasks` | 支持 page、page_size、q、runner、agent、enabled；含 last_run | Viewer |

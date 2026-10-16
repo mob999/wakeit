@@ -12,11 +12,7 @@ use tokio::{
 /// Help/version terminate before an Agent engine or model session is started.
 pub async fn detect(id: &str) -> Result<String> {
     let (command, help_args, required): (&str, &[&str], &[&str]) = match id {
-        "kimi-code" => (
-            "kimi",
-            &["--help"],
-            &["--prompt", "--output-format", "--session"],
-        ),
+        "kimi-code" => ("kimi", &["--help"], &["web", "--session"]),
         "agy" => (
             "agy",
             &["--help"],
@@ -32,7 +28,7 @@ pub async fn detect(id: &str) -> Result<String> {
         "copilot" => (
             "copilot",
             &["--help"],
-            &["--silent", "--no-ask-user", "--output-format", "--model"],
+            &["--no-ask-user", "--output-format", "--model"],
         ),
         "cline" => (
             "cline",
@@ -88,24 +84,60 @@ async fn probe(executable: &str, args: &[&str]) -> Result<String> {
     let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .context("start native CLI detection")?;
-    let mut bytes = Vec::new();
-    child
-        .stdout
-        .take()
-        .context("native help stdout")?
-        .take(128 * 1024 + 1)
-        .read_to_end(&mut bytes)
-        .await?;
+    let mut stdout = child.stdout.take().context("native help stdout")?;
+    let stderr = child.stderr.take().context("native help stderr")?;
+    let read = async |reader: &mut tokio::process::ChildStdout| {
+        let mut bytes = Vec::new();
+        reader.take(128 * 1024 + 1).read_to_end(&mut bytes).await?;
+        Ok::<_, anyhow::Error>(bytes)
+    };
+    let err = async {
+        let mut bytes = Vec::new();
+        stderr.take(128 * 1024 + 1).read_to_end(&mut bytes).await?;
+        Ok::<_, anyhow::Error>(bytes)
+    };
+    let (out, err) = tokio::join!(read(&mut stdout), err);
+    let mut bytes = out?;
+    let err = err?;
     ensure!(
-        bytes.len() <= 128 * 1024,
+        bytes.len() <= 128 * 1024 && err.len() <= 128 * 1024,
         "native CLI detection output exceeded limit"
     );
+    if bytes.is_empty() {
+        bytes = err;
+    } else if !err.is_empty() {
+        bytes.push(b'\n');
+        bytes.extend(err);
+    }
     ensure!(child.wait().await?.success(), "native CLI detection failed");
     String::from_utf8(bytes).context("invalid native CLI detection output")
+}
+
+#[cfg(all(test, unix))]
+mod probe_tests {
+    use super::probe;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[tokio::test]
+    async fn native_help_can_be_written_to_stderr_without_masking_exit_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let executable = dir.path().join("native-help");
+        std::fs::write(
+            &executable,
+            "#!/bin/sh\nprintf '%s' '--output-format' >&2\nexit \"$1\"\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            probe(executable.to_str().unwrap(), &["0"]).await.unwrap(),
+            "--output-format"
+        );
+        assert!(probe(executable.to_str().unwrap(), &["1"]).await.is_err());
+    }
 }
 
 fn entry(id: &str, name: &str, provider: Option<&str>, model: &str) -> ModelEntry {

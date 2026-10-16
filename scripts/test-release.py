@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import tomllib
 import unittest
+from changelog import entries, validate
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / 'scripts/package-release.py'
@@ -41,6 +42,8 @@ class Packaging(unittest.TestCase):
         manifest = json.loads((self.output / 'wakeit-release.json').read_text(encoding='utf-8'))
         version = tomllib.loads((ROOT / 'Cargo.toml').read_text(encoding='utf-8'))['workspace']['package']['version']
         self.assertEqual(manifest['version'], version)
+        notes = entries((ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'))
+        self.assertEqual((self.output / 'release-notes.md').read_text(encoding='utf-8'), notes[version] + '\n')
         self.assertEqual(set(manifest['assets']), set(TARGETS))
         for entry in manifest['assets'].values():
             self.assertEqual(entry['sha256'], hashlib.sha256((self.output / entry['name']).read_bytes()).hexdigest())
@@ -63,6 +66,21 @@ class Packaging(unittest.TestCase):
     def test_wrong_or_preview_tag_cannot_publish(self):
         self.assertNotEqual(self.assemble('--tag', 'v99.0.0').returncode, 0)
         self.assertNotEqual(self.assemble('--tag', 'v0.1.0-rc.1').returncode, 0)
+
+    def test_changelog_locales_order_duplicates_and_release_extraction(self):
+        english = '## 0.1.0\n\n- Current.\n\n## 0.0.9\n\n- Previous.\n'
+        chinese = '## 0.1.0\n\n- 当前版本。\n\n## 0.0.9\n\n- 上个版本。\n'
+        notes = validate(english, chinese, '0.1.0')
+        self.assertEqual(notes['0.1.0'], '- Current.')
+        for en, zh, current in [
+            (english, '## 0.1.0\n- 当前版本。', '0.1.0'),
+            (english, chinese, '0.2.0'),
+            (english + '\n## 0.1.0\n- Duplicate.', chinese, '0.1.0'),
+            ('## 0.0.9\n- Old.\n## 0.1.0\n- New.', chinese, '0.1.0'),
+            ('## 0.1.0\n', chinese, '0.1.0'),
+        ]:
+            with self.assertRaises(ValueError):
+                validate(en, zh, current)
 
 
 if __name__ == '__main__':

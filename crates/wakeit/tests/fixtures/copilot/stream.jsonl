@@ -1,0 +1,7 @@
+{"type":"assistant.message_start","id":"event-1","timestamp":"2026-10-16T00:00:00Z","data":{"messageId":"msg-1"}}
+{"type":"assistant.message_delta","id":"event-2","timestamp":"2026-10-16T00:00:01Z","data":{"messageId":"msg-1","deltaContent":"Checking"}}
+{"type":"assistant.message","id":"event-3","timestamp":"2026-10-16T00:00:02Z","data":{"messageId":"msg-1","content":"Checking","toolRequests":[{"toolCallId":"call-1"}],"reasoningText":"PRIVATE HIDDEN REASONING"}}
+{"type":"tool.execution_start","id":"event-4","timestamp":"2026-10-16T00:00:03Z","data":{"toolCallId":"call-1","toolName":"bash","arguments":{"command":"printf fixture"}}}
+{"type":"tool.execution_complete","id":"event-5","timestamp":"2026-10-16T00:00:05Z","data":{"toolCallId":"call-1","success":true,"result":{"content":"fixture"}}}
+{"type":"assistant.message","id":"event-6","timestamp":"2026-10-16T00:00:06Z","data":{"messageId":"msg-2","content":"# Final report","toolRequests":[],"reasoningOpaque":"PRIVATE HIDDEN REASONING"}}
+{"type":"result","timestamp":"2026-10-16T00:00:07Z","sessionId":"native-session","exitCode":0,"usage":{}}

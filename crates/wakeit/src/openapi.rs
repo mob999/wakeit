@@ -39,6 +39,7 @@ pub fn document() -> Value {
     add!("Agent", crate::config::AgentConfig);
     add!("Schedule", crate::config::Schedule);
     add!("Login", crate::api::Login);
+    add!("Changelog", crate::changelog::Changelog);
     add!("DeviceIntent", crate::device_auth::Intent);
     add!("DeviceToken", crate::device_auth::TokenRequest);
     add!("RunnerConnect", crate::device_auth::Connect);
@@ -96,6 +97,7 @@ pub fn document() -> Value {
     let mut paths = serde_json::Map::new();
     for (path, methods) in [
         ("/meta", vec!["get"]),
+        ("/changelog", vec!["get"]),
         ("/runners/{id}/directories", vec!["get"]),
         ("/runners/{id}/agents/{agent}/models/query", vec!["post"]),
         (
@@ -186,7 +188,10 @@ pub fn document() -> Value {
                 op["parameters"] = json!([{"name":"user_code","in":"path","required":true,"schema":{"type":"string","minLength":8,"maxLength":8}}]);
                 op["security"] = json!([{"sessionCookie":[]}]);
             }
-            if matches!(path, "/meta" | "/oauth/device/code" | "/oauth/token") {
+            if matches!(
+                path,
+                "/meta" | "/changelog" | "/oauth/device/code" | "/oauth/token"
+            ) {
                 op["security"] = json!([]);
             }
             if path.starts_with("/device/") {
@@ -204,6 +209,9 @@ pub fn document() -> Value {
                 .or_insert_with(|| json!([]))
                 .as_array_mut()
                 .unwrap();
+            if path == "/changelog" {
+                parameters.push(json!({"name":"lang","in":"query","schema":{"type":"string","enum":["en","zh"],"default":"en"}}));
+            }
             if matches!(path, "/moments" | "/moments/days") {
                 parameters.push(json!({"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":if path.ends_with("days") {14} else {20}}}));
                 if path == "/moments/days" {
@@ -282,6 +290,9 @@ pub fn document() -> Value {
             } else {
                 json!({"application/json":{"schema":{}}})
             };
+            if path == "/changelog" {
+                op["responses"]["200"] = json!({"description":"Curated Markdown bundled with this Gateway, current version first.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Changelog"}}}});
+            }
             if path == "/moments/days" {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["timezone","today","total_runs","days","next_before"],"properties":{"timezone":{"type":"string"},"today":{"type":"string","format":"date"},"total_runs":{"type":"integer"},"days":{"type":"array","items":{"type":"object","required":["date","count"],"properties":{"date":{"type":"string","format":"date"},"count":{"type":"integer"}}}},"next_before":{"type":["string","null"],"format":"date"}}}}});
             }

@@ -6,12 +6,16 @@ mode: sync
 parameters:
   model: {type: string, label: 模型}
 submit:
-  command: copilot
+  command: wakeit
   args:
-    - --silent
+    - adapter
+    - stream
+    - copilot
+    - '--'
+    - copilot
     - --no-ask-user
     - --output-format
-    - text
+    - json
     - when_set: model
       args: [--model, '{{parameters.model}}']
   stdin: '{{task.prompt}}'
@@ -20,4 +24,4 @@ detect:
   args: [adapter, detect, copilot]
   timeout: 10s
 output:
-  format: text
+  format: events

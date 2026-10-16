@@ -38,7 +38,6 @@ if (protocol === 'agy') {
 "#).unwrap();
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     for (protocol, fixture, has_session) in [
-        ("kimi-code", fixtures.join("kimi-code/stream.jsonl"), true),
         ("agy", fixtures.join("agy-stream.ndjson"), true),
         ("gemini-cli", fixtures.join("trace/gemini-cli.jsonl"), true),
         (
@@ -48,6 +47,7 @@ if (protocol === 'agy') {
         ),
         ("cursor", fixtures.join("additional-cli/cursor.jsonl"), true),
         ("cline", fixtures.join("cline-stream.jsonl"), false),
+        ("copilot", fixtures.join("copilot/stream.jsonl"), false),
         ("goose", fixtures.join("trace/goose.jsonl"), false),
     ] {
         for failure in ["", "fail", "fail-after"] {

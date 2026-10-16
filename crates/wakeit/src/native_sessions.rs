@@ -421,6 +421,14 @@ pub async fn resume(protocol: &str, id: &str, command: Vec<String>) -> Result<i3
 
 /// Name a newly created native conversation through its official metadata API.
 pub async fn rename(protocol: &str, id: &str, title: &str, cwd: &Path) -> Result<()> {
+    if protocol == "kimi-code" {
+        validate_id(protocol, id)?;
+        ensure!(
+            !title.trim().is_empty() && title.len() <= 200 && !title.chars().any(char::is_control),
+            "invalid session title"
+        );
+        return crate::kimi_live::rename(id, title, cwd).await;
+    }
     ensure!(
         protocol == "codex",
         "native adapter has no session rename interface"

@@ -16,12 +16,12 @@ use tokio::{
 
 pub struct Normalizer {
     protocol: String,
-    kimi: Option<crate::kimi_adapter::KimiNormalizer>,
     agy: Option<crate::agy_adapter::Normalizer>,
     gemini: Option<crate::gemini_adapter::GeminiNormalizer>,
     qwen: Option<crate::qwen_cursor_adapter::QwenNormalizer>,
     cursor: Option<crate::qwen_cursor_adapter::CursorNormalizer>,
     cline: Option<crate::cline_adapter::ClineNormalizer>,
+    copilot: Option<crate::copilot_adapter::CopilotNormalizer>,
     goose: Option<crate::goose_adapter::GooseNormalizer>,
     session_id: Option<String>,
     nodes: BTreeMap<String, TraceNode>,
@@ -35,6 +35,7 @@ pub struct Normalizer {
     opencode_parts: Vec<(String, String)>,
     result: Option<Value>,
     failed: bool,
+    completed: bool,
     unknown: BTreeSet<String>,
 }
 impl Normalizer {
@@ -46,11 +47,11 @@ impl Normalizer {
                     | "claude-code"
                     | "pi"
                     | "opencode"
-                    | "kimi-code"
                     | "agy"
                     | "gemini-cli"
                     | "qwen-code"
                     | "cursor"
+                    | "copilot"
                     | "cline"
                     | "goose"
             ),
@@ -58,7 +59,6 @@ impl Normalizer {
         );
         Ok(Self {
             protocol: protocol.into(),
-            kimi: (protocol == "kimi-code").then(crate::kimi_adapter::KimiNormalizer::new),
             agy: (protocol == "agy").then(crate::agy_adapter::Normalizer::new),
             gemini: (protocol == "gemini-cli")
                 .then(crate::gemini_adapter::GeminiNormalizer::default),
@@ -67,6 +67,8 @@ impl Normalizer {
             cursor: (protocol == "cursor")
                 .then(crate::qwen_cursor_adapter::CursorNormalizer::default),
             cline: (protocol == "cline").then(crate::cline_adapter::ClineNormalizer::default),
+            copilot: (protocol == "copilot")
+                .then(crate::copilot_adapter::CopilotNormalizer::default),
             goose: (protocol == "goose").then(crate::goose_adapter::GooseNormalizer::default),
             session_id: None,
             nodes: BTreeMap::new(),
@@ -80,6 +82,7 @@ impl Normalizer {
             opencode_parts: vec![],
             result: None,
             failed: false,
+            completed: false,
             unknown: BTreeSet::new(),
         })
     }
@@ -245,10 +248,10 @@ impl Normalizer {
         if let Some(adapter) = &mut self.cursor {
             return adapter.accept(event);
         }
-        if let Some(adapter) = &mut self.cline {
+        if let Some(adapter) = &mut self.copilot {
             return adapter.accept(event);
         }
-        if let Some(adapter) = &mut self.kimi {
+        if let Some(adapter) = &mut self.cline {
             return adapter.accept(event);
         }
         if let Some(adapter) = &mut self.agy {
@@ -333,11 +336,9 @@ impl Normalizer {
                     };
                     vec![self.node(id, kind, title, input, output, state, at, start, end)]
                 } else if typ == "turn.completed" {
+                    self.completed = true;
                     self.failed = false;
-                    self.result
-                        .clone()
-                        .map(|v| vec![StreamRecord::new(RecordData::Result(v))])
-                        .unwrap_or_default()
+                    vec![]
                 } else if matches!(typ, "thread.started" | "turn.started") {
                     vec![]
                 } else if matches!(typ, "error" | "turn.failed") {
@@ -432,6 +433,7 @@ impl Normalizer {
                     }
                     records
                 } else if typ == "result" {
+                    self.completed = true;
                     self.failed = event["is_error"] == true
                         || event["subtype"]
                             .as_str()
@@ -441,7 +443,7 @@ impl Normalizer {
                     }
                     if let Some(result) = event.get("result") {
                         self.result = Some(result.clone());
-                        vec![StreamRecord::new(RecordData::Result(result.clone()))]
+                        vec![]
                     } else {
                         vec![]
                     }
@@ -734,12 +736,16 @@ impl Normalizer {
     }
     pub fn failed(&self) -> bool {
         self.failed
-            || self.kimi.as_ref().is_some_and(|adapter| adapter.failed())
+            || (matches!(self.protocol.as_str(), "codex" | "claude-code") && !self.completed)
             || self.agy.as_ref().is_some_and(|adapter| adapter.failed())
             || self.gemini.as_ref().is_some_and(|adapter| adapter.failed())
             || self.qwen.as_ref().is_some_and(|adapter| adapter.failed())
             || self.cursor.as_ref().is_some_and(|adapter| adapter.failed())
             || self.cline.as_ref().is_some_and(|adapter| adapter.failed())
+            || self
+                .copilot
+                .as_ref()
+                .is_some_and(|adapter| adapter.failed())
             || self.goose.as_ref().is_some_and(|adapter| adapter.failed())
     }
     pub fn finish(&self) -> Vec<StreamRecord> {
@@ -755,10 +761,10 @@ impl Normalizer {
         if let Some(adapter) = &self.cursor {
             return adapter.finish();
         }
-        if let Some(adapter) = &self.cline {
+        if let Some(adapter) = &self.copilot {
             return adapter.finish();
         }
-        if let Some(adapter) = &self.kimi {
+        if let Some(adapter) = &self.cline {
             return adapter.finish();
         }
         if let Some(adapter) = &self.agy {
@@ -804,7 +810,6 @@ pub fn native_session_id<'a>(protocol: &str, event: &'a Value) -> Option<&'a str
         "claude-code" => event["session_id"].as_str(),
         "pi" if event["type"] == "session" => event["id"].as_str(),
         "opencode" => event["sessionID"].as_str(),
-        "kimi-code" => crate::kimi_adapter::native_session_id(event),
         "agy" => crate::agy_adapter::native_session_id(event),
         "gemini-cli" if event["type"] == "init" => event["session_id"].as_str(),
         "qwen-code" | "cursor" => crate::qwen_cursor_adapter::native_session_id(event),

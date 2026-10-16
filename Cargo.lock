@@ -3166,6 +3166,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+ "tokio-websockets",
  "tower-http",
  "tracing",
  "tracing-subscriber",
