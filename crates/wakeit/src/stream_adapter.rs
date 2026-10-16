@@ -19,6 +19,10 @@ pub struct Normalizer {
     kimi: Option<crate::kimi_adapter::KimiNormalizer>,
     agy: Option<crate::agy_adapter::Normalizer>,
     gemini: Option<crate::gemini_adapter::GeminiNormalizer>,
+    qwen: Option<crate::qwen_cursor_adapter::QwenNormalizer>,
+    cursor: Option<crate::qwen_cursor_adapter::CursorNormalizer>,
+    cline: Option<crate::cline_adapter::ClineNormalizer>,
+    goose: Option<crate::goose_adapter::GooseNormalizer>,
     session_id: Option<String>,
     nodes: BTreeMap<String, TraceNode>,
     message_ids: BTreeMap<String, String>,
@@ -38,7 +42,17 @@ impl Normalizer {
         ensure!(
             matches!(
                 protocol,
-                "codex" | "claude-code" | "pi" | "opencode" | "kimi-code" | "agy" | "gemini-cli"
+                "codex"
+                    | "claude-code"
+                    | "pi"
+                    | "opencode"
+                    | "kimi-code"
+                    | "agy"
+                    | "gemini-cli"
+                    | "qwen-code"
+                    | "cursor"
+                    | "cline"
+                    | "goose"
             ),
             "unsupported stream protocol"
         );
@@ -48,6 +62,12 @@ impl Normalizer {
             agy: (protocol == "agy").then(crate::agy_adapter::Normalizer::new),
             gemini: (protocol == "gemini-cli")
                 .then(crate::gemini_adapter::GeminiNormalizer::default),
+            qwen: (protocol == "qwen-code")
+                .then(crate::qwen_cursor_adapter::QwenNormalizer::default),
+            cursor: (protocol == "cursor")
+                .then(crate::qwen_cursor_adapter::CursorNormalizer::default),
+            cline: (protocol == "cline").then(crate::cline_adapter::ClineNormalizer::default),
+            goose: (protocol == "goose").then(crate::goose_adapter::GooseNormalizer::default),
             session_id: None,
             nodes: BTreeMap::new(),
             message_ids: BTreeMap::new(),
@@ -216,6 +236,18 @@ impl Normalizer {
         session_records
     }
     fn accept_inner(&mut self, event: Value) -> Vec<StreamRecord> {
+        if let Some(adapter) = &mut self.goose {
+            return adapter.accept(event);
+        }
+        if let Some(adapter) = &mut self.qwen {
+            return adapter.accept(event);
+        }
+        if let Some(adapter) = &mut self.cursor {
+            return adapter.accept(event);
+        }
+        if let Some(adapter) = &mut self.cline {
+            return adapter.accept(event);
+        }
         if let Some(adapter) = &mut self.kimi {
             return adapter.accept(event);
         }
@@ -705,10 +737,26 @@ impl Normalizer {
             || self.kimi.as_ref().is_some_and(|adapter| adapter.failed())
             || self.agy.as_ref().is_some_and(|adapter| adapter.failed())
             || self.gemini.as_ref().is_some_and(|adapter| adapter.failed())
+            || self.qwen.as_ref().is_some_and(|adapter| adapter.failed())
+            || self.cursor.as_ref().is_some_and(|adapter| adapter.failed())
+            || self.cline.as_ref().is_some_and(|adapter| adapter.failed())
+            || self.goose.as_ref().is_some_and(|adapter| adapter.failed())
     }
     pub fn finish(&self) -> Vec<StreamRecord> {
         if self.failed() {
             return vec![];
+        }
+        if let Some(adapter) = &self.goose {
+            return adapter.finish();
+        }
+        if let Some(adapter) = &self.qwen {
+            return adapter.finish();
+        }
+        if let Some(adapter) = &self.cursor {
+            return adapter.finish();
+        }
+        if let Some(adapter) = &self.cline {
+            return adapter.finish();
         }
         if let Some(adapter) = &self.kimi {
             return adapter.finish();
@@ -759,6 +807,7 @@ pub fn native_session_id<'a>(protocol: &str, event: &'a Value) -> Option<&'a str
         "kimi-code" => crate::kimi_adapter::native_session_id(event),
         "agy" => crate::agy_adapter::native_session_id(event),
         "gemini-cli" if event["type"] == "init" => event["session_id"].as_str(),
+        "qwen-code" | "cursor" => crate::qwen_cursor_adapter::native_session_id(event),
         _ => None,
     }
 }
@@ -930,7 +979,10 @@ pub async fn stream_checked(
             written.context("write native prompt")?;
         }
     }
-    write_records(&mut writer, normalizer.finish()).await?;
+    // A native nonzero exit never publishes an earlier partial answer as a report.
+    if status.success() {
+        write_records(&mut writer, normalizer.finish()).await?;
+    }
     let code = status.code().unwrap_or(1);
     Ok(if code == 0 && normalizer.failed() {
         1

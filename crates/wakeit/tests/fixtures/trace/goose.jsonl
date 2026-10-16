@@ -1,0 +1,9 @@
+{"type":"message","message":{"id":"assistant-1","role":"assistant","created":1792108800,"content":[{"type":"text","text":"Checking "}],"metadata":{"agentVisible":true,"userVisible":true}}}
+{"type":"message","message":{"id":"assistant-1","role":"assistant","created":1792108801,"content":[{"type":"text","text":"tests."}],"metadata":{"agentVisible":true,"userVisible":true}}}
+{"type":"message","message":{"id":"assistant-1","role":"assistant","created":1792108802,"content":[{"type":"thinking","thinking":"private reasoning"},{"type":"toolRequest","id":"call-1","toolCall":{"status":"success","value":{"name":"developer__shell","arguments":{"command":"cargo test"}}}}],"metadata":{"agentVisible":true,"userVisible":true}}}
+{"type":"notification","extension_id":"developer","progress":{"progress":1.0,"total":2.0,"message":"running"}}
+{"type":"message","message":{"id":"tool-1","role":"user","created":1792108803,"content":[{"type":"toolResponse","id":"call-1","toolResult":{"status":"success","value":{"content":[{"type":"text","text":"all tests passed"},{"type":"text","text":"hidden tool detail","annotations":{"audience":["assistant"]}}],"isError":false}}}],"metadata":{"agentVisible":true,"userVisible":true}}}
+{"type":"message","message":{"id":"hidden-1","role":"assistant","created":1792108804,"content":[{"type":"text","text":"internal summary"}],"metadata":{"agentVisible":true,"userVisible":false}}}
+{"type":"message","message":{"id":"assistant-2","role":"assistant","created":1792108805,"content":[{"type":"text","text":"测试"},{"type":"text","text":"hidden text","annotations":{"audience":["assistant"]}}],"metadata":{"agentVisible":true,"userVisible":true}}}
+{"type":"message","message":{"id":"assistant-2","role":"assistant","created":1792108806,"content":[{"type":"text","text":"通过。"}],"metadata":{"agentVisible":true,"userVisible":true}}}
+{"type":"complete","total_tokens":123,"input_tokens":100,"output_tokens":23}

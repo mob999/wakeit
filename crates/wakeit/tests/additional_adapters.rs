@@ -12,7 +12,10 @@ async fn native_helpers_frame_unicode_prompts_and_preserve_exit_codes() {
     std::fs::write(&script, r#"
 const fs = require('node:fs');
 const [protocol, fixture, expected, failure] = process.argv.slice(2);
-if (failure) process.exit(7);
+if (failure === 'fail') process.exit(7);
+if (failure === 'fail-after') {
+  process.stdout.write(fs.readFileSync(fixture), () => process.exit(7));
+} else {
 const output = () => process.stdout.write(fs.readFileSync(fixture));
 if (protocol === 'agy') {
   const init = JSON.parse(fs.readFileSync(fixture, 'utf8').split('\n')[0]);
@@ -31,14 +34,23 @@ if (protocol === 'agy') {
     });
   });
 } else output();
+}
 "#).unwrap();
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    for (protocol, fixture) in [
-        ("kimi-code", fixtures.join("kimi-code/stream.jsonl")),
-        ("agy", fixtures.join("agy-stream.ndjson")),
-        ("gemini-cli", fixtures.join("trace/gemini-cli.jsonl")),
+    for (protocol, fixture, has_session) in [
+        ("kimi-code", fixtures.join("kimi-code/stream.jsonl"), true),
+        ("agy", fixtures.join("agy-stream.ndjson"), true),
+        ("gemini-cli", fixtures.join("trace/gemini-cli.jsonl"), true),
+        (
+            "qwen-code",
+            fixtures.join("additional-cli/qwen-code.jsonl"),
+            true,
+        ),
+        ("cursor", fixtures.join("additional-cli/cursor.jsonl"), true),
+        ("cline", fixtures.join("cline-stream.jsonl"), false),
+        ("goose", fixtures.join("trace/goose.jsonl"), false),
     ] {
-        for failure in [false, true] {
+        for failure in ["", "fail", "fail-after"] {
             let mut command = Command::new(env!("CARGO_BIN_EXE_wakeit"));
             command
                 .args(["adapter", "stream", protocol, "--", "node"])
@@ -46,8 +58,8 @@ if (protocol === 'agy') {
                 .arg(protocol)
                 .arg(&fixture)
                 .arg(&expected);
-            if failure {
-                command.arg("fail");
+            if !failure.is_empty() {
+                command.arg(failure);
             }
             let mut child = command
                 .stdin(Stdio::piped())
@@ -68,11 +80,22 @@ if (protocol === 'agy') {
                     .unwrap();
             assert_eq!(
                 output.status.code(),
-                Some(if failure { 7 } else { 0 }),
+                Some(if failure.is_empty() { 0 } else { 7 }),
                 "{protocol}: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
-            if !failure {
+            if failure == "fail-after" {
+                assert!(
+                    output
+                        .stdout
+                        .split(|b| *b == b'\n')
+                        .filter(|line| !line.is_empty())
+                        .map(|line| StreamRecord::parse(line).unwrap())
+                        .all(|r| !matches!(r.record, RecordData::Result(_))),
+                    "native failure must not publish an earlier report: {protocol}"
+                );
+            }
+            if failure.is_empty() {
                 let records: Vec<_> = output
                     .stdout
                     .split(|b| *b == b'\n')
@@ -93,10 +116,11 @@ if (protocol === 'agy') {
                         .any(|r| matches!(r.record, RecordData::Trace(_))),
                     "{protocol}"
                 );
-                assert!(
+                assert_eq!(
                     records
                         .iter()
                         .any(|r| matches!(&r.record, RecordData::Session(s) if !s.persisted)),
+                    has_session,
                     "{protocol}"
                 );
             }

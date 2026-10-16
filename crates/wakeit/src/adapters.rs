@@ -11,26 +11,48 @@ use tokio::{
 /// Reject unrelated desktop launchers or incompatible native generations.
 /// Help/version terminate before an Agent engine or model session is started.
 pub async fn detect(id: &str) -> Result<String> {
-    let (command, required): (&str, &[&str]) = match id {
-        "kimi-code" => ("kimi", &["--prompt", "--output-format", "--session"]),
+    let (command, help_args, required): (&str, &[&str], &[&str]) = match id {
+        "kimi-code" => (
+            "kimi",
+            &["--help"],
+            &["--prompt", "--output-format", "--session"],
+        ),
         "agy" => (
             "agy",
+            &["--help"],
             &[
                 "--input-format",
                 "--output-format",
                 "--disable-slash-commands",
             ],
         ),
-        "gemini-cli" => ("gemini", &["--prompt", "--output-format"]),
+        "gemini-cli" => ("gemini", &["--help"], &["--prompt", "--output-format"]),
+        "qwen-code" => ("qwen", &["--help"], &["--prompt", "--output-format"]),
+        "cursor" => ("cursor-agent", &["--help"], &["--print", "--output-format"]),
+        "copilot" => (
+            "copilot",
+            &["--help"],
+            &["--silent", "--no-ask-user", "--output-format", "--model"],
+        ),
+        "cline" => (
+            "cline",
+            &["--help"],
+            &["--json", "--auto-approve", "--model"],
+        ),
+        "goose" => (
+            "goose",
+            &["run", "--help"],
+            &["--instructions", "--output-format"],
+        ),
         _ => bail!("unsupported native capability probe"),
     };
     tokio::time::timeout(Duration::from_secs(8), async {
-        let help = probe(command, "--help").await?;
+        let help = probe(command, help_args).await?;
         ensure!(
             required.iter().all(|flag| help.contains(flag)),
             "native CLI lacks required headless options"
         );
-        let version = probe(command, "--version").await?;
+        let version = probe(command, &["--version"]).await?;
         if id == "kimi-code" {
             let major = version.split_whitespace().find_map(|part| {
                 part.trim_start_matches('v')
@@ -50,10 +72,10 @@ pub async fn detect(id: &str) -> Result<String> {
     .context("native CLI detection timed out")?
 }
 
-async fn probe(executable: &str, flag: &str) -> Result<String> {
+async fn probe(executable: &str, args: &[&str]) -> Result<String> {
     let mut spec = crate::config::CommandSpec {
         command: executable.into(),
-        args: vec![flag.into()],
+        args: args.iter().map(|s| (*s).into()).collect(),
         ..Default::default()
     };
     crate::config::normalize_native_command(&mut spec)?;

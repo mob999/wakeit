@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","cwd":"/workspace","session_id":"22222222-2222-4222-8222-222222222222","model":"fixture-model","permissionMode":"default"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Fixture prompt"}]},"session_id":"22222222-2222-4222-8222-222222222222"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Reading."}]},"session_id":"22222222-2222-4222-8222-222222222222"}
+{"type":"tool_call","subtype":"started","call_id":"cursor-call1","tool_call":{"readToolCall":{"args":{"path":"README.md"}}},"session_id":"22222222-2222-4222-8222-222222222222"}
+{"type":"tool_call","subtype":"completed","call_id":"cursor-call1","tool_call":{"readToolCall":{"args":{"path":"README.md"},"result":{"success":{"content":"Fixture README","totalLines":1}}}},"session_id":"22222222-2222-4222-8222-222222222222"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Done."}]},"session_id":"22222222-2222-4222-8222-222222222222"}
+{"type":"result","subtype":"success","is_error":false,"result":"Reading.Done.","duration_ms":10,"session_id":"22222222-2222-4222-8222-222222222222"}

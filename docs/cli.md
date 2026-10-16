@@ -176,4 +176,4 @@ Homebrew、系统包管理器或容器管理的安装应使用相应升级方式
 setup 自启名称包含 Runner ID，支持多 Gateway。Linux 使用 systemd user，macOS 使用当前用户 LaunchAgent，Windows 使用当前用户登录计划任务。默认不保证注销后或 Windows 登录前运行；Agent 的登录和模型保持原样。若服务管理器不可用，setup 报告未完成步骤，不改用 root。
 
 
-内置 Agent 的命令、模型发现、过程与会话能力见[适配指南](agents.md)。新增模板使用 `wakeit agent init kimi-code`、`wakeit agent init agy` 和 `wakeit agent init gemini-cli` 导出；安装能力检测使用 `wakeit adapter detect <id>`，不发起推理。
+内置 Agent 的命令、模型发现、过程与会话能力见[适配指南](agents.md)。模板使用 `wakeit agent init <id> --file <id>.yaml` 导出；安装能力检测使用 `wakeit adapter detect <id>`，不发起推理。新增 ID 包括 `kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。

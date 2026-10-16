@@ -66,4 +66,4 @@ WebUI 的续聊复制来自 interactive 命令的原生 argv 与 cwd，不包含
 不能在 submit 命名的适配可选配 `session.rename: CommandSpec`，以 `{{session.id}}` 和 `{{session.title}}` 在执行后更新原生名称；仅对新会话调用。rename 后读取 inspect，title 必须与期望完全一致。不支持或保存失败时保留实际信息与错误，不伪造成功标题、不重跑 Agent。Codex 内置通过原生辅助命令 rename，其他内置在 submit 传入名称。
 
 
-内置模板 ID 为 `codex`、`claude-code`、`pi`、`opencode`、`kimi-code`、`agy`、`gemini-cli`。后三种可用 `wakeit adapter detect <id>` 只读检查原生帮助/版本。Kimi Code 2.x 支持只读会话索引、精确绑定和续聊，模型手填；agy 支持原生模型查询，但未声明 Wakeit 会话能力；Gemini CLI 仅独立执行、模型手填。配置事件输出不意味着支持模型或会话发现，不增加静态模型目录兜底。
+内置模板 ID 为 `codex`、`claude-code`、`pi`、`opencode`、`kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。新增适配可用 `wakeit adapter detect <id>` 只读检查原生帮助/版本。Kimi Code 2.x 支持只读会话索引、精确绑定和续聊，模型手填；agy 支持原生模型查询，但未声明 Wakeit 会话能力。Cursor、Cline、Goose、Qwen Code 提供公开过程及最终结果，Copilot 提供原生最终文本；这些适配的模型手填，不声明未经验证的模型和会话目录。Cursor 默认不强制应用文件修改，Copilot 不自动授予工具权限，Cline 一次性模式沿用原生自动批准默认值，Goose 沿用原生无人值守模式。配置事件输出不意味着支持模型或会话发现，不增加静态模型目录兜底。任务选择器仅展示 Runner 检测到的 Agent；Runner Agents 页仍展示完整安装状态。

@@ -519,6 +519,11 @@ pub const BUILTIN_AGENTS: &[(&str, &str)] = &[
         "gemini-cli",
         include_str!("../../../agents/gemini-cli.yaml"),
     ),
+    ("qwen-code", include_str!("../../../agents/qwen-code.yaml")),
+    ("cursor", include_str!("../../../agents/cursor.yaml")),
+    ("copilot", include_str!("../../../agents/copilot.yaml")),
+    ("cline", include_str!("../../../agents/cline.yaml")),
+    ("goose", include_str!("../../../agents/goose.yaml")),
 ];
 pub fn builtin(id: &str) -> Result<&'static str> {
     BUILTIN_AGENTS
