@@ -247,13 +247,15 @@ export function TaskEditor({
                       placeholder={tr('选择 Agent')}
                       disabled={save.isPending || !selectedRunner}
                       value={config.agent}
-                      options={(selectedRunner?.agents ?? []).map((a) => ({
-                        value: a.id,
-                        label: a.name,
-                        keywords: a.id,
-                        icon: <AgentLogo name={a.name} logo={a.logo} />,
-                        status: a.available ? undefined : tr('未检测到'),
-                      }))}
+                      selectionLabel={selectedAgent?.name}
+                      options={(selectedRunner?.agents ?? [])
+                        .filter((a) => a.available)
+                        .map((a) => ({
+                          value: a.id,
+                          label: a.name,
+                          keywords: a.id,
+                          icon: <AgentLogo name={a.name} logo={a.logo} />,
+                        }))}
                       onChange={(value) =>
                         setConfig((c) =>
                           value === c.agent
