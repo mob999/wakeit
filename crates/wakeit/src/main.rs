@@ -160,6 +160,15 @@ enum AdapterSession {
 }
 #[derive(Subcommand)]
 enum Gateway {
+    /// Explicitly grant instance account-management access after a database upgrade.
+    GrantInstanceAdmin {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        user_id: Uuid,
+        #[arg(long)]
+        env_file: Option<PathBuf>,
+    },
     Start {
         #[arg(long)]
         config: PathBuf,
@@ -413,7 +422,8 @@ fn main() {
             command:
                 Gateway::Start { env_file, .. }
                 | Gateway::Migrate { env_file, .. }
-                | Gateway::Bootstrap { env_file, .. },
+                | Gateway::Bootstrap { env_file, .. }
+                | Gateway::GrantInstanceAdmin { env_file, .. },
         } => env_file.as_deref(),
         _ => None,
     };
@@ -602,6 +612,19 @@ async fn run(mut cli: Cli) -> Result<()> {
             } => {
                 nats_auth::init(dir, host, *port, *ws_port)?;
                 println!("NATS configuration: {}", dir.join("nats.conf").display());
+            }
+            Gateway::GrantInstanceAdmin {
+                config, user_id, ..
+            } => {
+                let c = read_gateway(config)?;
+                let pool = store::pool(&c.database_url_env).await?;
+                let result =
+                    sqlx::query("UPDATE users SET instance_admin=true WHERE id=$1 AND active")
+                        .bind(user_id)
+                        .execute(&pool)
+                        .await?;
+                anyhow::ensure!(result.rows_affected() == 1, "active account not found");
+                println!("Instance administrator designated.");
             }
             Gateway::Start { config, .. } => gateway::start(read_gateway(config)?).await?,
             Gateway::Migrate { config, .. } => {
