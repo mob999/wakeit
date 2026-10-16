@@ -76,6 +76,30 @@ wakeit run cancel <run-id>
 wakeit --request-key retry-once run retry <run-id>
 ```
 
+### 阻塞观察一次运行
+
+```sh
+wakeit run watch <run-id>
+wakeit run watch <run-id> --timeout 1h
+wakeit --json run watch <run-id> --timeout 10m
+```
+
+`run watch` 只观察指定 Run，实时显示状态、日志和 Agent 实际提供的过程，结束后显示最终结果并退出。已结束的 Run 直接读取已有输出和结果。它不会触发、重试或取消任务，也不会切换到下一次执行；不提供 `task watch`。
+
+默认一直等待。`--timeout` 为大于零的时长，覆盖请求、重连和等待；它不改变任务本身的执行超时。`Ctrl+C` 只退出观察。`unknown` 会提示等待核对，不视为结束。
+
+每秒查询一次，事件按游标补读；终态后补读当前已入库的尾部事件，再读取最终结果。断线后最多重连 30 秒，观察超时仍优先生效。内容截断、过期或未记录时会明确提示；没有结果时不从日志拼接报告。
+
+`--json` 输出 JSONL，每行含 `type`、`run_id`、`data`；事件记录还含 `event_id` 和 `seq`。类型为 `status`、`log`、`trace`、`notice`、`error`、`summary`。Trace 是按节点 ID 更新的完整快照。最后一行 `summary.data` 包含 `state`、`terminal`、`reason`、`result` 和 `exit_code`；超时或读取错误不会伪造执行终态。输出不包含整份任务配置或无关 Session 信息。
+
+| 退出码 | 含义 |
+|---|---|
+| `0` | Run 成功 |
+| `1` | 失败、取消、执行超时、跳过或中断 |
+| `2` | 参数、认证、查询或持续连接错误 |
+| `124` | 观察等待超时 |
+| `130` | 用户中断观察 |
+
 取消请求发出不等于已取消。`unknown` 不自动重试；先确认原进程或远端任务已经结束，再记录实际状态：
 
 ```sh

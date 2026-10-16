@@ -1,7 +1,7 @@
 ---
 name: wakeit
 license: Apache-2.0
-description: Connect to or deploy Wakeit Gateway, register Runners, define scheduled Agent tasks, inspect Runs, and develop command adapters. Use for Wakeit setup and operation, not generic reminders.
+description: Connect to or deploy Wakeit Gateway, register Runners, define scheduled Agent tasks, inspect and watch Runs, and develop command adapters. Use for Wakeit setup and operation, not generic reminders.
 ---
 
 # Wakeit
@@ -17,7 +17,7 @@ Wakeit 集中调度 Agent 任务，在用户设备上的 Runner 执行。使用�
 - 连接执行设备、选择可用 Agent：[Runner](references/runner.md)。
 - 管理成员账号、启停或重置密码：[账号](references/accounts.md)。
 - 定义、注册或修改任务：[任务](references/tasks.md)。
-- 查结果、日志、取消、核对或重试：[运行](references/runs.md)。
+- 查结果、日志、阻塞观察执行、取消、核对或重试：[运行](references/runs.md)。
 - 任务绑定已有会话、完成后本机续聊：[会话](references/sessions.md)。
 - 接入新 Agent 或远端服务：[适配器](references/adapters.md)。
 - 检查版本和更新：[更新](references/updates.md)。

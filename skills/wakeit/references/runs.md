@@ -3,12 +3,18 @@
 ```sh
 wakeit --json run list --task <task-id>
 wakeit run get <run-id>
+wakeit run watch <run-id> --timeout 1h
+wakeit --json run watch <run-id> --timeout 1h
 wakeit run logs <run-id> --follow
 wakeit run cancel <run-id>
 wakeit --request-key <stable-retry-key> run retry <run-id>
 ```
 
-get 的 JSON 中读取实际状态和结果，日志跟随可在需要看到最终报告时停止。WebUI “执行”页展示实际过程和结果，“详情”页提供日志及运行信息。纯文本适配只有输出，不从文本猜工具调用。
+需要等待任务完成时，先从实际触发响应或运行列表取得 Run ID，再使用 `run watch`，不要猜测 ID 或用反复重试代替等待。watch 仅观察这次 Run，实时显示状态、日志和真实 Agent 过程，结束后输出结果；已结束的 Run 直接读取返回。不提供 `task watch`，也不会自动触发下一次执行。
+
+默认无限等待，`--timeout` 必须大于零，限制整个观察过程；`Ctrl+C` 和观察超时均不取消任务。`unknown` 保持等待核对。退出码为成功 0、其他执行终态 1、参数/认证/查询错误 2、观察超时 124、用户中断 130。
+
+`--json` 返回 JSONL：`type`、`run_id`、`data`，事件另有 `event_id`、`seq`；最后的 `summary.data` 包含实际状态、`terminal`、原因、结果和退出码。超时或网络错误不表示 Run 已结束。Trace 是完整节点快照，按 ID 更新。需要单次读取时仍用 `run get`，仅跟随日志时用 `run logs --follow`。WebUI “执行”页展示实际过程和结果，“详情”页提供日志及运行信息。纯文本适配只有输出，不从文本猜工具调用。
 
 取消操作是请求；确认最终 cancelled 才算完成。终止无法确认、同步监控丢失或异步提交结果不确定会进入 unknown。核对本机进程或外部 job_id 的实际状态，确认后：
 
