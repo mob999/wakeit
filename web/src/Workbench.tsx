@@ -1,3 +1,5 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PageBreadcrumbs, PageListViewContext } from './PageHeader'
 import { PaneResizeHandle } from './PaneResizeHandle'
@@ -17,6 +19,7 @@ export function Split({
   crumbs?: { label: string; onClick?: () => void }[]
   onBack: () => void
 }) {
+  useTranslation()
   const [preferredWidth, setWidth] = useState(() =>
     Math.max(270, Math.min(560, Number(localStorage.getItem('wakeit-list-width')) || 350)),
   )
@@ -43,7 +46,7 @@ export function Split({
       >
         <section className="list-pane">{list}</section>
         <PaneResizeHandle
-          label="调整列表宽度"
+          label={tr('调整列表宽度')}
           width={width}
           min={270}
           max={max}
@@ -67,6 +70,7 @@ export function DetailBody({
   children: ReactNode
   limited?: boolean
 }) {
+  useTranslation()
   return (
     <div className="detail-scroll">
       <div className={limited ? 'detail-content limited' : 'detail-content'}>{children}</div>

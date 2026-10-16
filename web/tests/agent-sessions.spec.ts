@@ -644,7 +644,7 @@ test('page context and actions live only in the topbar across workbenches and na
 }) => {
   await fixture(page)
   for (const [url, label, action] of [
-    ['/', 'Moments', '刷新动态'],
+    ['/', '动态', '刷新动态'],
     [`/tasks?task=${configuration.id}`, configuration.name, '复制 Task ID'],
     [`/runs?run=${runId}`, configuration.name, '复制 Run ID'],
     [`/runners?runner=${runnerId}&section=overview`, 'dev-mac', '创建任务'],

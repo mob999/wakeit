@@ -1,3 +1,5 @@
+import { t as tr, roleName } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -19,6 +21,7 @@ import { IconButton, TooltipTarget } from './ui'
 import { SearchLauncher, useSearchControls } from './Search'
 import { PaneResizeHandle } from './PaneResizeHandle'
 import { PageHeaderContext } from './PageHeader'
+import { LanguageSwitch } from './LanguageSwitch'
 import { BrandMark } from './BrandMark'
 import { AgentPrompt, type GatewayMeta } from './onboarding/AgentPrompt'
 export function Layout({
@@ -34,6 +37,7 @@ export function Layout({
   onLogout: () => void
   children: ReactNode
 }) {
+  useTranslation()
   const { requestLeave } = useSearchControls()
   const [breadcrumbs, setBreadcrumbs] = useState<HTMLDivElement | null>(null)
   const [actions, setActions] = useState<HTMLDivElement | null>(null)
@@ -84,7 +88,7 @@ export function Layout({
           >
             {collapsed ? (
               <IconButton
-                label="展开导航"
+                label={tr('展开导航')}
                 className="brand-expand"
                 aria-controls="primary-navigation"
                 aria-expanded={false}
@@ -99,7 +103,7 @@ export function Layout({
                   <span>Wakeit</span>
                 </Link>
                 <IconButton
-                  label="折叠导航"
+                  label={tr('折叠导航')}
                   aria-controls="primary-navigation"
                   aria-expanded={true}
                   onClick={toggle}
@@ -114,14 +118,15 @@ export function Layout({
             <div className="header-page-actions" ref={setActions} />
             <div className="top-actions">
               <span className="brand-version">{meta.data?.version ?? '…'}</span>
+              <LanguageSwitch />
               <AgentPrompt meta={meta.data} />
-              <IconButton label="切换主题" onClick={onTheme}>
+              <IconButton label={tr('切换主题')} onClick={onTheme}>
                 {dark ? <Sun /> : <Moon />}
               </IconButton>
               <Dropdown.Root>
-                <TooltipTarget label={`${user.username} (${user.role})`}>
+                <TooltipTarget label={`${user.username} (${roleName(user.role)})`}>
                   <Dropdown.Trigger asChild>
-                    <button className="user-menu" aria-label="用户菜单">
+                    <button className="user-menu" aria-label={tr('用户菜单')}>
                       <span className="avatar">{user.username[0].toUpperCase()}</span>
                       <span className="user-name">{user.username}</span>
                       <ChevronDown size={12} aria-hidden="true" />
@@ -132,13 +137,13 @@ export function Layout({
                   <Dropdown.Content className="dropdown" align="end">
                     <Dropdown.Label className="user-menu-label">
                       {user.username}
-                      <small>{user.role}</small>
+                      <small>{roleName(user.role)}</small>
                     </Dropdown.Label>
                     <Dropdown.Item
                       onSelect={() => requestLeave().then((allowed) => allowed && onLogout())}
                     >
                       <LogOut size={14} />
-                      退出登录
+                      {tr('退出登录')}
                     </Dropdown.Item>
                   </Dropdown.Content>
                 </Dropdown.Portal>
@@ -150,24 +155,24 @@ export function Layout({
           {narrow && mobileOpen && (
             <button
               className="navigation-backdrop"
-              aria-label="关闭导航"
+              aria-label={tr('关闭导航')}
               onClick={() => setMobileOpen(false)}
             />
           )}
           <div className="navigation-frame" style={{ width: narrow || collapsed ? 44 : width }}>
             <aside
               id="primary-navigation"
-              aria-label="主导航"
+              aria-label={tr('主导航')}
               className={`navigation ${collapsed ? 'collapsed' : ''} ${narrow && mobileOpen ? 'navigation-overlay' : ''}`}
               style={narrow && mobileOpen ? { width } : undefined}
             >
               <SearchLauncher collapsed={collapsed} onOpen={() => setMobileOpen(false)} />
               {[
-                { to: '/', icon: Rss, label: 'Moments' },
-                { to: '/tasks', icon: ListTodo, label: 'Tasks' },
-                { to: '/runs', icon: History, label: 'Runs' },
-                { to: '/runners', icon: Monitor, label: 'Runners' },
-                { to: '/settings', icon: Settings2, label: 'Settings' },
+                { to: '/', icon: Rss, label: tr('Moments') },
+                { to: '/tasks', icon: ListTodo, label: tr('Tasks') },
+                { to: '/runs', icon: History, label: tr('Runs') },
+                { to: '/runners', icon: Monitor, label: tr('Runners') },
+                { to: '/settings', icon: Settings2, label: tr('Settings') },
               ].map(({ to, icon: Icon, label }) => (
                 <TooltipTarget key={to} label={label} enabled={collapsed}>
                   <Link
@@ -186,7 +191,7 @@ export function Layout({
             </aside>
             {!collapsed && !narrow && (
               <PaneResizeHandle
-                label="调整导航宽度"
+                label={tr('调整导航宽度')}
                 width={width}
                 min={128}
                 max={max}

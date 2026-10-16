@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useBlocker, useNavigate, useSearch } from '@tanstack/react-router'
@@ -17,6 +19,7 @@ const toDraft = (s: WorkspaceSettings): WorkspaceDraft => ({
   run_retention_days: String(s.run_retention_days),
 })
 export function SettingsPage({ user, toast }: { user: User; toast: (message: string) => void }) {
+  useTranslation()
   const navigate = useNavigate()
   const route = useSearch({ from: '/settings' })
   const controls = useSearchControls()
@@ -109,7 +112,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
       setDraft(toDraft(value))
       setSaveError('')
       client.setQueryData(['settings'], value)
-      toast('已保存')
+      toast(tr('已保存'))
     },
     onError: (e: Error) => setSaveError(e.message),
   })
@@ -143,7 +146,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
   return (
     <>
       <Split
-        label="Settings"
+        label={tr('Settings')}
         crumbs={[
           {
             label: section === 'tokens' ? 'API Key' : sections.find((s) => s.id === section)!.name,
@@ -156,9 +159,9 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         list={
           <>
             <div className="pane-heading">
-              <h1>Settings</h1>
+              <h1>{tr('Settings')}</h1>
             </div>
-            <div className="list-scroll" role="navigation" aria-label="设置分类">
+            <div className="list-scroll" role="navigation" aria-label={tr('设置分类')}>
               {sections.map((s) => {
                 const Icon =
                   s.id === 'workspace'
@@ -188,8 +191,8 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
           <>
             <DetailBody>
               <div className="settings-request">
-                <span>无匹配设置</span>
-                <Button onClick={clearFilter}>清除筛选</Button>
+                <span>{tr('无匹配设置')}</span>
+                <Button onClick={clearFilter}>{tr('清除筛选')}</Button>
               </div>
             </DetailBody>
           </>
@@ -237,7 +240,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         onOpenChange={(v) => {
           if (!v && !saveMutation.isPending) finishLeave(false)
         }}
-        title="有未保存的更改"
+        title={tr('有未保存的更改')}
       >
         <div className="modal-body">
           {saveError && (
@@ -248,7 +251,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         </div>
         <div className="modal-footer">
           <Button disabled={saveMutation.isPending} onClick={() => finishLeave(false)}>
-            继续编辑
+            {tr('继续编辑')}
           </Button>
           <Button
             disabled={saveMutation.isPending}
@@ -257,7 +260,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
               finishLeave(true)
             }}
           >
-            放弃更改
+            {tr('放弃更改')}
           </Button>
           <Button
             variant="solid"
@@ -268,7 +271,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
               if (await save()) finishLeave(true)
             }}
           >
-            {saveMutation.isPending ? '正在保存…' : '保存并离开'}
+            {saveMutation.isPending ? tr('正在保存…') : tr('保存并离开')}
           </Button>
         </div>
       </Modal>

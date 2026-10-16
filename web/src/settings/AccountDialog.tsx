@@ -1,3 +1,5 @@
+import { t as tr, roleName } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, type Member } from '../api'
@@ -14,6 +16,7 @@ export function AccountDialog({
   onClose: () => void
   onCreated?: () => void
 }) {
+  useTranslation()
   const client = useQueryClient()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -33,7 +36,7 @@ export function AccountDialog({
     if (busy.current) return
     setError('')
     if (password !== confirm) {
-      setError('两次输入的密码不一致')
+      setError(tr('两次输入的密码不一致'))
       return
     }
     busy.current = true
@@ -62,10 +65,13 @@ export function AccountDialog({
   return (
     <Modal
       open
-      title={member ? '重置密码' : '新建账号'}
+      title={member ? tr('重置密码') : tr('新建账号')}
       description={
         member
-          ? `重置「${member.username}」的密码后，全部登录和 API Key 将失效。${self ? '你将退出登录。' : ''}`
+          ? tr('重置「{{v0}}」的密码后，全部登录和 API Key 将失效。{{v1}}', {
+              v0: member.username,
+              v1: self ? tr('你将退出登录。') : '',
+            })
           : undefined
       }
       onOpenChange={(v) => {
@@ -80,7 +86,7 @@ export function AccountDialog({
       >
         <div className="modal-body">
           {!member && (
-            <Field label="用户名">
+            <Field label={tr('用户名')}>
               <input
                 autoFocus
                 required
@@ -91,7 +97,7 @@ export function AccountDialog({
               />
             </Field>
           )}
-          <Field label={member ? '新密码' : '密码'}>
+          <Field label={member ? tr('新密码') : tr('密码')}>
             <input
               type="password"
               autoFocus={!!member}
@@ -102,7 +108,7 @@ export function AccountDialog({
               onChange={(e) => setPassword(e.target.value)}
             />
           </Field>
-          <Field label="确认密码">
+          <Field label={tr('确认密码')}>
             <input
               type="password"
               required
@@ -113,15 +119,15 @@ export function AccountDialog({
             />
           </Field>
           {!member && (
-            <Field label="角色">
+            <Field label={tr('角色')}>
               <ChoicePicker
-                label="角色"
+                label={tr('角色')}
                 value={role}
                 disabled={pending}
                 onChange={setRole}
                 options={['admin', 'operator', 'viewer'].map((value) => ({
                   value,
-                  label: value[0].toUpperCase() + value.slice(1),
+                  label: roleName(value),
                 }))}
               />
             </Field>
@@ -134,14 +140,14 @@ export function AccountDialog({
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>
-            取消
+            {tr('取消')}
           </Button>
           <Button
             type="submit"
             variant="solid"
             disabled={pending || !password || !confirm || (!member && !username.trim())}
           >
-            {pending ? '正在保存…' : member ? '重置密码' : '创建'}
+            {pending ? tr('正在保存…') : member ? tr('重置密码') : tr('创建')}
           </Button>
         </div>
       </form>

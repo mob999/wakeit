@@ -1,3 +1,5 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { IconButton } from './ui'
 export function Pagination({
@@ -13,13 +15,14 @@ export function Pagination({
   onChange: (page: number) => void
   pending?: boolean
 }) {
+  useTranslation()
   const pages = Math.max(1, Math.ceil(total / size))
   return (
-    <nav className="pagination" aria-label="分页">
-      <span>共 {total} 条</span>
+    <nav className="pagination" aria-label={tr('分页')}>
+      <span>{tr('pagination.total', { count: total })}</span>
       <div>
         <IconButton
-          label="上一页"
+          label={tr('上一页')}
           disabled={page <= 1 || pending}
           onClick={() => onChange(page - 1)}
         >
@@ -29,7 +32,7 @@ export function Pagination({
           {page} / {pages}
         </span>
         <IconButton
-          label="下一页"
+          label={tr('下一页')}
           disabled={page >= pages || pending}
           onClick={() => onChange(page + 1)}
         >

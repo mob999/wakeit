@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as Popover from '@radix-ui/react-popover'
@@ -12,10 +14,10 @@ export type WorkspaceDraft = {
 }
 export function draftErrors(draft: WorkspaceDraft) {
   const errors: Partial<Record<keyof WorkspaceDraft, string>> = {}
-  if (!draft.timezone) errors.timezone = '请选择时区'
+  if (!draft.timezone) errors.timezone = tr('请选择时区')
   for (const key of ['log_retention_days', 'run_retention_days'] as const) {
     if (!/^\d+$/.test(draft[key]) || Number(draft[key]) < 1 || Number(draft[key]) > 3650)
-      errors[key] = '请输入 1–3650 的整数'
+      errors[key] = tr('请输入 1–3650 的整数')
   }
   return errors
 }
@@ -28,6 +30,7 @@ function TimezonePicker({
   onChange: (value: string) => void
   disabled: boolean
 }) {
+  useTranslation()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const id = useId()
@@ -52,11 +55,11 @@ function TimezonePicker({
             disabled={disabled}
             className="timezone-selector"
             role="combobox"
-            aria-label="默认时区"
+            aria-label={tr('默认时区')}
             aria-expanded={open}
             aria-controls={`${id}-options`}
           >
-            <span className="mono">{value || '选择时区'}</span>
+            <span className="mono">{value || tr('选择时区')}</span>
             <ChevronDown size={14} />
           </button>
         </Popover.Trigger>
@@ -65,8 +68,8 @@ function TimezonePicker({
             <div className="model-search">
               <Search size={14} />
               <input
-                aria-label="搜索时区"
-                placeholder="搜索时区…"
+                aria-label={tr('搜索时区')}
+                placeholder={tr('搜索时区…')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -78,7 +81,12 @@ function TimezonePicker({
                 retry={() => zones.refetch()}
               />
             ) : (
-              <div className="model-options" role="listbox" id={`${id}-options`} aria-label="时区">
+              <div
+                className="model-options"
+                role="listbox"
+                id={`${id}-options`}
+                aria-label={tr('时区')}
+              >
                 {zones.data
                   ?.filter((z) => z.toLowerCase().includes(search.toLowerCase()))
                   .map((z) => (
@@ -98,7 +106,7 @@ function TimezonePicker({
                     </button>
                   ))}
                 {!zones.data?.some((z) => z.toLowerCase().includes(search.toLowerCase())) && (
-                  <p className="quiet padded">无匹配时区</p>
+                  <p className="quiet padded">{tr('无匹配时区')}</p>
                 )}
               </div>
             )}
@@ -125,6 +133,7 @@ export function WorkspaceSettingsView({
   onCancel: () => void
   onSave: () => void
 }) {
+  useTranslation()
   const errors = draftErrors(draft)
   return (
     <form
@@ -135,11 +144,11 @@ export function WorkspaceSettingsView({
       }}
     >
       <div className="form-card-head table-head">
-        <span>设置</span>
-        <span>值</span>
+        <span>{tr('设置')}</span>
+        <span>{tr('值')}</span>
       </div>
       <div className="setting-row">
-        <label>默认时区</label>
+        <label>{tr('默认时区')}</label>
         <TimezonePicker
           value={draft.timezone}
           disabled={pending}
@@ -148,7 +157,9 @@ export function WorkspaceSettingsView({
       </div>
       {(['log_retention_days', 'run_retention_days'] as const).map((key, index) => (
         <div className="setting-row" key={key}>
-          <label htmlFor={`setting-${key}`}>{index === 0 ? '日志保留' : '运行记录保留'}</label>
+          <label htmlFor={`setting-${key}`}>
+            {index === 0 ? tr('日志保留') : tr('运行记录保留')}
+          </label>
           <div className="setting-control">
             <div className="retention-input">
               <input
@@ -163,7 +174,7 @@ export function WorkspaceSettingsView({
                 value={draft[key]}
                 onChange={(e) => onChange({ ...draft, [key]: e.target.value })}
               />
-              <span>天</span>
+              <span>{tr('unit.days', { count: Number(draft[key]) })}</span>
             </div>
             {errors[key] && (
               <small id={`${key}-error`} className="error">
@@ -182,14 +193,14 @@ export function WorkspaceSettingsView({
           )}
           <div>
             <Button type="button" disabled={pending} onClick={onCancel}>
-              取消
+              {tr('取消')}
             </Button>
             <Button
               type="submit"
               variant="solid"
               disabled={pending || Object.keys(errors).length > 0}
             >
-              {pending ? '正在保存…' : '保存'}
+              {pending ? tr('正在保存…') : tr('保存')}
             </Button>
           </div>
         </div>

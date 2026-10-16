@@ -94,11 +94,11 @@ test('create, edit, pause, trigger and inspect a real Agent run', async ({ page 
 
 test('Runner capability details and enrollment', async ({ page }) => {
   await login(page)
-  await expect(page.getByRole('link', { name: 'Agents', exact: true })).toHaveCount(0)
-  await page.getByRole('link', { name: 'Runners', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'Agent', exact: true })).toHaveCount(0)
+  await page.getByRole('link', { name: '设备', exact: true }).click()
   await page.locator('.runner-row').filter({ hasText: 'test-device' }).click()
   await expect(page.getByRole('heading', { name: 'test-device', exact: true })).toBeVisible()
-  await page.getByRole('tab', { name: /^Agents/ }).click()
+  await page.getByRole('tab', { name: /^Agent/ }).click()
   await expect(page.locator('.runner-agents-table')).toContainText('mock-async')
   await expect(page.getByRole('button', { name: '适配模板', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '连接设备', exact: true }).click()
@@ -110,17 +110,17 @@ test('Viewer can inspect runs but cannot edit or trigger', async ({ page }) => {
   await login(page, 'viewer', 'wakeit-role-test-password')
   await expect(page.getByRole('button', { name: '新建任务', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '立即执行', exact: true })).toHaveCount(0)
-  await page.getByRole('link', { name: 'Runs', exact: true }).click()
+  await page.getByRole('link', { name: '运行记录', exact: true }).click()
   await expect(page.getByRole('tab', { name: '详情', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0)
-  await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
   await expect(page.getByRole('heading', { name: '成员', exact: true })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: /^API Key/ })).toBeVisible()
   await page.getByRole('button', { name: '搜索与筛选' }).click()
   const search = page.getByRole('dialog', { name: '搜索', exact: true })
   await search
     .locator('.search-scopes')
-    .getByRole('button', { name: 'Settings', exact: true })
+    .getByRole('button', { name: '设置', exact: true })
     .click()
   await expect(search.getByRole('button', { name: '成员', exact: true })).toHaveCount(0)
   await expect(search.getByRole('button', { name: '工作区', exact: true })).toHaveCount(0)
@@ -129,7 +129,7 @@ test('Viewer can inspect runs but cannot edit or trigger', async ({ page }) => {
 
 test('invite acceptance creates a Viewer account', async ({ page, browser }) => {
   await login(page)
-  await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '成员', exact: true }).click()
   await page.getByRole('button', { name: '邀请成员', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '邀请成员', exact: true })
@@ -147,7 +147,7 @@ test('invite acceptance creates a Viewer account', async ({ page, browser }) => 
   await invited.getByLabel('用户名', { exact: true }).fill(username)
   await invited.getByLabel('密码', { exact: true }).fill('wakeit-invited-password')
   await invited.getByRole('button', { name: '登录工作区' }).click()
-  await expect(invited.getByRole('heading', { name: 'Moments', exact: true })).toBeVisible()
+  await expect(invited.getByRole('heading', { name: '动态', exact: true })).toBeVisible()
   await expect(invited.getByRole('button', { name: '新建任务', exact: true })).toHaveCount(0)
   await context.close()
 })
@@ -157,7 +157,7 @@ test('theme switching and API Key lifecycle', async ({ page, request }) => {
   await page.getByRole('button', { name: '切换主题', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.screenshot({ path: 'test-results/wakeit-tasks-dark.png', fullPage: true })
-  await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: 'API Key', exact: true }).click()
   const name = `browser-token-${Date.now()}`
   await page.getByRole('button', { name: '创建 API Key', exact: true }).click()
@@ -312,10 +312,10 @@ test('global search scopes, filters and server pagination for Tasks and Runs', a
   await expect(page.locator('.list-pane .search, .list-pane .filter')).toHaveCount(0)
   await page.getByRole('button', { name: '搜索与筛选', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '搜索', exact: true })
-  await dialog.locator('.search-scopes').getByRole('button', { name: 'Tasks', exact: true }).click()
+  await dialog.locator('.search-scopes').getByRole('button', { name: '任务', exact: true }).click()
   await dialog.getByLabel('搜索内容', { exact: true }).fill('Pagination 中文')
   await dialog.getByLabel('任务状态', { exact: true }).selectOption('false')
-  await dialog.getByLabel('Tasks Runner', { exact: true }).selectOption('test-device')
+  await dialog.getByLabel('任务 Runner', { exact: true }).selectOption('test-device')
   await expect(dialog.locator('.search-group-heading')).toContainText('Tasks23')
   await page.screenshot({ path: 'test-results/wakeit-search-light.png', fullPage: true })
   await dialog.getByRole('button', { name: '应用', exact: true }).click()
@@ -341,7 +341,7 @@ test('global search scopes, filters and server pagination for Tasks and Runs', a
   await expect(list.locator('.task-row')).toHaveCount(20)
 
   await page.getByRole('button', { name: '搜索与筛选', exact: true }).click()
-  await dialog.locator('.search-scopes').getByRole('button', { name: 'Runs', exact: true }).click()
+  await dialog.locator('.search-scopes').getByRole('button', { name: '运行记录', exact: true }).click()
   await dialog.getByLabel('搜索内容').fill('Pagination')
   await dialog.getByLabel('运行状态').selectOption('succeeded')
   await expect(dialog.locator('.search-group-heading')).toContainText('Runs23')
@@ -366,25 +366,25 @@ test('unscoped search, multiple scopes, navigation, reset and role-aware setting
   await expect(dialog.getByLabel('运行状态')).toHaveCount(0)
   await dialog.getByLabel('搜索内容').fill('Pagination')
   await expect(
-    dialog.locator('.search-group').filter({ hasText: 'Tasks' }).locator('.search-result'),
+    dialog.locator('.search-group').filter({ hasText: '任务' }).locator('.search-result'),
   ).toHaveCount(20)
   await dialog
     .locator('.search-scopes')
-    .getByRole('button', { name: 'Runners', exact: true })
+    .getByRole('button', { name: '设备', exact: true })
     .click()
   await dialog
     .locator('.search-scopes')
-    .getByRole('button', { name: 'Agents', exact: true })
+    .getByRole('button', { name: 'Agent', exact: true })
     .click()
   await expect(dialog.locator('.search-group')).toHaveCount(2)
   await dialog.getByLabel('搜索内容').fill('test-device')
   await dialog.getByLabel('设备状态').selectOption('online')
   await expect(
-    dialog.locator('.search-group').filter({ hasText: 'Runners' }).locator('.search-result'),
+    dialog.locator('.search-group').filter({ hasText: '设备' }).locator('.search-result'),
   ).toHaveCount(1)
   await dialog
     .locator('.search-group')
-    .filter({ hasText: 'Runners' })
+    .filter({ hasText: '设备' })
     .getByRole('button', { name: /test-device/ })
     .click()
   await expect(page).toHaveURL(/\/runners\?runner=/)
@@ -393,7 +393,7 @@ test('unscoped search, multiple scopes, navigation, reset and role-aware setting
   await dialog.getByRole('button', { name: '清除筛选', exact: true }).click()
   await dialog
     .locator('.search-scopes')
-    .getByRole('button', { name: 'Settings', exact: true })
+    .getByRole('button', { name: '设置', exact: true })
     .click()
   await dialog.getByLabel('搜索内容').fill('token')
   await dialog.getByRole('button', { name: '个人 API Key', exact: true }).click()
@@ -404,7 +404,7 @@ test('unscoped search, multiple scopes, navigation, reset and role-aware setting
   await page.getByRole('button', { name: '切换主题', exact: true }).click()
   await page.getByRole('button', { name: '搜索与筛选' }).click()
   await dialog.getByRole('button', { name: '清除筛选', exact: true }).click()
-  await dialog.locator('.search-scopes').getByRole('button', { name: 'Runs', exact: true }).click()
+  await dialog.locator('.search-scopes').getByRole('button', { name: '运行记录', exact: true }).click()
   await dialog.getByLabel('搜索内容').fill('Pagination')
   await expect(dialog.locator('.search-result').first()).toBeVisible()
   await expect(dialog.locator('.search-group-heading')).toContainText('Runs23')
@@ -438,12 +438,12 @@ test('product copy and status styles stay consistent across all pages', async ({
     '返回列表',
     '适配模板',
   ]
-  for (const name of ['Tasks', 'Runs', 'Runners', 'Settings']) {
+  for (const name of ['任务', '运行记录', '设备', '设置']) {
     await page.getByRole('link', { name, exact: true }).click()
     await expect(page.getByRole('heading', { name: new RegExp(`^${name}`) }).first()).toBeVisible()
     for (const text of banned) await expect(page.getByText(text, { exact: false })).toHaveCount(0)
   }
-  await page.getByRole('link', { name: 'Tasks', exact: true }).click()
+  await page.getByRole('link', { name: '任务', exact: true }).click()
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
   await expect(dialog.getByText('任务 ID', { exact: true })).toHaveCount(0)

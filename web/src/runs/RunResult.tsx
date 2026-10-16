@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { MarkdownContent } from './MarkdownContent'
 import { DetailBody } from '../Workbench'
 import { CopyValue } from './CopyValue'
@@ -27,16 +29,17 @@ export function RunResultActions({
   onRaw: (raw: boolean) => void
   toast: (message: string) => void
 }) {
+  useTranslation()
   const { text, source, empty } = resultData(result)
   return (
     <>
       {typeof text === 'string' && !empty && (
         <div className="result-mode">
           <button aria-pressed={!raw} className={!raw ? 'active' : ''} onClick={() => onRaw(false)}>
-            阅读
+            {tr('阅读')}
           </button>
           <button aria-pressed={raw} className={raw ? 'active' : ''} onClick={() => onRaw(true)}>
-            原文
+            {tr('原文')}
           </button>
         </div>
       )}
@@ -45,12 +48,13 @@ export function RunResultActions({
   )
 }
 export function RunResult({ result, raw }: { result: unknown; raw: boolean }) {
+  useTranslation()
   const { truncated, text, source, empty } = resultData(result)
   if (empty) return null
   return (
     <div className="run-result-panel">
       <DetailBody>
-        {truncated && <p className="quiet">结果已截断</p>}
+        {truncated && <p className="quiet">{tr('结果已截断')}</p>}
         {raw || typeof text !== 'string' ? (
           <pre className="code result result-raw">{source}</pre>
         ) : (

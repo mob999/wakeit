@@ -38,6 +38,14 @@ npm test
 
 测试凭据和端口保存在忽略目录 `.local/`，不得提交。测试栈与日常预览独立，退出测试时关闭临时服务。
 
+## WebUI 翻译
+
+界面使用 i18next / react-i18next，资源位于 `web/src/locales/zh.json` 和 `en.json`。保留现有文案含义，只翻译界面文字，不翻译任务指令、报告、日志、路径、模型 ID 或第三方返回的内容。新增文案需同时维护两种语言；整句使用插值，数量使用复数资源，不拼接不同语序的句子。模块级目录使用延迟读取，组件订阅语言变化，避免切换时重建页面或丢失草稿。
+
+首次使用按浏览器语言选择中文或英文，之后使用浏览器保存的 `wakeit-language`。顶栏版本号右侧可切换，登录页也提供同一入口。复制的 Agent Prompt 独立于界面语言。
+
+本地双语回归：`WAKEIT_TEST_URL=http://127.0.0.1:55426 WAKEIT_TEST_STACK=/tmp/wakeit-no-stack.json npm --prefix web test -- tests/languages.spec.ts tests/onboarding.spec.ts`。这些场景模拟 API，不使用真实账号、报告或设备；浏览器回归仍不进入 CI。
+
 发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。当前 `v0.1.0` 作为预览 Release 发布，普通更新检查仍忽略预览版。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
 
 [README Crafter skill](.agents/skills/readme-crafter-skill/SKILL.md) 是维护 README 的仓库内技能；写完核对命令、配置、链接和真实发布状态。

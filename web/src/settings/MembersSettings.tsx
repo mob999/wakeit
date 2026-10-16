@@ -1,3 +1,5 @@
+import { t as tr, roleName } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { PageActions } from '../PageHeader'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,7 +13,6 @@ import { Button, IconButton, Field, Modal } from '../ui'
 import { AccountDialog } from './AccountDialog'
 import { RequestState, SecretValue } from './shared'
 const roles = ['admin', 'operator', 'viewer'] as const
-const roleName = (role: string) => role[0].toUpperCase() + role.slice(1)
 function MemberRow({
   member,
   activeAdmins,
@@ -21,6 +22,7 @@ function MemberRow({
   activeAdmins: number
   user: User
 }) {
+  useTranslation()
   const client = useQueryClient()
   const [account, setAccount] = useState(false)
   const [activation, setActivation] = useState(false)
@@ -63,7 +65,7 @@ function MemberRow({
             <Dropdown.Trigger asChild>
               <button
                 className="settings-role-button"
-                aria-label={`${member.username} 角色`}
+                aria-label={tr('{{v0}} 角色', { v0: member.username })}
                 disabled={change.isPending}
               >
                 {roleName(member.role)}
@@ -87,7 +89,7 @@ function MemberRow({
                     </Dropdown.RadioItem>
                   ))}
                 </Dropdown.RadioGroup>
-                {lastAdmin && <div className="settings-role-help">至少保留一名管理员</div>}
+                {lastAdmin && <div className="settings-role-help">{tr('至少保留一名管理员')}</div>}
               </Dropdown.Content>
             </Dropdown.Portal>
           </Dropdown.Root>
@@ -97,10 +99,13 @@ function MemberRow({
             </small>
           )}
         </div>
-        <span className="quiet">{member.active ? '启用' : '已停用'}</span>
+        <span className="quiet">{member.active ? tr('启用') : tr('已停用')}</span>
         <Dropdown.Root>
           <Dropdown.Trigger asChild>
-            <IconButton label={`${member.username} 操作`} disabled={change.isPending}>
+            <IconButton
+              label={tr('{{v0}} 操作', { v0: member.username })}
+              disabled={change.isPending}
+            >
               <MoreHorizontal />
             </IconButton>
           </Dropdown.Trigger>
@@ -113,9 +118,9 @@ function MemberRow({
                   setActivation(true)
                 }}
               >
-                {member.active ? '停用账号' : '启用账号'}
+                {member.active ? tr('停用账号') : tr('启用账号')}
               </Dropdown.Item>
-              <Dropdown.Item onSelect={() => setAccount(true)}>重置密码</Dropdown.Item>
+              <Dropdown.Item onSelect={() => setAccount(true)}>{tr('重置密码')}</Dropdown.Item>
             </Dropdown.Content>
           </Dropdown.Portal>
         </Dropdown.Root>
@@ -132,11 +137,14 @@ function MemberRow({
         onOpenChange={(v) => {
           if (!v && !activate.isPending) setActivation(false)
         }}
-        title={member.active ? '停用账号' : '启用账号'}
+        title={member.active ? tr('停用账号') : tr('启用账号')}
         description={
           member.active
-            ? `停用「${member.username}」后，全部登录和 API Key 将失效。${member.id === user.id ? '你将退出登录。' : ''}`
-            : `启用「${member.username}」？原有登录和 API Key 不会恢复。`
+            ? tr('停用「{{v0}}」后，全部登录和 API Key 将失效。{{v1}}', {
+                v0: member.username,
+                v1: member.id === user.id ? tr('你将退出登录。') : '',
+              })
+            : tr('启用「{{v0}}」？原有登录和 API Key 不会恢复。', { v0: member.username })
         }
       >
         <div className="modal-body">
@@ -148,7 +156,7 @@ function MemberRow({
         </div>
         <div className="modal-footer">
           <Button disabled={activate.isPending} onClick={() => setActivation(false)}>
-            取消
+            {tr('取消')}
           </Button>
           <Button
             variant="solid"
@@ -156,7 +164,7 @@ function MemberRow({
             disabled={activate.isPending}
             onClick={() => activate.mutate()}
           >
-            {activate.isPending ? '正在保存…' : member.active ? '停用' : '启用'}
+            {activate.isPending ? tr('正在保存…') : member.active ? tr('停用') : tr('启用')}
           </Button>
         </div>
       </Modal>
@@ -165,8 +173,10 @@ function MemberRow({
         onOpenChange={(v) => {
           if (!v && !change.isPending) setProposed(null)
         }}
-        title="更改自己的角色"
-        description={`降为 ${roleName(proposed ?? 'operator')} 后将无法管理成员和工作区。`}
+        title={tr('更改自己的角色')}
+        description={tr('降为 {{v0}} 后将无法管理成员和工作区。', {
+          v0: roleName(proposed ?? 'operator'),
+        })}
       >
         <div className="modal-body">
           {change.error && (
@@ -177,14 +187,14 @@ function MemberRow({
         </div>
         <div className="modal-footer">
           <Button disabled={change.isPending} onClick={() => setProposed(null)}>
-            取消
+            {tr('取消')}
           </Button>
           <Button
             variant="solid"
             disabled={change.isPending}
             onClick={() => proposed && change.mutate(proposed)}
           >
-            确认更改
+            {tr('确认更改')}
           </Button>
         </div>
       </Modal>
@@ -192,6 +202,7 @@ function MemberRow({
   )
 }
 function InviteDialog({ onClose }: { onClose: () => void }) {
+  useTranslation()
   const [role, setRole] = useState('operator')
   const [link, setLink] = useState('')
   const [pending, setPending] = useState(false)
@@ -226,7 +237,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
       onOpenChange={(v) => {
         if (!v && !busy.current) onClose()
       }}
-      title="邀请成员"
+      title={tr('邀请成员')}
     >
       <form
         onSubmit={(e) => {
@@ -237,11 +248,11 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
         <div className="modal-body">
           {link ? (
             <>
-              <SecretValue label="邀请链接" value={link} />
-              <p className="quiet">一次性链接，48 小时内有效</p>
+              <SecretValue label={tr('邀请链接')} value={link} />
+              <p className="quiet">{tr('一次性链接，48 小时内有效')}</p>
             </>
           ) : (
-            <Field label="邀请角色">
+            <Field label={tr('邀请角色')}>
               <select value={role} disabled={pending} onChange={(e) => setRole(e.target.value)}>
                 {roles.map((role) => (
                   <option key={role} value={role}>
@@ -259,11 +270,11 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>
-            {link ? '关闭' : '取消'}
+            {link ? tr('关闭') : tr('取消')}
           </Button>
           {!link && (
             <Button type="submit" variant="solid" disabled={pending}>
-              {pending ? '正在生成…' : '生成链接'}
+              {pending ? tr('正在生成…') : tr('生成链接')}
             </Button>
           )}
         </div>
@@ -272,6 +283,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
   )
 }
 export function MembersSettings({ user }: { user: User }) {
+  useTranslation()
   const [page, setPage] = useState(1)
   const [invite, setInvite] = useState(false)
   const [create, setCreate] = useState(false)
@@ -287,10 +299,10 @@ export function MembersSettings({ user }: { user: User }) {
   return (
     <>
       <PageActions>
-        <IconButton label="新建账号" onClick={() => setCreate(true)}>
+        <IconButton label={tr('新建账号')} onClick={() => setCreate(true)}>
           <Plus />
         </IconButton>
-        <IconButton label="邀请成员" onClick={() => setInvite(true)}>
+        <IconButton label={tr('邀请成员')} onClick={() => setInvite(true)}>
           <UserPlus />
         </IconButton>
       </PageActions>
@@ -302,14 +314,14 @@ export function MembersSettings({ user }: { user: User }) {
             retry={() => query.refetch()}
           />
         ) : !query.data.items.length ? (
-          <div className="settings-request content-card">暂无成员</div>
+          <div className="settings-request content-card">{tr('暂无成员')}</div>
         ) : (
           <div className="settings-table content-card">
             <div className="settings-member-row settings-table-head table-head">
-              <span>成员</span>
-              <span>角色</span>
-              <span>状态</span>
-              <span>操作</span>
+              <span>{tr('成员')}</span>
+              <span>{tr('角色')}</span>
+              <span>{tr('状态')}</span>
+              <span>{tr('操作')}</span>
             </div>
             {query.data.items.map((member) => (
               <MemberRow

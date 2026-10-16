@@ -1,3 +1,5 @@
+import { t as tr, locale } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -10,6 +12,7 @@ import { AgentLogo } from '../AgentLogo'
 import { Button, IconButton, Modal } from '../ui'
 import { RequestState } from './shared'
 export function ArchivedTasks() {
+  useTranslation()
   const client = useQueryClient()
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Task | null>(null)
@@ -44,15 +47,15 @@ export function ArchivedTasks() {
             retry={() => query.refetch()}
           />
         ) : !query.data.items.length ? (
-          <div className="settings-request content-card">暂无归档任务</div>
+          <div className="settings-request content-card">{tr('暂无归档任务')}</div>
         ) : (
           <div className="content-card archive-table">
             <div className="archive-row table-head">
-              <span>任务</span>
-              <span>Runner</span>
-              <span>Agent</span>
-              <span>归档时间</span>
-              <span>操作</span>
+              <span>{tr('任务')}</span>
+              <span>{tr('Runner')}</span>
+              <span>{tr('Agent')}</span>
+              <span>{tr('归档时间')}</span>
+              <span>{tr('操作')}</span>
             </div>
             {query.data.items.map((task) => {
               const agent = agents.data?.find(
@@ -75,11 +78,11 @@ export function ArchivedTasks() {
                     {agent?.name ?? task.config.agent}
                   </span>
                   <span className="mono quiet">
-                    {task.archived_at ? new Date(task.archived_at).toLocaleString('zh-CN') : '—'}
+                    {task.archived_at ? new Date(task.archived_at).toLocaleString(locale()) : '—'}
                   </span>
                   <IconButton
-                    label={`恢复 ${task.config.name}`}
-                    tooltip="恢复任务"
+                    label={tr('恢复 {{v0}}', { v0: task.config.name })}
+                    tooltip={tr('恢复任务')}
                     onClick={() => {
                       restore.reset()
                       setSelected(task)
@@ -103,8 +106,8 @@ export function ArchivedTasks() {
       </DetailBody>
       <Modal
         open={!!selected}
-        title="恢复任务"
-        description={`恢复「${selected?.config.name ?? ''}」后保持暂停。`}
+        title={tr('恢复任务')}
+        description={tr('恢复「{{v0}}」后保持暂停。', { v0: selected?.config.name ?? '' })}
         onOpenChange={(v) => {
           if (!v && !restore.isPending) setSelected(null)
         }}
@@ -118,14 +121,14 @@ export function ArchivedTasks() {
         </div>
         <div className="modal-footer">
           <Button disabled={restore.isPending} onClick={() => setSelected(null)}>
-            取消
+            {tr('取消')}
           </Button>
           <Button
             variant="solid"
             disabled={restore.isPending}
             onClick={() => selected && restore.mutate(selected)}
           >
-            {restore.isPending ? '正在恢复…' : '恢复'}
+            {restore.isPending ? tr('正在恢复…') : tr('恢复')}
           </Button>
         </div>
       </Modal>

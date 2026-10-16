@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import DOMPurify from 'dompurify'
 
@@ -65,6 +67,7 @@ async function render(source: string, dark: boolean) {
 }
 
 export default function MermaidDiagram({ source }: { source: string }) {
+  useTranslation()
   const [dark, setDark] = useState(() => document.documentElement.dataset.theme === 'dark')
   const [diagram, setDiagram] = useState<Awaited<ReturnType<typeof render>> | null>(null)
   const [error, setError] = useState(false)
@@ -101,11 +104,15 @@ export default function MermaidDiagram({ source }: { source: string }) {
     ? `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'"><style>html,body{margin:0;background:${background};color:${color};font-family:system-ui,sans-serif}svg{display:block;width:100%;max-width:100%;height:auto;margin:auto}</style></head><body>${diagram.svg}</body></html>`
     : ''
   return (
-    <figure className="mermaid-diagram" aria-label="Mermaid 图表" aria-busy={!diagram && !error}>
+    <figure
+      className="mermaid-diagram"
+      aria-label={tr('Mermaid 图表')}
+      aria-busy={!diagram && !error}
+    >
       {diagram && (
         <div className="mermaid-graphic">
           <iframe
-            title="Mermaid 图表"
+            title={tr('Mermaid 图表')}
             sandbox=""
             referrerPolicy="no-referrer"
             srcDoc={documentHtml}
@@ -119,11 +126,11 @@ export default function MermaidDiagram({ source }: { source: string }) {
       )}
       {error && (
         <p className="mermaid-error" role="status">
-          图表无法渲染
+          {tr('图表无法渲染')}
         </p>
       )}
       <details open={error || (!diagram && !error) || undefined}>
-        <summary>图表源码</summary>
+        <summary>{tr('图表源码')}</summary>
         <pre>
           <code>{source}</code>
         </pre>

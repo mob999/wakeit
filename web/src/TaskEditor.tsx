@@ -1,3 +1,5 @@
+import { t as tr, parameterLabel } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock, ChevronRight } from 'lucide-react'
@@ -27,6 +29,7 @@ export function TaskEditor({
   defaults?: TaskDefaults
   onClose: () => void
 }) {
+  useTranslation()
   const client = useQueryClient()
   const runners = useQuery<Runner[]>({
     queryKey: ['runners'],
@@ -86,22 +89,22 @@ export function TaskEditor({
       ...(key === 'name' && !task ? { id: createTaskId(value, suffix) } : {}),
     }))
   const validateTask = () => {
-    if (!config.name.trim()) throw new Error('请填写任务名称')
-    if (!config.prompt.trim()) throw new Error('请填写指令')
-    if (!selectedRunner || selectedRunner.revoked) throw new Error('请选择 Runner')
+    if (!config.name.trim()) throw new Error(tr('请填写任务名称'))
+    if (!config.prompt.trim()) throw new Error(tr('请填写指令'))
+    if (!selectedRunner || selectedRunner.revoked) throw new Error(tr('请选择 Runner'))
     const agent = selectedRunner.agents.find((a) => a.id === config.agent)
-    if (!agent) throw new Error('请选择该 Runner 的 Agent')
-    if (!config.cwd.trim()) throw new Error('请选择工作目录')
-    if (config.session && !config.session.id.trim()) throw new Error('请填写会话 ID')
-    if (config.session && !agent.session_supported) throw new Error('该 Agent 不支持绑定会话')
+    if (!agent) throw new Error(tr('请选择该 Runner 的 Agent'))
+    if (!config.cwd.trim()) throw new Error(tr('请选择工作目录'))
+    if (config.session && !config.session.id.trim()) throw new Error(tr('请填写会话 ID'))
+    if (config.session && !agent.session_supported) throw new Error(tr('该 Agent 不支持绑定会话'))
     for (const [key, value] of Object.entries(config.parameters)) {
       const spec = agent.parameters[key]
-      if (!spec) throw new Error(`未知参数：${key}`)
+      if (!spec) throw new Error(tr('未知参数：{{v0}}', { v0: key }))
       if (spec.type !== 'string' || new TextEncoder().encode(value).length > 4096)
-        throw new Error(`参数无效：${spec.label || key}`)
+        throw new Error(tr('参数无效：{{v0}}', { v0: parameterLabel(spec.label || key) }))
       const resolved = value || spec.default
       if (resolved && spec.enum?.length && !spec.enum.includes(resolved))
-        throw new Error(`请选择有效的${spec.label || key}`)
+        throw new Error(tr('请选择有效的{{v0}}', { v0: parameterLabel(spec.label || key) }))
     }
   }
   const advance = () => {
@@ -124,9 +127,9 @@ export function TaskEditor({
       }
       try {
         if (!validDuration(config.execution.timeout))
-          throw new Error('请填写有效的执行超时（1 秒至 366 天）')
+          throw new Error(tr('请填写有效的执行超时（1 秒至 366 天）'))
         if (!validDuration(config.execution.start_grace))
-          throw new Error('请填写有效的允许延迟（1 秒至 366 天）')
+          throw new Error(tr('请填写有效的允许延迟（1 秒至 366 天）'))
         if (config.schedule) await api('/schedule/preview', 'POST', config.schedule)
       } catch (e) {
         setStep('time')
@@ -148,10 +151,10 @@ export function TaskEditor({
     <Modal
       open
       onOpenChange={(v) => !v && !save.isPending && onClose()}
-      title={task ? '编辑任务' : '新建任务'}
+      title={task ? tr('编辑任务') : tr('新建任务')}
       wide
     >
-      <div className="tabs modal-tabs" role="tablist" aria-label="任务编辑">
+      <div className="tabs modal-tabs" role="tablist" aria-label={tr('任务编辑')}>
         <button
           type="button"
           role="tab"
@@ -163,7 +166,7 @@ export function TaskEditor({
             setError('')
           }}
         >
-          任务
+          {tr('任务')}
         </button>
         <button
           type="button"
@@ -173,7 +176,7 @@ export function TaskEditor({
           disabled={save.isPending}
           onClick={advance}
         >
-          时间
+          {tr('时间')}
         </button>
       </div>
       <form
@@ -190,30 +193,30 @@ export function TaskEditor({
           <fieldset className="editor-fields" disabled={save.isPending}>
             <div hidden={step !== 'task'} inert={step !== 'task'}>
               <div className="task-core">
-                <Field label="任务名称">
+                <Field label={tr('任务名称')}>
                   <input
                     autoFocus
                     value={config.name}
                     onChange={(e) => change('name', e.target.value)}
                     required
-                    placeholder="每日仓库检查"
+                    placeholder={tr('每日仓库检查')}
                   />
                 </Field>
-                <Field label="指令">
+                <Field label={tr('指令')}>
                   <textarea
                     value={config.prompt}
                     onChange={(e) => change('prompt', e.target.value)}
                     required
                     rows={4}
-                    placeholder="描述希望 Agent 完成的工作…"
+                    placeholder={tr('描述希望 Agent 完成的工作…')}
                   />
                 </Field>
                 <div className="form-grid">
-                  <Field label="Runner">
+                  <Field label={tr('Runner')}>
                     <ChoicePicker
-                      label="Runner"
+                      label={tr('Runner')}
                       searchable
-                      placeholder="选择设备"
+                      placeholder={tr('选择设备')}
                       disabled={save.isPending}
                       value={selectedRunner?.name ?? config.runner}
                       options={(runners.data ?? [])
@@ -221,7 +224,7 @@ export function TaskEditor({
                         .map((r) => ({
                           value: r.name,
                           label: r.name,
-                          status: r.online ? undefined : '离线',
+                          status: r.online ? undefined : tr('离线'),
                         }))}
                       onChange={(value) =>
                         value === selectedRunner?.name
@@ -237,11 +240,11 @@ export function TaskEditor({
                       }
                     />
                   </Field>
-                  <Field label="Agent">
+                  <Field label={tr('Agent')}>
                     <ChoicePicker
-                      label="Agent"
+                      label={tr('Agent')}
                       searchable
-                      placeholder="选择 Agent"
+                      placeholder={tr('选择 Agent')}
                       disabled={save.isPending || !selectedRunner}
                       value={config.agent}
                       options={(selectedRunner?.agents ?? []).map((a) => ({
@@ -249,7 +252,7 @@ export function TaskEditor({
                         label: a.name,
                         keywords: a.id,
                         icon: <AgentLogo name={a.name} logo={a.logo} />,
-                        status: a.available ? undefined : '未检测到',
+                        status: a.available ? undefined : tr('未检测到'),
                       }))}
                       onChange={(value) =>
                         setConfig((c) =>
@@ -281,7 +284,7 @@ export function TaskEditor({
                 <details className="advanced-settings">
                   <summary>
                     <ChevronRight size={14} />
-                    <span>高级设置</span>
+                    <span>{tr('高级设置')}</span>
                   </summary>
                   <div className="advanced-body">
                     {(selectedAgent?.session_supported || config.session) && (
@@ -307,16 +310,16 @@ export function TaskEditor({
             </div>
             <div hidden={step !== 'time'} inert={step !== 'time'}>
               <div className="form-grid">
-                <Field label="类型">
+                <Field label={tr('类型')}>
                   <ChoicePicker
-                    label="类型"
+                    label={tr('类型')}
                     value={scheduleType}
                     disabled={save.isPending}
                     options={[
                       { value: 'cron', label: 'Cron' },
-                      { value: 'every', label: '固定间隔' },
-                      { value: 'at', label: '一次性执行' },
-                      { value: 'manual', label: '手动执行' },
+                      { value: 'every', label: tr('固定间隔') },
+                      { value: 'at', label: tr('一次性执行') },
+                      { value: 'manual', label: tr('手动执行') },
                     ]}
                     onChange={(value) => {
                       const type = value
@@ -338,7 +341,7 @@ export function TaskEditor({
                   />
                 </Field>
                 {config.schedule && (
-                  <Field label="时区">
+                  <Field label={tr('时区')}>
                     <input
                       value={config.schedule.timezone}
                       onChange={(e) =>
@@ -352,12 +355,12 @@ export function TaskEditor({
                 <Field
                   label={
                     scheduleType === 'cron'
-                      ? 'Cron 表达式'
+                      ? tr('Cron 表达式')
                       : scheduleType === 'every'
-                        ? '间隔'
-                        : '执行时间'
+                        ? tr('间隔')
+                        : tr('执行时间')
                   }
-                  hint={scheduleType === 'cron' ? '分钟 小时 日期 月份 星期' : undefined}
+                  hint={scheduleType === 'cron' ? tr('分钟 小时 日期 月份 星期') : undefined}
                 >
                   <input
                     className="mono"
@@ -375,7 +378,7 @@ export function TaskEditor({
                 <div className="preview">
                   <Clock size={13} />
                   <div>
-                    <span>接下来的执行时间</span>
+                    <span>{tr('接下来的执行时间')}</span>
                     {preview.error ? (
                       <small className="error">{preview.error.message}</small>
                     ) : (
@@ -392,11 +395,11 @@ export function TaskEditor({
               <details className="advanced-settings">
                 <summary>
                   <ChevronRight size={14} />
-                  <span>高级设置</span>
+                  <span>{tr('高级设置')}</span>
                 </summary>
                 <div className="advanced-body">
                   <div className="form-grid">
-                    <Field label="执行超时">
+                    <Field label={tr('执行超时')}>
                       <input
                         value={config.execution.timeout}
                         onChange={(e) =>
@@ -404,7 +407,7 @@ export function TaskEditor({
                         }
                       />
                     </Field>
-                    <Field label="允许延迟">
+                    <Field label={tr('允许延迟')}>
                       <input
                         value={config.execution.start_grace}
                         onChange={(e) =>
@@ -412,28 +415,28 @@ export function TaskEditor({
                         }
                       />
                     </Field>
-                    <Field label="错过执行">
+                    <Field label={tr('错过执行')}>
                       <ChoicePicker
-                        label="错过执行"
+                        label={tr('错过执行')}
                         value={config.execution.misfire}
                         disabled={save.isPending}
                         options={[
-                          { value: 'latest', label: '补最近一次' },
-                          { value: 'skip', label: '跳过' },
+                          { value: 'latest', label: tr('补最近一次') },
+                          { value: 'skip', label: tr('跳过') },
                         ]}
                         onChange={(value) =>
                           change('execution', { ...config.execution, misfire: value })
                         }
                       />
                     </Field>
-                    <Field label="执行重叠">
+                    <Field label={tr('执行重叠')}>
                       <ChoicePicker
-                        label="执行重叠"
+                        label={tr('执行重叠')}
                         value={config.execution.overlap}
                         disabled={save.isPending}
                         options={[
-                          { value: 'skip', label: '跳过新触发' },
-                          { value: 'allow', label: '允许并行' },
+                          { value: 'skip', label: tr('跳过新触发') },
+                          { value: 'allow', label: tr('允许并行') },
                         ]}
                         onChange={(value) =>
                           change('execution', { ...config.execution, overlap: value })
@@ -453,7 +456,7 @@ export function TaskEditor({
             </span>
           )}
           <Button type="button" disabled={save.isPending} onClick={onClose}>
-            取消
+            {tr('取消')}
           </Button>
           {step === 'time' && (
             <Button
@@ -464,11 +467,11 @@ export function TaskEditor({
                 setError('')
               }}
             >
-              上一步
+              {tr('上一步')}
             </Button>
           )}
           <Button variant="solid" type="submit" disabled={save.isPending}>
-            {step === 'task' ? '下一步' : save.isPending ? '正在保存…' : '保存任务'}
+            {step === 'task' ? tr('下一步') : save.isPending ? tr('正在保存…') : tr('保存任务')}
           </Button>
         </div>
       </form>

@@ -15,7 +15,7 @@ async function login(page: Page, role = 'admin') {
   await loginSession(page, role, role === 'admin' ? stack.password : 'wakeit-role-test-password')
 }
 async function members(page: Page) {
-  await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '成员', exact: true }).click()
 }
 async function memberRow(page: Page, name: string) {
@@ -45,7 +45,7 @@ test('members create with guarded submission, reset passwords, disable and enabl
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
   await expect(dialog.getByRole('alert')).toHaveText('两次输入的密码不一致')
   await dialog.getByLabel('确认密码', { exact: true }).fill(password)
-  await expect(dialog.getByRole('combobox', { name: '角色', exact: true })).toHaveText('Operator')
+  await expect(dialog.getByRole('combobox', { name: '角色', exact: true })).toHaveText('操作员')
   await page.route('**/api/v1/users', (route) =>
     route.request().method() === 'POST'
       ? route.fulfill({
@@ -178,7 +178,7 @@ test('self password reset logs out and last administrator cannot be disabled', a
     await modal.getByLabel('确认密码', { exact: true }).fill(password + '-new')
     await modal.getByRole('button', { name: '重置密码', exact: true }).click()
     await expect(other.getByRole('button', { name: '登录工作区', exact: true })).toBeVisible()
-    await expect(other.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0)
+    await expect(other.getByRole('link', { name: '设置', exact: true })).toHaveCount(0)
   } finally {
     await context.close()
     await page.request.put(`/api/v1/users/${member.id}`, { headers, data: { active: false } })
@@ -230,7 +230,7 @@ test('archive and restore preserves history, exposes read-only tasks and respect
   await page.goto(`/runs?run=${run.id}`)
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0)
-  await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '归档任务', exact: true }).click()
   const row = page.locator('.archive-row').filter({ hasText: name })
   await expect(row).toBeVisible()

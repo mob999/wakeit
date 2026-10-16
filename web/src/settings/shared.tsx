@@ -1,3 +1,5 @@
+import { t as tr, locale } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Check, Copy, RefreshCw } from 'lucide-react'
 import { Button, IconButton } from '../ui'
@@ -10,6 +12,7 @@ export function RequestState({
   error: Error | null
   retry: () => void
 }) {
+  useTranslation()
   return (
     <div className="settings-request content-card" role={error ? 'alert' : 'status'}>
       {error ? (
@@ -17,16 +20,17 @@ export function RequestState({
           <span>{error.message}</span>
           <Button onClick={retry}>
             <RefreshCw size={14} />
-            重试
+            {tr('重试')}
           </Button>
         </>
       ) : pending ? (
-        '正在加载…'
+        tr('正在加载…')
       ) : null}
     </div>
   )
 }
 export function SecretValue({ label, value }: { label: string; value: string }) {
+  useTranslation()
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
   return (
@@ -40,8 +44,8 @@ export function SecretValue({ label, value }: { label: string; value: string }) 
           onFocus={(e) => e.target.select()}
         />
         <IconButton
-          label={`复制${label}`}
-          tooltip={copied ? '已复制' : `复制${label}`}
+          label={tr('复制{{v0}}', { v0: label })}
+          tooltip={copied ? tr('已复制') : tr('复制{{v0}}', { v0: label })}
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(value)
@@ -49,7 +53,7 @@ export function SecretValue({ label, value }: { label: string; value: string }) 
               setTimeout(() => setCopied(false), 1500)
               setError('')
             } catch {
-              setError('复制失败，请手动复制')
+              setError(tr('复制失败，请手动复制'))
             }
           }}
         >
@@ -64,4 +68,4 @@ export function SecretValue({ label, value }: { label: string; value: string }) 
     </>
   )
 }
-export const date = (value: string) => new Date(value).toLocaleDateString('zh-CN')
+export const date = (value: string) => new Date(value).toLocaleDateString(locale())

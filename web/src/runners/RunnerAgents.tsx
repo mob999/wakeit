@@ -1,3 +1,5 @@
+import { t as tr, parameterLabel } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, ListPlus } from 'lucide-react'
 import { type Runner } from '../api'
 import { agentMatches, type Filters } from '../Search'
@@ -19,6 +21,7 @@ export function RunnerAgents({
   onCreate?: (id: string) => void
   createReady: boolean
 }) {
+  useTranslation()
   const agents = runner.agents.filter((a) =>
     agentMatches({ ...a, runner: runner.name, runner_id: runner.id }, filters),
   )
@@ -26,22 +29,22 @@ export function RunnerAgents({
     <DetailBody>
       {!agents.length ? (
         <p className="quiet card-state content-card">
-          {runner.agents.length ? '无匹配 Agent' : '暂无 Agent'}
+          {runner.agents.length ? tr('无匹配 Agent') : tr('暂无 Agent')}
         </p>
       ) : (
         <div className="runner-agents-table content-card">
           <div className="runner-agent-columns agent-table-head table-head">
-            <span>Agent</span>
-            <span>版本</span>
-            <span>检测状态</span>
-            <span className="agent-actions-heading">操作</span>
+            <span>{tr('Agent')}</span>
+            <span>{tr('版本')}</span>
+            <span>{tr('检测状态')}</span>
+            <span className="agent-actions-heading">{tr('操作')}</span>
           </div>
           {agents.map((agent) => (
             <div className="runner-agent-item" key={agent.id}>
               <div className="runner-agent-columns">
                 <button
                   className="agent-expand"
-                  aria-label={`${expanded === agent.id ? '收起' : '展开'} ${agent.name}`}
+                  aria-label={`${expanded === agent.id ? tr('收起') : tr('展开')} ${agent.name}`}
                   aria-expanded={expanded === agent.id}
                   aria-controls={`agent-detail-${agent.id}`}
                   onClick={() => onExpand(expanded === agent.id ? undefined : agent.id)}
@@ -53,13 +56,13 @@ export function RunnerAgents({
                 <span className="mono quiet agent-version">{agent.version || '—'}</span>
                 <span className={`status ${agent.available ? 'succeeded' : 'failed'}`}>
                   <i />
-                  {agent.available ? '已检测到' : '未检测到'}
+                  {agent.available ? tr('已检测到') : tr('未检测到')}
                 </span>
                 <div className="agent-row-actions">
                   {onCreate && (
                     <IconButton
                       className="agent-create-button"
-                      label="创建任务"
+                      label={tr('创建任务')}
                       disabled={runner.revoked || !createReady}
                       onClick={() => onCreate(agent.id)}
                     >
@@ -71,28 +74,28 @@ export function RunnerAgents({
               {expanded === agent.id && (
                 <div id={`agent-detail-${agent.id}`} className="agent-details">
                   <dl className="properties">
-                    <dt>执行方式</dt>
-                    <dd>{agent.mode === 'sync' ? '同步' : '异步'}</dd>
-                    <dt>取消</dt>
-                    <dd>{agent.cancellable ? '支持' : '不支持'}</dd>
-                    <dt>模型选择</dt>
-                    <dd>{agent.models_supported ? '支持查询' : '手填'}</dd>
+                    <dt>{tr('执行方式')}</dt>
+                    <dd>{agent.mode === 'sync' ? tr('同步') : tr('异步')}</dd>
+                    <dt>{tr('取消')}</dt>
+                    <dd>{agent.cancellable ? tr('支持') : tr('不支持')}</dd>
+                    <dt>{tr('模型选择')}</dt>
+                    <dd>{agent.models_supported ? tr('支持查询') : tr('手填')}</dd>
                   </dl>
                   {!!Object.keys(agent.parameters).length && (
                     <div className="agent-parameter-table">
                       <div className="agent-parameter-row quiet">
-                        <span>参数</span>
-                        <span>默认值</span>
-                        <span>可选值</span>
+                        <span>{tr('参数')}</span>
+                        <span>{tr('默认值')}</span>
+                        <span>{tr('可选值')}</span>
                       </div>
                       {Object.entries(agent.parameters).map(([id, spec]) => (
                         <div className="agent-parameter-row" key={id}>
                           <span>
-                            {spec.label || id}
+                            {parameterLabel(spec.label || id)}
                             <small className="mono quiet">{id}</small>
                           </span>
                           <span className="mono">
-                            {spec.default ?? (id === 'model' ? 'Agent 默认' : '—')}
+                            {spec.default ?? (id === 'model' ? tr('Agent 默认') : '—')}
                           </span>
                           <span className="mono quiet">
                             {spec.enum.length ? spec.enum.join(' · ') : '—'}

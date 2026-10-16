@@ -12,6 +12,7 @@ export default defineConfig({
   timeout: 30000,
   use: {
     baseURL: stack.base_url,
+    locale: 'zh-CN',
     viewport: { width: 1440, height: 900 },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
