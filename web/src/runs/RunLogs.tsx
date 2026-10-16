@@ -1,7 +1,7 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { terminal, type Run } from '../api'
 import { IconButton } from '../ui'
 import { CopyValue } from './CopyValue'
@@ -31,7 +31,7 @@ export function RunLogs({
         <div className="log-connection" role="status">
           <span>{tr('日志连接已中断，正在重连')}</span>
           <IconButton label={tr('重新连接日志')} onClick={retry}>
-            <RotateCcw />
+            <RefreshCw />
           </IconButton>
         </div>
       )}

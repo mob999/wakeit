@@ -6,8 +6,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { ChevronRight, MoreHorizontal, ListPlus, Gauge } from 'lucide-react'
-import { MonitorPlus } from '../MonitorPlus'
+import { ChevronRight, MoreHorizontal, Plus, Gauge } from 'lucide-react'
 import { api, type Runner, type User, type WorkspaceSettings } from '../api'
 import { useFilters, runnerMatches, agentMatches } from '../Search'
 import { Split } from '../Workbench'
@@ -110,7 +109,7 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               <h1>{tr('Runners')}</h1>
               {editable && (
                 <IconButton label={tr('连接设备')} onClick={() => setEnroll(true)}>
-                  <MonitorPlus />
+                  <Plus />
                 </IconButton>
               )}
             </div>
@@ -160,7 +159,7 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
                   disabled={runner.revoked || !settings.data}
                   onClick={() => setEditor({ runner: runner.name })}
                 >
-                  <ListPlus />
+                  <Plus />
                 </IconButton>
               )}
               {admin && !runner.revoked && (

@@ -1,0 +1,1 @@
+{"conversation_id":"","status":"SUCCESS","response":"gemini-3.7-flash-high\tGemini 3.7 Flash (High)\n","duration_seconds":0,"num_turns":0,"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0},"command":{"name":"models","data":{"models":[{"id":"gemini-3.7-flash-high","label":"Gemini 3.7 Flash (High)"}]}}}

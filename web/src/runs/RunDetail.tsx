@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Square, RotateCcw, ClipboardCheck, ListPlus } from 'lucide-react'
+import { Square, Redo2, RefreshCw, ClipboardCheck, Plus } from 'lucide-react'
 import {
   api,
   terminal,
@@ -116,7 +116,7 @@ export function RunDetail({
           <>
             <p className="error">{run.error.message}</p>
             <Button onClick={() => run.refetch()}>
-              <RotateCcw size={14} />
+              <RefreshCw size={14} />
               {tr('重试')}
             </Button>
           </>
@@ -152,7 +152,7 @@ export function RunDetail({
             loading={createTask && settings.isPending}
             onClick={() => setCreateTask(true)}
           >
-            <ListPlus />
+            <Plus />
           </IconButton>
         )}
         {editable && ['queued', 'starting', 'running'].includes(r.state) && (
@@ -172,7 +172,7 @@ export function RunDetail({
             onClick={() => action.mutate('retry')}
             loading={action.isPending}
           >
-            <RotateCcw />
+            <Redo2 />
           </IconButton>
         )}
         {editable && r.state === 'unknown' && (

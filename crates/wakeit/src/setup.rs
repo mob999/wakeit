@@ -276,7 +276,7 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
         )?;
         std::fs::create_dir_all(dir.join("agents"))?;
         let mut agents = Vec::new();
-        for id in ["codex", "claude-code", "pi", "opencode"] {
+        for &(id, _) in config::BUILTIN_AGENTS {
             let path = dir.join("agents").join(format!("{id}.yaml"));
             if !path.exists() {
                 let mut a: AgentConfig = yaml_serde::from_str(config::builtin(id)?)?;

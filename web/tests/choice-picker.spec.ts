@@ -20,14 +20,21 @@ test('shared choices search, support keyboard navigation and preserve offline se
       id: 'pi',
       name: 'Pi',
       logo: '/agent-logos/pi.svg',
-      available: false,
+      available: true,
       models_supported: false,
       parameters: {
         model: { type: 'string', enum: [] },
         reasoning: { type: 'string', enum: ['low', 'high'] },
       },
     },
-    { ...source.agents[0], id: 'codex', name: 'Codex', logo: '/agent-logos/codex.svg' },
+    {
+      ...source.agents[0],
+      id: 'codex',
+      name: 'Codex',
+      available: true,
+      logo: '/agent-logos/codex.svg',
+    },
+    { ...source.agents[0], id: 'claude-code', name: 'Claude Code', available: false },
   ]
   await page.route('**/api/v1/runners', (route) =>
     route.fulfill({
@@ -53,8 +60,11 @@ test('shared choices search, support keyboard navigation and preserve offline se
   await expect(runner).toContainText('Remote')
   await expect(runner).toBeFocused()
   await dialog.getByRole('combobox', { name: 'Agent', exact: true }).click()
+  await expect(page.getByRole('option', { name: /Claude Code/ })).toHaveCount(0)
+  await page.getByLabel('搜索Agent', { exact: true }).fill('claude-code')
+  await expect(page.getByText('无匹配选项', { exact: true })).toBeVisible()
   await page.getByLabel('搜索Agent', { exact: true }).fill('pi')
-  await expect(page.getByRole('option', { name: /Pi/ })).toContainText('未检测到')
+  await expect(page.getByRole('option', { name: /Pi/ })).not.toContainText('未检测到')
   await expect(page.getByRole('option', { name: /Pi/ }).locator('.agent-logo img')).toHaveAttribute(
     'src',
     '/agent-logos/pi.svg',

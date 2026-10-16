@@ -143,7 +143,7 @@ wakeit agent test --file codex.yaml --cwd /path/to/project
 
 注册和吊销需要 Admin。Agent 测试实际调用 Agent；默认指令只要求简短问候，异步测试会提交一个外部任务并查询一次状态。完整的异步恢复和取消需要通过 Runner/Run 验证。
 
-内置适配可在本机只读查询已有会话：`wakeit adapter session list codex --cwd /path/to/project --limit 20`，分页使用返回的 next_cursor 对应 `--cursor`，搜索使用 `--query`。protocol 同样支持 claude-code、pi、opencode；只返回所选工作目录下的会话标题与 ID 等元数据，不提供 query/首条指令预览，不执行任务。
+内置适配可在本机只读查询已有会话：`wakeit adapter session list codex --cwd /path/to/project --limit 20`，分页使用返回的 next_cursor 对应 `--cursor`，搜索使用 `--query`。protocol 同样支持 claude-code、pi、opencode、kimi-code；只返回所选工作目录下的会话标题与 ID 等元数据，不提供 query/首条指令预览，不执行任务。
 
 Runner 自启与 Agent 登录身份保持一致，见 [运维指南](operations.md#runner-自启)。第三方适配指南和 fixtures 见 [协议](protocol.md)。
 
@@ -174,3 +174,6 @@ Homebrew、系统包管理器或容器管理的安装应使用相应升级方式
 `wakeit connection list` 列出连接名称、地址、账号及当前连接；`wakeit connection use NAME` 切换。配置位于 macOS `~/Library/Application Support/wakeit`、Linux `$XDG_CONFIG_HOME/wakeit`（默认 `~/.config/wakeit`）、Windows `%APPDATA%/wakeit`。显式参数及 WAKEIT 环境变量优先，地址与凭据严格匹配。不要将凭据写入项目或聊天。
 
 setup 自启名称包含 Runner ID，支持多 Gateway。Linux 使用 systemd user，macOS 使用当前用户 LaunchAgent，Windows 使用当前用户登录计划任务。默认不保证注销后或 Windows 登录前运行；Agent 的登录和模型保持原样。若服务管理器不可用，setup 报告未完成步骤，不改用 root。
+
+
+内置 Agent 的命令、模型发现、过程与会话能力见[适配指南](agents.md)。模板使用 `wakeit agent init <id> --file <id>.yaml` 导出；安装能力检测使用 `wakeit adapter detect <id>`，不发起推理。新增 ID 包括 `kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。

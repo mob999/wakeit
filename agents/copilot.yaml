@@ -1,0 +1,22 @@
+version: 1
+id: copilot
+name: GitHub Copilot CLI
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+submit:
+  command: copilot
+  args:
+    - --silent
+    - --no-ask-user
+    - --output-format
+    - text
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+  stdin: '{{task.prompt}}'
+detect:
+  command: wakeit
+  args: [adapter, detect, copilot]
+  timeout: 10s
+output:
+  format: text

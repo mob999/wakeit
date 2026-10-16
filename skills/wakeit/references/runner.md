@@ -11,7 +11,7 @@ wakeit agent doctor --config /absolute/path/runner/runner.yaml
 wakeit runner start --config /absolute/path/runner/runner.yaml
 ```
 
-可重复 --allow-root；它是用户批准的执行范围，不默认开放全盘。注册导出四种内置 YAML，可修改 runner.yaml 的 agents 列表。安装和登录 Agent 由 Runner 的真实运行用户完成，模型凭据保留本机。
+可重复 --allow-root；它是用户批准的执行范围，不默认开放全盘。注册导出全部内置 YAML，可修改 runner.yaml 的 agents 列表。安装和登录 Agent 由 Runner 的真实运行用户完成，模型凭据保留本机。
 
 自启命令：
 
