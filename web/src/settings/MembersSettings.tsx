@@ -4,7 +4,7 @@ import { PageActions } from '../PageHeader'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, UserPlus, RefreshCw, Plus, MoreHorizontal } from 'lucide-react'
+import { ChevronDown, RefreshCw, Plus, MoreHorizontal } from 'lucide-react'
 import { api, type Member, type User } from '../api'
 import { type PageResult } from '../Search'
 import { Pagination } from '../Pagination'
@@ -303,7 +303,7 @@ export function MembersSettings({ user }: { user: User }) {
           <Plus />
         </IconButton>
         <IconButton label={tr('邀请成员')} onClick={() => setInvite(true)}>
-          <UserPlus />
+          <Plus />
         </IconButton>
       </PageActions>
       <DetailBody limited>
