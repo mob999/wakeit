@@ -49,25 +49,32 @@ fn cursor(value: &str) -> Result<(DateTime<Utc>, Uuid)> {
         id.parse().map_err(|_| Error::bad("invalid cursor ID"))?,
     ))
 }
-async fn timezone(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>) -> Result<String> {
-    Ok(sqlx::query_scalar("SELECT data->>'timezone' FROM settings")
-        .fetch_one(&mut **tx)
-        .await?)
+async fn timezone(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    workspace: Uuid,
+) -> Result<String> {
+    Ok(
+        sqlx::query_scalar("SELECT data->>'timezone' FROM settings WHERE workspace_id=$1")
+            .bind(workspace)
+            .fetch_one(&mut **tx)
+            .await?,
+    )
 }
 pub async fn days(
     State(s): State<App>,
     h: HeaderMap,
     Query(q): Query<DaysQuery>,
 ) -> Result<Json<Value>> {
-    user(&s, &h, "viewer", false).await?;
+    let user = user(&s, &h, "viewer", false).await?;
+    let workspace = user.workspace()?;
     let before = q.before.as_deref().map(date).transpose()?;
     let limit = limit(q.limit, 14, 100)?;
     let mut tx = s.pool.begin().await?;
-    let zone = timezone(&mut tx).await?;
+    let zone = timezone(&mut tx, workspace).await?;
     // Count and directory are one database snapshot, including dates outside this page.
     let mut response: Value = sqlx::query_scalar(&format!(
-        "WITH eligible AS (SELECT (finished_at AT TIME ZONE $1)::date AS day FROM runs WHERE {ELIGIBLE}), days AS (SELECT day,count(*) AS count FROM eligible WHERE ($2::date IS NULL OR day<$2) GROUP BY day ORDER BY day DESC LIMIT $3) SELECT jsonb_build_object('total_runs',(SELECT count(*) FROM eligible),'days',COALESCE((SELECT jsonb_agg(jsonb_build_object('date',day,'count',count) ORDER BY day DESC) FROM days),'[]'::jsonb))"
-    )).bind(&zone).bind(before).bind(limit+1).fetch_one(&mut *tx).await?;
+        "WITH eligible AS (SELECT (finished_at AT TIME ZONE $1)::date AS day FROM runs WHERE workspace_id=$4 AND {ELIGIBLE}), days AS (SELECT day,count(*) AS count FROM eligible WHERE ($2::date IS NULL OR day<$2) GROUP BY day ORDER BY day DESC LIMIT $3) SELECT jsonb_build_object('total_runs',(SELECT count(*) FROM eligible),'days',COALESCE((SELECT jsonb_agg(jsonb_build_object('date',day,'count',count) ORDER BY day DESC) FROM days),'[]'::jsonb))"
+    )).bind(&zone).bind(before).bind(limit+1).bind(workspace).fetch_one(&mut *tx).await?;
     let days = response["days"].as_array_mut().expect("SQL array");
     let next = if days.len() > limit as usize {
         days.truncate(limit as usize);
@@ -91,18 +98,19 @@ pub async fn entries(
     h: HeaderMap,
     Query(q): Query<EntriesQuery>,
 ) -> Result<Json<Value>> {
-    user(&s, &h, "viewer", false).await?;
+    let user = user(&s, &h, "viewer", false).await?;
+    let workspace = user.workspace()?;
     let day = date(&q.date)?;
     let limit = limit(q.limit, 20, 100)?;
     let after = q.cursor.as_deref().map(cursor).transpose()?;
     let mut tx = s.pool.begin().await?;
-    let zone = timezone(&mut tx).await?;
+    let zone = timezone(&mut tx, workspace).await?;
     if q.timezone.as_ref().is_some_and(|z| z != &zone) {
         return Err(Error::conflict("工作区时区已变更，请刷新动态"));
     }
     let rows = sqlx::query(&format!(
-        "SELECT r.id,r.finished_at,jsonb_build_object('id',r.id,'task_id',r.task_id,'name',r.config->>'name','continuation_available',(COALESCE(r.session->>'ready'='true',false) AND COALESCE(length(r.session->>'command')>0,false)),'state',r.state,'reason',r.reason,'finished_at',r.finished_at,'runner',d.name,'agent',COALESCE(a.data->>'name',r.config->>'agent'),'logo',a.data->'logo','preview',left(p.body,2048),'format',CASE WHEN jsonb_typeof(r.result)='string' OR (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') THEN 'markdown' ELSE 'json' END,'has_more',char_length(p.body)>2048,'truncated',COALESCE((jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result)='object',false)) AS item FROM runs r JOIN runners d ON d.id=r.runner_id LEFT JOIN LATERAL (SELECT data FROM jsonb_array_elements(d.agents) data WHERE data->>'id'=r.config->>'agent' LIMIT 1) a ON true CROSS JOIN LATERAL (SELECT CASE WHEN r.result IS NULL OR r.result='null'::jsonb THEN NULL WHEN jsonb_typeof(r.result)='string' THEN r.result#>>'{{}}' WHEN (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result->'preview')='string' THEN r.result->>'preview' ELSE jsonb_pretty(r.result) END AS body) p WHERE {ELIGIBLE} AND (r.finished_at AT TIME ZONE $1)::date=$2 AND ($3::timestamptz IS NULL OR (r.finished_at,r.id)<($3,$4::uuid)) ORDER BY r.finished_at DESC,r.id DESC LIMIT $5"
-    )).bind(&zone).bind(day).bind(after.map(|v|v.0)).bind(after.map(|v|v.1)).bind(limit+1).fetch_all(&mut *tx).await?;
+        "SELECT r.id,r.finished_at,jsonb_build_object('id',r.id,'task_id',r.task_id,'name',r.config->>'name','continuation_available',(COALESCE(r.session->>'ready'='true',false) AND COALESCE(length(r.session->>'command')>0,false)),'state',r.state,'reason',r.reason,'finished_at',r.finished_at,'runner',d.name,'agent',COALESCE(a.data->>'name',r.config->>'agent'),'logo',a.data->'logo','preview',left(p.body,2048),'format',CASE WHEN jsonb_typeof(r.result)='string' OR (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') THEN 'markdown' ELSE 'json' END,'has_more',char_length(p.body)>2048,'truncated',COALESCE((jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result)='object',false)) AS item FROM runs r JOIN runners d ON d.id=r.runner_id LEFT JOIN LATERAL (SELECT data FROM jsonb_array_elements(d.agents) data WHERE data->>'id'=r.config->>'agent' LIMIT 1) a ON true CROSS JOIN LATERAL (SELECT CASE WHEN r.result IS NULL OR r.result='null'::jsonb THEN NULL WHEN jsonb_typeof(r.result)='string' THEN r.result#>>'{{}}' WHEN (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result->'preview')='string' THEN r.result->>'preview' ELSE jsonb_pretty(r.result) END AS body) p WHERE r.workspace_id=$6 AND {ELIGIBLE} AND (r.finished_at AT TIME ZONE $1)::date=$2 AND ($3::timestamptz IS NULL OR (r.finished_at,r.id)<($3,$4::uuid)) ORDER BY r.finished_at DESC,r.id DESC LIMIT $5"
+    )).bind(&zone).bind(day).bind(after.map(|v|v.0)).bind(after.map(|v|v.1)).bind(limit+1).bind(workspace).fetch_all(&mut *tx).await?;
     let has_more = rows.len() > limit as usize;
     let rows = rows.into_iter().take(limit as usize).collect::<Vec<_>>();
     let next = if has_more {

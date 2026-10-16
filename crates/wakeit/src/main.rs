@@ -1012,6 +1012,7 @@ async fn run(mut cli: Cli) -> Result<()> {
         } => {
             let Some(username) = username else {
                 let intent = wakeit::device_auth::Intent {
+                    workspace_id: None,
                     name: std::env::var("HOSTNAME").unwrap_or_else(|_| "wakeit-cli".into()),
                     os: std::env::consts::OS.into(),
                     register_runner: false,

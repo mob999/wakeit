@@ -219,6 +219,7 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
         c::atomic(&seed_path, nkeys::KeyPair::new_user().seed()?)?;
     }
     let intent = Intent {
+        workspace_id: None,
         name: pending.name.clone(),
         os: std::env::consts::OS.into(),
         register_runner: true,

@@ -23,29 +23,34 @@ pub async fn migrate(pool: &PgPool) -> Result<()> {
 pub async fn audit(
     tx: &mut Transaction<'_, Postgres>,
     user: Uuid,
+    workspace: Option<Uuid>,
     action: &str,
     target: &str,
 ) -> Result<()> {
-    sqlx::query("INSERT INTO audit(user_id,action,target) VALUES($1,$2,$3)")
+    sqlx::query("INSERT INTO audit(user_id,action,target,workspace_id) VALUES($1,$2,$3,$4)")
         .bind(user)
         .bind(action)
         .bind(target)
+        .bind(workspace)
         .execute(&mut **tx)
         .await?;
     Ok(())
 }
 pub async fn enqueue(
     tx: &mut Transaction<'_, Postgres>,
+    workspace: Uuid,
     subject: String,
     key: String,
     payload: Value,
 ) -> Result<()> {
-    sqlx::query("INSERT INTO outbox(subject,message_id,payload) VALUES($1,$2,$3) ON CONFLICT(message_id) DO NOTHING").bind(subject).bind(key).bind(payload).execute(&mut **tx).await?;
+    sqlx::query("INSERT INTO outbox(subject,message_id,payload,workspace_id) VALUES($1,$2,$3,$4) ON CONFLICT(message_id) DO NOTHING").bind(subject).bind(key).bind(payload).bind(workspace).execute(&mut **tx).await?;
     Ok(())
 }
 
 pub async fn apply_task(
     pool: &PgPool,
+    workspace: Uuid,
+    credential: &str,
     c: &TaskConfig,
     expected: Option<i64>,
     user: Uuid,
@@ -54,7 +59,8 @@ pub async fn apply_task(
     if let Some(schedule) = &mut normalized.schedule
         && schedule.timezone.is_empty()
     {
-        let settings: Value = sqlx::query_scalar("SELECT data FROM settings")
+        let settings: Value = sqlx::query_scalar("SELECT data FROM settings WHERE workspace_id=$1")
+            .bind(workspace)
             .fetch_one(pool)
             .await?;
         schedule.timezone = settings["timezone"]
@@ -65,16 +71,18 @@ pub async fn apply_task(
     let c = &normalized;
     c.validate()?;
     let mut tx = pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    crate::workspaces::check_member(&mut tx, credential, workspace, "operator").await?;
     // Serialize creation too; an absent row cannot be protected with FOR UPDATE.
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
-        .bind(&c.id)
+        .bind(format!("{workspace}:{}", c.id))
         .execute(&mut *tx)
         .await?;
     let old = sqlx::query(
-        "SELECT revision,config,next_at,enabled,archived_at FROM tasks WHERE id=$1 FOR UPDATE",
+        "SELECT revision,config,next_at,enabled,archived_at FROM tasks WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
     )
     .bind(&c.id)
-    .fetch_optional(&mut *tx)
+    .bind(workspace).fetch_optional(&mut *tx)
     .await?;
     ensure!(
         old.as_ref()
@@ -86,9 +94,9 @@ pub async fn apply_task(
         return Ok(None);
     }
     let runner =
-        sqlx::query("SELECT id,agents FROM runners WHERE (name=$1 OR id::text=$1) AND NOT revoked")
+        sqlx::query("SELECT id,agents FROM runners WHERE workspace_id=$2 AND (name=$1 OR id::text=$1) AND NOT revoked")
             .bind(&c.runner)
-            .fetch_optional(&mut *tx)
+            .bind(workspace).fetch_optional(&mut *tx)
             .await?
             .context("runner does not exist or is revoked")?;
     let agents: Value = runner.get("agents");
@@ -133,32 +141,39 @@ pub async fn apply_task(
     } else {
         None
     };
-    let row:Value=sqlx::query_scalar("INSERT INTO tasks(id,runner_id,config,enabled,next_at,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$6) ON CONFLICT(id) DO UPDATE SET runner_id=excluded.runner_id,config=excluded.config,enabled=excluded.enabled,next_at=excluded.next_at,revision=tasks.revision+1,updated_by=excluded.updated_by,updated_at=now() RETURNING to_jsonb(tasks.*)")
-        .bind(&c.id).bind(runner.get::<Uuid,_>("id")).bind(config).bind(c.enabled).bind(next_at).bind(user).fetch_one(&mut *tx).await?;
+    let row:Value=sqlx::query_scalar("INSERT INTO tasks(workspace_id,id,runner_id,config,enabled,next_at,created_by,updated_by) VALUES($7,$1,$2,$3,$4,$5,$6,$6) ON CONFLICT(workspace_id,id) DO UPDATE SET runner_id=excluded.runner_id,config=excluded.config,enabled=excluded.enabled,next_at=excluded.next_at,revision=tasks.revision+1,updated_by=excluded.updated_by,updated_at=now() RETURNING to_jsonb(tasks.*)")
+        .bind(&c.id).bind(runner.get::<Uuid,_>("id")).bind(config).bind(c.enabled).bind(next_at).bind(user).bind(workspace).fetch_one(&mut *tx).await?;
     if !c.enabled {
-        sqlx::query("UPDATE runs SET state='cancelled',reason='task paused',finished_at=now() WHERE task_id=$1 AND state='queued' AND source='schedule'").bind(&c.id).execute(&mut *tx).await?;
+        sqlx::query("UPDATE runs SET state='cancelled',reason='task paused',finished_at=now() WHERE workspace_id=$2 AND task_id=$1 AND state='queued' AND source='schedule'").bind(&c.id).bind(workspace).execute(&mut *tx).await?;
     }
-    audit(&mut tx, user, "task.apply", &c.id).await?;
+    audit(&mut tx, user, Some(workspace), "task.apply", &c.id).await?;
     tx.commit().await?;
     Ok(Some(row))
 }
 
 pub async fn set_archived(
     pool: &PgPool,
+    workspace: Uuid,
+    credential: &str,
     id: &str,
     expected: i64,
     archived: bool,
     user: Uuid,
 ) -> Result<Option<Value>> {
     let mut tx = pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    crate::workspaces::check_member(&mut tx, credential, workspace, "operator").await?;
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
-        .bind(id)
+        .bind(format!("{workspace}:{id}"))
         .execute(&mut *tx)
         .await?;
-    let Some(row) = sqlx::query("SELECT to_jsonb(t.*) AS item FROM tasks t WHERE id=$1 FOR UPDATE")
-        .bind(id)
-        .fetch_optional(&mut *tx)
-        .await?
+    let Some(row) = sqlx::query(
+        "SELECT to_jsonb(t.*) AS item FROM tasks t WHERE workspace_id=$2 AND id=$1 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(workspace)
+    .fetch_optional(&mut *tx)
+    .await?
     else {
         return Ok(None);
     };
@@ -170,13 +185,14 @@ pub async fn set_archived(
         old["revision"].as_i64() == Some(expected),
         "task changed; reload before saving"
     );
-    let result = sqlx::query_scalar("UPDATE tasks SET archived_at=CASE WHEN $2 THEN now() ELSE NULL END,enabled=false,config=jsonb_set(config,'{enabled}','false'),next_at=NULL,revision=revision+1,updated_by=$3,updated_at=now() WHERE id=$1 RETURNING to_jsonb(tasks.*)").bind(id).bind(archived).bind(user).fetch_one(&mut *tx).await?;
+    let result = sqlx::query_scalar("UPDATE tasks SET archived_at=CASE WHEN $2 THEN now() ELSE NULL END,enabled=false,config=jsonb_set(config,'{enabled}','false'),next_at=NULL,revision=revision+1,updated_by=$3,updated_at=now() WHERE workspace_id=$4 AND id=$1 RETURNING to_jsonb(tasks.*)").bind(id).bind(archived).bind(user).bind(workspace).fetch_one(&mut *tx).await?;
     if archived {
-        sqlx::query("UPDATE runs SET state='cancelled',cancel_requested=true,reason='task archived',finished_at=now() WHERE task_id=$1 AND state='queued'").bind(id).execute(&mut *tx).await?;
+        sqlx::query("UPDATE runs SET state='cancelled',cancel_requested=true,reason='task archived',finished_at=now() WHERE workspace_id=$2 AND task_id=$1 AND state='queued'").bind(id).bind(workspace).execute(&mut *tx).await?;
     }
     audit(
         &mut tx,
         user,
+        Some(workspace),
         if archived {
             "task.archive"
         } else {
@@ -190,6 +206,7 @@ pub async fn set_archived(
 }
 
 struct NewRun<'a> {
+    workspace: Uuid,
     task: &'a TaskConfig,
     revision: i64,
     runner: Uuid,
@@ -202,6 +219,7 @@ struct NewRun<'a> {
 }
 async fn create_run(tx: &mut Transaction<'_, Postgres>, run: NewRun<'_>) -> Result<Uuid> {
     let NewRun {
+        workspace,
         task,
         revision,
         runner,
@@ -214,22 +232,23 @@ async fn create_run(tx: &mut Transaction<'_, Postgres>, run: NewRun<'_>) -> Resu
     } = run;
     if source == "schedule"
         && let Some(id) = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM runs WHERE task_id=$1 AND scheduled_at=$2 AND source='schedule'",
+            "SELECT id FROM runs WHERE workspace_id=$3 AND task_id=$1 AND scheduled_at=$2 AND source='schedule'",
         )
         .bind(&task.id)
         .bind(at)
-        .fetch_optional(&mut **tx)
+        .bind(workspace).fetch_optional(&mut **tx)
         .await?
     {
         return Ok(id);
     }
     let id = Uuid::new_v4();
     let deadline = at + chrono::Duration::from_std(duration(&task.execution.start_grace)?)?;
-    sqlx::query("INSERT INTO runs(id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,retry_of,request_key,state,reason,finished_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $11='skipped' THEN now() ELSE NULL END)")
-        .bind(id).bind(&task.id).bind(revision).bind(runner).bind(serde_json::to_value(task)?).bind(at).bind(deadline).bind(source).bind(retry).bind(key).bind(state).bind(reason).execute(&mut **tx).await?;
+    sqlx::query("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,retry_of,request_key,state,reason,finished_at) VALUES($13,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $11='skipped' THEN now() ELSE NULL END)")
+        .bind(id).bind(&task.id).bind(revision).bind(runner).bind(serde_json::to_value(task)?).bind(at).bind(deadline).bind(source).bind(retry).bind(key).bind(state).bind(reason).bind(workspace).execute(&mut **tx).await?;
     if state == "queued" {
         enqueue(
             tx,
+            workspace,
             protocol::work_subject(runner),
             format!("start:{id}"),
             serde_json::to_value(Assignment {
@@ -246,27 +265,35 @@ async fn create_run(tx: &mut Transaction<'_, Postgres>, run: NewRun<'_>) -> Resu
 }
 pub async fn trigger(
     pool: &PgPool,
+    workspace: Uuid,
+    credential: &str,
     task_id: &str,
     user: Uuid,
     retry: Option<Uuid>,
     key: &str,
 ) -> Result<Uuid> {
     let mut tx = pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    crate::workspaces::check_member(&mut tx, credential, workspace, "operator").await?;
     let request_key = format!(
         "{user}:{}:{key}",
         retry
             .map(|i| i.to_string())
             .unwrap_or_else(|| task_id.into())
     );
-    let row = sqlx::query("SELECT * FROM tasks WHERE id=$1 FOR UPDATE")
+    let row = sqlx::query("SELECT * FROM tasks WHERE workspace_id=$2 AND id=$1 FOR UPDATE")
         .bind(task_id)
+        .bind(workspace)
         .fetch_optional(&mut *tx)
         .await?
         .context("task not found")?;
-    if let Some(id) = sqlx::query_scalar::<_, Uuid>("SELECT id FROM runs WHERE request_key=$1")
-        .bind(&request_key)
-        .fetch_optional(&mut *tx)
-        .await?
+    if let Some(id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM runs WHERE workspace_id=$2 AND request_key=$1",
+    )
+    .bind(&request_key)
+    .bind(workspace)
+    .fetch_optional(&mut *tx)
+    .await?
     {
         return Ok(id);
     }
@@ -280,17 +307,20 @@ pub async fn trigger(
         .fetch_one(&mut *tx)
         .await?;
     ensure!(!revoked, "assigned runner has been revoked");
-    let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE task_id=$1 AND state IN ('queued','starting','running','unknown'))").bind(task_id).fetch_one(&mut *tx).await?;
+    let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$2 AND task_id=$1 AND state IN ('queued','starting','running','unknown'))").bind(task_id).bind(workspace).fetch_one(&mut *tx).await?;
     ensure!(
         !busy || task.execution.overlap == Overlap::Allow,
         "task already has an active run"
     );
     if let Some(previous) = retry {
-        let state: String = sqlx::query_scalar("SELECT state FROM runs WHERE id=$1 AND task_id=$2")
-            .bind(previous)
-            .bind(task_id)
-            .fetch_one(&mut *tx)
-            .await?;
+        let state: String = sqlx::query_scalar(
+            "SELECT state FROM runs WHERE workspace_id=$3 AND id=$1 AND task_id=$2",
+        )
+        .bind(previous)
+        .bind(task_id)
+        .bind(workspace)
+        .fetch_one(&mut *tx)
+        .await?;
         ensure!(
             protocol::terminal(&state),
             "resolve the previous run before retrying"
@@ -302,6 +332,7 @@ pub async fn trigger(
     let id = create_run(
         &mut tx,
         NewRun {
+            workspace,
             task: &task,
             revision: row.get("revision"),
             runner: row.get("runner_id"),
@@ -314,7 +345,14 @@ pub async fn trigger(
         },
     )
     .await?;
-    audit(&mut tx, user, "run.trigger", &id.to_string()).await?;
+    audit(
+        &mut tx,
+        user,
+        Some(workspace),
+        "run.trigger",
+        &id.to_string(),
+    )
+    .await?;
     tx.commit().await?;
     Ok(id)
 }
@@ -326,6 +364,7 @@ pub async fn tick(pool: &PgPool) -> Result<()> {
         .await?;
     let rows=sqlx::query("SELECT * FROM tasks WHERE enabled AND archived_at IS NULL AND next_at<=now() ORDER BY next_at LIMIT 50 FOR UPDATE SKIP LOCKED").fetch_all(&mut *tx).await?;
     for row in rows {
+        let workspace: Uuid = row.get("workspace_id");
         let task: TaskConfig = serde_json::from_value(row.get("config"))?;
         let Some(s) = &task.schedule else { continue };
         let first: DateTime<Utc> = row.get("next_at");
@@ -341,12 +380,13 @@ pub async fn tick(pool: &PgPool) -> Result<()> {
         } else {
             schedule::next(s, now, false)?
         };
-        sqlx::query("UPDATE tasks SET next_at=$2 WHERE id=$1")
+        sqlx::query("UPDATE tasks SET next_at=$2 WHERE workspace_id=$3 AND id=$1")
             .bind(&task.id)
             .bind(next)
+            .bind(workspace)
             .execute(&mut *tx)
             .await?;
-        let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE task_id=$1 AND state IN ('starting','running','unknown'))").bind(&task.id).fetch_one(&mut *tx).await?;
+        let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$2 AND task_id=$1 AND state IN ('starting','running','unknown'))").bind(&task.id).bind(workspace).fetch_one(&mut *tx).await?;
         let late = (now - due).to_std().unwrap_or_default();
         let reason = if busy && task.execution.overlap == Overlap::Skip {
             Some("overlap")
@@ -359,11 +399,12 @@ pub async fn tick(pool: &PgPool) -> Result<()> {
         };
         // A task row lock is also taken by claim, so superseding cannot race a start.
         if task.execution.misfire == Misfire::Latest {
-            sqlx::query("UPDATE runs SET state='skipped',reason='superseded by latest occurrence',finished_at=now() WHERE task_id=$1 AND source='schedule' AND state='queued'").bind(&task.id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE runs SET state='skipped',reason='superseded by latest occurrence',finished_at=now() WHERE workspace_id=$2 AND task_id=$1 AND source='schedule' AND state='queued'").bind(&task.id).bind(workspace).execute(&mut *tx).await?;
         }
         create_run(
             &mut tx,
             NewRun {
+                workspace,
                 task: &task,
                 revision: row.get("revision"),
                 runner: row.get("runner_id"),
@@ -464,11 +505,12 @@ pub async fn ingest(pool: &PgPool, e: &RunEvent, log_limit: usize) -> Result<()>
         }
     }
     data["event_time"] = json!(e.timestamp);
-    sqlx::query("INSERT INTO events(run_id,seq,kind,data) VALUES($1,$2,$3,$4)")
+    sqlx::query("INSERT INTO events(run_id,seq,kind,data,workspace_id) VALUES($1,$2,$3,$4,$5)")
         .bind(e.run_id)
         .bind(e.seq)
         .bind(&kind)
         .bind(&data)
+        .bind(row.get::<Uuid, _>("workspace_id"))
         .execute(&mut *tx)
         .await?;
     if kind == "snapshot" {
@@ -526,7 +568,7 @@ pub async fn clear_completed_messages(
     pool: &PgPool,
     js: &async_nats::jetstream::Context,
 ) -> Result<()> {
-    let rows=sqlx::query("SELECT o.id,o.stream,o.stream_seq FROM outbox o LEFT JOIN runs r ON r.id=(o.payload->>'run_id')::uuid WHERE o.published_at IS NOT NULL AND o.stream_seq IS NOT NULL AND o.cleared_at IS NULL AND (r.id IS NULL OR (r.state IN ('succeeded','failed','cancelled','timed_out','skipped','interrupted') AND (r.claim_id IS NULL OR r.finished_at<now()-interval '5 minutes'))) ORDER BY o.id LIMIT 100").fetch_all(pool).await?;
+    let rows=sqlx::query("SELECT o.id,o.stream,o.stream_seq FROM outbox o LEFT JOIN runs r ON r.id=(o.payload->>'run_id')::uuid AND r.workspace_id=o.workspace_id WHERE o.published_at IS NOT NULL AND o.stream_seq IS NOT NULL AND o.cleared_at IS NULL AND (r.id IS NULL OR (r.state IN ('succeeded','failed','cancelled','timed_out','skipped','interrupted') AND (r.claim_id IS NULL OR r.finished_at<now()-interval '5 minutes'))) ORDER BY o.id LIMIT 100").fetch_all(pool).await?;
     for row in rows {
         let stream = js.get_stream(row.get::<String, _>("stream")).await?;
         let seq = row.get::<i64, _>("stream_seq") as u64;

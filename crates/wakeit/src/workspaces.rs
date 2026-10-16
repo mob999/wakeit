@@ -175,6 +175,7 @@ pub async fn update_member(
         .await?;
     }
     if remove || !active {
+        sqlx::query("UPDATE enrollments SET expires_at=LEAST(expires_at,now()) WHERE workspace_id=$1 AND created_by=$2").bind(workspace).bind(target).execute(&mut *tx).await?;
         sqlx::query("DELETE FROM credentials WHERE workspace_id=$1 AND user_id=$2")
             .bind(workspace)
             .bind(target)

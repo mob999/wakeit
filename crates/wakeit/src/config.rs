@@ -392,6 +392,27 @@ pub struct GatewayConfig {
     pub run_retention_days: i32,
     #[serde(default = "log_limit")]
     pub log_limit_bytes: usize,
+    #[serde(default)]
+    pub auth: GatewayAuth,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GatewayAuth {
+    #[serde(default = "local_auth")]
+    pub mode: String,
+    #[serde(default)]
+    pub allow_registration: bool,
+}
+fn local_auth() -> String {
+    "local".into()
+}
+impl Default for GatewayAuth {
+    fn default() -> Self {
+        Self {
+            mode: local_auth(),
+            allow_registration: false,
+        }
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

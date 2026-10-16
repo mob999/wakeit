@@ -5,7 +5,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{Path as AxumPath, Query, State},
     http::{HeaderMap, StatusCode, header},
     response::{
         IntoResponse, Response,
@@ -37,7 +37,7 @@ impl Error {
     pub(crate) fn conflict(s: impl Into<String>) -> Self {
         Self(StatusCode::CONFLICT, s.into())
     }
-    fn missing() -> Self {
+    pub(crate) fn missing() -> Self {
         Self(StatusCode::NOT_FOUND, "not found".into())
     }
 }
@@ -56,8 +56,8 @@ impl IntoResponse for Error {
         (self.0, Json(json!({"error":self.1}))).into_response()
     }
 }
-type Result<T> = std::result::Result<T, Error>;
-struct ApiJson<T>(T);
+pub(crate) type Result<T> = std::result::Result<T, Error>;
+pub(crate) struct ApiJson<T>(pub T);
 impl<S, T> axum::extract::FromRequest<S> for ApiJson<T>
 where
     S: Send + Sync,
@@ -80,6 +80,39 @@ pub struct User {
     pub role: String,
     pub username: String,
     pub credential: String,
+    pub workspace_id: Option<Uuid>,
+    pub instance_admin: bool,
+    pub kind: String,
+    pub demo: bool,
+}
+impl User {
+    pub(crate) fn workspace(&self) -> Result<Uuid> {
+        self.workspace_id
+            .ok_or_else(|| Error::bad("workspace is required"))
+    }
+}
+// Nested routes contain workspace plus the resource parameters. Keep resource extraction
+// independent of the workspace, whose canonical value is set by server middleware.
+struct Path<T>(T);
+impl<S: Send + Sync, T: serde::de::DeserializeOwned> axum::extract::FromRequestParts<S>
+    for Path<T>
+{
+    type Rejection = Error;
+    async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &S) -> Result<Self> {
+        let AxumPath(mut params) =
+            AxumPath::<std::collections::HashMap<String, String>>::from_request_parts(parts, state)
+                .await
+                .map_err(|e| Error::bad(e.to_string()))?;
+        params.remove("workspace");
+        let value = if params.len() == 1 {
+            json!(params.into_values().next().unwrap())
+        } else {
+            json!([params.remove("id"), params.remove("agent")])
+        };
+        Ok(Self(
+            serde_json::from_value(value).map_err(|e| Error::bad(e.to_string()))?,
+        ))
+    }
 }
 pub(crate) fn cookie(h: &HeaderMap) -> Option<String> {
     h.get(header::COOKIE)?
@@ -114,43 +147,89 @@ pub(crate) async fn user(s: &App, h: &HeaderMap, needed: &str, write: bool) -> R
         .or_else(|| cookie(h))
         .ok_or_else(|| Error(StatusCode::UNAUTHORIZED, "authentication required".into()))?;
     let hash = auth::hash(&token);
-    let row=sqlx::query("SELECT u.id,u.username,u.role FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND u.active AND (c.expires_at IS NULL OR c.expires_at>now())").bind(&hash).fetch_optional(&s.pool).await?.ok_or_else(||Error(StatusCode::UNAUTHORIZED,"session expired or token invalid".into()))?;
-    let role: String = row.get("role");
-    if auth::role(&role) < auth::role(needed) {
-        return Err(Error(
-            StatusCode::FORBIDDEN,
-            "insufficient permissions".into(),
-        ));
+    let identity = crate::workspaces::identity(&s.pool, &hash)
+        .await?
+        .ok_or_else(|| {
+            Error(
+                StatusCode::UNAUTHORIZED,
+                "session expired or token invalid".into(),
+            )
+        })?;
+    let workspace = h
+        .get("x-wakeit-workspace")
+        .and_then(|v| v.to_str().ok())
+        .map(str::parse::<Uuid>)
+        .transpose()
+        .map_err(|_| Error::bad("invalid workspace"))?;
+    let mut role = "viewer".to_string();
+    let mut demo = false;
+    if let Some(workspace) = workspace {
+        let context = crate::workspaces::authorize(&s.pool, &identity, workspace)
+            .await?
+            .ok_or_else(Error::missing)?;
+        role = context.role;
+        demo = context.demo;
+        if demo && (write || h.get("x-wakeit-device-query").is_some()) {
+            return Err(Error(
+                StatusCode::FORBIDDEN,
+                "demo workspace is read only".into(),
+            ));
+        }
+        if auth::role(&role) < auth::role(needed) {
+            return Err(Error(
+                StatusCode::FORBIDDEN,
+                "insufficient permissions".into(),
+            ));
+        }
+    } else if needed != "viewer" {
+        if !identity.instance_admin || identity.kind != "session" {
+            return Err(Error(
+                StatusCode::FORBIDDEN,
+                "instance administrator required".into(),
+            ));
+        }
+        role = "admin".into();
     }
     Ok(User {
-        id: row.get("id"),
+        id: identity.id,
         role,
-        username: row.get("username"),
+        username: identity.username,
         credential: hash,
+        workspace_id: workspace.or(identity.workspace_id),
+        instance_admin: identity.instance_admin,
+        kind: identity.kind,
+        demo,
     })
 }
-// Recheck permissions on the transaction's connection after acquiring its locks.
-// Acquiring another pool connection here can deadlock under concurrent member updates.
 pub(crate) async fn reauthorize(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    credential: &str,
+    actor: &User,
     needed: &str,
 ) -> Result<User> {
-    let row=sqlx::query("SELECT u.id,u.username,u.role FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND u.active AND (c.expires_at IS NULL OR c.expires_at>now())").bind(credential).fetch_optional(&mut **tx).await?.ok_or_else(||Error(StatusCode::UNAUTHORIZED,"session expired or token invalid".into()))?;
-    let role: String = row.get("role");
-    if auth::role(&role) < auth::role(needed) {
-        return Err(Error(
-            StatusCode::FORBIDDEN,
-            "insufficient permissions".into(),
-        ));
+    let mut current = actor.clone();
+    if let Some(workspace) = actor.workspace_id {
+        crate::workspaces::check_member(tx, &actor.credential, workspace, needed)
+            .await
+            .map_err(|_| Error(StatusCode::FORBIDDEN, "workspace permission changed".into()))?;
+        current.role = sqlx::query_scalar(
+            "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+        )
+        .bind(workspace)
+        .bind(actor.id)
+        .fetch_one(&mut **tx)
+        .await?;
+    } else {
+        let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND c.kind='session' AND u.active AND u.instance_admin AND (c.expires_at IS NULL OR c.expires_at>now()))").bind(&actor.credential).fetch_one(&mut **tx).await?;
+        if !allowed {
+            return Err(Error(
+                StatusCode::FORBIDDEN,
+                "instance administrator required".into(),
+            ));
+        }
     }
-    Ok(User {
-        id: row.get("id"),
-        username: row.get("username"),
-        role,
-        credential: credential.into(),
-    })
+    Ok(current)
 }
+
 async fn device(s: &App, h: &HeaderMap) -> Result<Uuid> {
     let token = h
         .get(header::AUTHORIZATION)
@@ -168,7 +247,90 @@ async fn device(s: &App, h: &HeaderMap) -> Result<Uuid> {
             )
         })
 }
+fn workspace_header(h: &HeaderMap) -> Result<Uuid> {
+    h.get("x-wakeit-workspace")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .ok_or_else(|| Error::bad("workspace is required"))
+}
+async fn verify_run(s: &App, workspace: Uuid, id: Uuid) -> Result<()> {
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$1 AND id=$2)")
+            .bind(workspace)
+            .bind(id)
+            .fetch_one(&s.pool)
+            .await?;
+    if !exists {
+        return Err(Error::missing());
+    }
+    Ok(())
+}
+async fn workspace_scope(
+    AxumPath(params): AxumPath<std::collections::HashMap<String, String>>,
+    mut request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let Some(workspace) = params.get("workspace").and_then(|v| v.parse::<Uuid>().ok()) else {
+        return Error::bad("invalid workspace").into_response();
+    };
+    request
+        .headers_mut()
+        .insert("x-wakeit-workspace", workspace.to_string().parse().unwrap());
+    next.run(request).await
+}
+async fn clear_scope(
+    mut request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    request.headers_mut().remove("x-wakeit-workspace");
+    request.headers_mut().remove("x-wakeit-device-query");
+    next.run(request).await
+}
+async fn legacy_business() -> Response {
+    (StatusCode::UPGRADE_REQUIRED,Json(json!({"error":"workspace API required; update Wakeit CLI","code":"workspace_required"}))).into_response()
+}
 pub fn router(app: App) -> Router {
+    let business = Router::new()
+        .route("/runners/{id}/directories", get(directories))
+        .route(
+            "/runners/{id}/agents/{agent}/models/query",
+            post(query_models),
+        )
+        .route(
+            "/runners/{id}/agents/{agent}/sessions/inspect",
+            post(inspect_session),
+        )
+        .route(
+            "/runners/{id}/agents/{agent}/sessions/query",
+            post(query_sessions),
+        )
+        .route("/invites", post(invite))
+        .route("/tokens", get(tokens).post(create_token))
+        .route("/tokens/{id}", delete(delete_token))
+        .route("/tasks", get(tasks))
+        .route("/tasks/{id}", get(task).put(apply))
+        .route("/tasks/{id}/runs", post(trigger))
+        .route("/tasks/{id}/archive", post(archive_task))
+        .route("/tasks/{id}/restore", post(restore_task))
+        .route("/schedule/preview", post(preview))
+        .route("/moments/days", get(crate::moments::days))
+        .route("/moments", get(crate::moments::entries))
+        .route("/runs", get(runs))
+        .route("/runs/{id}", get(run))
+        .route("/runs/{id}/cancel", post(cancel))
+        .route("/runs/{id}/retry", post(retry))
+        .route("/runs/{id}/resolve", post(resolve))
+        .route("/runs/{id}/events", get(events))
+        .route("/runs/{id}/stream", get(stream))
+        .route("/runners", get(runners))
+        .route("/runners/enrollment", post(enrollment))
+        .route("/runners/{id}/revoke", post(revoke))
+        .route("/agents", get(agents))
+        .route("/agents/templates/{id}", get(template))
+        .route("/settings", get(settings).put(update_settings))
+        .route("/timezones", get(timezones))
+        .route("/audit", get(audits))
+        .route_layer(axum::middleware::from_fn(workspace_scope));
     Router::new()
         .route(
             "/health/live",
@@ -177,63 +339,28 @@ pub fn router(app: App) -> Router {
         .route("/health/ready", get(ready))
         .route("/metrics", get(metrics))
         .merge(crate::device_auth::routes())
-        .route("/api/v1/meta", get(meta))
+        .merge(crate::workspace_api::routes())
         .merge(crate::changelog::routes())
-        .route("/api/v1/runners/{id}/directories", get(directories))
-        .route(
-            "/api/v1/runners/{id}/agents/{agent}/models/query",
-            post(query_models),
-        )
-        .route(
-            "/api/v1/runners/{id}/agents/{agent}/sessions/inspect",
-            post(inspect_session),
-        )
-        .route(
-            "/api/v1/runners/{id}/agents/{agent}/sessions/query",
-            post(query_sessions),
-        )
+        .route("/api/v1/meta", get(meta))
         .route("/api/v1/session", post(login).get(me).delete(logout))
-        .route("/api/v1/invites/accept", post(accept_invite))
-        .route("/api/v1/invites", post(invite))
-        .route("/api/v1/users", get(users).post(create_user))
-        .route("/api/v1/users/{id}", put(update_user))
-        .route("/api/v1/users/{id}/password", post(reset_password))
-        .route("/api/v1/tokens", get(tokens).post(create_token))
-        .route("/api/v1/tokens/{id}", delete(delete_token))
-        .route("/api/v1/tasks", get(tasks))
-        .route("/api/v1/tasks/{id}", get(task).put(apply))
-        .route("/api/v1/tasks/{id}/runs", post(trigger))
-        .route("/api/v1/tasks/{id}/archive", post(archive_task))
-        .route("/api/v1/tasks/{id}/restore", post(restore_task))
-        .route("/api/v1/schedule/preview", post(preview))
-        .route("/api/v1/moments/days", get(crate::moments::days))
-        .route("/api/v1/moments", get(crate::moments::entries))
-        .route("/api/v1/runs", get(runs))
-        .route("/api/v1/runs/{id}", get(run))
-        .route("/api/v1/runs/{id}/cancel", post(cancel))
-        .route("/api/v1/runs/{id}/retry", post(retry))
-        .route("/api/v1/runs/{id}/resolve", post(resolve))
-        .route("/api/v1/runs/{id}/events", get(events))
-        .route("/api/v1/runs/{id}/stream", get(stream))
-        .route("/api/v1/runners", get(runners))
-        .route("/api/v1/runners/enrollment", post(enrollment))
-        .route("/api/v1/runners/{id}/revoke", post(revoke))
-        .route("/api/v1/agents", get(agents))
-        .route("/api/v1/agents/templates/{id}", get(template))
+        .route("/api/v1/instance/users", get(users).post(create_user))
+        .route("/api/v1/instance/users/{id}", put(update_user))
+        .route("/api/v1/instance/users/{id}/password", post(reset_password))
         .route("/api/v1/device/enroll", post(enroll))
         .route("/api/v1/device/hello", post(hello))
         .route("/api/v1/device/heartbeat", post(heartbeat))
         .route("/api/v1/device/claim", post(claim))
-        .route("/api/v1/settings", get(settings).put(update_settings))
-        .route("/api/v1/timezones", get(timezones))
-        .route("/api/v1/audit", get(audits))
         .route("/api/v1/schema/{kind}", get(schema))
         .route("/api/v1/openapi.json", get(openapi))
+        .nest("/api/v1/workspaces/{workspace}", business)
+        .route("/api/v1/{*legacy}", axum::routing::any(legacy_business))
         .fallback(static_file)
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn(clear_scope))
         .with_state(app)
 }
+
 async fn ready(State(s): State<App>) -> Result<Json<Value>> {
     sqlx::query("SELECT 1").execute(&s.pool).await?;
     s.js.get_stream("WAKEIT_WORK")
@@ -247,6 +374,12 @@ pub(crate) struct Login {
     password: String,
 }
 async fn login(State(s): State<App>, h: HeaderMap, ApiJson(b): ApiJson<Login>) -> Result<Response> {
+    if s.config.auth.mode != "local" {
+        return Err(Error(
+            StatusCode::FORBIDDEN,
+            "password login is disabled".into(),
+        ));
+    }
     if b.username.len() > 100 || b.password.len() > 1024 {
         return Err(Error::bad("invalid credentials"));
     }
@@ -329,7 +462,9 @@ async fn login(State(s): State<App>, h: HeaderMap, ApiJson(b): ApiJson<Login>) -
 }
 async fn me(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
     let u = user(&s, &h, "viewer", false).await?;
-    Ok(Json(json!({"id":u.id,"username":u.username,"role":u.role})))
+    Ok(Json(
+        json!({"id":u.id,"username":u.username,"role":u.role,"instance_admin":u.instance_admin,"kind":u.kind,"workspace_id":u.workspace_id}),
+    ))
 }
 async fn logout(State(s): State<App>, h: HeaderMap) -> Result<Response> {
     let u = user(&s, &h, "viewer", true).await?;
@@ -359,7 +494,7 @@ async fn users(
     user(&s, &h, "admin", false).await?;
     let (page, size) = pagination(q.page, q.page_size)?;
     let result: Value = sqlx::query_scalar(
-        "WITH paged AS (SELECT id,username,role,active,created_at FROM users ORDER BY created_at,id LIMIT $1 OFFSET $2) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY created_at,id) FROM paged p),'[]'::jsonb),'total',(SELECT count(*) FROM users),'active_admins',(SELECT count(*) FROM users WHERE active AND role='admin'),'page',$3::bigint,'page_size',$4::bigint)"
+        "WITH paged AS (SELECT id,username,instance_admin,active,created_at FROM users ORDER BY created_at,id LIMIT $1 OFFSET $2) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY created_at,id) FROM paged p),'[]'::jsonb),'total',(SELECT count(*) FROM users),'active_admins',(SELECT count(*) FROM users WHERE active AND instance_admin),'page',$3::bigint,'page_size',$4::bigint)"
     ).bind(q.page.map(|_|size)).bind(if q.page.is_some(){(page-1)*size}else{0}).bind(page).bind(size).fetch_one(&s.pool).await?;
     Ok(Json(if q.page.is_some() {
         result
@@ -371,7 +506,6 @@ async fn users(
 pub(crate) struct CreateUser {
     username: String,
     password: String,
-    role: String,
 }
 #[derive(Deserialize, schemars::JsonSchema)]
 pub(crate) struct PasswordBody {
@@ -387,9 +521,12 @@ async fn create_user(
     h: HeaderMap,
     ApiJson(b): ApiJson<CreateUser>,
 ) -> Result<Json<Value>> {
+    if s.config.auth.mode != "local" {
+        return Err(Error::bad("local account creation is disabled"));
+    }
     let initial = user(&s, &h, "admin", true).await?;
     let name = b.username.trim();
-    if name.is_empty() || name.len() > 100 || auth::role(&b.role) == 0 {
+    if name.is_empty() || name.len() > 100 {
         return Err(Error::bad("invalid username or role"));
     }
     let hash = password_hash(b.password).await?;
@@ -397,10 +534,10 @@ async fn create_user(
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    let actor = reauthorize(&mut tx, &initial.credential, "admin").await?;
+    let actor = reauthorize(&mut tx, &initial, "admin").await?;
     let id = Uuid::new_v4();
-    let row: Value=sqlx::query_scalar("INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,$4) ON CONFLICT(username) DO NOTHING RETURNING jsonb_build_object('id',id,'username',username,'role',role,'active',active,'created_at',created_at)").bind(id).bind(name).bind(hash).bind(b.role).fetch_optional(&mut *tx).await?.ok_or_else(||Error::conflict("username unavailable"))?;
-    store::audit(&mut tx, actor.id, "member.create", &id.to_string()).await?;
+    let row: Value=sqlx::query_scalar("INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,$4) ON CONFLICT(username) DO NOTHING RETURNING jsonb_build_object('id',id,'username',username,'role',role,'active',active,'created_at',created_at)").bind(id).bind(name).bind(hash).bind("viewer").fetch_optional(&mut *tx).await?.ok_or_else(||Error::conflict("username unavailable"))?;
+    store::audit(&mut tx, actor.id, None, "member.create", &id.to_string()).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -410,14 +547,17 @@ async fn reset_password(
     Path(id): Path<Uuid>,
     ApiJson(b): ApiJson<PasswordBody>,
 ) -> Result<Json<Value>> {
+    if s.config.auth.mode != "local" {
+        return Err(Error::bad("password management is disabled"));
+    }
     let initial = user(&s, &h, "admin", true).await?;
     let hash = password_hash(b.password).await?;
     let mut tx = s.pool.begin().await?;
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    let actor = reauthorize(&mut tx, &initial.credential, "admin").await?;
-    sqlx::query("SELECT id FROM users WHERE id=$1 FOR UPDATE")
+    let actor = reauthorize(&mut tx, &initial, "admin").await?;
+    sqlx::query("SELECT id FROM users WHERE id=$1 AND password_hash IS NOT NULL FOR UPDATE")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
@@ -431,7 +571,7 @@ async fn reset_password(
         .bind(id)
         .execute(&mut *tx)
         .await?;
-    store::audit(&mut tx, actor.id, "member.password", &id.to_string()).await?;
+    store::audit(&mut tx, actor.id, None, "member.password", &id.to_string()).await?;
     tx.commit().await?;
     Ok(Json(json!({"ok":true})))
 }
@@ -458,34 +598,35 @@ async fn update_user(
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    let u = reauthorize(&mut tx, &initial.credential, "admin").await?;
-    let current = sqlx::query("SELECT role,active FROM users WHERE id=$1 FOR UPDATE")
+    let u = reauthorize(&mut tx, &initial, "admin").await?;
+    if b.role.is_some() {
+        return Err(Error::bad("roles belong to workspace memberships"));
+    }
+    // Lock every workspace in the same order as member operations before checking
+    // whether global deactivation would strand any organization without an Admin.
+    sqlx::query("SELECT id FROM workspaces ORDER BY id FOR UPDATE")
+        .fetch_all(&mut *tx)
+        .await?;
+    let current = sqlx::query("SELECT active,instance_admin FROM users WHERE id=$1 FOR UPDATE")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(Error::missing)?;
-    let role = b.role.unwrap_or_else(|| current.get("role"));
-    let active = b.active.unwrap_or_else(|| current.get("active"));
-    if auth::role(&role) == 0 {
-        return Err(Error::bad("invalid role"));
-    }
-    if current.get::<String, _>("role") == "admin"
-        && current.get::<bool, _>("active")
-        && (role != "admin" || !active)
-    {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM users WHERE role='admin' AND active AND id<>$1",
+    let active = b.active.unwrap_or(current.get("active"));
+    if !active && current.get::<bool, _>("active") {
+        let stranded:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM workspace_members mine WHERE mine.user_id=$1 AND mine.active AND mine.role='admin' AND NOT EXISTS(SELECT 1 FROM workspace_members other JOIN users u ON u.id=other.user_id WHERE other.workspace_id=mine.workspace_id AND other.user_id<>$1 AND other.active AND other.role='admin' AND u.active))").bind(id).fetch_one(&mut *tx).await?;
+        let last_instance: bool = sqlx::query_scalar(
+            "SELECT NOT EXISTS(SELECT 1 FROM users WHERE id<>$1 AND instance_admin AND active)",
         )
         .bind(id)
         .fetch_one(&mut *tx)
         .await?;
-        if count == 0 {
+        if stranded || (current.get::<bool, _>("instance_admin") && last_instance) {
             return Err(Error::conflict("cannot remove the last administrator"));
         }
     }
-    sqlx::query("UPDATE users SET role=$2,active=$3 WHERE id=$1")
+    sqlx::query("UPDATE users SET active=$2 WHERE id=$1")
         .bind(id)
-        .bind(role)
         .bind(active)
         .execute(&mut *tx)
         .await?;
@@ -494,8 +635,9 @@ async fn update_user(
             .bind(id)
             .execute(&mut *tx)
             .await?;
+        sqlx::query("UPDATE device_grants SET state='denied' WHERE user_id=$1 AND state IN ('pending','approved')").bind(id).execute(&mut *tx).await?;
     }
-    store::audit(&mut tx, u.id, "member.update", &id.to_string()).await?;
+    store::audit(&mut tx, u.id, None, "member.update", &id.to_string()).await?;
     tx.commit().await?;
     Ok(Json(json!({"ok":true})))
 }
@@ -504,46 +646,30 @@ async fn invite(
     h: HeaderMap,
     ApiJson(b): ApiJson<RoleBody>,
 ) -> Result<Json<Value>> {
-    user(&s, &h, "admin", true).await?;
+    let workspace = workspace_header(&h)?;
+    let actor = user(&s, &h, "admin", true).await?;
     if auth::role(&b.role) == 0 {
         return Err(Error::bad("invalid role"));
     }
+    let mut tx = s.pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &actor, "admin").await?;
     let token = auth::secret();
-    sqlx::query("INSERT INTO invites(hash,role,expires_at) VALUES($1,$2,now()+interval '2 days')")
+    sqlx::query("INSERT INTO invites(hash,role,expires_at,workspace_id,created_by) VALUES($1,$2,now()+interval '2 days',$3,$4)")
         .bind(auth::hash(&token))
         .bind(b.role)
-        .execute(&s.pool)
+        .bind(workspace).bind(actor.id).execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(Json(
         json!({"token":token,"url":format!("{}/invite#{}",s.config.public_url.trim_end_matches('/'),token)}),
     ))
 }
 #[derive(Deserialize, schemars::JsonSchema)]
-pub(crate) struct Accept {
-    token: String,
-    username: String,
-    password: String,
-}
-async fn accept_invite(State(s): State<App>, ApiJson(b): ApiJson<Accept>) -> Result<Json<Value>> {
-    if b.username.trim().is_empty() || b.username.len() > 100 {
-        return Err(Error::bad("invalid username"));
-    }
-    let pw = tokio::task::spawn_blocking(move || auth::password(&b.password))
-        .await?
-        .map_err(|e| Error::bad(e.to_string()))?;
-    let mut tx = s.pool.begin().await?;
-    let role:Option<String>=sqlx::query_scalar("UPDATE invites SET used_at=now() WHERE hash=$1 AND used_at IS NULL AND expires_at>now() RETURNING role").bind(auth::hash(&b.token)).fetch_optional(&mut *tx).await?;
-    let role = role.ok_or_else(|| Error::bad("invitation invalid or expired"))?;
-    sqlx::query("INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,$4)")
-        .bind(Uuid::new_v4())
-        .bind(b.username)
-        .bind(pw)
-        .bind(role)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| Error::conflict("username unavailable"))?;
-    tx.commit().await?;
-    Ok(Json(json!({"ok":true})))
+pub struct Accept {
+    pub token: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 #[derive(Deserialize, schemars::JsonSchema)]
 pub(crate) struct TokenBody {
@@ -556,6 +682,7 @@ async fn create_token(
     h: HeaderMap,
     ApiJson(b): ApiJson<TokenBody>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "viewer", true).await?;
     let name = b.name.trim();
     if name.is_empty() {
@@ -567,20 +694,21 @@ async fn create_token(
         return Err(Error::bad("API key expiration must be in the future"));
     }
     let mut tx = s.pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
     sqlx::query("SELECT id FROM users WHERE id=$1 FOR SHARE")
         .bind(u.id)
         .fetch_one(&mut *tx)
         .await?;
-    reauthorize(&mut tx, &u.credential, "viewer").await?;
+    reauthorize(&mut tx, &u, "viewer").await?;
     let t = auth::secret();
     sqlx::query(
-        "INSERT INTO credentials(hash,user_id,kind,name,expires_at) VALUES($1,$2,'api',$3,$4)",
+        "INSERT INTO credentials(hash,user_id,kind,name,expires_at,workspace_id) VALUES($1,$2,'api',$3,$4,$5)",
     )
     .bind(auth::hash(&t))
     .bind(u.id)
     .bind(name)
     .bind(b.expires_at)
-    .execute(&mut *tx)
+    .bind(workspace).execute(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(Json(json!({"token":t})))
@@ -590,11 +718,12 @@ async fn tokens(
     h: HeaderMap,
     Query(q): Query<PageQuery>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "viewer", false).await?;
     let (page, size) = pagination(q.page, q.page_size)?;
     let result: Value=sqlx::query_scalar(
-        "WITH filtered AS (SELECT hash AS id,name,created_at,expires_at FROM credentials WHERE user_id=$1 AND kind='api'), paged AS (SELECT * FROM filtered ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY created_at DESC,id DESC) FROM paged p),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$4::bigint,'page_size',$5::bigint)"
-    ).bind(u.id).bind(q.page.map(|_|size)).bind(if q.page.is_some(){(page-1)*size}else{0}).bind(page).bind(size).fetch_one(&s.pool).await?;
+        "WITH filtered AS (SELECT hash AS id,name,created_at,expires_at FROM credentials WHERE workspace_id=$6 AND user_id=$1 AND kind='api'), paged AS (SELECT * FROM filtered ORDER BY created_at DESC,id DESC LIMIT $2 OFFSET $3) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY created_at DESC,id DESC) FROM paged p),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$4::bigint,'page_size',$5::bigint)"
+    ).bind(u.id).bind(q.page.map(|_|size)).bind(if q.page.is_some(){(page-1)*size}else{0}).bind(page).bind(size).bind(workspace).fetch_one(&s.pool).await?;
     Ok(Json(if q.page.is_some() {
         result
     } else {
@@ -606,12 +735,16 @@ async fn delete_token(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "viewer", true).await?;
-    sqlx::query("DELETE FROM credentials WHERE hash=$1 AND user_id=$2 AND kind='api'")
-        .bind(id)
-        .bind(u.id)
-        .execute(&s.pool)
-        .await?;
+    sqlx::query(
+        "DELETE FROM credentials WHERE workspace_id=$3 AND hash=$1 AND user_id=$2 AND kind='api'",
+    )
+    .bind(id)
+    .bind(u.id)
+    .bind(workspace)
+    .execute(&s.pool)
+    .await?;
     Ok(Json(json!({"ok":true})))
 }
 #[derive(Default, Deserialize)]
@@ -653,6 +786,7 @@ async fn tasks(
     h: HeaderMap,
     Query(q): Query<ListTasks>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(
         &s,
         &h,
@@ -662,10 +796,10 @@ async fn tasks(
     .await?;
     let (page, size) = pagination(q.page, q.page_size)?;
     let result: Value = sqlx::query_scalar(
-        "WITH filtered AS (SELECT t.* FROM tasks t WHERE (archived_at IS NOT NULL)=$9 AND ($1::text IS NULL OR concat_ws(' ',config->>'name',id,config->>'prompt',config->>'cwd',config->>'runner',config->>'agent') ILIKE $1) AND ($2::text IS NULL OR config->>'runner'=$2) AND ($3::text IS NULL OR config->>'agent'=$3) AND ($4::boolean IS NULL OR enabled=$4)), paged AS (SELECT to_jsonb(t.*) || jsonb_build_object('last_run',(SELECT jsonb_build_object('id',id,'state',state,'created_at',created_at) FROM runs WHERE task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1)) AS item FROM filtered t ORDER BY updated_at DESC,id DESC LIMIT $5 OFFSET $6) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$7::bigint,'page_size',$8::bigint)"
+        "WITH filtered AS (SELECT t.* FROM tasks t WHERE workspace_id=$10 AND (archived_at IS NOT NULL)=$9 AND ($1::text IS NULL OR concat_ws(' ',config->>'name',id,config->>'prompt',config->>'cwd',config->>'runner',config->>'agent') ILIKE $1) AND ($2::text IS NULL OR config->>'runner'=$2) AND ($3::text IS NULL OR config->>'agent'=$3) AND ($4::boolean IS NULL OR enabled=$4)), paged AS (SELECT to_jsonb(t.*) || jsonb_build_object('last_run',(SELECT jsonb_build_object('id',id,'state',state,'created_at',created_at) FROM runs WHERE workspace_id=t.workspace_id AND task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1)) AS item FROM filtered t ORDER BY updated_at DESC,id DESC LIMIT $5 OFFSET $6) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$7::bigint,'page_size',$8::bigint)"
     ).bind(search_pattern(q.q)?).bind(q.runner).bind(q.agent).bind(q.enabled)
     .bind(q.page.map(|_| size)).bind(if q.page.is_some() { (page-1)*size } else {0})
-    .bind(page).bind(size).bind(q.archived).fetch_one(&s.pool).await?;
+    .bind(page).bind(size).bind(q.archived).bind(workspace).fetch_one(&s.pool).await?;
     Ok(Json(if q.page.is_some() {
         result
     } else {
@@ -673,10 +807,12 @@ async fn tasks(
     }))
 }
 async fn task(State(s): State<App>, h: HeaderMap, Path(id): Path<String>) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
     Ok(Json(
-        sqlx::query_scalar("SELECT to_jsonb(t.*) FROM tasks t WHERE id=$1")
+        sqlx::query_scalar("SELECT to_jsonb(t.*) FROM tasks t WHERE workspace_id=$2 AND id=$1")
             .bind(id)
+            .bind(workspace)
             .fetch_optional(&s.pool)
             .await?
             .ok_or_else(Error::missing)?,
@@ -693,16 +829,24 @@ async fn apply(
     Path(id): Path<String>,
     ApiJson(b): ApiJson<Apply>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
     if b.config.id != id {
         return Err(Error::bad("task id does not match URL"));
     }
     b.config.validate().map_err(|e| Error::bad(e.to_string()))?;
     Ok(Json(
-        store::apply_task(&s.pool, &b.config, b.expected_revision, u.id)
-            .await
-            .map_err(|e| Error::bad(e.to_string()))?
-            .ok_or_else(|| Error::conflict("task changed; reload before saving"))?,
+        store::apply_task(
+            &s.pool,
+            workspace,
+            &u.credential,
+            &b.config,
+            b.expected_revision,
+            u.id,
+        )
+        .await
+        .map_err(|e| Error::bad(e.to_string()))?
+        .ok_or_else(|| Error::conflict("task changed; reload before saving"))?,
     ))
 }
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -732,12 +876,21 @@ async fn archive_change(
     b: ArchiveBody,
     archived: bool,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
     Ok(Json(
-        store::set_archived(&s.pool, &id, b.expected_revision, archived, u.id)
-            .await
-            .map_err(|e| Error::conflict(e.to_string()))?
-            .ok_or_else(Error::missing)?,
+        store::set_archived(
+            &s.pool,
+            workspace,
+            &u.credential,
+            &id,
+            b.expected_revision,
+            archived,
+            u.id,
+        )
+        .await
+        .map_err(|e| Error::conflict(e.to_string()))?
+        .ok_or_else(Error::missing)?,
     ))
 }
 fn request_key(h: &HeaderMap) -> Result<String> {
@@ -755,22 +908,42 @@ async fn trigger(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
-    let id = store::trigger(&s.pool, &id, u.id, None, &request_key(&h)?)
-        .await
-        .map_err(|e| Error::conflict(e.to_string()))?;
+    let id = store::trigger(
+        &s.pool,
+        workspace,
+        &u.credential,
+        &id,
+        u.id,
+        None,
+        &request_key(&h)?,
+    )
+    .await
+    .map_err(|e| Error::conflict(e.to_string()))?;
     Ok(Json(json!({"id":id})))
 }
 async fn retry(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
-    let task: String = sqlx::query_scalar("SELECT task_id FROM runs WHERE id=$1")
-        .bind(id)
-        .fetch_optional(&s.pool)
-        .await?
-        .ok_or_else(Error::missing)?;
-    let id = store::trigger(&s.pool, &task, u.id, Some(id), &request_key(&h)?)
-        .await
-        .map_err(|e| Error::conflict(e.to_string()))?;
+    let task: String =
+        sqlx::query_scalar("SELECT task_id FROM runs WHERE workspace_id=$2 AND id=$1")
+            .bind(id)
+            .bind(workspace)
+            .fetch_optional(&s.pool)
+            .await?
+            .ok_or_else(Error::missing)?;
+    let id = store::trigger(
+        &s.pool,
+        workspace,
+        &u.credential,
+        &task,
+        u.id,
+        Some(id),
+        &request_key(&h)?,
+    )
+    .await
+    .map_err(|e| Error::conflict(e.to_string()))?;
     Ok(Json(json!({"id":id})))
 }
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -789,13 +962,14 @@ async fn runs(
     h: HeaderMap,
     Query(q): Query<ListRuns>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
     let (page, size) = pagination(q.page, q.page_size)?;
     let result: Value = sqlx::query_scalar(
-        "WITH filtered AS (SELECT r.*,EXISTS(SELECT 1 FROM tasks t WHERE t.id=r.task_id AND t.archived_at IS NOT NULL) AS task_archived FROM runs r WHERE ($1::text IS NULL OR task_id=$1) AND ($2::text IS NULL OR state=$2) AND ($3::timestamptz IS NULL OR created_at<$3) AND ($4::text IS NULL OR concat_ws(' ',id::text,task_id,config->>'name',config->>'prompt',config->>'cwd',config->>'runner',config->>'agent') ILIKE $4) AND ($5::text IS NULL OR config->>'runner'=$5) AND ($6::text IS NULL OR config->>'agent'=$6)), paged AS (SELECT to_jsonb(r.*) AS item FROM filtered r ORDER BY created_at DESC,id DESC LIMIT $7 OFFSET $8) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$9::bigint,'page_size',$10::bigint)"
+        "WITH filtered AS (SELECT r.*,EXISTS(SELECT 1 FROM tasks t WHERE t.workspace_id=r.workspace_id AND t.id=r.task_id AND t.archived_at IS NOT NULL) AS task_archived FROM runs r WHERE r.workspace_id=$11 AND ($1::text IS NULL OR task_id=$1) AND ($2::text IS NULL OR state=$2) AND ($3::timestamptz IS NULL OR created_at<$3) AND ($4::text IS NULL OR concat_ws(' ',id::text,task_id,config->>'name',config->>'prompt',config->>'cwd',config->>'runner',config->>'agent') ILIKE $4) AND ($5::text IS NULL OR config->>'runner'=$5) AND ($6::text IS NULL OR config->>'agent'=$6)), paged AS (SELECT to_jsonb(r.*) AS item FROM filtered r ORDER BY created_at DESC,id DESC LIMIT $7 OFFSET $8) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$9::bigint,'page_size',$10::bigint)"
     ).bind(q.task).bind(q.state).bind(q.before).bind(search_pattern(q.q)?).bind(q.runner).bind(q.agent)
     .bind(if q.page.is_some() {size} else {100}).bind(if q.page.is_some() {(page-1)*size} else {0})
-    .bind(page).bind(size).fetch_one(&s.pool).await?;
+    .bind(page).bind(size).bind(workspace).fetch_one(&s.pool).await?;
     Ok(Json(if q.page.is_some() {
         result
     } else {
@@ -803,23 +977,28 @@ async fn runs(
     }))
 }
 async fn run(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
     Ok(Json(
-        sqlx::query_scalar("SELECT to_jsonb(r.*)||jsonb_build_object('task_archived',t.archived_at IS NOT NULL) FROM runs r JOIN tasks t ON t.id=r.task_id WHERE r.id=$1")
+        sqlx::query_scalar("SELECT to_jsonb(r.*)||jsonb_build_object('task_archived',t.archived_at IS NOT NULL) FROM runs r JOIN tasks t ON t.id=r.task_id AND t.workspace_id=r.workspace_id WHERE r.workspace_id=$2 AND r.id=$1")
             .bind(id)
-            .fetch_optional(&s.pool)
+            .bind(workspace).fetch_optional(&s.pool)
             .await?
             .ok_or_else(Error::missing)?,
     ))
 }
 async fn cancel(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
+    verify_run(&s, workspace, id).await?;
     let mut tx = s.pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &u, "operator").await?;
     sqlx::query(
-        "SELECT t.id FROM tasks t JOIN runs r ON r.task_id=t.id WHERE r.id=$1 FOR UPDATE OF t",
+        "SELECT t.id FROM tasks t JOIN runs r ON r.task_id=t.id AND r.workspace_id=t.workspace_id WHERE r.workspace_id=$2 AND r.id=$1 FOR UPDATE OF t",
     )
     .bind(id)
-    .fetch_optional(&mut *tx)
+    .bind(workspace).fetch_optional(&mut *tx)
     .await?
     .ok_or_else(Error::missing)?;
     let row = sqlx::query("SELECT state,runner_id FROM runs WHERE id=$1 FOR UPDATE")
@@ -831,13 +1010,21 @@ async fn cancel(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Res
         sqlx::query("UPDATE runs SET cancel_requested=true,state=CASE WHEN state='queued' THEN 'cancelled' ELSE state END,finished_at=CASE WHEN state='queued' THEN now() ELSE finished_at END WHERE id=$1").bind(id).execute(&mut *tx).await?;
         store::enqueue(
             &mut tx,
+            workspace,
             protocol::control_subject(row.get("runner_id")),
             format!("cancel:{id}"),
             json!({"version":1,"run_id":id,"action":"cancel"}),
         )
         .await?;
     }
-    store::audit(&mut tx, u.id, "run.cancel", &id.to_string()).await?;
+    store::audit(
+        &mut tx,
+        u.id,
+        Some(workspace),
+        "run.cancel",
+        &id.to_string(),
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(json!({"ok":true})))
 }
@@ -852,6 +1039,7 @@ async fn resolve(
     Path(id): Path<Uuid>,
     ApiJson(b): ApiJson<Resolution>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
     if !matches!(
         b.state.as_str(),
@@ -860,7 +1048,10 @@ async fn resolve(
     {
         return Err(Error::bad("final state and verification reason required"));
     }
+    verify_run(&s, workspace, id).await?;
     let mut tx = s.pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &u, "operator").await?;
     let n = sqlx::query(
         "UPDATE runs SET state=$2,reason=$3,finished_at=now() WHERE id=$1 AND state='unknown'",
     )
@@ -873,7 +1064,14 @@ async fn resolve(
     if n == 0 {
         return Err(Error::conflict("only unknown runs can be resolved"));
     }
-    store::audit(&mut tx, u.id, "run.resolve", &id.to_string()).await?;
+    store::audit(
+        &mut tx,
+        u.id,
+        Some(workspace),
+        "run.resolve",
+        &id.to_string(),
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(json!({"ok":true})))
 }
@@ -886,16 +1084,17 @@ struct Cursor {
 async fn event_rows(
     s: &App,
     id: Uuid,
+    workspace: Uuid,
     after: i64,
     kind: Option<&str>,
 ) -> std::result::Result<Vec<Value>, sqlx::Error> {
     sqlx::query_scalar(
-        "SELECT to_jsonb(e.*) FROM events e WHERE run_id=$1 AND id>$2 AND ($3::text IS NULL OR kind=$3 OR ($3='trace' AND kind='trace_status')) ORDER BY id LIMIT 500",
+        "SELECT to_jsonb(e.*) FROM events e WHERE workspace_id=$4 AND run_id=$1 AND id>$2 AND ($3::text IS NULL OR kind=$3 OR ($3='trace' AND kind='trace_status')) ORDER BY id LIMIT 500",
     )
     .bind(id)
     .bind(after)
     .bind(kind)
-    .fetch_all(&s.pool)
+    .bind(workspace).fetch_all(&s.pool)
     .await
 }
 async fn events(
@@ -904,9 +1103,11 @@ async fn events(
     Path(id): Path<Uuid>,
     Query(q): Query<Cursor>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
+    verify_run(&s, workspace, id).await?;
     Ok(Json(json!(
-        event_rows(&s, id, q.after, q.kind.as_deref()).await?
+        event_rows(&s, id, workspace, q.after, q.kind.as_deref()).await?
     )))
 }
 async fn stream(
@@ -915,7 +1116,9 @@ async fn stream(
     Path(id): Path<Uuid>,
     Query(q): Query<Cursor>,
 ) -> Result<impl IntoResponse> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
+    verify_run(&s, workspace, id).await?;
     let mut cursor = h
         .get("last-event-id")
         .and_then(|v| v.to_str().ok())
@@ -923,7 +1126,7 @@ async fn stream(
         .unwrap_or(q.after);
     let output = async_stream::stream! {let mut tick=tokio::time::interval(Duration::from_secs(1));loop{tick.tick().await;
         if s.shutdown.is_cancelled() || user(&s,&h,"viewer",false).await.is_err(){break}
-        match event_rows(&s,id,cursor,None).await {Ok(rows)=>for row in rows {cursor=row["id"].as_i64().unwrap_or(cursor);yield Ok::<_,Infallible>(Event::default().id(cursor.to_string()).event("run_event").data(row.to_string()));},Err(e)=>{tracing::warn!(error=%e,"SSE read failed");break}}
+        match event_rows(&s,id,workspace,cursor,None).await {Ok(rows)=>for row in rows {cursor=row["id"].as_i64().unwrap_or(cursor);yield Ok::<_,Infallible>(Event::default().id(cursor.to_string()).event("run_event").data(row.to_string()));},Err(e)=>{tracing::warn!(error=%e,"SSE read failed");break}}
     }};
     Ok(Sse::new(output).keep_alive(KeepAlive::default()))
 }
@@ -932,9 +1135,11 @@ async fn preview(
     h: HeaderMap,
     ApiJson(mut b): ApiJson<Schedule>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
     if b.timezone.is_empty() {
-        let settings: Value = sqlx::query_scalar("SELECT data FROM settings")
+        let settings: Value = sqlx::query_scalar("SELECT data FROM settings WHERE workspace_id=$1")
+            .bind(workspace)
             .fetch_one(&s.pool)
             .await?;
         b.timezone = settings["timezone"]
@@ -947,12 +1152,14 @@ async fn preview(
     )))
 }
 async fn runners(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
-    Ok(Json(json!(sqlx::query_scalar::<_,Value>("SELECT jsonb_build_object('id',id,'name',name,'revoked',revoked,'last_seen',last_seen,'online',NOT revoked AND last_seen>now()-interval '60 seconds','agents',agents,'directory_roots',directory_roots,'info',info) FROM runners ORDER BY name").fetch_all(&s.pool).await?)))
+    Ok(Json(json!(sqlx::query_scalar::<_,Value>("SELECT jsonb_build_object('id',id,'name',name,'revoked',revoked,'last_seen',last_seen,'online',NOT revoked AND last_seen>now()-interval '60 seconds','agents',agents,'directory_roots',directory_roots,'info',info) FROM runners WHERE workspace_id=$1 ORDER BY name").bind(workspace).fetch_all(&s.pool).await?)))
 }
 async fn agents(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
-    Ok(Json(json!(sqlx::query_scalar::<_,Value>("SELECT a || jsonb_build_object('runner_id',r.id,'runner',r.name) FROM runners r CROSS JOIN LATERAL jsonb_array_elements(r.agents) a WHERE NOT r.revoked").fetch_all(&s.pool).await?)))
+    Ok(Json(json!(sqlx::query_scalar::<_,Value>("SELECT a || jsonb_build_object('runner_id',r.id,'runner',r.name) FROM runners r CROSS JOIN LATERAL jsonb_array_elements(r.agents) a WHERE r.workspace_id=$1 AND NOT r.revoked").bind(workspace).fetch_all(&s.pool).await?)))
 }
 async fn template(State(s): State<App>, h: HeaderMap, Path(id): Path<String>) -> Result<Response> {
     user(&s, &h, "viewer", false).await?;
@@ -963,12 +1170,17 @@ async fn template(State(s): State<App>, h: HeaderMap, Path(id): Path<String>) ->
         .into_response())
 }
 async fn enrollment(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
-    user(&s, &h, "operator", true).await?;
+    let workspace = workspace_header(&h)?;
+    let actor = user(&s, &h, "operator", true).await?;
+    let mut tx = s.pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &actor, "operator").await?;
     let t = auth::secret();
-    sqlx::query("INSERT INTO enrollments(hash,expires_at) VALUES($1,now()+interval '30 minutes')")
+    sqlx::query("INSERT INTO enrollments(hash,expires_at,workspace_id,created_by) VALUES($1,now()+interval '30 minutes',$2,$3)")
         .bind(auth::hash(&t))
-        .execute(&s.pool)
+        .bind(workspace).bind(actor.id).execute(&mut *tx)
         .await?;
+    tx.commit().await?;
     Ok(Json(json!({"token":t,"gateway":s.config.public_url})))
 }
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -985,22 +1197,26 @@ async fn enroll(State(s): State<App>, ApiJson(b): ApiJson<Enroll>) -> Result<Jso
         .runner_jwt(id, &b.public_key)
         .map_err(|e| Error::bad(e.to_string()))?;
     let mut tx = s.pool.begin().await?;
-    let n=sqlx::query("UPDATE enrollments SET used_at=now() WHERE hash=$1 AND used_at IS NULL AND expires_at>now()").bind(auth::hash(&b.token)).execute(&mut *tx).await?.rows_affected();
-    if n == 0 {
+    let workspace:Option<Uuid>=sqlx::query_scalar("UPDATE enrollments SET used_at=now() WHERE hash=$1 AND used_at IS NULL AND expires_at>now() AND EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=enrollments.workspace_id AND m.user_id=enrollments.created_by AND m.active AND u.active AND m.role IN ('admin','operator')) RETURNING workspace_id").bind(auth::hash(&b.token)).fetch_optional(&mut *tx).await?;
+    if workspace.is_none() {
         return Err(Error(
             StatusCode::UNAUTHORIZED,
             "enrollment token expired or already used".into(),
         ));
     }
+    let workspace = workspace.unwrap();
     let token = auth::secret();
-    sqlx::query("INSERT INTO runners(id,name,token_hash,public_key) VALUES($1,$2,$3,$4)")
-        .bind(id)
-        .bind(b.name)
-        .bind(auth::hash(&token))
-        .bind(b.public_key)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| Error::conflict("runner name or identity already registered"))?;
+    sqlx::query(
+        "INSERT INTO runners(id,name,token_hash,public_key,workspace_id) VALUES($1,$2,$3,$4,$5)",
+    )
+    .bind(id)
+    .bind(b.name)
+    .bind(auth::hash(&token))
+    .bind(b.public_key)
+    .bind(workspace)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| Error::conflict("runner name or identity already registered"))?;
     bus::provision(&s.js, id, 2).await?;
     tx.commit().await?;
     Ok(Json(
@@ -1008,21 +1224,41 @@ async fn enroll(State(s): State<App>, ApiJson(b): ApiJson<Enroll>) -> Result<Jso
     ))
 }
 async fn revoke(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "admin", true).await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runners WHERE workspace_id=$1 AND id=$2)")
+            .bind(workspace)
+            .bind(id)
+            .fetch_one(&s.pool)
+            .await?;
+    if !exists {
+        return Err(Error::missing());
+    }
     let mut tx = s.pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &u, "admin").await?;
     // Serialize revocation with scheduling/claiming on the affected tasks.
     sqlx::query("SELECT id FROM tasks WHERE runner_id=$1 ORDER BY id FOR UPDATE")
         .bind(id)
         .fetch_all(&mut *tx)
         .await?;
-    sqlx::query("UPDATE runners SET revoked=true WHERE id=$1")
+    sqlx::query("UPDATE runners SET revoked=true WHERE workspace_id=$2 AND id=$1")
         .bind(id)
+        .bind(workspace)
         .execute(&mut *tx)
         .await?;
     sqlx::query("UPDATE runs SET state='unknown',reason='runner revoked' WHERE runner_id=$1 AND state IN ('running','starting')").bind(id).execute(&mut *tx).await?;
     sqlx::query("UPDATE runs SET state='cancelled',reason='runner revoked before start',finished_at=now() WHERE runner_id=$1 AND state='queued'").bind(id).execute(&mut *tx).await?;
     sqlx::query("UPDATE tasks SET enabled=false,config=jsonb_set(config,'{enabled}','false'),revision=revision+1 WHERE runner_id=$1 AND enabled").bind(id).execute(&mut *tx).await?;
-    store::audit(&mut tx, u.id, "runner.revoke", &id.to_string()).await?;
+    store::audit(
+        &mut tx,
+        u.id,
+        Some(workspace),
+        "runner.revoke",
+        &id.to_string(),
+    )
+    .await?;
     tx.commit().await?;
     let pending = s
         .authority
@@ -1120,7 +1356,7 @@ async fn claim(
 ) -> Result<Json<Value>> {
     let runner = device(&s, &h).await?;
     let mut tx = s.pool.begin().await?;
-    let task_row = sqlx::query("SELECT t.id,t.archived_at FROM tasks t JOIN runs r ON r.task_id=t.id WHERE r.id=$1 AND r.runner_id=$2 FOR UPDATE OF t").bind(b.run_id).bind(runner).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
+    let task_row = sqlx::query("SELECT t.id,t.archived_at FROM tasks t JOIN runs r ON r.task_id=t.id AND r.workspace_id=t.workspace_id WHERE r.id=$1 AND r.runner_id=$2 FOR UPDATE OF t").bind(b.run_id).bind(runner).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
     let row = sqlx::query("SELECT * FROM runs WHERE id=$1 FOR UPDATE")
         .bind(b.run_id)
         .fetch_one(&mut *tx)
@@ -1156,6 +1392,7 @@ async fn claim(
     {
         return Ok(Json(json!({"execute":false,"state":state})));
     }
+    let workspace: Uuid = row.get("workspace_id");
     let task: TaskConfig = serde_json::from_value(row.get("config"))?;
     let now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
         .fetch_one(&mut *tx)
@@ -1188,7 +1425,7 @@ async fn claim(
         }
     }
     if task.execution.overlap == crate::config::Overlap::Skip {
-        let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE task_id=$1 AND id<>$2 AND state IN ('starting','running','unknown'))").bind(&task.id).bind(b.run_id).fetch_one(&mut *tx).await?;
+        let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$3 AND task_id=$1 AND id<>$2 AND state IN ('starting','running','unknown'))").bind(&task.id).bind(b.run_id).bind(workspace).fetch_one(&mut *tx).await?;
         if busy {
             return Err(Error::conflict("task has an active run"));
         }
@@ -1198,9 +1435,11 @@ async fn claim(
         .unwrap_or(json!({}));
     let session_support:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runners n,LATERAL jsonb_array_elements(n.agents) a WHERE n.id=$1 AND a->>'id'=$2 AND a->>'session_supported'='true')").bind(runner).bind(&task.agent).fetch_one(&mut *tx).await?;
     if task.session.is_none() && session_support && snapshot["session_title"].is_null() {
-        let timezone: String = sqlx::query_scalar("SELECT data->>'timezone' FROM settings")
-            .fetch_one(&mut *tx)
-            .await?;
+        let timezone: String =
+            sqlx::query_scalar("SELECT data->>'timezone' FROM settings WHERE workspace_id=$1")
+                .bind(workspace)
+                .fetch_one(&mut *tx)
+                .await?;
         snapshot["session_title"] = json!(crate::config::generated_session_title(
             &task.name, now, &timezone
         )?);
@@ -1227,9 +1466,11 @@ async fn timezones(State(s): State<App>, h: HeaderMap) -> Result<Json<Vec<String
     Ok(Json(names))
 }
 async fn settings(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
     Ok(Json(
-        sqlx::query_scalar("SELECT data FROM settings")
+        sqlx::query_scalar("SELECT data FROM settings WHERE workspace_id=$1")
+            .bind(workspace)
             .fetch_one(&s.pool)
             .await?,
     ))
@@ -1239,6 +1480,7 @@ async fn update_settings(
     h: HeaderMap,
     ApiJson(b): ApiJson<Value>,
 ) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "admin", true).await?;
     let _: chrono_tz::Tz = b["timezone"]
         .as_str()
@@ -1251,20 +1493,32 @@ async fn update_settings(
         }
     }
     let mut tx = s.pool.begin().await?;
-    sqlx::query("UPDATE settings SET data=$1")
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &u, "admin").await?;
+    sqlx::query("UPDATE settings SET data=$1 WHERE workspace_id=$2")
         .bind(&b)
+        .bind(workspace)
         .execute(&mut *tx)
         .await?;
-    store::audit(&mut tx, u.id, "settings.update", "workspace").await?;
+    store::audit(
+        &mut tx,
+        u.id,
+        Some(workspace),
+        "settings.update",
+        "workspace",
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(b))
 }
 async fn audits(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
     user(&s, &h, "admin", false).await?;
     Ok(Json(json!(
         sqlx::query_scalar::<_, Value>(
-            "SELECT to_jsonb(a.*) FROM audit a ORDER BY id DESC LIMIT 100"
+            "SELECT to_jsonb(a.*) FROM audit a WHERE workspace_id=$1 ORDER BY id DESC LIMIT 100"
         )
+        .bind(workspace)
         .fetch_all(&s.pool)
         .await?
     )))
@@ -1349,10 +1603,13 @@ async fn directories(
     Path(id): Path<Uuid>,
     Query(q): Query<DirectoryQuery>,
 ) -> Result<Json<Value>> {
-    user(&s, &h, "operator", false).await?;
+    let workspace = workspace_header(&h)?;
+    let _actor = user(&s, &h, "operator", false).await?;
     Ok(Json(
         device_query(
             &s,
+            &h,
+            workspace,
             id,
             "list_directories",
             json!({"path":q.path,"cursor":q.cursor}),
@@ -1385,7 +1642,8 @@ async fn query_sessions(
     Path((id, agent)): Path<(Uuid, String)>,
     ApiJson(q): ApiJson<SessionsQuery>,
 ) -> Result<Json<Value>> {
-    user(&s, &h, "operator", true).await?;
+    let workspace = workspace_header(&h)?;
+    let _actor = user(&s, &h, "operator", true).await?;
     if q.q.as_ref().is_some_and(|v| v.len() > 1024)
         || q.cursor.as_ref().is_some_and(|v| v.len() > 2048)
     {
@@ -1394,6 +1652,8 @@ async fn query_sessions(
     Ok(Json(
         device_query(
             &s,
+            &h,
+            workspace,
             id,
             "list_sessions",
             json!({"cwd":q.cwd,"agent":agent,"q":q.q,"cursor":q.cursor}),
@@ -1408,11 +1668,14 @@ async fn inspect_session(
     Path((id, agent)): Path<(Uuid, String)>,
     ApiJson(q): ApiJson<SessionQuery>,
 ) -> Result<Json<Value>> {
-    user(&s, &h, "operator", true).await?;
+    let workspace = workspace_header(&h)?;
+    let _actor = user(&s, &h, "operator", true).await?;
     crate::sessions::validate_id(&q.id).map_err(|e| Error::bad(e.to_string()))?;
     Ok(Json(
         device_query(
             &s,
+            &h,
+            workspace,
             id,
             "inspect_session",
             json!({"cwd":q.cwd,"id":q.id,"agent":agent}),
@@ -1427,10 +1690,13 @@ async fn query_models(
     Path((id, agent)): Path<(Uuid, String)>,
     ApiJson(q): ApiJson<ModelsQuery>,
 ) -> Result<Json<Value>> {
-    user(&s, &h, "operator", true).await?;
+    let workspace = workspace_header(&h)?;
+    let _actor = user(&s, &h, "operator", true).await?;
     Ok(Json(
         device_query(
             &s,
+            &h,
+            workspace,
             id,
             "list_models",
             json!({"cwd":q.cwd,"agent":agent}),
@@ -1441,17 +1707,22 @@ async fn query_models(
 }
 async fn device_query(
     s: &App,
+    headers: &HeaderMap,
+    workspace: Uuid,
     id: Uuid,
     action: &str,
     payload: Value,
     timeout: u64,
 ) -> Result<Value> {
     use futures::StreamExt;
-    let row = sqlx::query("SELECT runtime_id,last_seen FROM runners WHERE id=$1 AND NOT revoked")
-        .bind(id)
-        .fetch_optional(&s.pool)
-        .await?
-        .ok_or_else(Error::missing)?;
+    let row = sqlx::query(
+        "SELECT runtime_id,last_seen FROM runners WHERE workspace_id=$2 AND id=$1 AND NOT revoked",
+    )
+    .bind(id)
+    .bind(workspace)
+    .fetch_optional(&s.pool)
+    .await?
+    .ok_or_else(Error::missing)?;
     let runtime = row
         .get::<Option<Uuid>, _>("runtime_id")
         .ok_or_else(|| Error(StatusCode::SERVICE_UNAVAILABLE, "Runner 离线".into()))?;
@@ -1490,6 +1761,7 @@ async fn device_query(
             if response.version!=1 || response.id!=request.id || response.runtime_id!=runtime {continue;}
             let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runners WHERE id=$1 AND runtime_id=$2 AND NOT revoked)").bind(id).bind(runtime).fetch_one(&s.pool).await?;
             if !valid {return Err(Error::conflict("Runner 身份已改变"));}
+            user(s,headers,"operator",false).await?;
             if let Some(error)=response.error {return Err(Error(StatusCode::BAD_REQUEST,error.message));}
             return response.data.ok_or_else(||Error::bad("empty device response"));
         }
