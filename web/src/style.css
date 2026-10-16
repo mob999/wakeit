@@ -289,6 +289,21 @@ pre {
 .nav-bottom {
   margin-top: auto;
 }
+.repository-link {
+  flex-shrink: 0;
+  gap: 6px;
+  padding-inline: 2px;
+}
+.repository-mark {
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.repository-link .nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .user-menu {
   display: inline-flex;
   align-items: center;
