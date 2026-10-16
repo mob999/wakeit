@@ -10,11 +10,11 @@
 - **保留执行上下文**：任务可绑定原生会话，完成后在 Runner 设备用 `wakeit run resume <run-id>` 继续交互；见 [会话续聊](docs/cli.md#绑定会话与本机续聊)。
 - **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
 
-当前为 **0.1.0 预览版**，使用 Apache-2.0 许可。接口与数据结构仍可能调整。
+当前版本为 **0.1.1**，使用 Apache-2.0 许可。接口与数据结构仍可能调整。
 
 ## 安装与接入
 
-从 [v0.1.0 Release](https://github.com/mob999/wakeit/releases/tag/v0.1.0) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
+从 [v0.1.1 Release](https://github.com/mob999/wakeit/releases/tag/v0.1.1) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
 
 已有 Gateway 时，可直接点击 WebUI 顶栏的 `{}` 复制 Prompt，交给 Agent 完成 CLI 安装、浏览器授权、设备注册和用户自启；你只需在浏览器核对并授权。
 
@@ -94,7 +94,7 @@ wakeit update --check
 wakeit update
 ```
 
-通过公开 GitHub Releases 检查正式版本，无需 GitHub 登录。普通更新排除预览版；只有 v0.1.0 预览发布时会返回“暂无正式发布”，同版本提交不会触发更新。校验通过后只替换二进制，不改数据和配置，也不自动重启运行中的服务。
+通过公开 GitHub Releases 检查正式版本，无需 GitHub 登录。普通更新排除预览版，并按正式版本号判断更新；同版本提交不会触发更新。校验通过后只替换二进制，不改数据和配置，也不自动重启运行中的服务。
 
 ## 文档
 

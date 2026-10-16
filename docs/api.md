@@ -47,7 +47,7 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 
 ## 即时能力 API
 
-- `GET /api/v1/meta`：公开返回 `{version:"0.1.0"}`。
+- `GET /api/v1/meta`：公开返回 `{version:"0.1.1"}`。
 - `GET /api/v1/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
 - `POST /api/v1/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
 

@@ -13,6 +13,6 @@ Codex 可通过 `$skill-installer` 指定 `mob999/wakeit` 的 `skills/wakeit` �
 - “每天九点用这台 Runner 上的 Codex 检查仓库。”
 - “我的 Agent 是异步 HTTP 服务，帮我写一个适配器。”
 
-Skill 自包含，安装后无需保留 Wakeit 源码仓库；需要源码构建时按连接指南获取仓库。当前未发布，安装包及 skill 发布由正式 Release 工作流交付，仓库目录可以立即使用。
+Skill 自包含，安装后无需保留 Wakeit 源码仓库；需要源码构建时按连接指南获取仓库。安装包及 skill 由正式 Release 工作流一同交付，也可直接使用仓库中的 skill 目录。
 
 README 的维护技能另存于 `.agents/skills/readme-crafter-skill/`，用于仓库文档写作，不是产品的 Wakeit skill。

@@ -228,7 +228,7 @@ async fn discover_inner(id: &str) -> Result<ModelCatalog> {
             let mut child = spawn("codex", &["app-server"])?;
             let mut input = child.stdin.take().context("stdin")?;
             let mut lines = BufReader::new(child.stdout.take().context("stdout")?).lines();
-            send(&mut input,json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"wakeit","version":"0.1.0"},"capabilities":{"experimentalApi":false}}})).await?;
+            send(&mut input,json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"wakeit","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":false}}})).await?;
             response(&mut lines, &json!(1)).await?;
             send(&mut input, json!({"method":"initialized"})).await?;
             let mut models = Vec::new();

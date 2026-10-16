@@ -159,7 +159,7 @@ GitHub 更新凭据依次读取 `WAKEIT_GITHUB_TOKEN`、`GH_TOKEN`、`GITHUB_TOK
 
 JSON 返回 `status,current_version,latest_version,update_available,target`：`no_release`、`up_to_date`、`update_available`、`updated` 为正常状态；失败返回 `status: error` 和不含凭据的错误，退出码 1。
 
-只检查正式 SemVer Release，排除草稿和预发布；版本必须高于当前包版本。同版本的提交不会触发更新。当前仅有 0.1.0 预览版时，正常返回 no_release，不应误认为认证失败。
+只检查正式 SemVer Release，排除草稿和预发布；版本必须高于当前包版本。同版本的提交不会触发更新。没有可用正式版本时返回 no_release；已是最新版本时返回 up_to_date。
 
 更新读取同一 Release 的 `wakeit-release.json`，校验平台、文件大小、SHA-256 和候选程序的 `--version`，才替换当前可执行文件。更新锁阻止并发替换；目录不可写时返回错误，不自动提权。已有 Gateway/Runner 继续运行旧进程，服务升级需另行备份、迁移和重启。
 
