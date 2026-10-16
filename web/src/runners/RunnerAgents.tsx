@@ -73,35 +73,51 @@ export function RunnerAgents({
               </div>
               {expanded === agent.id && (
                 <div id={`agent-detail-${agent.id}`} className="agent-details">
-                  <dl className="properties">
-                    <dt>{tr('执行方式')}</dt>
-                    <dd>{agent.mode === 'sync' ? tr('同步') : tr('异步')}</dd>
-                    <dt>{tr('取消')}</dt>
-                    <dd>{agent.cancellable ? tr('支持') : tr('不支持')}</dd>
-                    <dt>{tr('模型选择')}</dt>
-                    <dd>{agent.models_supported ? tr('支持查询') : tr('手填')}</dd>
-                  </dl>
+                  <div className="content-card agent-capabilities">
+                    <table className="agent-detail-table">
+                      <thead className="table-head">
+                        <tr>
+                          <th scope="col">{tr('执行方式')}</th>
+                          <th scope="col">{tr('取消')}</th>
+                          <th scope="col">{tr('模型选择')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>{agent.mode === 'sync' ? tr('同步') : tr('异步')}</td>
+                          <td>{agent.cancellable ? tr('支持') : tr('不支持')}</td>
+                          <td>{agent.models_supported ? tr('支持查询') : tr('手填')}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                   {!!Object.keys(agent.parameters).length && (
-                    <div className="agent-parameter-table">
-                      <div className="agent-parameter-row quiet">
-                        <span>{tr('参数')}</span>
-                        <span>{tr('默认值')}</span>
-                        <span>{tr('可选值')}</span>
-                      </div>
-                      {Object.entries(agent.parameters).map(([id, spec]) => (
-                        <div className="agent-parameter-row" key={id}>
-                          <span>
-                            {parameterLabel(spec.label || id)}
-                            <small className="mono quiet">{id}</small>
-                          </span>
-                          <span className="mono">
-                            {spec.default ?? (id === 'model' ? tr('Agent 默认') : '—')}
-                          </span>
-                          <span className="mono quiet">
-                            {spec.enum.length ? spec.enum.join(' · ') : '—'}
-                          </span>
-                        </div>
-                      ))}
+                    <div className="content-card agent-parameter-table">
+                      <table className="agent-detail-table">
+                        <thead className="table-head">
+                          <tr>
+                            <th scope="col">{tr('参数')}</th>
+                            <th scope="col">{tr('默认值')}</th>
+                            <th scope="col">{tr('可选值')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(agent.parameters).map(([id, spec]) => (
+                            <tr key={id}>
+                              <td>
+                                {parameterLabel(spec.label || id)}
+                                <small className="mono quiet">{id}</small>
+                              </td>
+                              <td className="mono">
+                                {spec.default ?? (id === 'model' ? tr('Agent 默认') : '—')}
+                              </td>
+                              <td className="mono quiet">
+                                {spec.enum.length ? spec.enum.join(', ') : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

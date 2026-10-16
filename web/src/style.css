@@ -1792,7 +1792,7 @@ input:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.agent-parameter-row small {
+.agent-detail-table small {
   display: block;
   font-size: 10px;
   margin-top: 3px;
@@ -1802,28 +1802,36 @@ input:disabled {
   justify-content: flex-end;
 }
 .agent-details {
-  padding: 16px 14px 16px 58px;
-  border-top: 1px solid var(--border);
-}
-.agent-details .properties {
-  margin-top: 0;
-}
-.agent-parameter-table {
-  border-top: 1px solid var(--border);
-}
-.agent-parameter-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
+  gap: var(--card-gap);
+  padding: 16px;
+  border-top: 1px solid var(--border);
 }
-.agent-parameter-row > span {
+.agent-detail-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+.agent-detail-table th,
+.agent-detail-table td {
+  width: 33.333%;
+  padding: 13px 16px;
   overflow-wrap: anywhere;
+  vertical-align: top;
 }
-.agent-parameter-row:last-child {
-  border-bottom: 0;
+.agent-detail-table th {
+  height: var(--card-header-height);
+  font-size: 11px;
+  font-weight: 400;
+  vertical-align: middle;
+}
+.agent-detail-table td {
+  height: var(--card-row-height);
+}
+.agent-detail-table tbody tr + tr {
+  border-top: 1px solid var(--border);
 }
 @media (max-width: 1000px) {
   .split {
@@ -1857,14 +1865,9 @@ input:disabled {
   .agent-row-actions {
     grid-column: 1 / -1;
   }
-  .agent-parameter-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .agent-parameter-row > span:last-child {
-    grid-column: 1 / -1;
-  }
-  .agent-details {
-    padding-left: 0;
+  .agent-detail-table th,
+  .agent-detail-table td {
+    padding: 12px 10px;
   }
 }
 
