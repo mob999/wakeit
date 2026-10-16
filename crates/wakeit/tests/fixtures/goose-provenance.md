@@ -37,4 +37,4 @@ and read-only inspect/list semantics. StreamEvent itself contains no session ID.
 
 `web/public/agent-logos/goose.svg` is the original vector mark from the official
 [documentation asset](https://github.com/aaif-goose/goose/blob/v1.54.0/documentation/static/img/goose.svg).
-Its paths and viewBox are unchanged.
+Its paths and viewBox are unchanged. A dark-theme media rule adapts the monochrome fill; it follows the page color scheme.
