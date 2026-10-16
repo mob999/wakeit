@@ -58,12 +58,15 @@ pub async fn bootstrap(pool: &PgPool, username: &str, pw: &str) -> Result<()> {
         row.get::<i64, _>("count") == 0,
         "workspace already initialized"
     );
-    sqlx::query("INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,'admin')")
-        .bind(Uuid::new_v4())
+    let id = Uuid::new_v4();
+    sqlx::query("INSERT INTO users(id,username,password_hash,role,instance_admin) VALUES($1,$2,$3,'viewer',true)")
+        .bind(id)
         .bind(username)
         .bind(pw)
         .execute(&mut *tx)
         .await?;
+    sqlx::query("INSERT INTO workspace_members(workspace_id,user_id,role) SELECT id,$1,'admin' FROM workspaces WHERE is_default")
+        .bind(id).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(())
 }
