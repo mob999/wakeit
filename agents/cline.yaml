@@ -1,6 +1,7 @@
 version: 1
 id: cline
 name: Cline
+logo: /agent-logos/cline.svg
 mode: sync
 parameters:
   model: {type: string, label: 模型}
