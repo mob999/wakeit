@@ -12,11 +12,7 @@ use tokio::{
 /// Help/version terminate before an Agent engine or model session is started.
 pub async fn detect(id: &str) -> Result<String> {
     let (command, help_args, required): (&str, &[&str], &[&str]) = match id {
-        "kimi-code" => (
-            "kimi",
-            &["--help"],
-            &["--prompt", "--output-format", "--session"],
-        ),
+        "kimi-code" => ("kimi", &["--help"], &["web", "--session"]),
         "agy" => (
             "agy",
             &["--help"],

@@ -97,6 +97,17 @@ enum Connection {
 }
 #[derive(Subcommand)]
 enum Adapter {
+    /// Stream Kimi's native local Server API with durable session metadata.
+    Kimi {
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long)]
+        session: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(last = true)]
+        command: Vec<String>,
+    },
     Detect {
         id: String,
     },
@@ -483,6 +494,24 @@ async fn run(mut cli: Cli) -> Result<()> {
             }
         },
         Command::Update { check } => wakeit::update::run(*check, cli.json).await?,
+        Command::Adapter {
+            command:
+                Adapter::Kimi {
+                    model,
+                    session,
+                    title,
+                    command,
+                },
+        } => {
+            let code = wakeit::kimi_live::run(
+                command,
+                model.as_deref(),
+                session.as_deref(),
+                title.as_deref(),
+            )
+            .await?;
+            std::process::exit(code);
+        }
         Command::Adapter {
             command: Adapter::Detect { id },
         } => {

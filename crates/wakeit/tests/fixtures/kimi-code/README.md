@@ -1,45 +1,19 @@
-# Kimi Code fixture provenance
+# Kimi Code live Server API provenance
 
-`stream.jsonl` is a synthetic, credential-free fixture based on the current
-TypeScript Kimi Code CLI's `PromptJsonWriter` and `writeResumeHint`. It is not an
-inference capture. Verified on 2026-10-16 against official source commit
-`ef727e517923cb312cb48d42825c49dfacd528e7` and the installed native ARM64
-`~/.kimi-code/bin/kimi` version `2.1.1` (`--version` / `--help` only).
+The adapter targets native TypeScript Kimi Code **2.x**, verified with installed **2.1.1**. The retired Python kimi-cli is a different protocol. Print-mode JSONL is buffered at message boundaries and is no longer an execution entry point.
 
-Sources:
+Official source snapshot: `ef727e517923cb312cb48d42825c49dfacd528e7` in [MoonshotAI/kimi-code](https://github.com/MoonshotAI/kimi-code).
 
-- [Current CLI reference](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-command.html)
-- [Prompt JSON writer](https://github.com/MoonshotAI/kimi-code/blob/ef727e517923cb312cb48d42825c49dfacd528e7/apps/kimi-code/src/cli/prompt-render.ts)
-- [Prompt lifecycle and native resume](https://github.com/MoonshotAI/kimi-code/blob/ef727e517923cb312cb48d42825c49dfacd528e7/apps/kimi-code/src/cli/v2/run-v2-print.ts)
-- [Official session list CLI](https://github.com/MoonshotAI/kimi-code/blob/ef727e517923cb312cb48d42825c49dfacd528e7/apps/kimi-code/src/cli/sub/session.ts)
-- [SDK session summary fields](https://github.com/MoonshotAI/kimi-code/blob/ef727e517923cb312cb48d42825c49dfacd528e7/packages/node-sdk/src/types.ts)
-- [Native metadata persistence and resume](https://github.com/MoonshotAI/kimi-code/blob/ef727e517923cb312cb48d42825c49dfacd528e7/packages/agent-core-v2/src/workspace/sessionLifecycle/sessionLifecycleService.ts)
-- [Session state metadata](https://github.com/MoonshotAI/kimi-code/blob/ef727e517923cb312cb48d42825c49dfacd528e7/packages/agent-core-v2/src/session/sessionMetadata/sessionMetadataService.ts)
-- [Native data-directory resolution](https://github.com/MoonshotAI/kimi-code/blob/ef727e517923cb312cb48d42825c49dfacd528e7/apps/kimi-code/src/utils/paths.ts)
+- `packages/kap-server/src/routes/sessions.ts`: create with custom title and native persistence.
+- `packages/kap-server/src/routes/sessionAgentConfig.ts`: cold resume activation before subscription via an empty session-level profile patch (no fields changed and no transcript download).
+- `packages/kap-server/src/routes/prompts.ts`: submit once, configured model and session permission mode.
+- `packages/kap-server/src/transport/ws/v1/wsConnectionV1.ts`: accepted subscriptions and application ping/pong.
+- `packages/kap-server/src/protocol/events-zod.ts`: public deltas, tool lifecycle, actual terminal reason.
+- `packages/kap-server/src/instanceRegistry.ts` and `services/auth/persistentToken.ts`: own-process loopback discovery and private authentication. Registry IDs and API server IDs are distinct; ownership is checked using the actual child PID.
+- `packages/agent-core-v2/src/session/sessionMetadata/sessionMetadataService.ts`: custom titles and native state.
 
-Session discovery reads `<KIMI_CODE_HOME>/session_index.jsonl` (otherwise
-`~/.kimi-code/session_index.jsonl`) and only opens `sessionDir/state.json` for
-the matching canonical project directory. The current native create and fork
-paths append this index. The newest mapping wins; persisted metadata must
-match both its complete ID and project directory. Missing or mismatched state
-is excluded. Session titles come only from `title`, never `lastPrompt`.
-Index reading is streamed with a 1 MiB line limit, 64 MiB total limit, and
-100,000-entry limit; state metadata is limited to 1 MiB. The adapter never
-starts `kimi session list` or boots the SDK for discovery, avoiding runtime
-initialization and provider refresh side effects.
+`live-server.cjs` is a synthetic credential-free protocol server, not an inference recording. Tests prove events arrive before the delayed tool completes; verify literal Chinese titles, heartbeat handling, failed/disconnected/rejected runs, directory/title mismatches, native shutdown errors, no duplicate prompt submission, and no bearer banner leakage. Session-index tests remain read-only and scoped to the exact canonical directory.
 
-The retired Python `MoonshotAI/kimi-cli` is a different CLI/protocol. This
-adapter uses `--prompt TEXT`, not its `--print`/Wire interfaces. Current prompt
-mode already uses automatic permissions and rejects `--auto`/`--yolo` alongside
-`--prompt`.
+Real inference on 2026-10-16 verified live message/tool events, separate final report, persisted custom title, listing, exact session binding, context recall, and unchanged title after continuation. Test workspaces and raw transcripts remain ignored locally; no user conversation content or model credentials are checked in.
 
-Prompt input is a single command argument: the current CLI has no documented
-stdin prompt interface. Long prompts therefore remain subject to operating
-system command-line limits, including Windows process argument limits.
-
-No model discovery is advertised. `kimi provider list --json` exposes raw
-provider configuration and calls `ensureConfigFile()`, so it cannot guarantee
-read-only discovery. The model alias can be supplied explicitly with `--model`.
-Print JSON does not expose native tool `isError`, exit codes, real tool start
-times, or thinking content; the adapter does not infer these from tool text.
-No official vector logo was verified, so no logo asset is supplied.
+The helper reads the native server's redacted `/config` only to resolve a new session's configured default model. Bound sessions retain their saved model unless explicitly overridden. Authentication comes from the native local server credential, not a copied provider secret; the credential and ready banner never enter Wakeit stdout/stderr. The per-execution server is stopped after completion and its children remain under the Runner process group/job.

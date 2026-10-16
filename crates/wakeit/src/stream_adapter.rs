@@ -16,7 +16,6 @@ use tokio::{
 
 pub struct Normalizer {
     protocol: String,
-    kimi: Option<crate::kimi_adapter::KimiNormalizer>,
     agy: Option<crate::agy_adapter::Normalizer>,
     gemini: Option<crate::gemini_adapter::GeminiNormalizer>,
     qwen: Option<crate::qwen_cursor_adapter::QwenNormalizer>,
@@ -46,7 +45,6 @@ impl Normalizer {
                     | "claude-code"
                     | "pi"
                     | "opencode"
-                    | "kimi-code"
                     | "agy"
                     | "gemini-cli"
                     | "qwen-code"
@@ -58,7 +56,6 @@ impl Normalizer {
         );
         Ok(Self {
             protocol: protocol.into(),
-            kimi: (protocol == "kimi-code").then(crate::kimi_adapter::KimiNormalizer::new),
             agy: (protocol == "agy").then(crate::agy_adapter::Normalizer::new),
             gemini: (protocol == "gemini-cli")
                 .then(crate::gemini_adapter::GeminiNormalizer::default),
@@ -246,9 +243,6 @@ impl Normalizer {
             return adapter.accept(event);
         }
         if let Some(adapter) = &mut self.cline {
-            return adapter.accept(event);
-        }
-        if let Some(adapter) = &mut self.kimi {
             return adapter.accept(event);
         }
         if let Some(adapter) = &mut self.agy {
@@ -734,7 +728,6 @@ impl Normalizer {
     }
     pub fn failed(&self) -> bool {
         self.failed
-            || self.kimi.as_ref().is_some_and(|adapter| adapter.failed())
             || self.agy.as_ref().is_some_and(|adapter| adapter.failed())
             || self.gemini.as_ref().is_some_and(|adapter| adapter.failed())
             || self.qwen.as_ref().is_some_and(|adapter| adapter.failed())
@@ -756,9 +749,6 @@ impl Normalizer {
             return adapter.finish();
         }
         if let Some(adapter) = &self.cline {
-            return adapter.finish();
-        }
-        if let Some(adapter) = &self.kimi {
             return adapter.finish();
         }
         if let Some(adapter) = &self.agy {
@@ -804,7 +794,6 @@ pub fn native_session_id<'a>(protocol: &str, event: &'a Value) -> Option<&'a str
         "claude-code" => event["session_id"].as_str(),
         "pi" if event["type"] == "session" => event["id"].as_str(),
         "opencode" => event["sessionID"].as_str(),
-        "kimi-code" => crate::kimi_adapter::native_session_id(event),
         "agy" => crate::agy_adapter::native_session_id(event),
         "gemini-cli" if event["type"] == "init" => event["session_id"].as_str(),
         "qwen-code" | "cursor" => crate::qwen_cursor_adapter::native_session_id(event),
