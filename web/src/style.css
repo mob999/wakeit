@@ -254,7 +254,7 @@ pre {
   width: 100%;
   border-right: 1px solid var(--border);
   background: var(--surface);
-  padding: 14px 8px 8px;
+  padding: 14px 8px 2px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -291,17 +291,17 @@ pre {
 }
 .repository-link {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   align-self: center;
   max-width: 100%;
-  height: 34px;
+  height: 28px;
   flex-shrink: 0;
   gap: 6px;
   padding-inline: 2px;
-  margin-bottom: -4px;
   color: var(--muted);
   font-size: 12px;
+  line-height: 16px;
 }
 .repository-link:hover {
   color: var(--ink);
