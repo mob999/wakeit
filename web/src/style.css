@@ -299,6 +299,7 @@ pre {
   flex-shrink: 0;
   gap: 6px;
   padding-inline: 2px;
+  margin-bottom: -4px;
   color: var(--muted);
   font-size: 12px;
 }
