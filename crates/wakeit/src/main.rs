@@ -305,6 +305,13 @@ enum Task {
 }
 #[derive(Subcommand)]
 enum Run {
+    /// Observe one Run until it ends, streaming output and the final result.
+    Watch {
+        id: Uuid,
+        /// Limit observation time, including requests and reconnection (for example 1h).
+        #[arg(long, value_parser = wakeit::watch::timeout)]
+        timeout: Option<Duration>,
+    },
     /// Continue an existing session on the Runner device without resubmitting its task.
     Resume {
         id: Uuid,
@@ -440,7 +447,17 @@ fn main() {
         .expect("Tokio runtime");
     let json_output = cli.json;
     let is_update = matches!(&cli.command, Command::Update { .. });
+    let watch_id = match &cli.command {
+        Command::Run {
+            command: Run::Watch { id, .. },
+        } => Some(*id),
+        _ => None,
+    };
     if let Err(e) = runtime.block_on(run(cli)) {
+        if let Some(id) = watch_id {
+            let _ = wakeit::watch::setup_failure(id, json_output, &e.to_string());
+            std::process::exit(2);
+        }
         if json_output && is_update {
             println!("{}", json!({"status":"error", "error":e.to_string()}));
         } else {
@@ -874,6 +891,13 @@ async fn run(mut cli: Cli) -> Result<()> {
             }
         }
         Command::Run {
+            command: Run::Watch { id, timeout },
+        } => {
+            let c = Client::new(&cli)?;
+            let code = wakeit::watch::run(&c.url, &c.token, *id, *timeout, cli.json).await?;
+            std::process::exit(code);
+        }
+        Command::Run {
             command: Run::Resume { id, runner_config },
         } => {
             let code = wakeit::sessions::resume(*id, runner_config.as_deref()).await?;
@@ -884,8 +908,8 @@ async fn run(mut cli: Cli) -> Result<()> {
         Command::Run { command } => {
             let c = Client::new(&cli)?;
             match command {
-                Run::Resume { .. } => {
-                    unreachable!("local continuation is handled without an API client")
+                Run::Watch { .. } | Run::Resume { .. } => {
+                    unreachable!("watch and local continuation have dedicated handlers")
                 }
                 Run::Get { id } => display(c.get(&format!("/runs/{id}")).await?, true),
                 Run::List { task, state } => {

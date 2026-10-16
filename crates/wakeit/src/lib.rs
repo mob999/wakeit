@@ -37,3 +37,5 @@ pub mod setup;
 pub mod kimi_live;
 
 pub mod copilot_adapter;
+
+pub mod watch;
