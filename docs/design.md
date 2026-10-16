@@ -54,7 +54,7 @@ Admin 默认工作区，Operator/Viewer 仅有个人 API Key。`/settings?sectio
 
 详情层级统一使用面包屑：Tasks → 任务、Runs → 执行、Runners → 设备 → Agents → 当前 Agent、Settings → 分类。祖先节点可点击，当前节点只显示文字；窄屏同样通过根节点返回列表，不提供单独的返回按钮。设置面包屑遵守未保存保护。
 
-Runner 的 Agent 表格占满详情内容宽度，采用细边框、6px 圆角、弱化表头和统一 48px 行高。列为 Agent、版本、检测状态、操作；行内创建任务使用无边框 ListPlus 图标和可访问名称。Agent 只显示一行名称，旁边使用配置中的官方 Logo；缺省或加载失败显示首字母。
+Runner 的 Agent 表格占满详情内容宽度，采用细边框、6px 圆角、弱化表头和统一 48px 行高。列为 Agent、版本、检测状态、操作；行内创建任务使用无边框 Plus 图标和可访问名称。Agent 只显示一行名称，旁边使用配置中的官方 Logo；缺省或加载失败显示首字母。
 
 ## Tasks / Runs 列表与运行内容
 
@@ -67,6 +67,8 @@ Runner 的 Agent 表格占满详情内容宽度，采用细边框、6px 圆角�
 ## 按钮与工作台边缘
 
 工具栏和行内操作统一使用 28×28px 透明图标按钮，图标 16px，圆角 6px，无可见边框、底色和阴影。默认次要颜色，悬停时出现轻灰背景；取消执行、撤销 API Key 的图标悬停时使用失败色。图标始终可见，通过可访问名称和 Radix Tooltip 标识操作；悬停延迟 400ms，键盘聚焦立即显示。
+
+新建、创建、连接设备和邀请成员统一使用 Plus，不使用带设备、成员或列表的组合加号。重新执行 Run 使用 Redo2（向右弯箭头），刷新数据、读取重试和日志重连使用 RefreshCw（双向循环箭头），区分是否会启动新的执行。按钮的名称、权限、确认流程及提交状态保持原有行为。
 
 公共 Button 使用 ghost、solid 两种外观；弹窗和表单的提交保留文字主按钮，次要操作使用透明文字按钮。目录、模型等输入控件保留边框，刷新等辅助操作采用图标。导航、页签、搜索范围和角色菜单保留文字。
 
@@ -125,4 +127,3 @@ HTML 先经 rehype-raw 解析，受限文本样式处理后经 rehype-sanitize �
 mermaid 代码块按需加载 Mermaid，随明暗主题重绘。图表使用 strict 模式，清理后的 SVG 在独立无脚本沙箱内展示；不能覆盖工作台样式或启动页面回调。源码保留在紧凑折叠区；语法或加载失败显示简短状态并保留源码，不影响其余报告。正文和源码不进入本地存储。
 
 参考：[rehype-sanitize](https://github.com/rehypejs/rehype-sanitize)、[remark-math](https://github.com/remarkjs/remark-math)、[Mermaid](https://mermaid.js.org/config/usage.html)。
-

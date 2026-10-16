@@ -1,6 +1,6 @@
 import { t as tr, parameterLabel } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight, ListPlus } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { type Runner } from '../api'
 import { agentMatches, type Filters } from '../Search'
 import { DetailBody } from '../Workbench'
@@ -66,7 +66,7 @@ export function RunnerAgents({
                       disabled={runner.revoked || !createReady}
                       onClick={() => onCreate(agent.id)}
                     >
-                      <ListPlus />
+                      <Plus />
                     </IconButton>
                   )}
                 </div>

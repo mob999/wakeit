@@ -1,7 +1,7 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState } from 'react'
-import { MessageSquare, Terminal, Wrench, ChevronRight, RotateCcw } from 'lucide-react'
+import { MessageSquare, Terminal, Wrench, ChevronRight, RefreshCw } from 'lucide-react'
 import { MarkdownContent } from './MarkdownContent'
 import { api, terminal, type Run, type RunEvent, type TraceNode, stateNames } from '../api'
 import { Button } from '../ui'
@@ -90,7 +90,7 @@ export function RunTrace({ run, trace }: { run: Run; trace: ReturnType<typeof us
           <div className="trace-notice" role="alert">
             <span className="error">{trace.error}</span>
             <Button onClick={trace.retry}>
-              <RotateCcw size={14} />
+              <RefreshCw size={14} />
               {tr('重试')}
             </Button>
           </div>
