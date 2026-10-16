@@ -1,6 +1,7 @@
 version: 1
 id: copilot
 name: GitHub Copilot CLI
+logo: /agent-logos/copilot.svg
 mode: sync
 parameters:
   model: {type: string, label: 模型}

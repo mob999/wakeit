@@ -1,6 +1,7 @@
 version: 1
 id: cursor
 name: Cursor
+logo: /agent-logos/cursor.svg
 mode: sync
 parameters:
   model: {type: string, label: 模型}

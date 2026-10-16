@@ -1,6 +1,7 @@
 version: 1
 id: kimi-code
 name: Kimi Code
+logo: /agent-logos/kimi-code.svg
 mode: sync
 parameters:
   model: {type: string, label: 模型}
