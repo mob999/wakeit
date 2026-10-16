@@ -34,3 +34,5 @@ pub mod device_auth;
 pub mod setup;
 
 pub mod kimi_live;
+
+pub mod copilot_adapter;

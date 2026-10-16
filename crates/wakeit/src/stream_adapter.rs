@@ -21,6 +21,7 @@ pub struct Normalizer {
     qwen: Option<crate::qwen_cursor_adapter::QwenNormalizer>,
     cursor: Option<crate::qwen_cursor_adapter::CursorNormalizer>,
     cline: Option<crate::cline_adapter::ClineNormalizer>,
+    copilot: Option<crate::copilot_adapter::CopilotNormalizer>,
     goose: Option<crate::goose_adapter::GooseNormalizer>,
     session_id: Option<String>,
     nodes: BTreeMap<String, TraceNode>,
@@ -34,6 +35,7 @@ pub struct Normalizer {
     opencode_parts: Vec<(String, String)>,
     result: Option<Value>,
     failed: bool,
+    completed: bool,
     unknown: BTreeSet<String>,
 }
 impl Normalizer {
@@ -49,6 +51,7 @@ impl Normalizer {
                     | "gemini-cli"
                     | "qwen-code"
                     | "cursor"
+                    | "copilot"
                     | "cline"
                     | "goose"
             ),
@@ -64,6 +67,8 @@ impl Normalizer {
             cursor: (protocol == "cursor")
                 .then(crate::qwen_cursor_adapter::CursorNormalizer::default),
             cline: (protocol == "cline").then(crate::cline_adapter::ClineNormalizer::default),
+            copilot: (protocol == "copilot")
+                .then(crate::copilot_adapter::CopilotNormalizer::default),
             goose: (protocol == "goose").then(crate::goose_adapter::GooseNormalizer::default),
             session_id: None,
             nodes: BTreeMap::new(),
@@ -77,6 +82,7 @@ impl Normalizer {
             opencode_parts: vec![],
             result: None,
             failed: false,
+            completed: false,
             unknown: BTreeSet::new(),
         })
     }
@@ -242,6 +248,9 @@ impl Normalizer {
         if let Some(adapter) = &mut self.cursor {
             return adapter.accept(event);
         }
+        if let Some(adapter) = &mut self.copilot {
+            return adapter.accept(event);
+        }
         if let Some(adapter) = &mut self.cline {
             return adapter.accept(event);
         }
@@ -327,11 +336,9 @@ impl Normalizer {
                     };
                     vec![self.node(id, kind, title, input, output, state, at, start, end)]
                 } else if typ == "turn.completed" {
+                    self.completed = true;
                     self.failed = false;
-                    self.result
-                        .clone()
-                        .map(|v| vec![StreamRecord::new(RecordData::Result(v))])
-                        .unwrap_or_default()
+                    vec![]
                 } else if matches!(typ, "thread.started" | "turn.started") {
                     vec![]
                 } else if matches!(typ, "error" | "turn.failed") {
@@ -426,6 +433,7 @@ impl Normalizer {
                     }
                     records
                 } else if typ == "result" {
+                    self.completed = true;
                     self.failed = event["is_error"] == true
                         || event["subtype"]
                             .as_str()
@@ -435,7 +443,7 @@ impl Normalizer {
                     }
                     if let Some(result) = event.get("result") {
                         self.result = Some(result.clone());
-                        vec![StreamRecord::new(RecordData::Result(result.clone()))]
+                        vec![]
                     } else {
                         vec![]
                     }
@@ -728,11 +736,16 @@ impl Normalizer {
     }
     pub fn failed(&self) -> bool {
         self.failed
+            || (matches!(self.protocol.as_str(), "codex" | "claude-code") && !self.completed)
             || self.agy.as_ref().is_some_and(|adapter| adapter.failed())
             || self.gemini.as_ref().is_some_and(|adapter| adapter.failed())
             || self.qwen.as_ref().is_some_and(|adapter| adapter.failed())
             || self.cursor.as_ref().is_some_and(|adapter| adapter.failed())
             || self.cline.as_ref().is_some_and(|adapter| adapter.failed())
+            || self
+                .copilot
+                .as_ref()
+                .is_some_and(|adapter| adapter.failed())
             || self.goose.as_ref().is_some_and(|adapter| adapter.failed())
     }
     pub fn finish(&self) -> Vec<StreamRecord> {
@@ -746,6 +759,9 @@ impl Normalizer {
             return adapter.finish();
         }
         if let Some(adapter) = &self.cursor {
+            return adapter.finish();
+        }
+        if let Some(adapter) = &self.copilot {
             return adapter.finish();
         }
         if let Some(adapter) = &self.cline {

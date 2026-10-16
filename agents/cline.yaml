@@ -22,7 +22,8 @@ submit:
       args: [--model, '{{parameters.model}}']
     - when_set: reasoning
       args: [--thinking, '{{parameters.reasoning}}']
-  stdin: '{{task.prompt}}'
+    - '--'
+    - '{{task.prompt}}'
 detect:
   command: wakeit
   args: [adapter, detect, cline]

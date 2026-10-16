@@ -47,6 +47,7 @@ if (protocol === 'agy') {
         ),
         ("cursor", fixtures.join("additional-cli/cursor.jsonl"), true),
         ("cline", fixtures.join("cline-stream.jsonl"), false),
+        ("copilot", fixtures.join("copilot/stream.jsonl"), false),
         ("goose", fixtures.join("trace/goose.jsonl"), false),
     ] {
         for failure in ["", "fail", "fail-after"] {

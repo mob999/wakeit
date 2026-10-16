@@ -1,13 +1,12 @@
-//! Copilot deliberately uses the native text contract, rather than assuming that
-//! SDK session events are a stable schema for the CLI's separate JSONL output.
+//! Native Copilot CLI JSONL input framing and permissions.
 use wakeit::config::{AgentConfig, CommandArg, OutputFormat};
 
 #[test]
-fn native_pipe_contract_is_plain_text_and_retains_native_permissions() {
+fn native_pipe_contract_is_jsonl_and_retains_native_permissions() {
     let config: AgentConfig =
         yaml_serde::from_str(include_str!("../../../agents/copilot.yaml")).unwrap();
     config.validate().unwrap();
-    assert!(matches!(config.output.format, OutputFormat::Text));
+    assert!(matches!(config.output.format, OutputFormat::Events));
     assert_eq!(config.submit.stdin.as_deref(), Some("{{task.prompt}}"));
     assert!(config.models.is_none() && config.session.is_none());
     let args: Vec<&str> = config
@@ -21,7 +20,16 @@ fn native_pipe_contract_is_plain_text_and_retains_native_permissions() {
         .collect();
     assert_eq!(
         args,
-        ["--silent", "--no-ask-user", "--output-format", "text"]
+        [
+            "adapter",
+            "stream",
+            "copilot",
+            "--",
+            "copilot",
+            "--no-ask-user",
+            "--output-format",
+            "json"
+        ]
     );
     // No -p: upstream explicitly says -p would silently discard piped input.
     assert!(!args.contains(&"-p") && !args.contains(&"--prompt"));
@@ -91,10 +99,14 @@ async fn model_and_multiline_prompt_are_passed_as_literal_argv_and_stdin() {
     .unwrap();
     assert_eq!(output.code, Some(0));
     let expected_args = [
-        "--silent",
+        "adapter",
+        "stream",
+        "copilot",
+        "--",
+        "copilot",
         "--no-ask-user",
         "--output-format",
-        "text",
+        "json",
         "--model",
         model,
     ];
