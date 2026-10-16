@@ -1,11 +1,14 @@
 pub mod adapters;
+pub mod agy_adapter;
 pub mod api;
 pub mod auth;
 pub mod bus;
 pub mod config;
 pub mod gateway;
+pub mod gemini_adapter;
 mod interactive_session;
 pub mod journal;
+pub mod kimi_adapter;
 pub mod moments;
 pub mod native_sessions;
 pub mod nats_auth;

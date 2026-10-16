@@ -4,9 +4,87 @@ use anyhow::{Context, Result, bail, ensure};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, process::Stdio, time::Duration};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, Command},
 };
+
+/// Reject unrelated desktop launchers or incompatible native generations.
+/// Help/version terminate before an Agent engine or model session is started.
+pub async fn detect(id: &str) -> Result<String> {
+    let (command, required): (&str, &[&str]) = match id {
+        "kimi-code" => ("kimi", &["--prompt", "--output-format", "--session"]),
+        "agy" => (
+            "agy",
+            &[
+                "--input-format",
+                "--output-format",
+                "--disable-slash-commands",
+            ],
+        ),
+        "gemini-cli" => ("gemini", &["--prompt", "--output-format"]),
+        _ => bail!("unsupported native capability probe"),
+    };
+    tokio::time::timeout(Duration::from_secs(8), async {
+        let help = probe(command, "--help").await?;
+        ensure!(
+            required.iter().all(|flag| help.contains(flag)),
+            "native CLI lacks required headless options"
+        );
+        let version = probe(command, "--version").await?;
+        if id == "kimi-code" {
+            let major = version.split_whitespace().find_map(|part| {
+                part.trim_start_matches('v')
+                    .split('.')
+                    .next()?
+                    .parse::<u32>()
+                    .ok()
+            });
+            ensure!(
+                major == Some(2),
+                "Kimi Code adapter requires the native kimi-code 2.x CLI"
+            );
+        }
+        Ok(version.trim().chars().take(512).collect())
+    })
+    .await
+    .context("native CLI detection timed out")?
+}
+
+async fn probe(executable: &str, flag: &str) -> Result<String> {
+    let mut spec = crate::config::CommandSpec {
+        command: executable.into(),
+        args: vec![flag.into()],
+        ..Default::default()
+    };
+    crate::config::normalize_native_command(&mut spec)?;
+    let mut command = Command::new(spec.command);
+    for arg in spec.args {
+        if let crate::config::CommandArg::Literal(value) = arg {
+            command.arg(value);
+        }
+    }
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .context("start native CLI detection")?;
+    let mut bytes = Vec::new();
+    child
+        .stdout
+        .take()
+        .context("native help stdout")?
+        .take(128 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .await?;
+    ensure!(
+        bytes.len() <= 128 * 1024,
+        "native CLI detection output exceeded limit"
+    );
+    ensure!(child.wait().await?.success(), "native CLI detection failed");
+    String::from_utf8(bytes).context("invalid native CLI detection output")
+}
 
 fn entry(id: &str, name: &str, provider: Option<&str>, model: &str) -> ModelEntry {
     let mut parameters = BTreeMap::from([("model".into(), model.into())]);
@@ -91,6 +169,7 @@ pub async fn discover(id: &str) -> Result<ModelCatalog> {
 }
 async fn discover_inner(id: &str) -> Result<ModelCatalog> {
     match id {
+        "agy" => crate::agy_adapter::discover_models().await,
         "codex" => {
             let mut child = spawn("codex", &["app-server"])?;
             let mut input = child.stdin.take().context("stdin")?;

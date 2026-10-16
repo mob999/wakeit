@@ -52,6 +52,7 @@ fn validate_id(protocol: &str, id: &str) -> Result<()> {
                 && id.len() > 4,
             "invalid OpenCode session ID"
         ),
+        "kimi-code" => crate::sessions::validate_id(id)?,
         _ => bail!("unsupported session protocol"),
     }
     Ok(())
@@ -395,6 +396,16 @@ pub async fn inspect(protocol: &str, id: &str, cwd: &Path) -> Result<Value> {
             "claude-code" => claude(id, &cwd).await,
             "pi" => pi(id, &cwd).await,
             "opencode" => opencode(id, &cwd).await,
+            "kimi-code" => {
+                let session = crate::kimi_adapter::session_summaries(&cwd)
+                    .await?
+                    .into_iter()
+                    .find(|session| session.id == id)
+                    .context("Kimi session does not exist in this working directory")?;
+                let metadata =
+                    verify_metadata(id, &cwd, &session.id, &session.cwd.to_string_lossy())?;
+                Ok(titled(metadata, session.title.as_deref()))
+            }
             _ => unreachable!(),
         }
     })
@@ -831,7 +842,10 @@ pub async fn list(
         "session page size must be between 1 and 10000"
     );
     ensure!(
-        matches!(protocol, "codex" | "claude-code" | "pi" | "opencode"),
+        matches!(
+            protocol,
+            "codex" | "claude-code" | "pi" | "opencode" | "kimi-code"
+        ),
         "unsupported session protocol"
     );
     let cwd = canonical_directory(cwd)?;
@@ -862,6 +876,19 @@ pub async fn list(
         match protocol {
             "codex" => codex_catalog(&cwd).await,
             "opencode" => opencode_catalog(&cwd).await,
+            "kimi-code" => crate::kimi_adapter::session_summaries(&cwd)
+                .await?
+                .into_iter()
+                .map(|session| {
+                    catalog_entry(
+                        protocol,
+                        &session.id,
+                        &cwd,
+                        session.title.as_deref(),
+                        session.updated_at,
+                    )
+                })
+                .collect(),
             _ => file_catalog(protocol, &cwd).await,
         }
     })

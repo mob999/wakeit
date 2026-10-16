@@ -505,14 +505,26 @@ pub fn render_named(
     result.push_str(rest);
     Ok(result)
 }
+pub const BUILTIN_AGENTS: &[(&str, &str)] = &[
+    ("codex", include_str!("../../../agents/codex.yaml")),
+    (
+        "claude-code",
+        include_str!("../../../agents/claude-code.yaml"),
+    ),
+    ("pi", include_str!("../../../agents/pi.yaml")),
+    ("opencode", include_str!("../../../agents/opencode.yaml")),
+    ("kimi-code", include_str!("../../../agents/kimi-code.yaml")),
+    ("agy", include_str!("../../../agents/agy.yaml")),
+    (
+        "gemini-cli",
+        include_str!("../../../agents/gemini-cli.yaml"),
+    ),
+];
 pub fn builtin(id: &str) -> Result<&'static str> {
-    Ok(match id {
-        "codex" => include_str!("../../../agents/codex.yaml"),
-        "claude-code" => include_str!("../../../agents/claude-code.yaml"),
-        "pi" => include_str!("../../../agents/pi.yaml"),
-        "opencode" => include_str!("../../../agents/opencode.yaml"),
-        _ => bail!("unknown builtin agent: {id}"),
-    })
+    BUILTIN_AGENTS
+        .iter()
+        .find_map(|(name, yaml)| (*name == id).then_some(*yaml))
+        .with_context(|| format!("unknown builtin agent: {id}"))
 }
 /// Convert npm's Windows batch launchers into explicit Node entry points.
 /// This is generic package-bin discovery, not an agent-specific execution path.

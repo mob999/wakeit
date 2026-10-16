@@ -97,6 +97,9 @@ enum Connection {
 }
 #[derive(Subcommand)]
 enum Adapter {
+    Detect {
+        id: String,
+    },
     Models {
         id: String,
     },
@@ -480,6 +483,11 @@ async fn run(mut cli: Cli) -> Result<()> {
             }
         },
         Command::Update { check } => wakeit::update::run(*check, cli.json).await?,
+        Command::Adapter {
+            command: Adapter::Detect { id },
+        } => {
+            println!("{}", wakeit::adapters::detect(id).await?);
+        }
         Command::Adapter {
             command: Adapter::Models { id },
         } => {

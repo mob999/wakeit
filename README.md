@@ -4,7 +4,7 @@
 
 你定义指令和时间，Wakeit 将任务交给设备上的 Runner。Gateway 集中管理调度、成员和执行记录；WebUI 展示过程、日志和结果。
 
-- **接入已有 Agent**：内置 Codex、Claude Code、Pi、OpenCode；自定义适配只需配置命令。
+- **接入已有 Agent**：内置 Codex、Claude Code、Pi、OpenCode、Kimi Code、Antigravity CLI、Gemini CLI；[能力与配置](docs/agents.md)按原生接口提供，自定义适配只需配置命令。
 - **在自己的设备执行**：Runner 主动连接 Gateway，支持 Linux、macOS、Windows，无需设备开放入站端口。
 - **按时运行，查看结果**：Cron、固定间隔、一次性时间和手动执行；支持实时过程及 Markdown 报告，包含代码高亮、公式与 Mermaid 图表；Moments 首页按完成时间汇总结果。
 - **保留执行上下文**：任务可绑定原生会话，完成后在 Runner 设备用 `wakeit run resume <run-id>` 继续交互；见 [会话续聊](docs/cli.md#绑定会话与本机续聊)。

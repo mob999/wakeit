@@ -20,15 +20,17 @@ fn task(cwd: &str) -> TaskConfig {
 }
 #[test]
 fn builtin_templates_validate() {
-    for id in ["codex", "claude-code", "pi", "opencode"] {
+    for &(id, _) in BUILTIN_AGENTS {
         let a: AgentConfig = yaml_serde::from_str(builtin(id).unwrap()).unwrap();
         a.validate().unwrap();
         assert_eq!(a.id, id);
-        assert!(
-            a.logo
-                .as_deref()
-                .is_some_and(|logo| logo.starts_with("/agent-logos/"))
-        );
+        if let Some(logo) = a.logo.as_deref() {
+            assert!(logo.starts_with("/agent-logos/"));
+            let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../web/public")
+                .join(logo.trim_start_matches('/'));
+            assert!(file.is_file(), "missing builtin logo: {id}");
+        }
     }
 }
 #[test]

@@ -16,6 +16,9 @@ use tokio::{
 
 pub struct Normalizer {
     protocol: String,
+    kimi: Option<crate::kimi_adapter::KimiNormalizer>,
+    agy: Option<crate::agy_adapter::Normalizer>,
+    gemini: Option<crate::gemini_adapter::GeminiNormalizer>,
     session_id: Option<String>,
     nodes: BTreeMap<String, TraceNode>,
     message_ids: BTreeMap<String, String>,
@@ -33,11 +36,18 @@ pub struct Normalizer {
 impl Normalizer {
     pub fn new(protocol: &str) -> Result<Self> {
         ensure!(
-            matches!(protocol, "codex" | "claude-code" | "pi" | "opencode"),
+            matches!(
+                protocol,
+                "codex" | "claude-code" | "pi" | "opencode" | "kimi-code" | "agy" | "gemini-cli"
+            ),
             "unsupported stream protocol"
         );
         Ok(Self {
             protocol: protocol.into(),
+            kimi: (protocol == "kimi-code").then(crate::kimi_adapter::KimiNormalizer::new),
+            agy: (protocol == "agy").then(crate::agy_adapter::Normalizer::new),
+            gemini: (protocol == "gemini-cli")
+                .then(crate::gemini_adapter::GeminiNormalizer::default),
             session_id: None,
             nodes: BTreeMap::new(),
             message_ids: BTreeMap::new(),
@@ -206,6 +216,15 @@ impl Normalizer {
         session_records
     }
     fn accept_inner(&mut self, event: Value) -> Vec<StreamRecord> {
+        if let Some(adapter) = &mut self.kimi {
+            return adapter.accept(event);
+        }
+        if let Some(adapter) = &mut self.agy {
+            return adapter.accept(event);
+        }
+        if let Some(adapter) = &mut self.gemini {
+            return adapter.accept(event);
+        }
         let typ = event["type"].as_str().unwrap_or("");
         let at = event["timestamp"]
             .as_str()
@@ -683,10 +702,22 @@ impl Normalizer {
     }
     pub fn failed(&self) -> bool {
         self.failed
+            || self.kimi.as_ref().is_some_and(|adapter| adapter.failed())
+            || self.agy.as_ref().is_some_and(|adapter| adapter.failed())
+            || self.gemini.as_ref().is_some_and(|adapter| adapter.failed())
     }
     pub fn finish(&self) -> Vec<StreamRecord> {
-        if self.failed {
+        if self.failed() {
             return vec![];
+        }
+        if let Some(adapter) = &self.kimi {
+            return adapter.finish();
+        }
+        if let Some(adapter) = &self.agy {
+            return adapter.finish();
+        }
+        if let Some(adapter) = &self.gemini {
+            return adapter.finish();
         }
         self.result
             .clone()
@@ -725,6 +756,9 @@ pub fn native_session_id<'a>(protocol: &str, event: &'a Value) -> Option<&'a str
         "claude-code" => event["session_id"].as_str(),
         "pi" if event["type"] == "session" => event["id"].as_str(),
         "opencode" => event["sessionID"].as_str(),
+        "kimi-code" => crate::kimi_adapter::native_session_id(event),
+        "agy" => crate::agy_adapter::native_session_id(event),
+        "gemini-cli" if event["type"] == "init" => event["session_id"].as_str(),
         _ => None,
     }
 }
@@ -756,14 +790,42 @@ pub async fn stream_checked(
         crate::config::CommandArg::Literal(v) => Some(v),
         _ => None,
     });
+    // AGY's documented stdin is NDJSON, not a raw prompt. Other native CLIs
+    // retain their configured stdin exactly as supplied by the adapter.
+    let prompt_input = if protocol == "agy" {
+        let mut input = Vec::new();
+        tokio::io::stdin()
+            .take(1024 * 1024 + 1)
+            .read_to_end(&mut input)
+            .await?;
+        ensure!(input.len() <= 1024 * 1024, "prompt exceeds 1 MiB");
+        Some(crate::agy_adapter::encode_prompt(
+            std::str::from_utf8(&input).context("prompt must be UTF-8")?,
+        )?)
+    } else {
+        None
+    };
     command.env("PWD", std::env::current_dir()?);
     command
         .args(arguments)
-        .stdin(Stdio::inherit())
+        .stdin(if prompt_input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::inherit()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .kill_on_drop(true);
     let mut child = command.spawn().context("start native Agent")?;
+    let input_task = if let Some(bytes) = prompt_input {
+        let mut stdin = child.stdin.take().context("native stdin")?;
+        Some(tokio::spawn(async move {
+            stdin.write_all(&bytes).await?;
+            stdin.shutdown().await
+        }))
+    } else {
+        None
+    };
     let mut reader = child.stdout.take().context("native stdout")?;
     let mut writer = tokio::io::stdout();
     let mut bytes = vec![];
@@ -861,6 +923,13 @@ pub async fn stream_checked(
         write_records(&mut writer, normalizer.diagnostic("session ID missing")).await?;
     }
     let status = child.wait().await?;
+    if let Some(input) = input_task {
+        let written = input.await.context("native stdin writer stopped")?;
+        // A native failure can close stdin early. Preserve that exit code.
+        if status.success() {
+            written.context("write native prompt")?;
+        }
+    }
     write_records(&mut writer, normalizer.finish()).await?;
     let code = status.code().unwrap_or(1);
     Ok(if code == 0 && normalizer.failed() {
