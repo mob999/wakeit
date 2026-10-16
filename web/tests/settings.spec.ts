@@ -11,7 +11,7 @@ const stack = JSON.parse(
 const headers = { 'X-Wakeit-Request': '1' }
 async function login(page: Page, role = 'admin') {
   await loginSession(page, role, role === 'admin' ? stack.password : 'wakeit-role-test-password')
-  await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
 }
 const logInput = (page: Page) => page.getByLabel('日志保留', { exact: true })
 async function refocus(page: Page) {
@@ -60,10 +60,10 @@ test('workspace drafts survive refresh, validate bounds and guard every navigati
     await page.getByRole('button', { name: '取消', exact: true }).click()
     await expect(logInput(page)).toHaveValue(String(original.log_retention_days + 1))
     await logInput(page).fill(String(original.log_retention_days + 3))
-    await page.getByRole('link', { name: 'Tasks', exact: true }).click()
+    await page.getByRole('link', { name: '任务', exact: true }).click()
     await expect(leave).toBeVisible()
     await leave.getByRole('button', { name: '放弃更改' }).click()
-    await expect(page.getByRole('heading', { name: /^Tasks/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /^任务/ })).toBeVisible()
   } finally {
     await page.request.put('/api/v1/settings', { data: original, headers })
   }
@@ -97,7 +97,7 @@ test('timezone selection, failed save, search protection and save before leaving
     const search = page.getByRole('dialog', { name: '搜索', exact: true })
     await search
       .locator('.search-scopes')
-      .getByRole('button', { name: 'Settings', exact: true })
+      .getByRole('button', { name: '设置', exact: true })
       .click()
     await search.getByLabel('搜索内容').fill('token')
     await search.getByRole('button', { name: '个人 API Key', exact: true }).click()
@@ -127,13 +127,13 @@ test('member pages, last admin, inactive status and failed role changes', async 
   await expect(page.locator('.settings-member-name')).toHaveCount(Math.min(20, totalMembers - 20))
   await page.getByRole('button', { name: '上一页' }).click()
   await page.getByRole('button', { name: 'admin 角色', exact: true }).click()
-  await expect(page.getByRole('menuitemradio', { name: 'Operator', exact: true })).toBeDisabled()
+  await expect(page.getByRole('menuitemradio', { name: '操作员', exact: true })).toBeDisabled()
   await page.keyboard.press('Escape')
   const inactive = page.locator('.settings-member-row').filter({ hasText: 'inactive-fixture' })
   await inactive.getByRole('button', { name: 'inactive-fixture 角色' }).click()
-  await page.getByRole('menuitemradio', { name: 'Operator', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: '操作员', exact: true }).click()
   await expect(inactive.getByRole('button', { name: 'inactive-fixture 角色' })).toContainText(
-    'Operator',
+    '操作员',
   )
   const members = await (await page.request.get('/api/v1/users')).json()
   const record = members.find((m: any) => m.username === 'inactive-fixture')
@@ -146,16 +146,16 @@ test('member pages, last admin, inactive status and failed role changes', async 
     }),
   )
   await inactive.getByRole('button', { name: 'inactive-fixture 角色' }).click()
-  await page.getByRole('menuitemradio', { name: 'Viewer', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: '查看者', exact: true }).click()
   await expect(inactive.getByText('角色保存失败', { exact: true })).toBeVisible()
   await expect(inactive.getByRole('button', { name: 'inactive-fixture 角色' })).toContainText(
-    'Operator',
+    '操作员',
   )
   await page.unroute(`**/api/v1/users/${record.id}`)
   await inactive.getByRole('button', { name: 'inactive-fixture 角色' }).click()
-  await page.getByRole('menuitemradio', { name: 'Viewer', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: '查看者', exact: true }).click()
   await expect(inactive.getByRole('button', { name: 'inactive-fixture 角色' })).toContainText(
-    'Viewer',
+    '查看者',
   )
   await page.screenshot({ path: 'test-results/settings-members-light.png', fullPage: true })
 })
@@ -177,7 +177,7 @@ test('own downgrade refreshes permissions and invalid sections resolve by role',
   try {
     await page.getByRole('button', { name: '成员' }).click()
     await page.getByRole('button', { name: 'admin 角色', exact: true }).click()
-    await page.getByRole('menuitemradio', { name: 'Operator', exact: true }).click()
+    await page.getByRole('menuitemradio', { name: '操作员', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '更改自己的角色' })
     await expect(dialog).toBeVisible()
     expect((await (await page.request.get('/api/v1/session')).json()).role).toBe('admin')
@@ -367,7 +367,7 @@ test('settings layouts and independent loading failures across roles', async ({ 
   await page.setViewportSize({ width: 390, height: 840 })
   await page
     .getByRole('navigation', { name: '层级导航' })
-    .getByRole('button', { name: 'Settings', exact: true })
+    .getByRole('button', { name: '设置', exact: true })
     .click()
   await expect(page.getByRole('button', { name: 'API Key' })).toBeVisible()
   await page.getByRole('button', { name: '工作区', exact: true }).click()
@@ -375,7 +375,7 @@ test('settings layouts and independent loading failures across roles', async ({ 
   await page.screenshot({ path: 'test-results/settings-workspace-mobile.png', fullPage: true })
   await page
     .getByRole('navigation', { name: '层级导航' })
-    .getByRole('button', { name: 'Settings', exact: true })
+    .getByRole('button', { name: '设置', exact: true })
     .click()
   await page.getByRole('button', { name: 'API Key' }).click()
   await page.getByRole('button', { name: '页面操作', exact: true }).click()

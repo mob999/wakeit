@@ -1,3 +1,5 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import {
   createContext,
   useContext,
@@ -28,11 +30,12 @@ export function PageBreadcrumbs({
   crumbs?: Breadcrumb[]
   onBack?: () => void
 }) {
+  useTranslation()
   const { breadcrumbs } = useContext(PageHeaderContext)
   const listView = useContext(PageListViewContext)
   if (!breadcrumbs) return null
   return createPortal(
-    <nav className="breadcrumbs" aria-label="层级导航" data-list-view={listView || undefined}>
+    <nav className="breadcrumbs" aria-label={tr('层级导航')} data-list-view={listView || undefined}>
       <ol>
         <li>
           {crumbs.length && onBack ? (
@@ -75,6 +78,7 @@ export function PageBreadcrumbs({
 }
 
 export function PageActions({ children }: { children?: ReactNode }) {
+  useTranslation()
   const { actions } = useContext(PageHeaderContext)
   const listView = useContext(PageListViewContext)
   const [open, setOpen] = useState(false)
@@ -106,7 +110,7 @@ export function PageActions({ children }: { children?: ReactNode }) {
       }}
     >
       <IconButton
-        label="页面操作"
+        label={tr('页面操作')}
         className="page-actions-toggle"
         ref={trigger}
         aria-expanded={open}
@@ -119,7 +123,7 @@ export function PageActions({ children }: { children?: ReactNode }) {
         id={id}
         className={`page-actions-buttons ${open ? 'is-open' : ''}`}
         role="toolbar"
-        aria-label="页面操作"
+        aria-label={tr('页面操作')}
       >
         {children}
       </div>

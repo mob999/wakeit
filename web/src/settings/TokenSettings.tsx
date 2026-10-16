@@ -1,3 +1,5 @@
+import { t as tr, locale } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { PageActions } from '../PageHeader'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +12,7 @@ import { Button, IconButton, Field, Modal } from '../ui'
 import { ChoicePicker } from '../ChoicePicker'
 import { RequestState, SecretValue } from './shared'
 function CreateTokenDialog({ onClose }: { onClose: () => void }) {
+  useTranslation()
   const client = useQueryClient()
   const [name, setName] = useState('')
   const [expiration, setExpiration] = useState('never')
@@ -36,7 +39,7 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
           ? new Date(customDate)
           : new Date(Date.now() + Number(expiration) * 86400000)
     if (expiresAt && (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) {
-      setError('请选择未来的过期时间')
+      setError(tr('请选择未来的过期时间'))
       return
     }
     busy.current = true
@@ -61,7 +64,7 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
       onOpenChange={(v) => {
         if (!v && !busy.current) onClose()
       }}
-      title="创建 API Key"
+      title={tr('创建 API Key')}
     >
       <form
         onSubmit={(e) => {
@@ -72,12 +75,12 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
         <div className="modal-body">
           {secret ? (
             <>
-              <SecretValue label="API Key" value={secret} />
-              <p className="quiet">仅显示一次，请保存</p>
+              <SecretValue label={tr('API Key')} value={secret} />
+              <p className="quiet">{tr('仅显示一次，请保存')}</p>
             </>
           ) : (
             <>
-              <Field label="名称">
+              <Field label={tr('名称')}>
                 <input
                   autoFocus
                   value={name}
@@ -86,24 +89,24 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
                   onChange={(e) => setName(e.target.value)}
                 />
               </Field>
-              <Field label="过期时间">
+              <Field label={tr('过期时间')}>
                 <ChoicePicker
-                  label="过期时间"
+                  label={tr('过期时间')}
                   value={expiration}
                   disabled={pending}
                   onChange={setExpiration}
                   options={[
-                    { value: 'never', label: '不过期' },
-                    { value: '7', label: '7 天' },
-                    { value: '30', label: '30 天' },
-                    { value: '90', label: '90 天' },
-                    { value: '365', label: '1 年' },
-                    { value: 'custom', label: '自定义时间' },
+                    { value: 'never', label: tr('不过期') },
+                    { value: '7', label: tr('7 天') },
+                    { value: '30', label: tr('30 天') },
+                    { value: '90', label: tr('90 天') },
+                    { value: '365', label: tr('1 年') },
+                    { value: 'custom', label: tr('自定义时间') },
                   ]}
                 />
               </Field>
               {expiration === 'custom' && (
-                <Field label="到期时间">
+                <Field label={tr('到期时间')}>
                   <input
                     type="datetime-local"
                     required
@@ -123,11 +126,11 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>
-            {secret ? '关闭' : '取消'}
+            {secret ? tr('关闭') : tr('取消')}
           </Button>
           {!secret && (
             <Button type="submit" variant="solid" disabled={pending || !name.trim()}>
-              {pending ? '正在创建…' : '创建'}
+              {pending ? tr('正在创建…') : tr('创建')}
             </Button>
           )}
         </div>
@@ -136,6 +139,7 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
   )
 }
 export function TokenSettings() {
+  useTranslation()
   const client = useQueryClient()
   const [page, setPage] = useState(1)
   const [create, setCreate] = useState(false)
@@ -158,7 +162,7 @@ export function TokenSettings() {
   return (
     <>
       <PageActions>
-        <IconButton label="创建 API Key" onClick={() => setCreate(true)}>
+        <IconButton label={tr('创建 API Key')} onClick={() => setCreate(true)}>
           <Plus />
         </IconButton>
       </PageActions>
@@ -170,28 +174,30 @@ export function TokenSettings() {
             retry={() => query.refetch()}
           />
         ) : !query.data.items.length ? (
-          <div className="settings-request content-card">暂无 API Key</div>
+          <div className="settings-request content-card">{tr('暂无 API Key')}</div>
         ) : (
           <div className="settings-table content-card">
             <div className="settings-token-row settings-table-head table-head">
-              <span>名称</span>
-              <span>到期时间</span>
-              <span>操作</span>
+              <span>{tr('名称')}</span>
+              <span>{tr('到期时间')}</span>
+              <span>{tr('操作')}</span>
             </div>
             {query.data.items.map((token) => (
               <div className="settings-token-row" key={token.id}>
                 <span className="settings-token-name">
                   {token.name}
                   {token.expires_at && new Date(token.expires_at).getTime() < Date.now() && (
-                    <small className="quiet">已过期</small>
+                    <small className="quiet">{tr('已过期')}</small>
                   )}
                 </span>
                 <span className="mono quiet">
-                  {token.expires_at ? new Date(token.expires_at).toLocaleString('zh-CN') : '不过期'}
+                  {token.expires_at
+                    ? new Date(token.expires_at).toLocaleString(locale())
+                    : tr('不过期')}
                 </span>
                 <IconButton
-                  label="撤销"
-                  tooltip={`撤销 ${token.name}`}
+                  label={tr('撤销')}
+                  tooltip={tr('撤销 {{v0}}', { v0: token.name })}
                   danger
                   onClick={() => {
                     revoke.reset()
@@ -219,8 +225,10 @@ export function TokenSettings() {
         onOpenChange={(v) => {
           if (!v && !revoke.isPending) setSelected(null)
         }}
-        title="撤销 API Key"
-        description={`撤销「${selected?.name ?? ''}」后，使用它的 CLI 或脚本将失去访问权限。`}
+        title={tr('撤销 API Key')}
+        description={tr('撤销「{{v0}}」后，使用它的 CLI 或脚本将失去访问权限。', {
+          v0: selected?.name ?? '',
+        })}
       >
         <div className="modal-body">
           {revoke.error && (
@@ -231,7 +239,7 @@ export function TokenSettings() {
         </div>
         <div className="modal-footer">
           <Button disabled={revoke.isPending} onClick={() => setSelected(null)}>
-            取消
+            {tr('取消')}
           </Button>
           <Button
             variant="solid"
@@ -239,7 +247,7 @@ export function TokenSettings() {
             disabled={revoke.isPending}
             onClick={() => selected && revoke.mutate(selected.id)}
           >
-            {revoke.isPending ? '正在撤销…' : '撤销'}
+            {revoke.isPending ? tr('正在撤销…') : tr('撤销')}
           </Button>
         </div>
       </Modal>

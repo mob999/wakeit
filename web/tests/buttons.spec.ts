@@ -37,7 +37,7 @@ test('transparent actions expose tooltips and retain textual form submission', a
   await expect(page.getByRole('tooltip')).toHaveText('新建任务')
   await page.keyboard.press('Escape')
   await expect(page.getByRole('tooltip')).toHaveCount(0)
-  await page.getByRole('heading', { name: 'Tasks', exact: true }).click()
+  await page.getByRole('heading', { name: '任务', exact: true }).click()
   await create.hover()
   await expect(page.getByRole('tooltip')).toHaveText('新建任务')
   await create.click()
@@ -46,18 +46,18 @@ test('transparent actions expose tooltips and retain textual form submission', a
   await expect(dialog.getByRole('button', { name: '下一步', exact: true })).toHaveClass(/solid/)
   await expect(dialog.getByRole('button', { name: '取消', exact: true })).toHaveClass(/ghost/)
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
-  await page.getByRole('link', { name: 'Runners', exact: true }).click()
+  await page.getByRole('link', { name: '设备', exact: true }).click()
   await page
     .locator('.list-pane')
     .getByRole('button', { name: /^test-device / })
     .click()
   await expect(page.locator('.pane-heading .count')).toHaveCount(0)
-  await expect(page.getByRole('tab', { name: 'Agents', exact: true })).toHaveText('Agents')
+  await expect(page.getByRole('tab', { name: 'Agent', exact: true })).toHaveText('Agent')
   await page.getByRole('button', { name: '设备操作', exact: true }).click()
   await expect(page.getByRole('menuitem', { name: '吊销设备', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
-  await page.getByRole('link', { name: 'Runs', exact: true }).click()
-  await expect(page.locator('.pane-heading')).toHaveText('Runs')
+  await page.getByRole('link', { name: '运行记录', exact: true }).click()
+  await expect(page.locator('.pane-heading')).toHaveText('运行记录')
   await expect(page.locator('.pane-heading svg')).toHaveCount(0)
 })
 
@@ -90,7 +90,7 @@ test('title copy actions copy the exact Task and Run IDs without exposing them a
   await page.getByRole('button', { name: '复制 Run ID', exact: true }).click()
   await expect.poll(() => page.evaluate(() => (window as any).copiedValue)).toBe(run.id)
   await expect(page.locator('.detail-heading .status')).toHaveCount(0)
-  for (const name of ['Tasks', 'Runs', 'Runners', 'Settings']) {
+  for (const name of ['任务', '运行记录', '设备', '设置']) {
     await page.getByRole('link', { name, exact: true }).click()
     await expect(page.locator('.pane-heading .count')).toHaveCount(0)
   }
@@ -176,8 +176,8 @@ test('navigation can resize and collapse independently while account and version
   await aligned()
   expect(page.url()).toBe(url)
   await expect(page.locator('.header-breadcrumbs [role="heading"]')).toHaveText(heading)
-  await page.locator('.navigation').getByRole('link', { name: 'Runs', exact: true }).hover()
-  await expect(page.getByRole('tooltip')).toHaveText('Runs')
+  await page.locator('.navigation').getByRole('link', { name: '运行记录', exact: true }).hover()
+  await expect(page.getByRole('tooltip')).toHaveText('运行记录')
   await page.reload()
   await expect(header.getByRole('button', { name: '展开导航', exact: true })).toHaveAttribute(
     'aria-expanded',

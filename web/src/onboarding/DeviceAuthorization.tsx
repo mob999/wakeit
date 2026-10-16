@@ -1,13 +1,17 @@
+import { t as tr, roleName } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, type User } from '../api'
 import { Modal, Button, Field } from '../ui'
+import { LanguageSwitch } from '../LanguageSwitch'
 type Request = {
   gateway: string
   state: string
   intent: { name: string; os: string; register_runner: boolean; allowed_roots: string[] }
 }
 export function DeviceAuthorization({ user }: { user: User }) {
+  useTranslation()
   const [code, setCode] = useState(new URLSearchParams(location.search).get('user_code') ?? '')
   const [submitted, setSubmitted] = useState(code)
   const [busy, setBusy] = useState(false)
@@ -32,7 +36,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
         'POST',
         {},
       )
-      setDone(allow ? '已授权，可以返回终端' : '已拒绝授权')
+      setDone(allow ? tr('已授权，可以返回终端') : tr('已拒绝授权'))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -46,7 +50,8 @@ export function DeviceAuthorization({ user }: { user: User }) {
         onOpenChange={() => {
           if (!busy) location.assign('/')
         }}
-        title="连接 Wakeit CLI"
+        title={tr('连接 Wakeit CLI')}
+        actions={<LanguageSwitch />}
       >
         <div className="modal-body device-authorization">
           {done ? (
@@ -60,10 +65,10 @@ export function DeviceAuthorization({ user }: { user: User }) {
                     setSubmitted(code.replace(/[ -]/g, '').toUpperCase())
                   }}
                 >
-                  <Field label="验证码">
+                  <Field label={tr('验证码')}>
                     <input
                       autoComplete="off"
-                      aria-label="验证码"
+                      aria-label={tr('验证码')}
                       maxLength={10}
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
@@ -74,11 +79,11 @@ export function DeviceAuthorization({ user }: { user: User }) {
                     type="submit"
                     disabled={code.replace(/[ -]/g, '').length !== 8}
                   >
-                    继续
+                    {tr('继续')}
                   </Button>
                 </form>
               )}
-              {query.isFetching && <p role="status">正在读取授权请求…</p>}
+              {query.isFetching && <p role="status">{tr('正在读取授权请求…')}</p>}
               {query.error && <p role="alert">{query.error.message}</p>}
               {request && (
                 <>
@@ -88,28 +93,28 @@ export function DeviceAuthorization({ user }: { user: User }) {
                       <dd>{request.gateway}</dd>
                     </div>
                     <div>
-                      <dt>账号</dt>
+                      <dt>{tr('账号')}</dt>
                       <dd>
-                        {user.username} <small>{user.role}</small>
+                        {user.username} <small>{roleName(user.role)}</small>
                       </dd>
                     </div>
                     <div>
-                      <dt>验证码</dt>
+                      <dt>{tr('验证码')}</dt>
                       <dd className="authorization-code">{submitted}</dd>
                     </div>
                     <div>
-                      <dt>设备</dt>
+                      <dt>{tr('设备')}</dt>
                       <dd>
                         {request.intent.name} <small>{request.intent.os}</small>
                       </dd>
                     </div>
                     <div>
-                      <dt>注册 Runner</dt>
-                      <dd>{request.intent.register_runner ? '是' : '否'}</dd>
+                      <dt>{tr('注册 Runner')}</dt>
+                      <dd>{request.intent.register_runner ? tr('是') : tr('否')}</dd>
                     </div>
                     {request.intent.register_runner && (
                       <div>
-                        <dt>执行目录</dt>
+                        <dt>{tr('执行目录')}</dt>
                         <dd>
                           {request.intent.allowed_roots.map((p) => (
                             <code key={p}>{p}</code>
@@ -118,15 +123,15 @@ export function DeviceAuthorization({ user }: { user: User }) {
                       </div>
                     )}
                   </dl>
-                  {denied && <p role="alert">注册 Runner 需要 Operator 或 Admin 权限。</p>}
+                  {denied && <p role="alert">{tr('注册 Runner 需要 Operator 或 Admin 权限。')}</p>}
                   {request.state !== 'pending' && (
                     <p role="status">
                       {(
                         {
-                          approved: '已批准，请返回终端',
-                          denied: '已拒绝授权',
-                          expired: '授权请求已过期',
-                          consumed: '授权已完成',
+                          approved: tr('已批准，请返回终端'),
+                          denied: tr('已拒绝授权'),
+                          expired: tr('授权请求已过期'),
+                          consumed: tr('授权已完成'),
                         } as Record<string, string>
                       )[request.state] ?? request.state}
                     </p>
@@ -139,11 +144,11 @@ export function DeviceAuthorization({ user }: { user: User }) {
         </div>
         <div className="modal-footer">
           {done || request?.state !== 'pending' ? (
-            <Button onClick={() => location.assign('/')}>关闭</Button>
+            <Button onClick={() => location.assign('/')}>{tr('关闭')}</Button>
           ) : (
             <>
               <Button disabled={busy} onClick={() => decide(false)}>
-                取消
+                {tr('取消')}
               </Button>
               <Button
                 variant="solid"
@@ -151,7 +156,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
                 disabled={!!denied || !request}
                 onClick={() => decide(true)}
               >
-                授权
+                {tr('授权')}
               </Button>
             </>
           )}

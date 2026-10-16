@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Braces, Check } from 'lucide-react'
 import { IconButton, Modal, Button } from '../ui'
@@ -27,6 +29,7 @@ ${JSON.stringify({ gateway: meta.public_url, install: meta.install }, null, 2)}
 7. Check wakeit connection list, wakeit runner list, wakeit agent list and wakeit task list. Verify that the connection works from another directory, the target Runner is online, the allowed roots are correct, installed Agents are detected, user-level autostart works, and the Wakeit skill is installed or its specific limitation is reported. Report readiness or the exact unfinished steps without printing secrets. Do not create or execute tasks on your own.`
 }
 export function AgentPrompt({ meta }: { meta?: GatewayMeta }) {
+  useTranslation()
   const [copied, setCopied] = useState(false)
   const [manual, setManual] = useState(false)
   const prompt = meta?.public_url && meta.install ? agentPrompt(meta) : ''
@@ -42,8 +45,8 @@ export function AgentPrompt({ meta }: { meta?: GatewayMeta }) {
   return (
     <>
       <IconButton
-        label="复制 Agent Prompt"
-        tooltip={copied ? '已复制' : '复制 Agent Prompt'}
+        label={tr('复制 Agent Prompt')}
+        tooltip={copied ? tr('已复制') : tr('复制 Agent Prompt')}
         disabled={!prompt}
         onClick={copy}
       >
@@ -60,7 +63,7 @@ export function AgentPrompt({ meta }: { meta?: GatewayMeta }) {
           />
         </div>
         <div className="modal-footer">
-          <Button onClick={() => setManual(false)}>关闭</Button>
+          <Button onClick={() => setManual(false)}>{tr('关闭')}</Button>
         </div>
       </Modal>
     </>

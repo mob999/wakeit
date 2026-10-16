@@ -1,3 +1,5 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import React, { type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tooltip from '@radix-ui/react-tooltip'
@@ -20,6 +22,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   },
   ref,
 ) {
+  useTranslation()
   return (
     <button
       {...props}
@@ -48,6 +51,7 @@ export function TooltipTarget({
   children: React.ReactElement
   enabled?: boolean
 }) {
+  useTranslation()
   if (!enabled) return children
   return (
     <Tooltip.Root>
@@ -64,6 +68,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(f
   { label, tooltip = label, children, className, loading = false, ...props },
   ref,
 ) {
+  useTranslation()
   return (
     <TooltipTarget label={tooltip}>
       <Button
@@ -82,6 +87,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(f
   )
 })
 export function TooltipProvider({ children }: { children: ReactNode }) {
+  useTranslation()
   return (
     <Tooltip.Provider delayDuration={400} skipDelayDuration={0}>
       {children}
@@ -93,6 +99,7 @@ export function Modal({
   onOpenChange,
   title,
   description,
+  actions,
   children,
   wide = false,
 }: {
@@ -100,9 +107,11 @@ export function Modal({
   onOpenChange: (v: boolean) => void
   title: string
   description?: string
+  actions?: ReactNode
   children: ReactNode
   wide?: boolean
 }) {
+  useTranslation()
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -116,11 +125,14 @@ export function Modal({
               <Dialog.Title>{title}</Dialog.Title>
               {description && <Dialog.Description>{description}</Dialog.Description>}
             </div>
-            <Dialog.Close asChild>
-              <IconButton label="关闭">
-                <X />
-              </IconButton>
-            </Dialog.Close>
+            <div className="modal-heading-actions">
+              {actions}
+              <Dialog.Close asChild>
+                <IconButton label={tr('关闭')}>
+                  <X />
+                </IconButton>
+              </Dialog.Close>
+            </div>
           </div>
           {children}
         </Dialog.Content>
@@ -137,6 +149,7 @@ export function Field({
   children: ReactNode
   hint?: string
 }) {
+  useTranslation()
   const id = React.useId()
   const child = React.isValidElement(children)
     ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {

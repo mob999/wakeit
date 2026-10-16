@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -31,6 +33,7 @@ export function RunDetail({
   user: User
   toast: (message: string) => void
 }) {
+  useTranslation()
   const run = useQuery<Run>({
     queryKey: ['run', id],
     queryFn: () => api(`/runs/${id}`),
@@ -108,13 +111,13 @@ export function RunDetail({
   if (!run.data)
     return (
       <div className="empty">
-        <h3>{run.error ? '无法读取运行记录' : '正在加载…'}</h3>
+        <h3>{run.error ? tr('无法读取运行记录') : tr('正在加载…')}</h3>
         {run.error && (
           <>
             <p className="error">{run.error.message}</p>
             <Button onClick={() => run.refetch()}>
               <RotateCcw size={14} />
-              重试
+              {tr('重试')}
             </Button>
           </>
         )}
@@ -136,7 +139,7 @@ export function RunDetail({
   return (
     <>
       <PageActions>
-        <CopyValue label="复制 Run ID" value={id} toast={toast} />
+        <CopyValue label={tr('复制 Run ID')} value={id} toast={toast} />
         <ResumeRun
           run={r}
           id={id}
@@ -145,7 +148,7 @@ export function RunDetail({
         />
         {editable && terminal(r.state) && r.session?.ready && (
           <IconButton
-            label="从此会话创建任务"
+            label={tr('从此会话创建任务')}
             loading={createTask && settings.isPending}
             onClick={() => setCreateTask(true)}
           >
@@ -154,8 +157,8 @@ export function RunDetail({
         )}
         {editable && ['queued', 'starting', 'running'].includes(r.state) && (
           <IconButton
-            label="取消"
-            tooltip={r.cancel_requested ? '取消已请求' : '取消执行'}
+            label={tr('取消')}
+            tooltip={r.cancel_requested ? tr('取消已请求') : tr('取消执行')}
             danger
             disabled={!cancellable || r.cancel_requested || action.isPending}
             onClick={() => action.mutate('cancel')}
@@ -165,7 +168,7 @@ export function RunDetail({
         )}
         {editable && !r.task_archived && terminal(r.state) && (
           <IconButton
-            label="重试"
+            label={tr('重试')}
             onClick={() => action.mutate('retry')}
             loading={action.isPending}
           >
@@ -173,16 +176,16 @@ export function RunDetail({
           </IconButton>
         )}
         {editable && r.state === 'unknown' && (
-          <IconButton label="核对状态" onClick={() => setResolve(true)}>
+          <IconButton label={tr('核对状态')} onClick={() => setResolve(true)}>
             <ClipboardCheck />
           </IconButton>
         )}
       </PageActions>
-      <div className="tabs" role="tablist" aria-label="运行内容">
+      <div className="tabs" role="tablist" aria-label={tr('运行内容')}>
         {(
           [
-            ['execute', '执行'],
-            ['details', '详情'],
+            ['execute', tr('执行')],
+            ['details', tr('详情')],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -205,17 +208,17 @@ export function RunDetail({
           </div>
         )}
         {['queued', 'starting'].includes(r.state) && (
-          <p className="run-waiting quiet content-card">等待执行</p>
+          <p className="run-waiting quiet content-card">{tr('等待执行')}</p>
         )}
         {r.state === 'succeeded' && !hasResult && (
-          <p className="run-waiting quiet content-card">未返回结果</p>
+          <p className="run-waiting quiet content-card">{tr('未返回结果')}</p>
         )}
         <RunSection
           title={
             r.execution_snapshot?.trace_supported === false ||
             (!r.execution_snapshot?.trace_supported && !trace.state.nodes.size && !!logs)
-              ? '输出'
-              : '过程'
+              ? tr('输出')
+              : tr('过程')
           }
           hidden={
             ['queued', 'starting', 'skipped'].includes(r.state) && !trace.state.nodes.size && !logs
@@ -228,8 +231,8 @@ export function RunDetail({
               <RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />
             ) : (
               <div className="trace-column-labels">
-                <span>状态</span>
-                <span>耗时</span>
+                <span>{tr('状态')}</span>
+                <span>{tr('耗时')}</span>
               </div>
             )
           }
@@ -249,7 +252,7 @@ export function RunDetail({
           )}
         </RunSection>
         <RunSection
-          title="结果"
+          title={tr('结果')}
           open={resultOpen}
           onChange={setResultOpen}
           hidden={!hasResult}
@@ -260,7 +263,7 @@ export function RunDetail({
       </div>
       <div className="run-page run-diagnostic-page" hidden={tab !== 'details'}>
         <RunSection
-          title="日志"
+          title={tr('日志')}
           open={logsOpen}
           onChange={setLogsOpen}
           actions={<RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />}
@@ -274,7 +277,7 @@ export function RunDetail({
             retry={() => setLogAttempt((v) => v + 1)}
           />
         </RunSection>
-        <RunSection title="执行信息" open={infoOpen} onChange={setInfoOpen}>
+        <RunSection title={tr('执行信息')} open={infoOpen} onChange={setInfoOpen}>
           <RunDetails run={r} agents={agents.data} events={events} />
         </RunSection>
       </div>
@@ -296,6 +299,7 @@ export function RunDetail({
   )
 }
 function ResolveDialog({ id, onClose }: { id: string; onClose: () => void }) {
+  useTranslation()
   const [state, setState] = useState('interrupted')
   const [reason, setReason] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -313,23 +317,23 @@ function ResolveDialog({ id, onClose }: { id: string; onClose: () => void }) {
     <Modal
       open
       onOpenChange={(v) => !v && onClose()}
-      title="核对执行状态"
-      description="检查设备或外部任务后，为本次执行记录确认的结果。"
+      title={tr('核对执行状态')}
+      description={tr('检查设备或外部任务后，为本次执行记录确认的结果。')}
     >
       <div className="modal-body">
-        <Field label="确认状态">
+        <Field label={tr('确认状态')}>
           <select value={state} onChange={(e) => setState(e.target.value)}>
-            <option value="interrupted">已中断</option>
-            <option value="cancelled">已取消</option>
-            <option value="failed">失败</option>
-            <option value="succeeded">成功</option>
+            <option value="interrupted">{tr('已中断')}</option>
+            <option value="cancelled">{tr('已取消')}</option>
+            <option value="failed">{tr('失败')}</option>
+            <option value="succeeded">{tr('成功')}</option>
           </select>
         </Field>
-        <Field label="核对说明">
+        <Field label={tr('核对说明')}>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="记录核对方式与实际结果"
+            placeholder={tr('记录核对方式与实际结果')}
             rows={3}
           />
         </Field>
@@ -339,18 +343,18 @@ function ResolveDialog({ id, onClose }: { id: string; onClose: () => void }) {
             checked={confirmed}
             onChange={(e) => setConfirmed(e.target.checked)}
           />{' '}
-          我已核对实际任务状态
+          {tr('我已核对实际任务状态')}
         </label>
         {error && <p className="error">{error}</p>}
       </div>
       <div className="modal-footer">
-        <Button onClick={onClose}>取消</Button>
+        <Button onClick={onClose}>{tr('取消')}</Button>
         <Button
           variant="solid"
           disabled={!confirmed || !reason.trim() || save.isPending}
           onClick={() => save.mutate()}
         >
-          保存确认结果
+          {tr('保存确认结果')}
         </Button>
       </div>
     </Modal>

@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useState, useRef, useEffect, useId, type KeyboardEvent } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { Folder, FolderRoot, ArrowUp, RefreshCw, Eye, EyeOff, ChevronRight } from 'lucide-react'
@@ -17,6 +19,7 @@ export function DirectoryBrowser({
   onSelect: (path: string) => void
   onCancel: () => void
 }) {
+  useTranslation()
   const client = useQueryClient()
   const listId = useId()
   const input = useRef<HTMLInputElement>(null)
@@ -101,7 +104,7 @@ export function DirectoryBrowser({
         staleTime: 0,
         retry: false,
       })
-      if (!checked.path) throw new Error('请选择目录')
+      if (!checked.path) throw new Error(tr('请选择目录'))
       if (alive.current) onSelect(checked.path)
     } catch (e) {
       if (alive.current) {
@@ -174,11 +177,11 @@ export function DirectoryBrowser({
     <>
       <div className="modal-body directory-quick-picker">
         <div className="directory-quick-toolbar">
-          <IconButton label="允许的根目录" disabled={selecting} onClick={() => browse(null)}>
+          <IconButton label={tr('允许的根目录')} disabled={selecting} onClick={() => browse(null)}>
             <FolderRoot />
           </IconButton>
           <IconButton
-            label="上一级"
+            label={tr('上一级')}
             disabled={!data?.parent || selecting || listing.isFetching}
             onClick={() => browse(data?.parent ?? null)}
           >
@@ -187,7 +190,7 @@ export function DirectoryBrowser({
           <input
             ref={input}
             className="mono directory-input"
-            aria-label="目录路径"
+            aria-label={tr('目录路径')}
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={true}
@@ -197,7 +200,7 @@ export function DirectoryBrowser({
             spellCheck={false}
             value={draft}
             disabled={selecting}
-            placeholder="输入路径或目录名"
+            placeholder={tr('输入路径或目录名')}
             onKeyDown={key}
             onChange={(e) => {
               queued.current = null
@@ -207,7 +210,7 @@ export function DirectoryBrowser({
             }}
           />
           <IconButton
-            label={hidden ? '隐藏点开头的目录' : '显示隐藏目录'}
+            label={hidden ? tr('隐藏点开头的目录') : tr('显示隐藏目录')}
             aria-pressed={hidden}
             disabled={selecting}
             onClick={() => {
@@ -218,7 +221,7 @@ export function DirectoryBrowser({
             {hidden ? <EyeOff /> : <Eye />}
           </IconButton>
           <IconButton
-            label="刷新目录"
+            label={tr('刷新目录')}
             loading={listing.isRefetching}
             disabled={selecting || listing.isFetching}
             onClick={() => listing.refetch()}
@@ -229,13 +232,18 @@ export function DirectoryBrowser({
         <div className="directory-quick-results" aria-busy={busy}>
           {(!runner.online || listing.error || error) && (
             <p className="error directory-state" role="alert">
-              {!runner.online ? '设备离线，无法浏览。' : error || listing.error?.message}
+              {!runner.online ? tr('设备离线，无法浏览。') : error || listing.error?.message}
             </p>
           )}
           {listing.isPending ? (
-            <p className="quiet directory-state">正在读取目录…</p>
+            <p className="quiet directory-state">{tr('正在读取目录…')}</p>
           ) : (
-            <div id={listId} role="listbox" aria-label="目录" className="directory-quick-list">
+            <div
+              id={listId}
+              role="listbox"
+              aria-label={tr('目录')}
+              className="directory-quick-list"
+            >
               {entries.map((entry, index) => (
                 <div
                   className={`directory-quick-row ${active === index ? 'selected' : ''}`}
@@ -262,7 +270,7 @@ export function DirectoryBrowser({
                     </span>
                   </button>
                   <IconButton
-                    label={`打开 ${entry.name}`}
+                    label={tr('打开 {{v0}}', { v0: entry.name })}
                     disabled={selecting}
                     onClick={() => browse(entry.path)}
                   >
@@ -271,7 +279,9 @@ export function DirectoryBrowser({
                 </div>
               ))}
               {!entries.length && !listing.error && (
-                <p className="quiet directory-state">{needle ? '无匹配目录' : '没有子目录'}</p>
+                <p className="quiet directory-state">
+                  {needle ? tr('无匹配目录') : tr('没有子目录')}
+                </p>
               )}
             </div>
           )}
@@ -282,7 +292,7 @@ export function DirectoryBrowser({
               disabled={selecting}
               onClick={() => listing.fetchNextPage()}
             >
-              加载更多
+              {tr('加载更多')}
             </Button>
           )}
         </div>
@@ -292,7 +302,7 @@ export function DirectoryBrowser({
           {selected ?? ''}
         </output>
         <Button disabled={selecting} onClick={onCancel}>
-          取消
+          {tr('取消')}
         </Button>
         <Button
           variant="solid"
@@ -300,7 +310,7 @@ export function DirectoryBrowser({
           disabled={!selected || busy || !!listing.error || !runner.online}
           onClick={choose}
         >
-          选择文件夹
+          {tr('选择文件夹')}
         </Button>
       </div>
     </>

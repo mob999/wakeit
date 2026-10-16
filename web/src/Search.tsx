@@ -1,3 +1,5 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import {
   createContext,
   useContext,
@@ -35,22 +37,61 @@ export type Filters = {
 }
 export type PageResult<T> = { items: T[]; total: number; page: number; page_size: number }
 const scopes = [
-  { id: 'tasks', name: 'Tasks', icon: ListTodo, path: '/tasks' },
-  { id: 'runs', name: 'Runs', icon: History, path: '/runs' },
-  { id: 'runners', name: 'Runners', icon: Monitor, path: '/runners' },
-  { id: 'agents', name: 'Agents', icon: Bot, path: '/runners' },
-  { id: 'settings', name: 'Settings', icon: Settings2, path: '/settings' },
+  {
+    id: 'tasks',
+    get name() {
+      return tr('Tasks')
+    },
+    icon: ListTodo,
+    path: '/tasks',
+  },
+  {
+    id: 'runs',
+    get name() {
+      return tr('Runs')
+    },
+    icon: History,
+    path: '/runs',
+  },
+  {
+    id: 'runners',
+    get name() {
+      return tr('Runners')
+    },
+    icon: Monitor,
+    path: '/runners',
+  },
+  {
+    id: 'agents',
+    get name() {
+      return tr('Agents')
+    },
+    icon: Bot,
+    path: '/runners',
+  },
+  {
+    id: 'settings',
+    get name() {
+      return tr('Settings')
+    },
+    icon: Settings2,
+    path: '/settings',
+  },
 ] as const
 export const settingSections = (role: User['role']) => [
   ...(role === 'admin'
     ? [
-        { id: 'workspace', name: '工作区', terms: 'workspace 时区 日志 保留 timezone retention' },
-        { id: 'members', name: '成员', terms: 'members admin operator viewer 邀请 角色' },
+        {
+          id: 'workspace',
+          name: tr('工作区'),
+          terms: 'workspace 时区 日志 保留 timezone retention',
+        },
+        { id: 'members', name: tr('成员'), terms: 'members admin operator viewer 邀请 角色' },
       ]
     : []),
-  { id: 'tokens', name: '个人 API Key', terms: 'key token api 凭据 cli' },
+  { id: 'tokens', name: tr('个人 API Key'), terms: 'key token api 凭据 cli' },
   ...(role !== 'viewer'
-    ? [{ id: 'archived', name: '归档任务', terms: 'archive archived task 归档 恢复' }]
+    ? [{ id: 'archived', name: tr('归档任务'), terms: 'archive archived task 归档 恢复' }]
     : []),
 ]
 const SearchContext = createContext<{
@@ -97,6 +138,7 @@ export const agentMatches = (a: Agent, f: Filters) =>
   (!f.available || a.available === (f.available === 'true')) &&
   (!f.mode || a.mode === f.mode)
 export function SearchProvider({ user, children }: { user: User; children: ReactNode }) {
+  useTranslation()
   const [filters, setFilters] = useState<Partial<Record<Scope, Filters>>>({})
   const guardRef = useRef<(() => Promise<boolean>) | null>(null)
   const registerGuard = useCallback((guard: () => Promise<boolean>) => {
@@ -133,26 +175,28 @@ export function SearchLauncher({
   collapsed?: boolean
   onOpen?: () => void
 }) {
+  useTranslation()
   const { open, filters } = useContext(SearchContext)
   const active = Object.values(filters).some((f) => Object.values(f).some(Boolean))
   return (
-    <TooltipTarget label="搜索与筛选" enabled={collapsed}>
+    <TooltipTarget label={tr('搜索与筛选')} enabled={collapsed}>
       <button
         className="nav-item nav-search"
         onClick={() => {
           onOpen?.()
           open()
         }}
-        aria-label="搜索与筛选"
+        aria-label={tr('搜索与筛选')}
       >
         <Search size={16} />
-        <span>搜索</span>
+        <span>{tr('搜索')}</span>
         {active ? <span className="search-indicator" /> : <kbd>⌘K</kbd>}
       </button>
     </TooltipTarget>
   )
 }
 function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  useTranslation()
   const context = useContext(SearchContext)
   const navigate = useNavigate()
   const [q, setQ] = useState('')
@@ -227,9 +271,9 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
         {error ? (
           <p className="error">{error.message}</p>
         ) : loading || q !== debounced ? (
-          <p className="quiet">正在加载…</p>
+          <p className="quiet">{tr('正在加载…')}</p>
         ) : !items.length ? (
-          <p className="quiet search-empty">无匹配结果</p>
+          <p className="quiet search-empty">{tr('无匹配结果')}</p>
         ) : (
           items.map((item) => (
             <button className="search-result" key={item.id} onClick={() => result(scope, item.id)}>
@@ -252,26 +296,26 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
               })
             }
           >
-            查看全部 {total} 条
+            {tr('search.viewAll', { count: total })}
           </button>
         )}
       </section>
     )
   }
   return (
-    <Modal open onOpenChange={(v) => !v && onClose()} title="搜索" wide>
+    <Modal open onOpenChange={(v) => !v && onClose()} title={tr('搜索')} wide>
       <div className="global-search-input">
         <Search size={18} />
         <input
           autoFocus
-          aria-label="搜索内容"
-          placeholder="搜索…"
+          aria-label={tr('搜索内容')}
+          placeholder={tr('搜索…')}
           maxLength={160}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      <div className="search-scopes" aria-label="搜索范围">
+      <div className="search-scopes" aria-label={tr('搜索范围')}>
         {scopes.map(({ id, name, icon: Icon }) => (
           <button
             key={id}
@@ -292,24 +336,24 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
             <div className="search-filters" key={scope}>
               <span>{scopes.find((s) => s.id === scope)!.name}</span>
               {scope === 'tasks' && (
-                <Field label="任务状态">
+                <Field label={tr('任务状态')}>
                   <select
                     value={draft[scope]?.enabled ?? ''}
                     onChange={(e) => update(scope, 'enabled', e.target.value)}
                   >
-                    <option value="">全部</option>
-                    <option value="true">已启用</option>
-                    <option value="false">已暂停</option>
+                    <option value="">{tr('全部')}</option>
+                    <option value="true">{tr('已启用')}</option>
+                    <option value="false">{tr('已暂停')}</option>
                   </select>
                 </Field>
               )}
               {scope === 'runs' && (
-                <Field label="运行状态">
+                <Field label={tr('运行状态')}>
                   <select
                     value={draft[scope]?.state ?? ''}
                     onChange={(e) => update(scope, 'state', e.target.value)}
                   >
-                    <option value="">全部</option>
+                    <option value="">{tr('全部')}</option>
                     {Object.entries(stateNames).map(([id, name]) => (
                       <option key={id} value={id}>
                         {name}
@@ -319,50 +363,50 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
                 </Field>
               )}
               {scope === 'runners' && (
-                <Field label="设备状态">
+                <Field label={tr('设备状态')}>
                   <select
                     value={draft[scope]?.online ?? ''}
                     onChange={(e) => update(scope, 'online', e.target.value)}
                   >
-                    <option value="">全部</option>
-                    <option value="online">在线</option>
-                    <option value="offline">离线</option>
-                    <option value="revoked">已吊销</option>
+                    <option value="">{tr('全部')}</option>
+                    <option value="online">{tr('在线')}</option>
+                    <option value="offline">{tr('离线')}</option>
+                    <option value="revoked">{tr('已吊销')}</option>
                   </select>
                 </Field>
               )}
               {scope === 'agents' && (
                 <>
-                  <Field label="适配状态">
+                  <Field label={tr('适配状态')}>
                     <select
                       value={draft[scope]?.available ?? ''}
                       onChange={(e) => update(scope, 'available', e.target.value)}
                     >
-                      <option value="">全部</option>
-                      <option value="true">已检测到</option>
-                      <option value="false">未检测到</option>
+                      <option value="">{tr('全部')}</option>
+                      <option value="true">{tr('已检测到')}</option>
+                      <option value="false">{tr('未检测到')}</option>
                     </select>
                   </Field>
-                  <Field label="模式">
+                  <Field label={tr('模式')}>
                     <select
                       value={draft[scope]?.mode ?? ''}
                       onChange={(e) => update(scope, 'mode', e.target.value)}
                     >
-                      <option value="">全部</option>
-                      <option value="sync">sync</option>
-                      <option value="async">async</option>
+                      <option value="">{tr('全部')}</option>
+                      <option value="sync">{tr('同步')}</option>
+                      <option value="async">{tr('异步')}</option>
                     </select>
                   </Field>
                 </>
               )}
               {['tasks', 'runs', 'agents'].includes(scope) && (
-                <Field label="Runner">
+                <Field label={tr('Runner')}>
                   <select
                     aria-label={`${scopes.find((s) => s.id === scope)!.name} Runner`}
                     value={draft[scope]?.runner ?? ''}
                     onChange={(e) => update(scope, 'runner', e.target.value)}
                   >
-                    <option value="">全部 Runner</option>
+                    <option value="">{tr('全部 Runner')}</option>
                     {runners.data?.map((r) => (
                       <option key={r.id} value={r.name}>
                         {r.name}
@@ -372,13 +416,13 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
                 </Field>
               )}
               {['tasks', 'runs'].includes(scope) && (
-                <Field label="Agent">
+                <Field label={tr('Agent')}>
                   <select
                     aria-label={`${scopes.find((s) => s.id === scope)!.name} Agent`}
                     value={draft[scope]?.agent ?? ''}
                     onChange={(e) => update(scope, 'agent', e.target.value)}
                   >
-                    <option value="">全部 Agent</option>
+                    <option value="">{tr('全部 Agent')}</option>
                     {[...new Set(agents.data?.map((a) => a.id))].map((id) => (
                       <option key={id} value={id}>
                         {id}
@@ -423,7 +467,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
               .map((r) => ({
                 id: r.id,
                 name: r.name,
-                meta: r.revoked ? '已吊销' : r.online ? '在线' : '离线',
+                meta: r.revoked ? tr('已吊销') : r.online ? tr('在线') : tr('离线'),
               })),
             undefined,
             runners.error,
@@ -461,7 +505,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
             setSelected([])
           }}
         >
-          清除筛选
+          {tr('清除筛选')}
         </Button>
         <Button
           variant="solid"
@@ -484,7 +528,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
             })
           }
         >
-          应用
+          {tr('应用')}
         </Button>
       </div>
     </Modal>

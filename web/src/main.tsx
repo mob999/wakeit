@@ -1,8 +1,11 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { MomentsPage, MomentsVisit } from './moments/MomentsPage'
 import { ContentCard } from './ContentCard'
 import { Button, IconButton, Field, Modal, TooltipProvider } from './ui'
 import { CopyValue } from './runs/CopyValue'
 import { PageActions } from './PageHeader'
+import { LanguageSwitch } from './LanguageSwitch'
 import { Layout } from './Layout'
 import { DeviceAuthorization } from './onboarding/DeviceAuthorization'
 import { TaskEditor } from './TaskEditor'
@@ -71,6 +74,7 @@ function Empty({
   detail?: string
   children?: ReactNode
 }) {
+  useTranslation()
   return (
     <div className="empty">
       <AlarmClock size={27} />
@@ -81,10 +85,12 @@ function Empty({
   )
 }
 function CopyButton({ value }: { value: string }) {
+  useTranslation()
   return <CopyValue value={value} toast={useToast()} />
 }
 
 function App() {
+  useTranslation()
   const me = useQuery<User>({
     queryKey: ['me'],
     queryFn: () => api('/session'),
@@ -127,14 +133,15 @@ function App() {
       {path === '/invite' ? (
         <Login invite />
       ) : me.isPending ? (
-        <Empty title="连接 Wakeit…" />
+        <Empty title={tr('连接 Wakeit…')} />
       ) : me.error ? (
         me.error instanceof ApiError && me.error.status === 401 ? (
           <Login />
         ) : (
-          <Empty title="无法连接 Gateway" detail={me.error.message}>
+          <Empty title={tr('无法连接 Gateway')} detail={me.error.message}>
             <Button onClick={() => me.refetch()}>
-              <RefreshCw size={14} /> 重试
+              <RefreshCw size={14} />
+              {tr('重试')}
             </Button>
           </Empty>
         )
@@ -169,7 +176,7 @@ function App() {
         <div className="toast" role="status">
           <AlertCircle size={15} />
           {toast}
-          <IconButton label="关闭提示" onClick={() => setToast('')}>
+          <IconButton label={tr('关闭提示')} onClick={() => setToast('')}>
             <X />
           </IconButton>
         </div>
@@ -178,6 +185,7 @@ function App() {
   )
 }
 function Login({ invite = false }: { invite?: boolean }) {
+  useTranslation()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -190,7 +198,7 @@ function Login({ invite = false }: { invite?: boolean }) {
     onSuccess: () => {
       if (invite) {
         history.replaceState(null, '', '/')
-        toast('账号已创建，请登录')
+        toast(tr('账号已创建，请登录'))
         location.assign('/')
       } else {
         client.invalidateQueries({ queryKey: ['me'] })
@@ -200,6 +208,7 @@ function Login({ invite = false }: { invite?: boolean }) {
   })
   return (
     <div className="login-wrap">
+      <LanguageSwitch className="login-language" />
       <div className="login-brand">
         <span>Wakeit</span>
       </div>
@@ -211,20 +220,20 @@ function Login({ invite = false }: { invite?: boolean }) {
           login.mutate()
         }}
       >
-        <h1 className="card-header">{invite ? '加入工作区' : '欢迎回来'}</h1>
+        <h1 className="card-header">{invite ? tr('加入工作区') : tr('欢迎回来')}</h1>
         <div className="card-body">
-          <Field label="用户名">
+          <Field label={tr('用户名')}>
             <input
-              aria-label="用户名"
+              aria-label={tr('用户名')}
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
             />
           </Field>
-          <Field label="密码" hint={invite ? '至少 12 个字符' : undefined}>
+          <Field label={tr('密码')} hint={invite ? tr('至少 12 个字符') : undefined}>
             <input
-              aria-label="密码"
+              aria-label={tr('密码')}
               type="password"
               autoComplete={invite ? 'new-password' : 'current-password'}
               value={password}
@@ -239,7 +248,7 @@ function Login({ invite = false }: { invite?: boolean }) {
             </div>
           )}
           <Button variant="solid" type="submit" disabled={login.isPending}>
-            {login.isPending ? '正在连接…' : invite ? '创建账号' : '登录工作区'}
+            {login.isPending ? tr('正在连接…') : invite ? tr('创建账号') : tr('登录工作区')}
             <ArrowUpRight size={14} />
           </Button>
         </div>
@@ -248,6 +257,7 @@ function Login({ invite = false }: { invite?: boolean }) {
   )
 }
 function TasksPage() {
+  useTranslation()
   const agents = useList<Agent>('agents', '/agents')
   const filters = useFilters('tasks')
   const routeSearch = tasksRoute.useSearch()
@@ -327,8 +337,11 @@ function TasksPage() {
     <>
       <Modal
         open={!!archiving}
-        title="归档任务"
-        description={`归档「${archiving?.config.name ?? ''}」后停止调度，取消排队执行；已开始的执行继续，可在设置中恢复。`}
+        title={tr('task.archive')}
+        description={tr(
+          '归档「{{v0}}」后停止调度，取消排队执行；已开始的执行继续，可在设置中恢复。',
+          { v0: archiving?.config.name ?? '' },
+        )}
         onOpenChange={(v) => {
           if (!v && !archive.isPending) setArchiving(null)
         }}
@@ -342,19 +355,19 @@ function TasksPage() {
         </div>
         <div className="modal-footer">
           <Button disabled={archive.isPending} onClick={() => setArchiving(null)}>
-            取消
+            {tr('取消')}
           </Button>
           <Button
             variant="solid"
             disabled={archive.isPending}
             onClick={() => archiving && archive.mutate(archiving)}
           >
-            {archive.isPending ? '正在归档…' : '归档'}
+            {archive.isPending ? tr('正在归档…') : tr('归档')}
           </Button>
         </div>
       </Modal>
       <Split
-        label="Tasks"
+        label={tr('Tasks')}
         crumbs={task ? [{ label: task.config.name }] : []}
         detailOpen={!!routeSearch.task}
         onBack={() => {
@@ -364,10 +377,10 @@ function TasksPage() {
         list={
           <>
             <div className="pane-heading">
-              <h1>Tasks</h1>
+              <h1>{tr('Tasks')}</h1>
               {editable && (
                 <IconButton
-                  label="新建任务"
+                  label={tr('新建任务')}
                   disabled={!settings.data}
                   onClick={() => setEditor('new')}
                 >
@@ -379,9 +392,9 @@ function TasksPage() {
               {tasks.error ? (
                 <div className="error">{tasks.error.message}</div>
               ) : tasks.isPending ? (
-                <p className="quiet padded">正在加载…</p>
+                <p className="quiet padded">{tr('正在加载…')}</p>
               ) : tasks.data?.total === 0 ? (
-                <Empty title="暂无任务" />
+                <Empty title={tr('暂无任务')} />
               ) : (
                 tasks.data?.items.map((t) => (
                   <button
@@ -402,7 +415,7 @@ function TasksPage() {
                     </div>
                     <div className="row-meta next">
                       <Clock size={12} />
-                      {t.config.enabled ? time(t.next_at) : '已暂停'}
+                      {t.config.enabled ? time(t.next_at) : tr('已暂停')}
                       <ChevronRight size={13} />
                     </div>
                   </button>
@@ -423,39 +436,40 @@ function TasksPage() {
         }
       >
         {!task ? (
-          <Empty title="暂无任务">
+          <Empty title={tr('暂无任务')}>
             {editable && (
               <Button onClick={() => setEditor('new')}>
-                <Plus size={14} /> 新建任务
+                <Plus size={14} />
+                {tr('新建任务')}
               </Button>
             )}
           </Empty>
         ) : (
           <>
             <PageActions>
-              <CopyValue label="复制 Task ID" value={task.id} toast={toast} />
-              {task.archived_at && <span className="quiet">已归档</span>}
+              <CopyValue label={tr('复制 Task ID')} value={task.id} toast={toast} />
+              {task.archived_at && <span className="quiet">{tr('已归档')}</span>}
               {editable && !task.archived_at && (
                 <>
-                  <IconButton label="编辑" onClick={() => setEditor(task)}>
+                  <IconButton label={tr('编辑')} onClick={() => setEditor(task)}>
                     <FileCog />
                   </IconButton>
                   <IconButton
-                    label={task.config.enabled ? '暂停任务' : '恢复任务'}
+                    label={task.config.enabled ? tr('暂停任务') : tr('task.resume')}
                     disabled={action.isPending}
                     onClick={() => action.mutate({ task, kind: 'toggle' })}
                   >
                     {task.config.enabled ? <Pause /> : <CalendarCheck />}
                   </IconButton>
                   <IconButton
-                    label="立即执行"
+                    label={tr('立即执行')}
                     disabled={action.isPending}
                     onClick={() => action.mutate({ task, kind: 'trigger' })}
                   >
                     <Play />
                   </IconButton>
                   <IconButton
-                    label="归档任务"
+                    label={tr('task.archive')}
                     disabled={action.isPending}
                     onClick={() => {
                       archive.reset()
@@ -469,9 +483,9 @@ function TasksPage() {
             </PageActions>
             <div className="tabs">
               {[
-                ['overview', '概览'],
-                ['runs', '执行历史'],
-                ['config', '配置'],
+                ['overview', tr('概览')],
+                ['runs', tr('执行历史')],
+                ['config', tr('配置')],
               ].map(([key, label]) => (
                 <button
                   key={key}
@@ -485,15 +499,15 @@ function TasksPage() {
             <div className="detail-scroll">
               {tab === 'overview' ? (
                 <>
-                  <ContentCard title="调度">
+                  <ContentCard title={tr('调度')}>
                     <div className="summary-grid">
                       <div>
-                        <span className="quiet">下一次执行</span>
-                        <strong>{task.config.enabled ? time(task.next_at) : '已暂停'}</strong>
-                        <small>{task.config.schedule?.timezone ?? '手动执行'}</small>
+                        <span className="quiet">{tr('下一次执行')}</span>
+                        <strong>{task.config.enabled ? time(task.next_at) : tr('已暂停')}</strong>
+                        <small>{task.config.schedule?.timezone ?? tr('手动执行')}</small>
                       </div>
                       <div>
-                        <span className="quiet">上次结果</span>
+                        <span className="quiet">{tr('上次结果')}</span>
                         <strong>
                           <Status state={task.last_run?.state ?? 'not_run'} />
                         </strong>
@@ -501,44 +515,44 @@ function TasksPage() {
                       </div>
                     </div>
                   </ContentCard>
-                  <ContentCard title="指令">
+                  <ContentCard title={tr('指令')}>
                     <pre className="task-prompt">{task.config.prompt}</pre>
                   </ContentCard>
-                  <ContentCard title="执行内容">
+                  <ContentCard title={tr('执行内容')}>
                     <dl className="properties">
-                      <dt>Runner</dt>
+                      <dt>{tr('Runner')}</dt>
                       <dd>{task.config.runner}</dd>
-                      <dt>Agent</dt>
+                      <dt>{tr('Agent')}</dt>
                       <dd className="mono">{task.config.agent}</dd>
-                      <dt>工作目录</dt>
+                      <dt>{tr('工作目录')}</dt>
                       <dd className="mono wrap">{task.config.cwd}</dd>
-                      <dt>参数</dt>
+                      <dt>{tr('参数')}</dt>
                       <dd className="mono wrap">
                         {Object.entries(task.config.parameters ?? {})
                           .map(([key, value]) => `${key}: ${value}`)
-                          .join(' · ') || '默认配置'}
+                          .join(' · ') || tr('默认配置')}
                       </dd>
-                      <dt>会话</dt>
+                      <dt>{tr('会话')}</dt>
                       <dd className={task.config.session ? 'mono wrap' : 'quiet'}>
-                        {task.config.session?.id ?? '每次新建'}
+                        {task.config.session?.id ?? tr('每次新建')}
                       </dd>
-                      <dt>执行时间</dt>
+                      <dt>{tr('执行时间')}</dt>
                       <dd className="mono">
                         {task.config.schedule
                           ? (task.config.schedule.cron ??
                             task.config.schedule.every ??
                             time(task.config.schedule.at))
-                          : '手动执行'}
+                          : tr('手动执行')}
                       </dd>
-                      <dt>超时</dt>
+                      <dt>{tr('超时')}</dt>
                       <dd>{task.config.execution.timeout}</dd>
                     </dl>
                   </ContentCard>
-                  <RunTable title="最近执行" runs={history.data?.items.slice(0, 5) ?? []} />
+                  <RunTable title={tr('最近执行')} runs={history.data?.items.slice(0, 5) ?? []} />
                 </>
               ) : tab === 'runs' ? (
                 <>
-                  <RunTable title="执行历史" runs={history.data?.items ?? []} />
+                  <RunTable title={tr('执行历史')} runs={history.data?.items ?? []} />
                   <Pagination
                     page={historyPage}
                     total={history.data?.total ?? 0}
@@ -548,7 +562,7 @@ function TasksPage() {
                 </>
               ) : (
                 <ContentCard
-                  title="Task YAML"
+                  title={tr('Task YAML')}
                   actions={<CopyButton value={YAML.stringify(task.config)} />}
                 >
                   <pre className="code">{YAML.stringify(task.config)}</pre>
@@ -569,14 +583,15 @@ function TasksPage() {
   )
 }
 function RunTable({ runs, title }: { runs: Run[]; title: string }) {
+  useTranslation()
   const agents = useList<Agent>('agents', '/agents')
   return (
     <section className="run-table content-card">
       <div className="run-table-head run-table-row table-head">
         <h3>{title}</h3>
-        <span>执行设备</span>
-        <span>Agent</span>
-        <span>执行时间</span>
+        <span>{tr('执行设备')}</span>
+        <span>{tr('Agent')}</span>
+        <span>{tr('执行时间')}</span>
         <span />
       </div>
       {runs.length ? (
@@ -592,12 +607,13 @@ function RunTable({ runs, title }: { runs: Run[]; title: string }) {
           ))}
         </>
       ) : (
-        <p className="quiet card-state">暂无执行记录</p>
+        <p className="quiet card-state">{tr('暂无执行记录')}</p>
       )}
     </section>
   )
 }
 function RunsPage() {
+  useTranslation()
   const user = useUser()
   const toast = useToast()
   const agents = useList<Agent>('agents', '/agents')
@@ -625,7 +641,7 @@ function RunsPage() {
   const selectedRun = runs.data?.items.find((r) => r.id === selected) ?? detail.data
   return (
     <Split
-      label="Runs"
+      label={tr('Runs')}
       crumbs={
         selectedRun
           ? [
@@ -642,13 +658,13 @@ function RunsPage() {
       list={
         <>
           <div className="pane-heading">
-            <h1>Runs</h1>
+            <h1>{tr('Runs')}</h1>
           </div>
           <div className="list-scroll">
             {runs.error ? (
               <p className="error padded">{runs.error.message}</p>
             ) : !runs.data?.items.length ? (
-              <Empty title="暂无执行记录" />
+              <Empty title={tr('暂无执行记录')} />
             ) : (
               runs.data?.items.map((r) => (
                 <RunListRow
@@ -676,12 +692,13 @@ function RunsPage() {
       {selected ? (
         <RunDetail key={selected} id={selected} user={user} toast={toast} />
       ) : (
-        <Empty title="暂无执行记录" />
+        <Empty title={tr('暂无执行记录')} />
       )}
     </Split>
   )
 }
 function SettingsScreen() {
+  useTranslation()
   return <SettingsPage user={useUser()} toast={useToast()} />
 }
 

@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessagesSquare } from 'lucide-react'
@@ -16,6 +18,7 @@ export function ResumeRun({
   available: boolean
   toast: (message: string) => void
 }) {
+  useTranslation()
   const client = useQueryClient()
   const [selected, setSelected] = useState<Run | null>(null)
   const [loading, setLoading] = useState(false)
@@ -40,7 +43,7 @@ export function ResumeRun({
           staleTime: 2000,
         }))
       if (!terminal(current.state) || !current.session?.ready || !current.session.command?.trim())
-        throw new Error(current.session?.reason || '该会话暂不可续聊')
+        throw new Error(current.session?.reason || tr('该会话暂不可续聊'))
       setSelected(current)
     } catch (e) {
       toast((e as Error).message)
@@ -50,26 +53,30 @@ export function ResumeRun({
   }
   return (
     <>
-      <IconButton label="续聊" loading={loading} onClick={open}>
+      <IconButton label={tr('续聊')} loading={loading} onClick={open}>
         <MessagesSquare />
       </IconButton>
       {selected?.session && (
-        <Modal open title="续聊" onOpenChange={(open) => !open && setSelected(null)}>
+        <Modal open title={tr('续聊')} onOpenChange={(open) => !open && setSelected(null)}>
           <div className="modal-body">
             <dl className="properties">
-              <dt>执行设备</dt>
+              <dt>{tr('执行设备')}</dt>
               <dd>{device}</dd>
-              <dt>工作目录</dt>
+              <dt>{tr('工作目录')}</dt>
               <dd className="mono wrap">{selected.session.cwd}</dd>
             </dl>
             <div className="session-resume-command">
               <code>{selected.session.command}</code>
-              <CopyValue label="复制续聊命令" value={selected.session.command!} toast={toast} />
+              <CopyValue
+                label={tr('复制续聊命令')}
+                value={selected.session.command!}
+                toast={toast}
+              />
             </div>
-            <p className="quiet">在 {device} 上执行。</p>
+            <p className="quiet">{tr('在 {{v0}} 上执行。', { v0: device })}</p>
           </div>
           <div className="modal-footer">
-            <Button onClick={() => setSelected(null)}>关闭</Button>
+            <Button onClick={() => setSelected(null)}>{tr('关闭')}</Button>
           </div>
         </Modal>
       )}

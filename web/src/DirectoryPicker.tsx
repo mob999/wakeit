@@ -1,3 +1,5 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { useState, useId } from 'react'
 import { Folder, ChevronRight } from 'lucide-react'
 import { type Runner } from './api'
@@ -13,29 +15,32 @@ export function DirectoryPicker({
   value: string
   onChange: (v: string) => void
 }) {
+  useTranslation()
   const id = useId()
   const [open, setOpen] = useState(false)
   return (
     <div className="field">
-      <label htmlFor={id}>工作目录</label>
+      <label htmlFor={id}>{tr('工作目录')}</label>
       <button
         id={id}
         type="button"
-        aria-label="选择目录"
+        aria-label={tr('选择目录')}
         className="directory-selector"
         disabled={!runner?.online || !runner.directory_roots?.length}
         onClick={() => setOpen(true)}
       >
         <Folder size={15} />
         <span className={value ? 'directory-path mono' : 'directory-path quiet'} title={value}>
-          {value || (!runner ? '先选择 Runner' : '选择工作目录')}
+          {value || (!runner ? tr('先选择 Runner') : tr('选择工作目录'))}
         </span>
-        <span className="quiet">浏览</span>
+        <span className="quiet">{tr('浏览')}</span>
         <ChevronRight size={14} />
       </button>
-      {runner && !runner.online && <small>设备离线，无法浏览。</small>}
-      {runner?.online && !runner.directory_roots?.length && <small>此设备尚未开放工作目录。</small>}
-      <Modal open={open} onOpenChange={setOpen} title="选择工作目录">
+      {runner && !runner.online && <small>{tr('设备离线，无法浏览。')}</small>}
+      {runner?.online && !runner.directory_roots?.length && (
+        <small>{tr('此设备尚未开放工作目录。')}</small>
+      )}
+      <Modal open={open} onOpenChange={setOpen} title={tr('选择工作目录')}>
         {open && runner && (
           <DirectoryBrowser
             key={runner.id}

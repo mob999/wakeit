@@ -1,3 +1,5 @@
+import { t as tr, parameterLabel } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { useState, useId, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, ChevronDown, Loader2 } from 'lucide-react'
@@ -22,6 +24,7 @@ export function ModelPicker({
   onChange: (v: Record<string, string>) => void
   onOptionsChange: (v: Record<string, string[]>) => void
 }) {
+  useTranslation()
   const id = useId()
   const [custom, setCustom] = useState(false)
   const catalog = useQuery<ModelCatalog>({
@@ -54,12 +57,12 @@ export function ModelPicker({
     !waiting &&
     (!models.length || custom || (!selected && !!values.model))
   const caption = !agent
-    ? '先选择 Agent'
+    ? tr('先选择 Agent')
     : !cwd && agent.models_supported
-      ? '先选择工作目录'
+      ? tr('先选择工作目录')
       : catalog.isFetching
-        ? '正在查询模型…'
-        : (selected?.name ?? (values.model ? '自定义模型' : '使用默认配置'))
+        ? tr('正在查询模型…')
+        : (selected?.name ?? (values.model ? tr('自定义模型') : tr('使用默认配置')))
   function choose(modelId: string) {
     if (modelId === '__custom') {
       setCustom(true)
@@ -79,35 +82,35 @@ export function ModelPicker({
   }
   return (
     <div className="field model-field">
-      <label htmlFor={id}>模型</label>
+      <label htmlFor={id}>{tr('模型')}</label>
       <div className="model-control">
         {models.length && !custom ? (
           <ChoicePicker
             id={id}
-            label="模型"
+            label={tr('模型')}
             searchable
             disabled={submitting}
             value={selected?.id ?? '__default'}
             onChange={choose}
             options={[
-              { value: '__default', label: '使用默认配置' },
+              { value: '__default', label: tr('使用默认配置') },
               ...models.map((m) => ({
                 value: m.id,
                 label: m.name,
                 description: m.id,
                 keywords: m.id,
               })),
-              { value: '__custom', label: '自定义模型 ID' },
+              { value: '__custom', label: tr('自定义模型 ID') },
             ]}
           />
         ) : manual ? (
           <input
             id={id}
-            aria-label="模型"
+            aria-label={tr('模型')}
             className="mono"
             disabled={submitting}
             value={values.model ?? ''}
-            placeholder={agent?.parameters.model?.default ?? 'Agent 默认'}
+            placeholder={agent?.parameters.model?.default ?? tr('Agent 默认')}
             onChange={(e) => {
               const next = { ...values }
               if (e.target.value) next.model = e.target.value
@@ -119,7 +122,7 @@ export function ModelPicker({
           <button
             type="button"
             id={id}
-            aria-label="模型"
+            aria-label={tr('模型')}
             role="combobox"
             aria-expanded={false}
             disabled={submitting || disabled || !models.length}
@@ -136,7 +139,7 @@ export function ModelPicker({
         {agent?.models_supported && (
           <IconButton
             type="button"
-            label="刷新模型"
+            label={tr('刷新模型')}
             disabled={submitting || !ready}
             onClick={() => {
               setCustom(false)
@@ -149,7 +152,7 @@ export function ModelPicker({
         {custom && models.length > 0 && (
           <IconButton
             type="button"
-            label="返回模型列表"
+            label={tr('返回模型列表')}
             disabled={submitting}
             onClick={() => setCustom(false)}
           >
@@ -159,12 +162,13 @@ export function ModelPicker({
       </div>
       {catalog.error ? (
         <small className="error" role="alert">
-          {catalog.error.message}，可手填或重试。
+          {catalog.error.message}
+          {tr('，可手填或重试。')}
         </small>
       ) : agent?.models_supported && catalog.data && !catalog.isFetching && !models.length ? (
-        <small>未返回可选模型，可手填。</small>
+        <small>{tr('未返回可选模型，可手填。')}</small>
       ) : !runner?.online && agent?.models_supported ? (
-        <small>设备离线，可手填模型。</small>
+        <small>{tr('设备离线，可手填模型。')}</small>
       ) : null}
     </div>
   )
@@ -182,6 +186,7 @@ export function ParameterFields({
   options: Record<string, string[]>
   onChange: (v: Record<string, string>) => void
 }) {
+  useTranslation()
   function update(key: string, value: string) {
     const next = { ...values }
     if (value) next[key] = value
@@ -197,19 +202,19 @@ export function ParameterFields({
           return (
             <Field
               key={key}
-              label={spec.label || key}
-              hint={spec.default ? `默认：${spec.default}` : undefined}
+              label={parameterLabel(spec.label || key)}
+              hint={spec.default ? tr('默认：{{v0}}', { v0: spec.default }) : undefined}
             >
               {choices.length ? (
                 <ChoicePicker
-                  label={spec.label || key}
+                  label={parameterLabel(spec.label || key)}
                   value={values[key] ?? ''}
                   disabled={disabled}
                   onChange={(value) => update(key, value)}
                   options={[
-                    { value: '', label: '使用默认配置' },
+                    { value: '', label: tr('使用默认配置') },
                     ...(values[key] && !choices.includes(values[key])
-                      ? [{ value: values[key], label: values[key], status: '当前值' }]
+                      ? [{ value: values[key], label: values[key], status: tr('当前值') }]
                       : []),
                     ...choices.map((value) => ({ value, label: value })),
                   ]}
@@ -217,7 +222,7 @@ export function ParameterFields({
               ) : (
                 <input
                   value={values[key] ?? ''}
-                  placeholder={spec.default ?? '使用默认配置'}
+                  placeholder={spec.default ?? tr('使用默认配置')}
                   onChange={(e) => update(key, e.target.value)}
                 />
               )}

@@ -1,3 +1,5 @@
+import { t as tr } from './i18n'
+import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState, type ReactNode, type KeyboardEvent } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Check, ChevronDown, Search } from 'lucide-react'
@@ -16,14 +18,14 @@ export function ChoicePicker({
   value,
   options,
   onChange,
-  placeholder = '请选择',
+  placeholder = tr('请选择'),
   searchable = false,
   disabled = false,
   filterOptions = true,
   pending = false,
   error,
   footer,
-  emptyLabel = '无匹配选项',
+  emptyLabel = tr('无匹配选项'),
   selectionLabel,
   onOpenChange,
   onSearchChange,
@@ -55,6 +57,7 @@ export function ChoicePicker({
   onSearchChange?: (search: string) => void
   'aria-describedby'?: string
 }) {
+  useTranslation()
   const generated = useId()
   const controlId = id ?? generated
   const listId = `${controlId}-options`
@@ -174,8 +177,8 @@ export function ChoicePicker({
                   <input
                     ref={searchRef}
                     role="combobox"
-                    aria-label={`搜索${label}`}
-                    placeholder={`搜索${label}…`}
+                    aria-label={tr('搜索{{v0}}', { v0: label })}
+                    placeholder={tr('搜索{{v0}}…', { v0: label })}
                     aria-controls={listId}
                     aria-expanded={open}
                     aria-autocomplete="list"
@@ -193,7 +196,7 @@ export function ChoicePicker({
               <div
                 role="listbox"
                 id={listId}
-                aria-label={`可选${label}`}
+                aria-label={tr('可选{{v0}}', { v0: label })}
                 className="model-options"
                 ref={listRef}
                 tabIndex={searchable ? -1 : 0}
@@ -244,7 +247,7 @@ export function ChoicePicker({
                     className={`choice-empty ${error ? 'error' : ''}`}
                     role={error ? 'alert' : undefined}
                   >
-                    {error || (pending ? '正在加载…' : emptyLabel)}
+                    {error || (pending ? tr('正在加载…') : emptyLabel)}
                   </p>
                 )}
               </div>

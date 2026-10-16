@@ -126,13 +126,13 @@ test('Moments is the default home for all roles; Tasks keeps its own route', asy
   for (const user of ['admin', 'operator', 'viewer']) {
     await page.context().clearCookies()
     await loginSession(page, user, user === 'admin' ? stack.password : 'wakeit-role-test-password')
-    await page.getByRole('link', { name: 'Moments', exact: true }).click()
+    await page.getByRole('link', { name: '动态', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
-    await expect(page.getByRole('heading', { name: 'Moments', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '动态', exact: true })).toBeVisible()
     await expect(page.locator('.list-pane')).toHaveCount(0)
-    await page.getByRole('link', { name: 'Tasks', exact: true }).click()
+    await page.getByRole('link', { name: '任务', exact: true }).click()
     await expect(page).toHaveURL(/\/tasks$/)
-    await expect(page.locator('.list-pane h1')).toHaveText('Tasks')
+    await expect(page.locator('.list-pane h1')).toHaveText('任务')
   }
 })
 test('all days show previews without collapse defaults or a singleton exception', async ({
@@ -140,7 +140,7 @@ test('all days show previews without collapse defaults or a singleton exception'
 }) => {
   await loginSession(page, 'admin', stack.password)
   await fixture(page)
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   for (const date of ['2026-10-15', '2026-10-14', '2026-10-13'])
     await expect(page.getByRole('region', { name: date })).toBeVisible()
   await expect(page.locator('.moment-day')).toHaveCount(3)
@@ -166,7 +166,7 @@ test('manual refresh only; full report and scroll survive Run navigation and ref
 }) => {
   await loginSession(page, 'admin', stack.password)
   const requests = await fixture(page)
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   const card = page.locator('.moment-card').first()
   await expect(card.getByRole('button', { name: '阅读全文' })).toBeVisible()
   const count = requests.length
@@ -193,8 +193,8 @@ test('manual refresh only; full report and scroll survive Run navigation and ref
   await page.goBack()
   await expect(card.getByRole('button', { name: '收起', exact: true })).toBeVisible()
   await page.locator('.moments-page').evaluate((e) => (e.scrollTop = 400))
-  await page.getByRole('link', { name: 'Runs', exact: true }).click()
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '运行记录', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   await expect.poll(() => page.locator('.moments-page').evaluate((e) => e.scrollTop)).toBe(400)
   await page.reload()
   await expect(
@@ -207,7 +207,7 @@ test('empty state, load retry and historical single result use the same preview 
 }) => {
   await loginSession(page, 'admin', stack.password)
   await fixture(page, { empty: true, error: true })
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('暂时无法加载动态')
   await page.getByRole('button', { name: '重试', exact: true }).click()
   await expect(page.locator('.moments-page')).toContainText('暂无执行结果')
@@ -223,7 +223,7 @@ test('light, dark and narrow timelines keep readable cards, tiny logos and no ov
 }) => {
   await loginSession(page, 'admin', stack.password)
   await fixture(page)
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   await expect(page.locator('.moment-entry')).toHaveCount(22)
   for (const width of [1440, 2200, 390]) {
     await page.setViewportSize({ width, height: 900 })
@@ -290,7 +290,7 @@ test('copy reads full result only on demand and reports clipboard failures witho
   page.on('request', (r) => {
     if (new URL(r.url()).pathname === `/api/v1/runs/${id(1)}`) fullReads++
   })
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   const card = page.locator('.moment-card').first()
   await expect(card.getByRole('button', { name: '阅读全文' })).toBeVisible()
   expect(fullReads).toBe(0)
@@ -322,7 +322,7 @@ test('full report errors retry in place and workspace timezone changes regroup o
     }
     return route.fallback()
   })
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   const card = page.locator('.moment-card').first()
   await card.getByRole('button', { name: '阅读全文' }).click()
   await expect(card.getByRole('alert')).toContainText('全文暂不可用')
@@ -366,7 +366,7 @@ test('refresh keeps the visible report anchored when a new result is inserted ab
       },
     })
   })
-  await page.getByRole('link', { name: 'Moments', exact: true }).click()
+  await page.getByRole('link', { name: '动态', exact: true }).click()
   const target = page.locator(`[data-moment-id="${id(10)}"]`)
   await target.scrollIntoViewIfNeeded()
   const top = await target.evaluate((e) => e.getBoundingClientRect().top)

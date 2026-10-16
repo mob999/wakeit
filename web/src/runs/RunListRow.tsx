@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Monitor, ChevronRight, Clock } from 'lucide-react'
 import { type Agent, type Run, time } from '../api'
 import { Status } from '../Status'
@@ -10,6 +11,7 @@ export function runAgent(run: Pick<Run, 'config'>, agents?: Agent[]) {
   )
 }
 export function RunIdentity({ run, agents }: { run: Pick<Run, 'config'>; agents?: Agent[] }) {
+  useTranslation()
   return (
     <div className="run-identity">
       <RunDevice run={run} agents={agents} />
@@ -18,6 +20,7 @@ export function RunIdentity({ run, agents }: { run: Pick<Run, 'config'>; agents?
   )
 }
 export function RunDevice({ run, agents }: { run: Pick<Run, 'config'>; agents?: Agent[] }) {
+  useTranslation()
   const agent = runAgent(run, agents)
   return (
     <span className="run-device" title={agent?.runner ?? run.config.runner}>
@@ -27,6 +30,7 @@ export function RunDevice({ run, agents }: { run: Pick<Run, 'config'>; agents?: 
   )
 }
 export function RunAgent({ run, agents }: { run: Pick<Run, 'config'>; agents?: Agent[] }) {
+  useTranslation()
   const agent = runAgent(run, agents)
   return (
     <span className="run-agent" title={agent?.name ?? run.config.agent}>
@@ -46,6 +50,7 @@ export function RunListRow({
   selected: boolean
   onSelect: () => void
 }) {
+  useTranslation()
   return (
     <button className={`task-row run-row ${selected ? 'active' : ''}`} onClick={onSelect}>
       <div className="row-title">

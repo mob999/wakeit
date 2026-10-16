@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState } from 'react'
 import { MessageSquare, Terminal, Wrench, ChevronRight, RotateCcw } from 'lucide-react'
 import { MarkdownContent } from './MarkdownContent'
@@ -49,7 +51,7 @@ export function useRunTrace(id: string) {
           receive(batch)
           if (batch.length < 500) break
           const next = Math.max(...batch.map((e) => e.id))
-          if (next <= cursor) throw new Error('无法继续读取过程')
+          if (next <= cursor) throw new Error(tr('无法继续读取过程'))
           cursor = next
         }
       } catch (e) {
@@ -66,20 +68,21 @@ export function useRunTrace(id: string) {
   return { state, loading, error, receive, retry: () => setAttempt((v) => v + 1) }
 }
 export function RunTrace({ run, trace }: { run: Run; trace: ReturnType<typeof useRunTrace> }) {
+  useTranslation()
   const entries = [...trace.state.nodes.values()].sort((a, b) => a.firstSeq - b.firstSeq)
   const notices = trace.state.notices
   const support = run.execution_snapshot?.trace_supported
   let message = ''
-  if (support === false) message = '此 Agent 未提供过程'
+  if (support === false) message = tr('此 Agent 未提供过程')
   else if (support === undefined && !entries.length)
-    message = ['queued', 'starting'].includes(run.state) ? '等待执行' : '此运行未记录过程'
-  else if (notices.has('expired') && !entries.length) message = '过程已过期'
+    message = ['queued', 'starting'].includes(run.state) ? tr('等待执行') : tr('此运行未记录过程')
+  else if (notices.has('expired') && !entries.length) message = tr('过程已过期')
   else if (!entries.length)
     message = trace.loading
-      ? '正在加载…'
+      ? tr('正在加载…')
       : ['running', 'starting'].includes(run.state)
-        ? '等待 Agent 事件…'
-        : '未记录过程'
+        ? tr('等待 Agent 事件…')
+        : tr('未记录过程')
   return (
     <DetailBody>
       <div className="run-trace">
@@ -88,19 +91,21 @@ export function RunTrace({ run, trace }: { run: Run; trace: ReturnType<typeof us
             <span className="error">{trace.error}</span>
             <Button onClick={trace.retry}>
               <RotateCcw size={14} />
-              重试
+              {tr('重试')}
             </Button>
           </div>
         )}
-        {notices.has('expired') && entries.length > 0 && <p className="quiet">部分过程已过期</p>}
+        {notices.has('expired') && entries.length > 0 && (
+          <p className="quiet">{tr('部分过程已过期')}</p>
+        )}
         {notices.has('truncated') && (
           <p className="quiet" role="status">
-            过程已截断
+            {tr('过程已截断')}
           </p>
         )}
         {notices.has('incomplete') && (
           <p className="quiet" role="status">
-            部分事件未记录
+            {tr('部分事件未记录')}
           </p>
         )}
         {message && <p className="quiet">{message}</p>}
@@ -117,6 +122,7 @@ export function RunTrace({ run, trace }: { run: Run; trace: ReturnType<typeof us
   )
 }
 function TraceRow({ node, parent, ended }: { node: TraceNode; parent?: string; ended: boolean }) {
+  useTranslation()
   const [open, setOpen] = useState(node.kind === 'message')
   const Icon = node.kind === 'command' ? Terminal : node.kind === 'tool' ? Wrench : MessageSquare
   const elapsed =
@@ -138,7 +144,7 @@ function TraceRow({ node, parent, ended }: { node: TraceNode; parent?: string; e
       </span>
       <span className={`trace-state ${node.status}`}>
         {ended && node.status === 'running' && !node.finished_at
-          ? '未记录结束'
+          ? tr('未记录结束')
           : (stateNames[node.status] ?? node.status)}
       </span>
       <span className={duration ? 'trace-duration mono' : 'trace-duration-empty mono'}>
@@ -165,13 +171,13 @@ function TraceRow({ node, parent, ended }: { node: TraceNode; parent?: string; e
         <div className="trace-payload">
           {node.input !== null && (
             <div>
-              <h4>输入</h4>
+              <h4>{tr('输入')}</h4>
               <pre className="code">{valueText(node.input)}</pre>
             </div>
           )}
           {node.output !== null && (
             <div>
-              <h4>输出</h4>
+              <h4>{tr('输出')}</h4>
               <pre className="code">{valueText(node.output)}</pre>
             </div>
           )}

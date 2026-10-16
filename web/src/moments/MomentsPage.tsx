@@ -1,3 +1,5 @@
+import { t as tr, locale } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { PageBreadcrumbs, PageActions } from '../PageHeader'
 import {
   createContext,
@@ -27,6 +29,7 @@ const VisitContext = createContext<{
   scroll: { current: number }
 }>(null!)
 export function MomentsVisit({ children }: { children: ReactNode }) {
+  useTranslation()
   const [expanded, setExpanded] = useState(new Set<string>())
   const scroll = useRef(0)
   return (
@@ -56,6 +59,7 @@ const manual = {
   retry: false,
 } as const
 export function MomentsPage({ toast }: { toast: (message: string) => void }) {
+  useTranslation()
   const client = useQueryClient()
   const visit = useContext(VisitContext)
   const viewport = useRef<HTMLDivElement>(null)
@@ -119,10 +123,10 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
         visit.scroll.current = event.currentTarget.scrollTop
       }}
     >
-      <PageBreadcrumbs label="Moments" />
+      <PageBreadcrumbs label={tr('Moments')} />
       <PageActions>
         <IconButton
-          label="刷新动态"
+          label={tr('刷新动态')}
           onClick={refresh}
           loading={refreshing}
           disabled={days.isFetching}
@@ -130,9 +134,9 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
           <RefreshCw />
         </IconButton>
       </PageActions>
-      {days.isPending && <p className="quiet moments-state">正在加载…</p>}
+      {days.isPending && <p className="quiet moments-state">{tr('正在加载…')}</p>}
       {days.error && <RequestError error={days.error} retry={() => days.refetch()} />}
-      {first?.total_runs === 0 && <p className="quiet moments-state">暂无执行结果</p>}
+      {first?.total_runs === 0 && <p className="quiet moments-state">{tr('暂无执行结果')}</p>}
       {first && (
         <div className="moments-timeline">
           {days.data?.pages
@@ -147,12 +151,12 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
                   <div className="moment-date-label">
                     <h2>
                       {day.date === first.today
-                        ? '今天'
+                        ? tr('今天')
                         : day.date === yesterdayKey
-                          ? '昨天'
+                          ? tr('昨天')
                           : day.date}
                     </h2>
-                    <span>{day.count} 次执行</span>
+                    <span>{tr('moments.runCount', { count: day.count })}</span>
                   </div>
                 </div>
                 <DayEntries date={day.date} timezone={first.timezone} toast={toast} />
@@ -164,7 +168,7 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
               loading={days.isFetchingNextPage}
               onClick={() => days.fetchNextPage()}
             >
-              加载更早
+              {tr('加载更早')}
             </Button>
           )}
         </div>
@@ -173,12 +177,13 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
   )
 }
 function RequestError({ error, retry }: { error: Error; retry: () => unknown }) {
+  useTranslation()
   return (
     <div className="error moments-state" role="alert">
       {error.message}
       <Button onClick={() => retry()}>
         <RefreshCw size={14} />
-        重试
+        {tr('重试')}
       </Button>
     </div>
   )
@@ -192,6 +197,7 @@ function DayEntries({
   timezone: string
   toast: (s: string) => void
 }) {
+  useTranslation()
   const entries = useInfiniteQuery({
     queryKey: ['moments', 'entries', timezone, date],
     queryFn: ({ pageParam }) =>
@@ -204,7 +210,7 @@ function DayEntries({
   })
   return (
     <>
-      {entries.isPending && <p className="quiet moments-state">正在加载…</p>}
+      {entries.isPending && <p className="quiet moments-state">{tr('正在加载…')}</p>}
       {entries.error && <RequestError error={entries.error} retry={() => entries.refetch()} />}
       {entries.data?.pages
         .flatMap((page) => page.items)
@@ -217,7 +223,7 @@ function DayEntries({
           loading={entries.isFetchingNextPage}
           onClick={() => entries.fetchNextPage()}
         >
-          加载更多
+          {tr('加载更多')}
         </Button>
       )}
     </>
@@ -232,6 +238,7 @@ function MomentCard({
   timezone: string
   toast: (s: string) => void
 }) {
+  useTranslation()
   const visit = useContext(VisitContext)
   const client = useQueryClient()
   const expanded = visit.expanded.has(entry.id)
@@ -287,7 +294,7 @@ function MomentCard({
       setCopying(false)
     }
   }
-  const time = new Date(entry.finished_at).toLocaleTimeString('zh-CN', {
+  const time = new Date(entry.finished_at).toLocaleTimeString(locale(), {
     timeZone: timezone,
     hour: '2-digit',
     minute: '2-digit',
@@ -321,8 +328,8 @@ function MomentCard({
             <ResumeRun id={entry.id} available={entry.continuation_available} toast={toast} />
             {entry.preview && (
               <IconButton
-                label="复制结果"
-                tooltip={copied ? '已复制' : '复制结果'}
+                label={tr('复制结果')}
+                tooltip={copied ? tr('已复制') : tr('复制结果')}
                 disabled={copying}
                 loading={copying}
                 onClick={copy}
@@ -330,12 +337,12 @@ function MomentCard({
                 {copied ? <Check /> : <Copy />}
               </IconButton>
             )}
-            <TooltipTarget label="查看运行">
+            <TooltipTarget label={tr('查看运行')}>
               <Link
                 className="button ghost icon-button"
                 to="/runs"
                 search={{ run: entry.id }}
-                aria-label="查看运行"
+                aria-label={tr('查看运行')}
               >
                 <ArrowUpRight size={16} />
               </Link>
@@ -346,7 +353,7 @@ function MomentCard({
           {entry.reason && entry.state !== 'succeeded' && (
             <p className="moment-reason">{entry.reason}</p>
           )}
-          {entry.truncated && <p className="quiet">结果已截断</p>}
+          {entry.truncated && <p className="quiet">{tr('结果已截断')}</p>}
           {text ? (
             <div
               ref={body}
@@ -361,7 +368,7 @@ function MomentCard({
               )}
             </div>
           ) : (
-            !entry.reason && <p className="quiet">未返回结果</p>
+            !entry.reason && <p className="quiet">{tr('未返回结果')}</p>
           )}
           {full.error && expanded && (
             <RequestError error={full.error} retry={() => full.refetch()} />
@@ -372,7 +379,7 @@ function MomentCard({
               loading={expanded && full.isFetching}
               onClick={() => visit.setExpanded(entry.id, !expanded)}
             >
-              {expanded ? '收起' : '阅读全文'}
+              {expanded ? tr('收起') : tr('阅读全文')}
             </Button>
           )}
         </div>

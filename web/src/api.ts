@@ -1,3 +1,4 @@
+import { t as tr, locale } from './i18n'
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -26,7 +27,10 @@ export async function api<T = any>(
   if (response.status === 401 && path !== '/session')
     window.dispatchEvent(new Event('wakeit:unauthorized'))
   if (!response.ok)
-    throw new ApiError(response.status, value.error ?? `请求失败 (${response.status})`)
+    throw new ApiError(
+      response.status,
+      value.error ? tr(value.error) : tr('请求失败 ({{v0}})', { v0: response.status }),
+    )
   return value
 }
 export type User = { id: string; username: string; role: 'admin' | 'operator' | 'viewer' }
@@ -169,7 +173,7 @@ export const terminal = (state: string) =>
   ['succeeded', 'failed', 'cancelled', 'timed_out', 'skipped', 'interrupted'].includes(state)
 export const time = (value: string | null | undefined, timezone?: string) =>
   value
-    ? new Date(value).toLocaleString('zh-CN', {
+    ? new Date(value).toLocaleString(locale(), {
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
@@ -180,16 +184,36 @@ export const time = (value: string | null | undefined, timezone?: string) =>
       })
     : '—'
 export const stateNames: Record<string, string> = {
-  queued: '等待执行',
-  starting: '启动中',
-  running: '运行中',
-  succeeded: '成功',
-  failed: '失败',
-  cancelled: '已取消',
-  timed_out: '已超时',
-  skipped: '已跳过',
-  unknown: '状态待核对',
-  interrupted: '已中断',
+  get queued() {
+    return tr('等待执行')
+  },
+  get starting() {
+    return tr('启动中')
+  },
+  get running() {
+    return tr('运行中')
+  },
+  get succeeded() {
+    return tr('成功')
+  },
+  get failed() {
+    return tr('失败')
+  },
+  get cancelled() {
+    return tr('已取消')
+  },
+  get timed_out() {
+    return tr('已超时')
+  },
+  get skipped() {
+    return tr('已跳过')
+  },
+  get unknown() {
+    return tr('状态待核对')
+  },
+  get interrupted() {
+    return tr('已中断')
+  },
 }
 
 export type Member = User & { active: boolean; created_at: string }

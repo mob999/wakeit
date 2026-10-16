@@ -1,3 +1,5 @@
+import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { ArrowLeft, LoaderCircle, RefreshCw } from 'lucide-react'
@@ -20,6 +22,7 @@ export function SessionPicker({
   disabled: boolean
   onChange: (id: string) => void
 }) {
+  useTranslation()
   const controlId = useId()
   const [open, setOpen] = useState(false)
   const [manual, setManual] = useState(false)
@@ -56,9 +59,7 @@ export function SessionPicker({
   const error = canInspect && inspection.isError ? inspection.error.message : ''
   useEffect(() => {
     if (inspection.data && 'title' in inspection.data)
-      setLabels((previous) =>
-        new Map(previous).set(id, inspection.data.title?.trim() || '未命名会话'),
-      )
+      setLabels((previous) => new Map(previous).set(id, inspection.data.title?.trim() || ''))
   }, [inspection.data, id])
 
   const catalog = useInfiniteQuery({
@@ -87,8 +88,7 @@ export function SessionPicker({
   )
   function choose(next: string) {
     const selected = sessions.find((session) => session.id === next)
-    if (selected)
-      setLabels((previous) => new Map(previous).set(next, selected.title?.trim() || '未命名会话'))
+    if (selected) setLabels((previous) => new Map(previous).set(next, selected.title?.trim() || ''))
     if (next === id && canInspect) void inspection.refetch()
     onChange(next)
   }
@@ -97,32 +97,33 @@ export function SessionPicker({
     setManual(false)
   }
   const unavailable = !cwd
-    ? '先选择工作目录'
+    ? tr('先选择工作目录')
     : !runner?.online
-      ? '设备离线'
+      ? tr('设备离线')
       : !agent?.session_list_supported
         ? ''
         : undefined
   return (
     <div className="field session-binding">
-      <label htmlFor={controlId}>会话</label>
+      <label htmlFor={controlId}>{tr('会话')}</label>
       <ChoicePicker
         id={controlId}
-        label="会话"
+        label={tr('会话')}
         value={id}
         open={open}
         searchable={canQuery}
         filterOptions={false}
         selectionLabel={
           id
-            ? (labels.get(id) ??
-              (sessions.find((session) => session.id === id)?.title?.trim() || id))
-            : '每次新建'
+            ? labels.has(id)
+              ? labels.get(id) || tr('未命名会话')
+              : sessions.find((session) => session.id === id)?.title?.trim() || id
+            : tr('每次新建')
         }
         disabled={disabled}
         indicator={
           checking ? (
-            <LoaderCircle size={14} className="spin" aria-label="正在检查会话" />
+            <LoaderCircle size={14} className="spin" aria-label={tr('正在检查会话')} />
           ) : undefined
         }
         aria-describedby={error ? `${controlId}-error` : undefined}
@@ -133,15 +134,15 @@ export function SessionPicker({
             (catalog.isFetching && !catalog.isFetchingNextPage))
         }
         error={canQuery && catalog.isError ? catalog.error.message : undefined}
-        emptyLabel={unavailable ?? '未找到会话'}
+        emptyLabel={unavailable ?? tr('未找到会话')}
         onOpenChange={changeOpen}
         onSearchChange={setSearch}
-        pinnedOptions={[{ value: '', label: '每次新建' }]}
+        pinnedOptions={[{ value: '', label: tr('每次新建') }]}
         options={
           canQuery
             ? sessions.map((session) => ({
                 value: session.id,
-                label: session.title?.trim() || '未命名会话',
+                label: session.title?.trim() || tr('未命名会话'),
                 description: session.id,
                 wrapDescription: true,
               }))
@@ -153,13 +154,13 @@ export function SessionPicker({
             <div className="session-manual">
               <div className="session-manual-heading">
                 <IconButton
-                  label="返回会话列表"
+                  label={tr('返回会话列表')}
                   disabled={disabled}
                   onClick={() => setManual(false)}
                 >
                   <ArrowLeft />
                 </IconButton>
-                <label htmlFor={`${controlId}-manual`}>会话 ID</label>
+                <label htmlFor={`${controlId}-manual`}>{tr('会话 ID')}</label>
               </div>
               <input
                 ref={inputRef}
@@ -188,7 +189,7 @@ export function SessionPicker({
                     changeOpen(false)
                   }}
                 >
-                  使用
+                  {tr('使用')}
                 </Button>
               </div>
             </div>
@@ -204,11 +205,11 @@ export function SessionPicker({
                 setManual(true)
               }}
             >
-              输入会话 ID…
+              {tr('输入会话 ID…')}
             </Button>
             {canQuery && (
               <IconButton
-                label="刷新会话"
+                label={tr('刷新会话')}
                 disabled={disabled || catalog.isFetching}
                 loading={catalog.isRefetching}
                 onClick={() => catalog.refetch()}
@@ -222,7 +223,7 @@ export function SessionPicker({
                 loading={catalog.isFetchingNextPage}
                 onClick={() => catalog.fetchNextPage()}
               >
-                加载更多
+                {tr('加载更多')}
               </Button>
             )}
           </>

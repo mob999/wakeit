@@ -983,6 +983,16 @@ input:disabled {
   gap: 26px;
   background: var(--raised);
 }
+.login-language {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+}
+.modal-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .login-brand {
   display: flex;
   align-items: center;
@@ -995,7 +1005,8 @@ input:disabled {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 29px;
-  width: min(370px, calc(100vw - 40px));
+  width: 100%;
+  max-width: min(370px, calc(100vw - 40px));
   background: var(--canvas);
   box-shadow: 0 3px 15px #00000004;
 }

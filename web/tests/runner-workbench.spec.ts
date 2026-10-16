@@ -19,7 +19,7 @@ test('Agent search locates the device adapter and creates a task with both selec
   const search = page.getByRole('dialog', { name: '搜索', exact: true })
   await search
     .locator('.search-scopes')
-    .getByRole('button', { name: 'Agents', exact: true })
+    .getByRole('button', { name: 'Agent', exact: true })
     .click()
   await search.getByLabel('搜索内容').fill('mock-sync')
   await search.getByRole('button', { name: 'mock-sync test-device', exact: true }).click()
@@ -33,10 +33,10 @@ test('Agent search locates the device adapter and creates a task with both selec
   await page.reload()
   await expect(page.locator('.agent-details')).toContainText('支持查询')
   const crumbs = page.getByRole('navigation', { name: '层级导航' })
-  await expect(crumbs).toContainText('Runners')
+  await expect(crumbs).toContainText('设备')
   await expect(crumbs).toContainText('test-device')
   await expect(crumbs).toContainText('mock-sync')
-  await crumbs.getByRole('button', { name: 'Agents', exact: true }).click()
+  await crumbs.getByRole('button', { name: 'Agent', exact: true }).click()
   await expect(page.locator('.agent-details')).toHaveCount(0)
   await page.getByRole('button', { name: '展开 mock-sync', exact: true }).click()
   await expect(page.getByRole('button', { name: '适配模板', exact: true })).toHaveCount(0)
@@ -54,7 +54,7 @@ test('Agent search locates the device adapter and creates a task with both selec
     '先选择工作目录',
   )
   await expect(
-    page.locator('.navigation').getByRole('link', { name: 'Agents', exact: true }),
+    page.locator('.navigation').getByRole('link', { name: 'Agent', exact: true }),
   ).toHaveCount(0)
 })
 test('Runner paging, deep links and polling preserve selected devices', async ({ page }) => {
@@ -68,7 +68,7 @@ test('Runner paging, deep links and polling preserve selected devices', async ({
     name: `device-${String(i).padStart(2, '0')}`,
   }))
   await page.route('**/api/v1/runners', (route) => route.fulfill({ json: devices }))
-  await page.getByRole('link', { name: 'Runners', exact: true }).click()
+  await page.getByRole('link', { name: '设备', exact: true }).click()
   const list = page.locator('.list-pane')
   await expect(list.locator('.runner-row')).toHaveCount(20)
   await list.getByRole('button', { name: '下一页' }).click()
@@ -115,7 +115,7 @@ test('Agent and device filters intersect while per-device capabilities stay sepa
   )
   await page.getByRole('button', { name: '搜索与筛选' }).click()
   const search = page.getByRole('dialog', { name: '搜索', exact: true })
-  for (const name of ['Runners', 'Agents'])
+  for (const name of ['设备', 'Agent'])
     await search.locator('.search-scopes').getByRole('button', { name, exact: true }).click()
   await search.getByLabel('设备状态').selectOption('online')
   await search.getByLabel('模式').selectOption('sync')
@@ -141,10 +141,10 @@ test('all four workbenches switch between list and detail on narrow screens', as
   await login(page)
   await page.setViewportSize({ width: 390, height: 840 })
   for (const [name, row] of [
-    ['Tasks', '.task-row'],
-    ['Runs', '.task-row'],
-    ['Runners', '.runner-row'],
-    ['Settings', '.settings-category'],
+    ['任务', '.task-row'],
+    ['运行记录', '.task-row'],
+    ['设备', '.runner-row'],
+    ['设置', '.settings-category'],
   ]) {
     await page.getByRole('link', { name, exact: true }).click()
     await expect(page.locator('.list-pane')).toBeVisible()
@@ -161,13 +161,13 @@ test('all four workbenches switch between list and detail on narrow screens', as
       .click()
     await expect(page.locator('.list-pane')).toBeVisible()
   }
-  await page.getByRole('link', { name: 'Settings', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '工作区', exact: true }).click()
   const original = await page.getByLabel('日志保留', { exact: true }).inputValue()
   await page.getByLabel('日志保留', { exact: true }).fill(String(Number(original) + 1))
   await page
     .getByRole('navigation', { name: '层级导航' })
-    .getByRole('button', { name: 'Settings', exact: true })
+    .getByRole('button', { name: '设置', exact: true })
     .click()
   const guard = page.getByRole('dialog', { name: '有未保存的更改' })
   await expect(guard).toBeVisible()
@@ -177,7 +177,7 @@ test('all four workbenches switch between list and detail on narrow screens', as
   )
   await page
     .getByRole('navigation', { name: '层级导航' })
-    .getByRole('button', { name: 'Settings', exact: true })
+    .getByRole('button', { name: '设置', exact: true })
     .click()
   await guard.getByRole('button', { name: '放弃更改' }).click()
   await expect(page.locator('.list-pane')).toBeVisible()

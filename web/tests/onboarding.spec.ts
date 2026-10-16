@@ -122,6 +122,16 @@ test('Viewer cannot consent to Runner registration and can reject', async ({ pag
   await page.getByRole('button', { name: '取消', exact: true }).click()
   expect(calls).toEqual(['/device-authorizations/ABCD2345/deny'])
 })
+test('authorization can switch language without approving the request', async ({ page }) => {
+  const calls = await fixture(page, 'viewer')
+  await page.goto('/authorize/device?user_code=ABCD2345')
+  await page.getByRole('button', { name: '切换到英文' }).click()
+  await expect(page.getByRole('dialog', { name: 'Connect Wakeit CLI' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Authorize', exact: true })).toBeDisabled()
+  await expect(page.getByText('ABCD2345', { exact: true })).toBeVisible()
+  await expect(page.getByText('/projects/中文 workspace', { exact: true })).toBeVisible()
+  expect(calls).toEqual([])
+})
 test('consent fits light/dark narrow and desktop layouts', async ({ page }) => {
   await fixture(page)
   for (const width of [390, 1440])
