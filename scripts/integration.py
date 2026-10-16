@@ -186,7 +186,11 @@ def main():
         verify_admin_archive(api,base,other,sql,task,apply,trigger,final,role_tokens,runner_id,runner_dir,root,check)
         from integration_sessions import verify as verify_sessions
         verify_sessions(api,base,other,sql,task,apply,trigger,final,role_tokens,runner_id,runner_dir,root,check)
-        assert call(base,'/api/v1/meta')['version']=='0.1.0'
+        release_meta=call(base,'/api/v1/meta')
+        package_version=command([BIN,'--version']).strip().split()[-1]
+        assert release_meta['version']==release_meta['install']['version']==package_version
+        assert release_meta['install']['release'].endswith('/v'+package_version)
+        assert release_meta['install']['manifest']==release_meta['install']['base_url']+'/wakeit-release.json'
         assert next(a for a in api('/agents') if a['id']=='mock-sync')['logo']=='/agent-logos/pi.svg'
         assert sql('SELECT count(*) FROM _sqlx_migrations')=='1'
         roots=api(f'/runners/{runner_id}/directories'); assert roots['directories'][0]['path']==str(cwd)

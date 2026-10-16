@@ -165,7 +165,7 @@ async fn codex_reply(child: &mut Child, id: &str, cwd: &Path) -> Result<Value> {
     for (request_id, request) in [
         (
             1,
-            json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"wakeit","version":"0.1.0"},"capabilities":{"experimentalApi":false}}}),
+            json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"wakeit","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":false}}}),
         ),
         (
             2,
@@ -450,7 +450,7 @@ pub async fn rename(protocol: &str, id: &str, title: &str, cwd: &Path) -> Result
     let result=tokio::time::timeout(Duration::from_secs(15),async {
         let mut input=child.stdin.take().context("Codex stdin")?;
         let mut reader=BufReader::new(child.stdout.take().context("Codex stdout")?);
-        rpc(&mut input,&mut reader,1,"initialize",json!({"clientInfo":{"name":"wakeit","version":"0.1.0"},"capabilities":{"experimentalApi":false}})).await?;
+        rpc(&mut input,&mut reader,1,"initialize",json!({"clientInfo":{"name":"wakeit","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":false}})).await?;
         input.write_all(b"{\"method\":\"initialized\"}\n").await?;
         let before=rpc(&mut input,&mut reader,2,"thread/read",json!({"threadId":id,"includeTurns":false})).await?;
         let thread=&before["thread"];
@@ -546,7 +546,7 @@ async fn codex_catalog(cwd: &Path) -> Result<Vec<CatalogEntry>> {
     let result=async {
         let mut input=child.stdin.take().context("Codex stdin")?;
         let mut reader=BufReader::new(child.stdout.take().context("Codex stdout")?);
-        rpc(&mut input,&mut reader,1,"initialize",json!({"clientInfo":{"name":"wakeit","version":"0.1.0"},"capabilities":{"experimentalApi":false}})).await?;
+        rpc(&mut input,&mut reader,1,"initialize",json!({"clientInfo":{"name":"wakeit","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":false}})).await?;
         input.write_all(b"{\"method\":\"initialized\"}\n").await?;
         let mut cursor=Value::Null;
         let mut entries=Vec::new();

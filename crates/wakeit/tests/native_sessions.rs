@@ -172,7 +172,10 @@ fn resume_missing_session_does_not_execute_the_supplied_command() {
         .output()
         .unwrap();
     assert!(!result.status.success());
-    assert!(!String::from_utf8_lossy(&result.stdout).contains("wakeit 0.1.0"));
+    assert!(
+        !String::from_utf8_lossy(&result.stdout)
+            .contains(&format!("wakeit {}", env!("CARGO_PKG_VERSION")))
+    );
 }
 
 #[test]

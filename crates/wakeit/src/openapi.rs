@@ -333,5 +333,5 @@ pub fn document() -> Value {
         }
         paths.insert(format!("/api/v1{path}"), Value::Object(methods_map));
     }
-    json!({"openapi":"3.1.0","info":{"title":"wakeit API","version":"0.1.0"},"paths":paths,"components":{"securitySchemes":{"bearerAuth":{"type":"http","scheme":"bearer"},"deviceToken":{"type":"http","scheme":"bearer","description":"Runner device token"},"sessionCookie":{"type":"apiKey","in":"cookie","name":"wakeit_session"}},"schemas":schemas}})
+    json!({"openapi":"3.1.0","info":{"title":"wakeit API","version":env!("CARGO_PKG_VERSION")},"paths":paths,"components":{"securitySchemes":{"bearerAuth":{"type":"http","scheme":"bearer"},"deviceToken":{"type":"http","scheme":"bearer","description":"Runner device token"},"sessionCookie":{"type":"apiKey","in":"cookie","name":"wakeit_session"}},"schemas":schemas}})
 }

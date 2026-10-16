@@ -2,7 +2,7 @@
 
 已有明确 Gateway 地址时直接接入，不部署另一套。先请求 `/health/ready` 和 `/api/v1/meta`，地址不可达就向用户确认可访问的地址。公网要求 HTTPS，loopback 可用 HTTP。
 
-检查 `wakeit setup --help`，不能只比较始终为 0.1.0 的版本。缺少 CLI 或接入能力时，使用 [官方 v0.1.0 预览 Release](https://github.com/mob999/wakeit/releases/tag/v0.1.0)。下载该版本的 `wakeit-release.json`、`SHA256SUMS` 及对应平台原生二进制，校验 SHA-256 同时匹配两份清单，再安装到用户持久 bin 目录。保留现有可执行文件直到新文件校验成功，采用原子替换。支持 x86_64/aarch64 Linux GNU、x86_64/aarch64 macOS、x86_64 Windows。
+检查 `wakeit setup --help` 和实际安装版本。缺少 CLI 或接入能力时，使用 Gateway `/api/v1/meta` 中 `install` 指定的官方版本及下载地址；当前正式版为 [v0.1.1](https://github.com/mob999/wakeit/releases/tag/v0.1.1)。下载对应版本的 `wakeit-release.json`、`SHA256SUMS` 及对应平台原生二进制，校验 SHA-256 同时匹配两份清单，再安装到用户持久 bin 目录。保留现有可执行文件直到新文件校验成功，采用原子替换。支持 x86_64/aarch64 Linux GNU、x86_64/aarch64 macOS、x86_64 Windows。
 
 ```sh
 wakeit setup --gateway https://wakeit.example.com

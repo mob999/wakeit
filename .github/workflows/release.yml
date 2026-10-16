@@ -85,4 +85,4 @@ jobs:
           for file in .local/release/*; do
             [[ "$file" == *.md ]] || assets+=("$file")
           done
-          gh release create "$TAG" "${assets[@]}" --verify-tag --title "Wakeit $TAG" --notes-file .local/release/release-notes.md --prerelease
+          gh release create "$TAG" "${assets[@]}" --verify-tag --title "Wakeit $TAG" --notes-file .local/release/release-notes.md --latest

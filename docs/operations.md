@@ -96,7 +96,7 @@ Compose 部署可在服务干净停止后备份对应命名卷。身份目录包
 
 ## CLI 更新
 
-`wakeit update --check` 检查正式版本，`wakeit update` 校验并替换当前二进制，GitHub 私有凭据与 Gateway Token 独立。没有正式发布时返回 no_release；保持 0.1.0 的提交不触发更新。详细行为见 [CLI 指南](cli.md#检查与更新)。
+`wakeit update --check` 检查正式版本，`wakeit update` 校验并替换当前二进制，GitHub 私有凭据与 Gateway Token 独立。没有正式发布时返回 no_release；同版本提交不触发更新。详细行为见 [CLI 指南](cli.md#检查与更新)。
 
 ## 升级与监控
 
@@ -109,9 +109,9 @@ Compose 部署可在服务干净停止后备份对应命名卷。身份目录包
 
 吊销 Runner 会暂停它关联的 Task，取消尚未开始的 Run，已启动但无法再核对的 Run 进入 unknown。重新分配设备后再恢复 Task。
 
-## 未发布版本的本机运行
+## 本机服务升级
 
-版本固定 0.1.0，数据库迁移只有一份完整初始迁移；升级此预览结构需要明确重建测试数据库，不提供旧结构升级路径。重建前检查活跃 Run，备份 PostgreSQL、设备配置与 journal，并保留 Agent 自身凭据。
+0.1.1 沿用当前数据库结构，无需重建数据。升级前检查活跃 Run，备份 PostgreSQL、设备配置与 journal，并保留 Agent 自身凭据；旧预览基线按下文明确的保数据脚本升级。已发布迁移不可改写，未来结构变更通过新增迁移完成。
 
 正式本机预览使用独立的 runtime 目录与用户服务管理（macOS launchd），PostgreSQL、NATS、Gateway 和 Runner 独立托管。集成脚本仅运行隔离的验收栈，不用它承载日常预览。测试栈和 runtime 都处于 .local/，不得提交凭据或运行数据。
 
@@ -158,4 +158,4 @@ wakeit gateway migrate --config gateway.yaml
 
 For an existing known pre-device baseline, stop Gateway writers, preserve Runner processes, and explicitly run `WAKEIT_DATABASE_URL=... python3 scripts/upgrade-unreleased-device-auth.py --backup /private/path/backup.dump`. It creates a private backup, checks the exact prior SQLx checksum, adds grant/limit/registration tables in one transaction and updates the single initial migration checksum. Unknown baselines are refused. Normal migration validation remains enabled. Older archive/session upgrade scripts also create the final device-authorization schema.
 
-The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages and SHA-256 manifest under the explicit v0.1.0 prerelease. Regular update checks exclude preview releases; bootstrap intentionally selects the explicit preview package.
+The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.1.1. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.

@@ -38,9 +38,15 @@ class Packaging(unittest.TestCase):
                                '--output', str(self.output), *args], capture_output=True, text=True)
 
     def test_manifest_matches_all_artifacts_and_skill_is_independent(self):
-        self.assertEqual(self.assemble().returncode, 0)
-        manifest = json.loads((self.output / 'wakeit-release.json').read_text(encoding='utf-8'))
         version = tomllib.loads((ROOT / 'Cargo.toml').read_text(encoding='utf-8'))['workspace']['package']['version']
+        self.assertEqual(self.assemble('--tag', f'v{version}').returncode, 0)
+        manifest = json.loads((self.output / 'wakeit-release.json').read_text(encoding='utf-8'))
+        self.assertEqual(json.loads((ROOT / 'web/package.json').read_text(encoding='utf-8'))['version'], version)
+        web_lock = json.loads((ROOT / 'web/package-lock.json').read_text(encoding='utf-8'))
+        self.assertEqual(web_lock['version'], version)
+        self.assertEqual(web_lock['packages']['']['version'], version)
+        rust_lock = tomllib.loads((ROOT / 'Cargo.lock').read_text(encoding='utf-8'))
+        self.assertEqual(next(p['version'] for p in rust_lock['package'] if p['name'] == 'wakeit'), version)
         self.assertEqual(manifest['version'], version)
         notes = entries((ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'))
         self.assertEqual((self.output / 'release-notes.md').read_text(encoding='utf-8'), notes[version] + '\n')
@@ -64,8 +70,9 @@ class Packaging(unittest.TestCase):
         self.assertNotEqual(self.assemble().returncode, 0)
 
     def test_wrong_or_preview_tag_cannot_publish(self):
+        version = tomllib.loads((ROOT / 'Cargo.toml').read_text(encoding='utf-8'))['workspace']['package']['version']
         self.assertNotEqual(self.assemble('--tag', 'v99.0.0').returncode, 0)
-        self.assertNotEqual(self.assemble('--tag', 'v0.1.0-rc.1').returncode, 0)
+        self.assertNotEqual(self.assemble('--tag', f'v{version}-rc.1').returncode, 0)
 
     def test_changelog_locales_order_duplicates_and_release_extraction(self):
         english = '## 0.1.0\n\n- Current.\n\n## 0.0.9\n\n- Previous.\n'

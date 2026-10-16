@@ -1500,7 +1500,9 @@ async fn device_query(
 }
 
 async fn meta(State(s): State<App>) -> Json<Value> {
+    let version = env!("CARGO_PKG_VERSION");
+    let base_url = format!("https://github.com/mob999/wakeit/releases/download/v{version}");
     Json(
-        json!({"version":env!("CARGO_PKG_VERSION"),"public_url":s.config.public_url,"install":{"version":"0.1.0","release":"https://github.com/mob999/wakeit/releases/tag/v0.1.0","manifest":"https://github.com/mob999/wakeit/releases/download/v0.1.0/wakeit-release.json","checksums":"https://github.com/mob999/wakeit/releases/download/v0.1.0/SHA256SUMS","base_url":"https://github.com/mob999/wakeit/releases/download/v0.1.0"}}),
+        json!({"version":version,"public_url":s.config.public_url,"install":{"version":version,"release":format!("https://github.com/mob999/wakeit/releases/tag/v{version}"),"manifest":format!("{base_url}/wakeit-release.json"),"checksums":format!("{base_url}/SHA256SUMS"),"base_url":base_url}}),
     )
 }
