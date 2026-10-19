@@ -57,6 +57,7 @@ async fn model_and_multiline_prompt_are_passed_as_literal_argv_and_stdin() {
     )
     .unwrap();
     let task = TaskConfig {
+        dag: None,
         version: 1,
         id: "copilot-literal-test".into(),
         name: "test".into(),

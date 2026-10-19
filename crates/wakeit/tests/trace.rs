@@ -12,6 +12,7 @@ use wakeit::{
 };
 fn task(cwd: &str) -> TaskConfig {
     TaskConfig {
+        dag: None,
         version: 1,
         id: "trace-test".into(),
         name: "Trace".into(),

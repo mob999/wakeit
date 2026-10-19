@@ -12,6 +12,8 @@ import { InvitationPage } from './InvitationPage'
 import { InstanceAccounts } from './settings/InstanceAccounts'
 import { DeviceAuthorization } from './onboarding/DeviceAuthorization'
 import { TaskEditor } from './TaskEditor'
+import { DagEditor } from './dag/DagEditor'
+import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { SettingsPage } from './settings/SettingsPage'
 import { Split } from './Workbench'
 import { RunnersPage } from './runners/RunnersPage'
@@ -257,7 +259,11 @@ function Login() {
       >
         <h1 className="card-header">{signup ? tr('创建账号') : tr('欢迎回来')}</h1>
         <div className="card-body">
-          {new URLSearchParams(location.search).get('auth_error') === 'github_denied' && <p className="error" role="alert">{tr('GitHub 授权已取消')}</p>}
+          {new URLSearchParams(location.search).get('auth_error') === 'github_denied' && (
+            <p className="error" role="alert">
+              {tr('GitHub 授权已取消')}
+            </p>
+          )}
           {meta.isPending ? (
             <span className="quiet">{tr('加载中…')}</span>
           ) : meta.error ? (
@@ -476,13 +482,21 @@ function TasksPage() {
             <div className="pane-heading">
               <h1>{tr('Tasks')}</h1>
               {editable && (
-                <IconButton
-                  label={tr('新建任务')}
-                  disabled={!settings.data}
-                  onClick={() => setEditor('new')}
-                >
-                  <Plus />
-                </IconButton>
+                <Dropdown.Root>
+                  <Dropdown.Trigger asChild>
+                    <IconButton label={tr('新建任务')} disabled={!settings.data}>
+                      <Plus />
+                    </IconButton>
+                  </Dropdown.Trigger>
+                  <Dropdown.Portal>
+                    <Dropdown.Content className="dropdown" align="end">
+                      <Dropdown.Item onSelect={() => setEditor('new')}>{tr('任务')}</Dropdown.Item>
+                      <Dropdown.Item onSelect={() => navigate({ to: '/tasks/dag', search: {} })}>
+                        {tr('dag.task')}
+                      </Dropdown.Item>
+                    </Dropdown.Content>
+                  </Dropdown.Portal>
+                </Dropdown.Root>
               )}
             </div>
             <div className="list-scroll">
@@ -548,7 +562,14 @@ function TasksPage() {
               {task.archived_at && <span className="quiet">{tr('已归档')}</span>}
               {editable && !task.archived_at && (
                 <>
-                  <IconButton label={tr('编辑')} onClick={() => setEditor(task)}>
+                  <IconButton
+                    label={tr('编辑')}
+                    onClick={() =>
+                      task.config.dag
+                        ? navigate({ to: '/tasks/dag', search: { task: task.id } })
+                        : setEditor(task)
+                    }
+                  >
                     <FileCog />
                   </IconButton>
                   <IconButton
@@ -813,6 +834,44 @@ const tasksRoute = createRoute({
   }),
   component: TasksPage,
 })
+const dagRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/tasks/dag',
+  validateSearch: (s: Record<string, unknown>): { task?: string } => ({
+    task: typeof s.task === 'string' ? s.task : undefined,
+  }),
+  component: DagScreen,
+})
+function DagScreen() {
+  const user = useUser(),
+    navigate = useNavigate(),
+    search = dagRoute.useSearch()
+  const settings = useQuery<{ timezone: string }>({
+    queryKey: ['settings'],
+    queryFn: () => api('/settings'),
+  })
+  const task = useQuery<Task>({
+    queryKey: ['tasks', 'detail', search.task],
+    queryFn: () => api(`/tasks/${encodeURIComponent(search.task!)}`),
+    enabled: !!search.task,
+  })
+  if (user.role === 'viewer' || user.workspace?.is_demo)
+    return <Empty title={tr('无法访问此工作区')} />
+  if (settings.error || task.error)
+    return <Empty title={tr('加载失败')} detail={(settings.error || task.error)?.message} />
+  if (!settings.data || (search.task && !task.data)) return <Empty title={tr('正在加载…')} />
+  if (task.data && (!task.data.config.dag || task.data.archived_at))
+    return <Empty title={tr('dag.fixErrors')} />
+  return (
+    <DagEditor
+      key={search.task ?? 'new'}
+      task={task.data}
+      timezone={settings.data.timezone}
+      onClose={() => navigate({ to: '/tasks', search: { task: search.task } })}
+      onSaved={(id) => navigate({ to: '/tasks', search: { task: id } })}
+    />
+  )
+}
 const runsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/runs',
@@ -871,6 +930,7 @@ const router = createRouter({
   routeTree: rootRoute.addChildren([
     momentsRoute,
     tasksRoute,
+    dagRoute,
     runsRoute,
     runnersRoute,
     settingsRoute,

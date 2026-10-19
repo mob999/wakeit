@@ -751,6 +751,7 @@ type UtcNow = chrono::Utc;
 
 pub async fn inspect(agent: &AgentConfig, cwd: &Path) -> AgentInfo {
     let task = TaskConfig {
+        dag: None,
         version: 1,
         id: "probe".into(),
         name: "probe".into(),

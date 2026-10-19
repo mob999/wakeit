@@ -851,6 +851,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                 config::normalize_commands(&mut a)?;
                 a.validate()?;
                 let mut t = TaskConfig {
+                    dag: None,
                     version: 1,
                     id: "agent-test".into(),
                     name: "Agent test".into(),

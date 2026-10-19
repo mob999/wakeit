@@ -118,6 +118,7 @@ export type Runner = {
 }
 export type Schedule = { cron?: string; every?: string; at?: string; timezone: string }
 export type TaskConfig = {
+  dag?: Dag
   version: number
   id: string
   name: string
@@ -136,6 +137,27 @@ export type TaskConfig = {
     misfire: 'skip' | 'latest'
   }
 }
+export type DagNode = {
+  id: string
+  name: string
+  pre: string[]
+  runner: string
+  agent: string
+  cwd: string
+  prompt: string
+  parameters: Record<string, string>
+  session?: { id: string } | null
+  timeout: string
+}
+export type Dag = { nodes: DagNode[]; results?: string[] | null }
+export type DagIssue = { path: string; node_id?: string; message: string; cycle?: string[] }
+export type DagRunNode = DagNode & {
+  state: string
+  execution_id?: string | null
+  reason?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+}
 export type Task = {
   archived_at: string | null
   id: string
@@ -145,6 +167,7 @@ export type Task = {
   last_run?: { id: string; state: string; created_at: string }
 }
 export type Run = {
+  nodes?: DagRunNode[]
   task_archived: boolean
   id: string
   task_id: string
@@ -244,7 +267,12 @@ export const stateNames: Record<string, string> = {
   },
 }
 
-export type Member = User & { active: boolean; account_active?: boolean; has_password?: boolean; created_at: string }
+export type Member = User & {
+  active: boolean
+  account_active?: boolean
+  has_password?: boolean
+  created_at: string
+}
 export type WorkspaceSettings = {
   timezone: string
   log_retention_days: number

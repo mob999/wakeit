@@ -330,9 +330,13 @@ pub struct TaskConfig {
     pub version: u32,
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub runner: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub agent: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cwd: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub prompt: String,
     #[serde(default)]
     pub parameters: BTreeMap<String, String>,
@@ -343,11 +347,35 @@ pub struct TaskConfig {
     pub enabled: bool,
     #[serde(default)]
     pub execution: Execution,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dag: Option<crate::dag::Dag>,
 }
 impl TaskConfig {
     pub fn validate(&self) -> Result<()> {
         ensure!(self.version == 1, "unsupported task configuration version");
         validate_id(&self.id)?;
+        if let Some(dag) = &self.dag {
+            ensure!(
+                self.runner.is_empty()
+                    && self.agent.is_empty()
+                    && self.cwd.is_empty()
+                    && self.prompt.is_empty()
+                    && self.parameters.is_empty()
+                    && self.session.is_none(),
+                "DAG and top-level node execution fields are mutually exclusive"
+            );
+            ensure!(!self.name.trim().is_empty(), "name is required");
+            ensure!(
+                serde_json::to_vec(self)?.len() <= 1000 * 1024,
+                "encoded task configuration exceeds 1000 KiB"
+            );
+            duration(&self.execution.timeout)?;
+            duration(&self.execution.start_grace)?;
+            if let Some(s) = &self.schedule {
+                crate::schedule::validate(s)?;
+            }
+            return dag.validate();
+        }
         validate_id(&self.agent)?;
         ensure!(
             !self.name.trim().is_empty() && !self.runner.is_empty(),

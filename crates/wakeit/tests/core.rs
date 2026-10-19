@@ -4,6 +4,7 @@ use uuid::Uuid;
 use wakeit::{config::*, journal::Journal, process, protocol::Assignment, schedule};
 fn task(cwd: &str) -> TaskConfig {
     TaskConfig {
+        dag: None,
         version: 1,
         id: "test".into(),
         name: "test".into(),

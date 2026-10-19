@@ -95,6 +95,7 @@ pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
         .as_ref()
         .context("agent has no models interface")?;
     let task = TaskConfig {
+        dag: None,
         version: 1,
         id: "models-query".into(),
         name: "Model query".into(),
