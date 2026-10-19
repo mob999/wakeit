@@ -209,14 +209,26 @@
   width: 12px;
   height: 12px;
 }
-.dag-graph-tools {
+.dag-graph-frame {
+  position: relative;
+  min-height: 0;
+}
+.dag-structure-fullscreen {
+  position: fixed;
+  inset: 44px 0 0;
+  z-index: 35;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 4px 12px;
-  gap: 4px;
-  min-height: 40px;
-  border-top: 1px solid var(--border);
+  flex-direction: column;
+  background: var(--canvas);
+}
+.dag-structure-fullscreen > .dag-structure-head {
+  flex-shrink: 0;
+}
+.dag-structure-fullscreen > .dag-graph-frame {
+  flex: 1;
+}
+.dag-structure-fullscreen .dag-graph-scroll {
+  height: 100%;
 }
 .dag-node-table {
   min-width: 0;
@@ -466,6 +478,7 @@
   border: 0;
 }
 .dag-node-readonly {
+  border-top: 1px solid var(--border);
   padding: 0;
 }
 .dag-node-readonly .properties {

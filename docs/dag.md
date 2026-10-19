@@ -51,6 +51,8 @@ The Time step uses matching scheduling and execution-policy cards. Cron, interva
 
 Run keeps Execution and Details. Execution has Process followed by Results, with the same graph/table and a white context row for the selected node. Reports are separated by rows inside one card. Successful and warning rounds highlight reports once; Details is never forcibly left. Details is a single node-details card with node selection, state and node actions in its sole header. Logs start expanded and execution information starts collapsed; both use internal white folding rows. Single-node Runs show a name without a picker. Both tabs share node selection and preserve each node's folding and log-follow state. Unknown reconciliation and continuation commands belong to a concrete node execution and its actual Session.
 
+Task overview and Run graphs share the editor’s three upper-right zoom/full-workspace controls. Fullscreen keeps node selection and scale; Escape or a switch to table view restores the normal layout without changing the Task.
+
 Moments has one entry per graph round, with separate output previews sharing a total 2048 Unicode character budget. Internal node executions do not enter ordinary Run lists, pagination, history or timeline counts.
 
 ## API and compatibility

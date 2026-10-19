@@ -18,10 +18,6 @@ import {
   Redo2,
   Workflow,
   Flag,
-  ZoomIn,
-  ZoomOut,
-  Maximize,
-  Minimize,
 } from 'lucide-react'
 import {
   api,
@@ -42,6 +38,7 @@ import { createTaskId, taskIdSuffix } from '../taskId'
 import { ChoicePicker } from '../ChoicePicker'
 import { DagGraph, type DagView } from './DagGraph'
 import { DagCanvas, type CanvasHandle } from './DagCanvas'
+import { CanvasControls } from './CanvasControls'
 import { AgentPalette } from './AgentPalette'
 import { NodeForm } from './NodeForm'
 import { TimeFields } from './TimeFields'
@@ -841,36 +838,14 @@ export function DagEditor({
                 />
               </section>
             </div>
-            <div
-              className="dag-canvas-controls"
+            <CanvasControls
+              fullscreen={fullscreen}
+              disabled={busy}
               hidden={view !== 'graph' || (!desktop && !!panel)}
               style={{ right: panel && desktop ? panelWidth + 32 : 16 }}
-              role="toolbar"
-              aria-label={t('dag.canvasControls')}
-            >
-              <IconButton
-                label={t('dag.zoomOut')}
-                disabled={busy}
-                onClick={() => canvas.current?.zoom(-0.15)}
-              >
-                <ZoomOut />
-              </IconButton>
-              <IconButton
-                label={t('dag.zoomIn')}
-                disabled={busy}
-                onClick={() => canvas.current?.zoom(0.15)}
-              >
-                <ZoomIn />
-              </IconButton>
-              <IconButton
-                label={t(fullscreen ? 'dag.exitFullscreen' : 'dag.fullscreen')}
-                aria-pressed={fullscreen}
-                disabled={busy}
-                onClick={() => setFullscreen((value) => !value)}
-              >
-                {fullscreen ? <Minimize /> : <Maximize />}
-              </IconButton>
-            </div>
+              onZoom={(direction) => canvas.current?.zoom(direction * 0.15)}
+              onToggleFullscreen={() => setFullscreen((value) => !value)}
+            />
           </div>
           {panel && (
             <section
