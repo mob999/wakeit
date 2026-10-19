@@ -1,5 +1,30 @@
 {
   "$defs": {
+    "Dag": {
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/Node"
+          },
+          "type": "array"
+        },
+        "results": {
+          "description": "Absent means the leaves of the current definition, rather than a cached list.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "nodes"
+      ],
+      "type": "object"
+    },
     "Execution": {
       "additionalProperties": false,
       "properties": {
@@ -28,6 +53,66 @@
         "latest"
       ],
       "type": "string"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "pre": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "runner": {
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timeout": {
+          "default": "1h",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "runner",
+        "agent",
+        "cwd",
+        "prompt"
+      ],
+      "type": "object"
     },
     "Overlap": {
       "enum": [
@@ -80,12 +165,77 @@
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "oneOf": [
+    {
+      "properties": {
+        "agent": {
+          "minLength": 1
+        },
+        "cwd": {
+          "minLength": 1
+        },
+        "dag": {
+          "type": "null"
+        },
+        "prompt": {
+          "minLength": 1
+        },
+        "runner": {
+          "minLength": 1
+        }
+      },
+      "required": [
+        "runner",
+        "agent",
+        "cwd",
+        "prompt"
+      ]
+    },
+    {
+      "properties": {
+        "agent": {
+          "maxLength": 0
+        },
+        "cwd": {
+          "maxLength": 0
+        },
+        "dag": {
+          "type": "object"
+        },
+        "parameters": {
+          "maxProperties": 0
+        },
+        "prompt": {
+          "maxLength": 0
+        },
+        "runner": {
+          "maxLength": 0
+        },
+        "session": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "dag"
+      ]
+    }
+  ],
   "properties": {
     "agent": {
       "type": "string"
     },
     "cwd": {
       "type": "string"
+    },
+    "dag": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Dag"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "enabled": {
       "default": true,
@@ -148,11 +298,7 @@
   },
   "required": [
     "id",
-    "name",
-    "runner",
-    "agent",
-    "cwd",
-    "prompt"
+    "name"
   ],
   "title": "TaskConfig",
   "type": "object"

@@ -1,3 +1,4 @@
+import { ErrorToast } from './Toast'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
@@ -40,11 +41,7 @@ export function CreateWorkspace({ onClose }: { onClose: () => void }) {
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
-          {create.error && (
-            <p className="error" role="alert">
-              {create.error.message}
-            </p>
-          )}
+          {create.error && <ErrorToast>{create.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={create.isPending} onClick={onClose}>
@@ -198,14 +195,10 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
               <Plus />
             </IconButton>
           </div>
-          {error && (
-            <p className="error card-body" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <ErrorToast>{error}</ErrorToast>}
           {workspaces.error ? (
             <div className="card-body">
-              <p className="error">{workspaces.error.message}</p>
+              <ErrorToast>{workspaces.error.message}</ErrorToast>
               <Button onClick={() => void workspaces.refetch()}>{tr('重试')}</Button>
             </div>
           ) : workspaces.isPending ? (
@@ -296,30 +289,30 @@ export function WorkspaceManagement({
                 <FileCog />
               </IconButton>
             )}
+            {!user.workspace?.is_demo && (
+              <IconButton
+                label={tr('退出工作区')}
+                danger
+                onClick={async () => {
+                  if (await controls.requestLeave()) {
+                    leave.reset()
+                    setLeaving(true)
+                  }
+                }}
+              >
+                <LogOut />
+              </IconButton>
+            )}
           </div>
         </div>,
-        <div className="workspace-management-actions">
-          <Button
-            onClick={async () => {
-              if (await controls.requestLeave()) setCreate(true)
-            }}
-          >
-            <Plus size={14} />
-            {tr('创建工作区')}
-          </Button>
-          {!user.workspace?.is_demo && (
-            <Button
-              onClick={async () => {
-                if (await controls.requestLeave()) {
-                  leave.reset()
-                  setLeaving(true)
-                }
-              }}
-            >
-              {tr('退出工作区')}
-            </Button>
-          )}
-        </div>,
+        <IconButton
+          label={tr('创建工作区')}
+          onClick={async () => {
+            if (await controls.requestLeave()) setCreate(true)
+          }}
+        >
+          <Plus />
+        </IconButton>,
       )}
       {create && <CreateWorkspace onClose={() => setCreate(false)} />}
       <Modal
@@ -331,11 +324,7 @@ export function WorkspaceManagement({
         })}
       >
         <div className="modal-body">
-          {leave.error && (
-            <p className="error" role="alert">
-              {leave.error.message}
-            </p>
-          )}
+          {leave.error && <ErrorToast>{leave.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={leave.isPending} onClick={() => setLeaving(false)}>
@@ -368,11 +357,7 @@ export function WorkspaceManagement({
                 onChange={(event) => setName(event.target.value)}
               />
             </Field>
-            {save.error && (
-              <p className="error" role="alert">
-                {save.error.message}
-              </p>
-            )}
+            {save.error && <ErrorToast>{save.error.message}</ErrorToast>}
           </div>
           <div className="modal-footer">
             <Button type="button" disabled={save.isPending} onClick={() => setOpen(false)}>

@@ -1,3 +1,4 @@
+import { ErrorToast } from './Toast'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import {
@@ -273,7 +274,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
           <span>{total}</span>
         </div>
         {error ? (
-          <p className="error">{error.message}</p>
+          <ErrorToast>{error.message}</ErrorToast>
         ) : loading || q !== debounced ? (
           <p className="quiet">{tr('正在加载…')}</p>
         ) : !items.length ? (
@@ -445,7 +446,9 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
             (tasks.data?.items ?? []).map((t) => ({
               id: t.id,
               name: t.config.name,
-              meta: `${t.config.runner} · ${t.config.agent}`,
+              meta: t.config.dag
+                ? `DAG ${tr('dag.nodeCount', { count: t.config.dag.nodes.length })}`
+                : `${t.config.runner} · ${t.config.agent}`,
             })),
             tasks.data?.total,
             tasks.error,

@@ -6,6 +6,8 @@ pub mod bus;
 pub mod changelog;
 pub mod cline_adapter;
 pub mod config;
+pub mod dag;
+pub mod dag_store;
 pub mod demo;
 pub mod gateway;
 pub mod gemini_adapter;
@@ -40,6 +42,7 @@ pub mod kimi_live;
 
 pub mod copilot_adapter;
 
+pub mod editor_layout;
 pub mod watch;
 pub mod workspace_api;
 pub mod workspaces;

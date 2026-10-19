@@ -84,7 +84,7 @@ test('failed loading can be retried without closing the dialog', async ({ page }
   await page.goto(workspacePage('/'))
   await page.getByRole('button', { name: `更新日志 ${version}`, exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await expect(dialog.getByRole('alert')).toContainText('无法加载更新日志')
+  await expect(page.getByRole('alert')).toContainText('无法加载更新日志')
   await dialog.getByRole('button', { name: '重试', exact: true }).click()
   await expect(dialog).toContainText('支持 Cron')
   expect(calls).toEqual(['zh', 'zh'])

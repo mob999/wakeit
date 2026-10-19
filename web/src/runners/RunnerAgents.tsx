@@ -73,7 +73,7 @@ export function RunnerAgents({
               </div>
               {expanded === agent.id && (
                 <div id={`agent-detail-${agent.id}`} className="agent-details">
-                  <div className="content-card agent-capabilities">
+                  <div className="agent-capabilities">
                     <table className="agent-detail-table">
                       <thead className="table-head">
                         <tr>
@@ -92,7 +92,7 @@ export function RunnerAgents({
                     </table>
                   </div>
                   {!!Object.keys(agent.parameters).length && (
-                    <div className="content-card agent-parameter-table">
+                    <div className="agent-parameter-table">
                       <table className="agent-detail-table">
                         <thead className="table-head">
                           <tr>

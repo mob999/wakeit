@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
@@ -124,11 +125,7 @@ export default function MermaidDiagram({ source }: { source: string }) {
           />
         </div>
       )}
-      {error && (
-        <p className="mermaid-error" role="status">
-          {tr('图表无法渲染')}
-        </p>
-      )}
+      {error && <ErrorToast>{tr('图表无法渲染')}</ErrorToast>}
       <details open={error || (!diagram && !error) || undefined}>
         <summary>{tr('图表源码')}</summary>
         <pre>

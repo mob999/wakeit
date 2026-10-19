@@ -151,7 +151,7 @@ async fn cleanup(s: &App) -> Result<()> {
         let runs = data["run_retention_days"].as_i64().unwrap_or(90) as i32;
         sqlx::query("WITH expired AS (DELETE FROM events WHERE workspace_id=$2 AND kind IN ('log','truncated','trace') AND created_at<now()-make_interval(days=>$1) RETURNING run_id,workspace_id) INSERT INTO events(run_id,workspace_id,seq,kind,data) SELECT DISTINCT run_id,workspace_id,-1,'trace_status','{\"status\":\"expired\"}'::jsonb FROM expired ON CONFLICT(run_id,seq) DO NOTHING").bind(logs).bind(workspace).execute(&s.pool).await?;
         sqlx::query(
-            "DELETE FROM runs WHERE workspace_id=$2 AND finished_at<now()-make_interval(days=>$1)",
+            "DELETE FROM runs WHERE workspace_id=$2 AND parent_run_id IS NULL AND finished_at<now()-make_interval(days=>$1)",
         )
         .bind(runs)
         .bind(workspace)

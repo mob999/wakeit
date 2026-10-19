@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState, useRef, useEffect, useId, type KeyboardEvent } from 'react'
@@ -231,9 +232,9 @@ export function DirectoryBrowser({
         </div>
         <div className="directory-quick-results" aria-busy={busy}>
           {(!runner.online || listing.error || error) && (
-            <p className="error directory-state" role="alert">
+            <ErrorToast>
               {!runner.online ? tr('设备离线，无法浏览。') : error || listing.error?.message}
-            </p>
+            </ErrorToast>
           )}
           {listing.isPending ? (
             <p className="quiet directory-state">{tr('正在读取目录…')}</p>

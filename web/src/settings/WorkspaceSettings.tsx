@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useId, useState, type ReactNode } from 'react'
@@ -149,9 +150,9 @@ export function WorkspaceSettingsView({
         if (!readOnly) onSave()
       }}
     >
-      <div className="form-card-head table-head">
-        <span>{tr('设置')}</span>
-        <span>{tr('值')}</span>
+      <div className="form-card-head card-header">
+        <h3>{tr('设置')}</h3>
+        {workspaceActions}
       </div>
       {workspaceName}
       <div className="setting-row">
@@ -192,23 +193,14 @@ export function WorkspaceSettingsView({
                 />
                 <span>{tr('unit.days', { count: Number(draft[key]) })}</span>
               </div>
-              {errors[key] && (
-                <small id={`${key}-error`} className="error">
-                  {errors[key]}
-                </small>
-              )}
+              {errors[key] && <ErrorToast id={`${key}-error`}>{errors[key]}</ErrorToast>}
             </div>
           )}
         </div>
       ))}
-      {workspaceActions}
       {!readOnly && dirty && (
         <div className="settings-savebar">
-          {error && (
-            <span className="error" role="alert">
-              {error}
-            </span>
-          )}
+          {error && <ErrorToast>{error}</ErrorToast>}
           <div>
             <Button type="button" disabled={pending} onClick={onCancel}>
               {tr('取消')}

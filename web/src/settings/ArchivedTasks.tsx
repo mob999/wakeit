@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
@@ -11,6 +12,7 @@ import { DetailBody } from '../Workbench'
 import { AgentLogo } from '../AgentLogo'
 import { Button, IconButton, Modal } from '../ui'
 import { RequestState } from './shared'
+import { RunIdentity } from '../runs/RunListRow'
 export function ArchivedTasks() {
   useTranslation()
   const client = useQueryClient()
@@ -49,7 +51,7 @@ export function ArchivedTasks() {
         ) : !query.data.items.length ? (
           <div className="settings-request content-card">{tr('暂无归档任务')}</div>
         ) : (
-          <div className="content-card archive-table">
+          <div className="content-card settings-table archive-table">
             <div className="archive-row table-head">
               <span>{tr('任务')}</span>
               <span>{tr('Runner')}</span>
@@ -68,15 +70,23 @@ export function ArchivedTasks() {
                   <Link className="archive-name" to="/tasks" search={{ task: task.id }}>
                     {task.config.name}
                   </Link>
-                  <span>
-                    {runners.data?.find(
-                      (r) => r.id === task.config.runner || r.name === task.config.runner,
-                    )?.name ?? task.config.runner}
-                  </span>
-                  <span className="archive-agent">
-                    <AgentLogo name={agent?.name ?? task.config.agent} logo={agent?.logo} />
-                    {agent?.name ?? task.config.agent}
-                  </span>
+                  {task.config.dag ? (
+                    <span className="dag-table-identity">
+                      <RunIdentity run={task} />
+                    </span>
+                  ) : (
+                    <>
+                      <span>
+                        {runners.data?.find(
+                          (r) => r.id === task.config.runner || r.name === task.config.runner,
+                        )?.name ?? task.config.runner}
+                      </span>
+                      <span className="archive-agent">
+                        <AgentLogo name={agent?.name ?? task.config.agent} logo={agent?.logo} />
+                        {agent?.name ?? task.config.agent}
+                      </span>
+                    </>
+                  )}
                   <span className="mono quiet">
                     {task.archived_at ? new Date(task.archived_at).toLocaleString(locale()) : '—'}
                   </span>
@@ -113,11 +123,7 @@ export function ArchivedTasks() {
         }}
       >
         <div className="modal-body">
-          {restore.error && (
-            <p className="error" role="alert">
-              {restore.error.message}
-            </p>
-          )}
+          {restore.error && <ErrorToast>{restore.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={restore.isPending} onClick={() => setSelected(null)}>

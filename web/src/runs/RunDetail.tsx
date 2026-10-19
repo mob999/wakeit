@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { apiUrl } from '../api'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +26,8 @@ import { RunLogs, RunLogActions } from './RunLogs'
 import { ResumeRun } from '../sessions/ResumeRun'
 import { PageActions } from '../PageHeader'
 import { TaskEditor } from '../TaskEditor'
-export function RunDetail({
+import { DagRunDetail } from '../dag/DagRunDetail'
+function SingleRunDetail({
   id,
   user,
   toast,
@@ -82,7 +84,7 @@ export function RunDetail({
     }
   }, [createTask, settings.error, toast])
   const navigate = useNavigate()
-  const editable = user.role !== 'viewer'
+  const editable = !run.data?.parent_run_id && user.role !== 'viewer'
   useEffect(() => {
     const source = new EventSource(apiUrl(`/runs/${id}/stream`))
     source.onopen = () => setLogError(false)
@@ -115,7 +117,7 @@ export function RunDetail({
         <h3>{run.error ? tr('无法读取运行记录') : tr('正在加载…')}</h3>
         {run.error && (
           <>
-            <p className="error">{run.error.message}</p>
+            <ErrorToast>{run.error.message}</ErrorToast>
             <Button onClick={() => run.refetch()}>
               <RefreshCw size={14} />
               {tr('重试')}
@@ -299,7 +301,15 @@ export function RunDetail({
     </>
   )
 }
-function ResolveDialog({ id, onClose }: { id: string; onClose: () => void }) {
+export function ResolveDialog({
+  id,
+  onClose,
+  endpoint,
+}: {
+  id: string
+  onClose: () => void
+  endpoint?: string
+}) {
   useTranslation()
   const [state, setState] = useState('interrupted')
   const [reason, setReason] = useState('')
@@ -307,7 +317,7 @@ function ResolveDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const [error, setError] = useState('')
   const client = useQueryClient()
   const save = useMutation({
-    mutationFn: () => api(`/runs/${id}/resolve`, 'POST', { state, reason }),
+    mutationFn: () => api(endpoint ?? `/runs/${id}/resolve`, 'POST', { state, reason }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['run', id] })
       onClose()
@@ -346,7 +356,7 @@ function ResolveDialog({ id, onClose }: { id: string; onClose: () => void }) {
           />{' '}
           {tr('我已核对实际任务状态')}
         </label>
-        {error && <p className="error">{error}</p>}
+        {error && <ErrorToast>{error}</ErrorToast>}
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>{tr('取消')}</Button>
@@ -360,4 +370,14 @@ function ResolveDialog({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
     </Modal>
   )
+}
+
+export function RunDetail(props: { id: string; user: User; toast: (message: string) => void }) {
+  const run = useQuery<Run>({
+    queryKey: ['run', props.id],
+    queryFn: () => api(`/runs/${props.id}`),
+    refetchInterval: 2000,
+  })
+  if (run.data?.config.dag) return <DagRunDetail key={props.id} {...props} run={run.data} />
+  return <SingleRunDetail key={props.id} {...props} />
 }
