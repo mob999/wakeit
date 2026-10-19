@@ -1,159 +1,39 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import { selectChoice } from './choices'
-const workspace = '11111111-1111-4111-8111-111111111111'
-const runnerId = '22222222-2222-4222-8222-222222222222'
-const base = '/w/' + workspace + '/tasks/dag'
-function definition() {
-  const node = {
-    id: 'source',
-    name: 'Collect sources',
-    pre: [] as string[],
-    runner: runnerId,
-    agent: 'pi',
-    cwd: '/workspace',
-    prompt: 'Find primary sources',
-    parameters: { model: 'model-a' },
-    session: null as { id: string } | null,
-    timeout: '1h',
-  }
-  return {
-    version: 1,
-    id: 'ux-fixture',
-    name: 'Daily report',
-    enabled: false,
-    schedule: { cron: '0 9 * * *', timezone: 'Asia/Shanghai' } as any,
-    execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
-    dag: {
-      nodes: [
-        node,
-        {
-          ...structuredClone(node),
-          id: 'report',
-          name: 'Write report',
-          pre: ['source'],
-          prompt: '{{ nodes.source.result }}',
-        },
-      ],
-    },
-  }
-}
-async function fixture(page: Page, config = definition()) {
-  const requests: { path: string; method: string; body: any }[] = []
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.route('**/api/v1/**', async (route) => {
-    const path = new URL(route.request().url()).pathname.replace(
-      /^\/api\/v1(?:\/workspaces\/[0-9a-f-]{36})?/,
-      '',
-    )
-    const method = route.request().method(),
-      body = route.request().postDataJSON()
-    requests.push({ path, method, body })
-    let json: any = []
-    if (path === '/session') json = { id: 'preview-user', username: 'preview', role: 'admin' }
-    else if (path === '/meta') json = { version: '0.2.0' }
-    else if (path === '/workspaces')
-      json = { items: [{ id: workspace, name: 'Preview', role: 'admin' }] }
-    else if (path === '/' + workspace) json = { id: workspace, name: 'Preview', role: 'admin' }
-    else if (new URL(route.request().url()).pathname === '/api/v1/workspaces/' + workspace)
-      json = { id: workspace, name: 'Preview', role: 'admin' }
-    else if (path === '/settings') json = { timezone: 'Asia/Shanghai' }
-    else if (path === '/runners')
-      json = [
-        {
-          id: runnerId,
-          name: 'Preview device',
-          online: true,
-          revoked: false,
-          directory_roots: ['/workspace'],
-          agents: [
-            {
-              id: 'pi',
-              name: 'Pi',
-              logo: '/agent-logos/pi.svg',
-              available: true,
-              mode: 'sync',
-              digest: 'fixture',
-              session_supported: true,
-              session_list_supported: true,
-              models_supported: true,
-              parameters: {
-                model: { type: 'string', label: 'Model' },
-                reasoning: { type: 'string', label: 'Reasoning', enum: ['low', 'high'] },
-              },
-            },
-          ],
-        },
-      ]
-    else if (path === '/tasks/ux-fixture')
-      json =
-        method === 'PUT'
-          ? { id: config.id, revision: 8, config: body.config }
-          : { id: config.id, revision: 7, config, archived_at: null }
-    else if (path.endsWith('/models/query'))
-      json = {
-        version: 1,
-        models: [
-          { id: 'a', name: 'Model A', parameters: { model: 'model-a' }, parameter_options: {} },
-          { id: 'b', name: 'Model B', parameters: { model: 'model-b' }, parameter_options: {} },
-        ],
-      }
-    else if (path.endsWith('/sessions/query'))
-      json = { version: 1, sessions: [], next_cursor: null }
-    else if (path.endsWith('/sessions/inspect'))
-      json = { id: body.id, title: 'Preview session', cwd: '/workspace', persisted: true }
-    else if (path === '/timezones') json = ['Asia/Shanghai', 'UTC', 'America/New_York']
-    else if (path === '/schedule/preview') json = ['2026-10-20T01:00:00Z']
-    else if (path === '/tasks/validate') json = { errors: [] }
-    return route.fulfill({ json })
-  })
-  return { config, requests }
-}
-async function editNode(page: Page, id = 'source') {
-  await page
-    .locator('.dag-graph-node')
-    .filter({ hasText: id === 'source' ? 'Collect sources' : 'Write report' })
-    .click()
-}
-async function switchNode(page: Page, label: string) {
-  await page
-    .locator('.dag-node-context')
-    .getByRole('combobox', { name: '选择节点', exact: true })
-    .click()
-  await page.getByRole('option', { name: new RegExp('^' + label) }).click()
-}
-test('graph, full-width editor and table use the shared card geometry without Runner UUIDs', async ({
+import { base, runnerId, definition, fixture, editNode, switchNode } from './dag-fixture'
+test('floating editor and table share identity and column geometry without changing canvas size', async ({
   page,
 }) => {
   await fixture(page)
   await page.goto(base + '?task=ux-fixture')
-  await expect(page.locator('.dag-config-body')).toHaveCount(0)
-  await expect(page.locator('.dag-graph-node').first()).toContainText('Preview device')
-  await expect(page.locator('.dag-graph-node').first()).not.toContainText(runnerId)
+  await expect(page.locator('.dag-floating-panel')).toHaveCount(0)
+  await expect(page.locator('.react-flow__node').first()).toContainText('Preview device')
+  const before = (await page.locator('.dag-interactive-canvas').boundingBox())!
   await editNode(page)
-  const card = (await page.locator('.dag-nodes-card').boundingBox())!,
-    form = (await page.locator('.dag-config-body').boundingBox())!
-  expect(form.width).toBeGreaterThan(card.width - 4)
+  const panel = (await page.locator('.dag-floating-panel').boundingBox())!
+  expect(panel.width).toBe(520)
+  expect((await page.locator('.dag-interactive-canvas').boundingBox())!.width).toBe(before.width)
   await page.getByRole('button', { name: '表格', exact: true }).click()
-  await expect(page.locator('.dag-node-table .dag-expanded-node')).toHaveCount(1)
+  await expect(page.locator('.dag-expanded-node')).toHaveCount(0)
   await expect(page.locator('.dag-node-table .dag-table-head')).toHaveCount(1)
-  const row = page.locator('.dag-list-node').first(),
-    head = page.locator('.dag-table-head')
-  const deltas = await row.evaluate((el) =>
-    Array.from(el.children)
-      .slice(0, -1)
-      .map((cell, i) =>
-        Math.abs(
-          cell.getBoundingClientRect().x -
-            el
-              .closest('[role=table]')!
-              .querySelector('.dag-table-head')!
-              .children[i].getBoundingClientRect().x,
+  const deltas = await page
+    .locator('.dag-list-node')
+    .first()
+    .evaluate((el) =>
+      Array.from(el.children)
+        .slice(0, -1)
+        .map((cell, i) =>
+          Math.abs(
+            cell.getBoundingClientRect().x -
+              el
+                .closest('[role=table]')!
+                .querySelector('.dag-table-head')!
+                .children[i].getBoundingClientRect().x,
+          ),
         ),
-      ),
-  )
+    )
   expect(Math.max(...deltas)).toBeLessThan(1)
-  expect(await head.evaluate((el) => getComputedStyle(el).fontSize)).toBe('11px')
-  await expect(page.locator('.dag-graph-node')).toHaveCount(0)
+  await page.getByRole('button', { name: '关闭', exact: true }).click()
   for (const [width, language, theme] of [
     [1440, 'zh', 'light'],
     [390, 'zh', 'light'],
@@ -171,8 +51,7 @@ test('graph, full-width editor and table use the shared card geometry without Ru
     )
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({
-      path: 'test-results/dag-ux-editor-' + width + '-' + language + '-' + theme + '.png',
-      fullPage: true,
+      path: `test-results/dag-canvas-table-${width}-${language}-${theme}.png`,
     })
   }
 })
@@ -184,17 +63,21 @@ test('successor and duplicate keep explicit scope; complete saves preserve revis
   await page.goto(base + '?task=ux-fixture')
   await editNode(page)
   await page
-    .locator('.dag-node-context')
+    .locator('.dag-floating-header')
     .getByRole('button', { name: '节点操作', exact: true })
     .click()
   await page.getByRole('menuitem', { name: '复制节点', exact: true }).click()
   await expect(page.getByLabel('名称', { exact: true })).toHaveValue(/Collect sources/)
   await expect(page.getByLabel('名称', { exact: true })).toBeFocused()
   await page
-    .locator('.dag-node-context')
+    .locator('.dag-floating-header')
     .getByRole('button', { name: '节点操作', exact: true })
     .click()
   await page.getByRole('menuitem', { name: '新增后续节点', exact: true }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Preview device 上的 Pi', exact: true })
+    .click()
   await expect(page.getByLabel('名称', { exact: true })).toBeFocused()
   await expect(page.getByLabel('指令', { exact: true })).toHaveValue('')
   await page.getByLabel('指令', { exact: true }).fill('Follow up')
@@ -222,7 +105,7 @@ test('node UI state, model mode, Session drafts and graph scale survive node and
   await fixture(page)
   await page.goto(base + '?task=ux-fixture')
   await page.getByRole('button', { name: '放大', exact: true }).click()
-  const transform = await page.locator('.dag-graph-plane').evaluate((el) => el.style.transform)
+
   await editNode(page)
   await selectChoice(page, page, '模型', '自定义模型 ID')
   await page.getByLabel('模型', { exact: true }).fill('private-model')
@@ -239,48 +122,47 @@ test('node UI state, model mode, Session drafts and graph scale survive node and
   await page.getByRole('button', { name: '输入会话 ID…', exact: true }).click()
   await expect(page.getByLabel('会话 ID', { exact: true })).toHaveValue('unfinished-session-id')
   await page.keyboard.press('Escape')
-  const pane = page.locator('.dag-editor-scroll')
+  const pane = page.locator('.dag-floating-body')
   await pane.evaluate((el) => {
     el.scrollTop = 300
   })
-  await expect.poll(() => pane.evaluate((el) => el.scrollTop)).toBe(300)
+  const transform = await page.locator('.react-flow__viewport').evaluate((el) => el.style.transform)
+  const storedScroll = await pane.evaluate((el) => el.scrollTop)
+  expect(storedScroll).toBeGreaterThan(0)
   await page.getByRole('tab', { name: '时间', exact: true }).click()
   await page.getByRole('tab', { name: '任务', exact: true }).click()
-  await expect.poll(() => pane.evaluate((el) => el.scrollTop)).toBe(300)
-  expect(await page.locator('.dag-graph-plane').evaluate((el) => el.style.transform)).toBe(
+  await expect.poll(() => pane.evaluate((el) => el.scrollTop)).toBe(storedScroll)
+  expect(await page.locator('.react-flow__viewport').evaluate((el) => el.style.transform)).toBe(
     transform,
   )
   await expect(page.getByLabel('模型', { exact: true })).toHaveValue('private-model')
 })
-test('predecessor keyboard selection skips cycles and deletion points to the actual reference', async ({
+test('cycles are unavailable; deleting referenced nodes preserves a repairable draft and can be undone', async ({
   page,
 }) => {
-  await fixture(page)
+  const f = await fixture(page)
   await page.goto(base + '?task=ux-fixture')
   await editNode(page)
   await page.getByRole('combobox', { name: '前置节点', exact: true }).click()
   await expect(page.getByRole('option', { name: /^Write report/ })).toBeDisabled()
   await page.keyboard.press('Escape')
   await page
-    .locator('.dag-node-context')
+    .locator('.dag-floating-header')
     .getByRole('button', { name: '节点操作', exact: true })
     .click()
   await page.getByRole('menuitem', { name: '删除节点', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await expect(dialog.getByRole('button', { name: '删除节点', exact: true })).toBeDisabled()
-  await expect(dialog.getByRole('table')).toContainText('前置节点')
-  await dialog.getByRole('button', { name: '前往处理', exact: true }).first().click()
-  await expect(page.getByRole('combobox', { name: '前置节点', exact: true })).toBeFocused()
-  await expect(page.getByLabel('名称', { exact: true })).toHaveValue('Write report')
-  await page.getByRole('combobox', { name: '前置节点', exact: true }).click()
-  const input = page.getByRole('combobox', { name: '搜索前置节点', exact: true })
-  await input.fill('source')
-  await input.press('ArrowDown')
-  await input.press('Enter')
-  await expect(page.getByRole('option', { name: /^Collect sources/ })).toHaveAttribute(
-    'aria-selected',
-    'false',
-  )
+  await expect(dialog.getByRole('table')).toContainText('指令')
+  await dialog.getByRole('button', { name: '删除节点', exact: true }).click()
+  await expect(page.locator('.react-flow__node')).toHaveCount(1)
+  await page.getByRole('button', { name: '下一步', exact: true }).click()
+  await page.getByRole('button', { name: '保存任务', exact: true }).click()
+  await expect(page.getByLabel('指令', { exact: true })).toHaveValue('{{ nodes.source.result }}')
+  await expect(page.getByLabel('指令', { exact: true })).toHaveAttribute('aria-invalid', 'true')
+  expect(f.requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
+  await page.getByRole('button', { name: '撤销', exact: true }).click()
+  await expect(page.locator('.react-flow__node')).toHaveCount(2)
+  await expect(page.getByLabel('指令', { exact: true })).toHaveAttribute('aria-invalid', 'false')
 })
 test('scheduling preserves every type, debounces incomplete input and converts selected timezones', async ({
   page,
@@ -427,4 +309,28 @@ test('late node queries stay scoped and Save locks the whole draft until validat
   await expect.poll(() => !!finishValidation).toBe(true)
   await finishValidation!()
   await expect.poll(() => f.requests.filter((r) => r.method === 'PUT').length).toBe(1)
+})
+
+test('DAG name lives once in the top breadcrumb and remains editable on either step', async ({
+  page,
+}) => {
+  await fixture(page)
+  await page.goto(base + '?task=ux-fixture')
+  const name = page.getByLabel('任务名称', { exact: true })
+  await expect(
+    page.locator('.header-breadcrumbs').getByLabel('任务名称', { exact: true }),
+  ).toBeVisible()
+  await expect(page.locator('.dag-stepbar input')).toHaveCount(0)
+  await name.fill('')
+  await name.pressSequentially('Research graph', { delay: 10 })
+  await expect(name).toHaveValue('Research graph')
+  await expect(name).toBeFocused()
+  await page.getByRole('tab', { name: '时间', exact: true }).click()
+  await expect(name).toBeVisible()
+  await name.fill('')
+  await page.getByRole('button', { name: '保存任务', exact: true }).click()
+  await expect(name).toHaveAttribute('aria-invalid', 'true')
+  await expect(name).toBeFocused()
+  await name.fill('Daily report')
+  await expect(name).toHaveAttribute('aria-invalid', 'false')
 })
