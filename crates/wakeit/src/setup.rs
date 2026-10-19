@@ -72,10 +72,31 @@ pub async fn login(gateway: &str, intent: &Intent) -> Result<c::Profile> {
             .await
             .context("authorization response lost; authorize again")?;
         if status.is_success() {
+            let workspace: Uuid = v["workspace_id"]
+                .as_str()
+                .context("workspace ID")?
+                .parse()?;
+            ensure!(
+                intent.workspace_id == Some(workspace),
+                "authorized workspace differs from the request"
+            );
+            let user: Uuid = v["user"]["id"].as_str().context("account ID")?.parse()?;
+            let token = v["access_token"].as_str().context("access token")?;
+            let metadata = value(
+                client
+                    .get(format!("{gateway}/api/v1/workspaces/{workspace}"))
+                    .bearer_auth(token)
+                    .send()
+                    .await?,
+            )
+            .await?;
             return c::save(
                 &gateway,
+                workspace,
+                user,
+                metadata["name"].as_str().context("workspace name")?,
                 v["user"]["username"].as_str().context("username")?,
-                v["access_token"].as_str().context("access token")?,
+                token,
             );
         }
         match v["error"].as_str().unwrap_or("") {
@@ -118,10 +139,10 @@ fn hostname() -> String {
         .collect();
     if s.is_empty() { "runner".into() } else { s }
 }
-async fn authenticated(gateway: &str, token: &str) -> bool {
+async fn authenticated(gateway: &str, workspace: Uuid, token: &str) -> bool {
     match http() {
         Ok(h) => h
-            .get(format!("{gateway}/api/v1/session"))
+            .get(format!("{gateway}/api/v1/workspaces/{workspace}"))
             .bearer_auth(token.trim())
             .send()
             .await
@@ -129,11 +150,77 @@ async fn authenticated(gateway: &str, token: &str) -> bool {
         _ => false,
     }
 }
-pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result<()> {
+pub async fn run(
+    gateway: &str,
+    workspace: Uuid,
+    name: Option<&str>,
+    roots: &[PathBuf],
+) -> Result<()> {
     let gateway = crate::device_auth::validate_url(gateway)?;
-    let dir = c::directory()?.join("runners").join(c::name(&gateway));
+    let current = c::resolve(None, None)?;
+    let mut old = if current
+        .as_ref()
+        .is_some_and(|p| p.gateway == gateway && p.workspace_id == Some(workspace))
+    {
+        current
+    } else {
+        c::resolve(Some(&gateway), Some(workspace))?
+    };
+    if let Some(profile) = old.take() {
+        old = Some(c::upgrade_legacy(profile, Some(workspace)).await?);
+    }
+    let hinted = old
+        .as_ref()
+        .and_then(|p| p.runner_config.as_ref())
+        .map(|path| crate::sessions::read_runner(path))
+        .transpose()?;
+    if let Some(r) = &hinted {
+        ensure!(
+            r.gateway.trim_end_matches('/') == gateway,
+            "saved Runner belongs to another Gateway"
+        );
+    }
+    let requested = if roots.is_empty() {
+        hinted
+            .as_ref()
+            .map(|r| r.allowed_roots.clone())
+            .unwrap_or(vec![std::env::current_dir()?])
+    } else {
+        roots.to_vec()
+    };
+    let requested: Vec<String> = requested
+        .iter()
+        .map(|p| Ok(p.canonicalize()?.to_string_lossy().into_owned()))
+        .collect::<Result<_>>()?;
+    let intent = Intent {
+        workspace_id: Some(workspace),
+        name: name
+            .map(str::to_owned)
+            .or_else(|| hinted.as_ref().map(|r| r.name.clone()))
+            .unwrap_or_else(hostname),
+        os: std::env::consts::OS.into(),
+        register_runner: true,
+        allowed_roots: requested,
+    };
+    let token = old
+        .as_ref()
+        .and_then(|p| std::fs::read_to_string(&p.token_file).ok());
+    if token.as_ref().is_none()
+        || !authenticated(&gateway, workspace, token.as_deref().unwrap_or("")).await
+    {
+        old = Some(login(&gateway, &intent).await?);
+    }
+    let profile = old.context("missing connection")?;
+    let account = profile
+        .user_id
+        .context("connection account metadata is missing")?;
+    ensure!(
+        profile.workspace_id == Some(workspace),
+        "connection belongs to another workspace"
+    );
+    let connection = c::scoped_name(&gateway, workspace, account);
+    let dir = c::directory()?.join("runners").join(&connection);
     std::fs::create_dir_all(&dir)?;
-    // Serialize setup to avoid rotating credentials underneath a concurrent invocation.
     let lock = std::fs::OpenOptions::new()
         .create(true)
         .truncate(false)
@@ -141,29 +228,37 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
         .write(true)
         .open(dir.join("setup.lock"))?;
     fs2::FileExt::try_lock_exclusive(&lock).context("another setup is in progress")?;
-    let mut old = c::resolve(Some(&gateway))?;
-    let mut config_path = old
-        .as_ref()
-        .and_then(|p| p.runner_config.clone())
-        .or_else(|| {
-            dir.join("runner.yaml")
-                .exists()
-                .then(|| dir.join("runner.yaml"))
-        });
-    if config_path.is_none() {
-        let candidates: Vec<_> = crate::sessions::registered_configs()?
-            .into_iter()
-            .filter(|path| {
-                crate::sessions::read_runner(path).is_ok_and(|r| {
-                    r.gateway.trim_end_matches('/') == gateway && name.is_none_or(|n| n == r.name)
-                })
-            })
-            .collect();
+    let token = std::fs::read_to_string(&profile.token_file)?;
+    let client = http()?;
+    let metadata = value(
+        client
+            .get(format!("{gateway}/api/v1/workspaces/{workspace}"))
+            .bearer_auth(token.trim())
+            .send()
+            .await?,
+    )
+    .await?;
+    ensure!(
+        metadata["role"] == "operator" || metadata["role"] == "admin",
+        "Operator permission is required to register a Runner"
+    );
+    let config_path = profile.runner_config.clone();
+    if let Some(path) = &config_path {
+        let existing = crate::sessions::read_runner(path)?;
+        let rows = value(
+            client
+                .get(format!("{gateway}/api/v1/workspaces/{workspace}/runners"))
+                .bearer_auth(token.trim())
+                .send()
+                .await?,
+        )
+        .await?;
         ensure!(
-            candidates.len() <= 1,
-            "multiple local Runners exist for this Gateway; specify --runner-name"
+            rows.as_array().is_some_and(|rows| rows
+                .iter()
+                .any(|r| r["id"] == existing.id.to_string() && r["revoked"] == false)),
+            "saved Runner is unavailable in this workspace; refusing to reuse it"
         );
-        config_path = candidates.into_iter().next();
     }
     let pending_path = dir.join("registration.json");
     let existing = config_path
@@ -218,21 +313,6 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
     if existing.is_none() && !seed_path.exists() {
         c::atomic(&seed_path, nkeys::KeyPair::new_user().seed()?)?;
     }
-    let intent = Intent {
-        name: pending.name.clone(),
-        os: std::env::consts::OS.into(),
-        register_runner: true,
-        allowed_roots: pending.roots.clone(),
-    };
-    let token = old
-        .as_ref()
-        .and_then(|p| std::fs::read_to_string(&p.token_file).ok());
-    if token.as_ref().is_none() || !authenticated(&gateway, token.as_deref().unwrap_or("")).await {
-        old = Some(login(&gateway, &intent).await?);
-    }
-    let profile = old.context("missing connection")?;
-    let token = std::fs::read_to_string(&profile.token_file)?;
-    let client = http()?;
     let config_path = if let Some(path) = config_path {
         path
     } else {
@@ -259,7 +339,9 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
         };
         let response = value(
             client
-                .post(format!("{gateway}/api/v1/runners/connect"))
+                .post(format!(
+                    "{gateway}/api/v1/workspaces/{workspace}/runners/connect"
+                ))
                 .bearer_auth(token.trim())
                 .json(&b)
                 .send()
@@ -305,10 +387,10 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
     crate::sessions::register(&config_path)?;
     c::update(|all| {
         all.connections
-            .get_mut(&c::name(&gateway))
+            .get_mut(&connection)
             .context("connection disappeared")?
             .runner_config = Some(config_path.clone());
-        all.current = Some(c::name(&gateway));
+        all.current = Some(connection.clone());
         Ok(())
     })?;
     install_service(&config_path).context(
@@ -319,7 +401,7 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
     loop {
         let rows = value(
             client
-                .get(format!("{gateway}/api/v1/runners"))
+                .get(format!("{gateway}/api/v1/workspaces/{workspace}/runners"))
                 .bearer_auth(token.trim())
                 .send()
                 .await?,
@@ -334,11 +416,14 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
             })
         }) {
             ensure!(
-                authenticated(&gateway, &token).await,
+                authenticated(&gateway, workspace, &token).await,
                 "CLI authentication was revoked"
             );
             let query = client
-                .get(format!("{gateway}/api/v1/runners/{}/directories", r.id))
+                .get(format!(
+                    "{gateway}/api/v1/workspaces/{workspace}/runners/{}/directories",
+                    r.id
+                ))
                 .bearer_auth(token.trim())
                 .send()
                 .await?;
@@ -353,7 +438,7 @@ pub async fn run(gateway: &str, name: Option<&str>, roots: &[PathBuf]) -> Result
             println!(
                 "{}",
                 serde_json::to_string_pretty(
-                    &json!({"status":"ready","gateway":gateway,"connection":c::name(&gateway),"runner":r.id,"name":r.name,"allowed_roots":r.allowed_roots,"agents":row["agents"].as_array().unwrap().iter().map(|a|json!({"id":a["id"],"available":a["available"],"version":a["version"]})).collect::<Vec<_>>(),"autostart":true})
+                    &json!({"status":"ready","gateway":gateway,"connection":connection,"workspace_id":workspace,"runner":r.id,"name":r.name,"allowed_roots":r.allowed_roots,"agents":row["agents"].as_array().unwrap().iter().map(|a|json!({"id":a["id"],"available":a["available"],"version":a["version"]})).collect::<Vec<_>>(),"autostart":true})
                 )?
             );
             return Ok(());

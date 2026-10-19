@@ -152,7 +152,7 @@ fn openapi_references_resolve_in_the_document() {
     }
     check(&doc, &doc);
     assert!(
-        doc["paths"]["/api/v1/tasks/{id}/runs"]["post"]["parameters"]
+        doc["paths"]["/api/v1/workspaces/{workspace}/tasks/{id}/runs"]["post"]["parameters"]
             .as_array()
             .unwrap()
             .iter()

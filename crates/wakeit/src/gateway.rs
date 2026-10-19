@@ -11,6 +11,7 @@ use futures::StreamExt;
 use std::{sync::Arc, time::Duration};
 
 pub async fn start(config: GatewayConfig) -> Result<()> {
+    crate::github_auth::validate(&config)?;
     anyhow::ensure!(
         config.version == 1,
         "unsupported Gateway configuration version"
@@ -20,6 +21,9 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
     sqlx::query("SELECT 1 FROM settings LIMIT 1")
         .execute(&pool)
         .await?;
+    if config.auth.demo_workspace {
+        crate::demo::seed(&pool).await?;
+    }
     let client = bus::connect(
         &config.nats_url,
         &config.nats_auth_dir.join("gateway.creds"),
@@ -136,18 +140,24 @@ async fn consume_events(s: &App, cancel: &tokio_util::sync::CancellationToken) -
 }
 async fn cleanup(s: &App) -> Result<()> {
     store::clear_completed_messages(&s.pool, &s.js).await?;
-    let settings: serde_json::Value = sqlx::query_scalar("SELECT data FROM settings")
-        .fetch_one(&s.pool)
+    use sqlx::Row;
+    let settings = sqlx::query("SELECT workspace_id,data FROM settings")
+        .fetch_all(&s.pool)
         .await?;
-    let logs = settings["log_retention_days"].as_i64().unwrap_or(7) as i32;
-    let runs = settings["run_retention_days"].as_i64().unwrap_or(90) as i32;
-    // Preserve content availability independently of the payload retention period.
-    sqlx::query("WITH expired AS (DELETE FROM events WHERE kind IN ('log','truncated','trace') AND created_at<now()-make_interval(days=>$1) RETURNING run_id) INSERT INTO events(run_id,seq,kind,data) SELECT DISTINCT run_id, -1, 'trace_status', '{\"status\":\"expired\"}'::jsonb FROM expired ON CONFLICT(run_id,seq) DO NOTHING")
-        .bind(logs).execute(&s.pool).await?;
-    sqlx::query("DELETE FROM runs WHERE finished_at<now()-make_interval(days=>$1)")
+    for row in settings {
+        let workspace: uuid::Uuid = row.get("workspace_id");
+        let data: serde_json::Value = row.get("data");
+        let logs = data["log_retention_days"].as_i64().unwrap_or(7) as i32;
+        let runs = data["run_retention_days"].as_i64().unwrap_or(90) as i32;
+        sqlx::query("WITH expired AS (DELETE FROM events WHERE workspace_id=$2 AND kind IN ('log','truncated','trace') AND created_at<now()-make_interval(days=>$1) RETURNING run_id,workspace_id) INSERT INTO events(run_id,workspace_id,seq,kind,data) SELECT DISTINCT run_id,workspace_id,-1,'trace_status','{\"status\":\"expired\"}'::jsonb FROM expired ON CONFLICT(run_id,seq) DO NOTHING").bind(logs).bind(workspace).execute(&s.pool).await?;
+        sqlx::query(
+            "DELETE FROM runs WHERE workspace_id=$2 AND finished_at<now()-make_interval(days=>$1)",
+        )
         .bind(runs)
+        .bind(workspace)
         .execute(&s.pool)
         .await?;
+    }
     sqlx::query("DELETE FROM outbox WHERE cleared_at<now()-interval '7 days'")
         .execute(&s.pool)
         .await?;

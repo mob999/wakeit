@@ -1,3 +1,4 @@
+import { workspacePage, apiPath, mockWorkspace } from './workspace'
 import { test, expect, type Page } from '@playwright/test'
 import { selectChoice } from './choices'
 
@@ -107,9 +108,10 @@ async function fixture(
     return { items, total: items.length, page: 1, page_size: 20 }
   }
   await page.route('**/api/v1/**', async (route) => {
+    if (await mockWorkspace(route, options.role ?? 'admin')) return
     const request = route.request()
     const url = new URL(request.url())
-    const path = url.pathname.replace('/api/v1', '')
+    const path = apiPath(url.pathname)
     if (path === '/session')
       return route.fulfill({
         json: { id: 'fixture-user', username: 'tester', role: options.role ?? 'admin' },
@@ -237,7 +239,7 @@ async function fixture(
   }
 }
 async function edit(page: Page) {
-  await page.goto('/tasks')
+  await page.goto(workspacePage('/tasks'))
   await page.getByRole('button', { name: '编辑', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '编辑任务', exact: true })
   await dialog.locator('summary:visible').filter({ hasText: '高级设置' }).click()
@@ -348,7 +350,7 @@ test('a completed Run exposes its actual session and pre-fills a new task withou
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const data = await fixture(page)
-  await page.goto(`/runs?run=${runId}`)
+  await page.goto(workspacePage(`/runs?run=${runId}`))
   if (page.viewportSize()!.width <= 720)
     await page.getByRole('button', { name: '页面操作', exact: true }).click()
   await page.getByRole('button', { name: '续聊', exact: true }).click()
@@ -392,36 +394,36 @@ test('Moments loads the full Run only on continuation and Viewer may copy but ca
   page,
 }) => {
   const data = await fixture(page, { role: 'viewer', state: 'failed' })
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await expect(page.locator('.moment-card')).toBeVisible()
   expect(data.resumed).toHaveLength(0)
   await page.getByRole('button', { name: '续聊', exact: true }).click()
   await expect(page.getByRole('dialog', { name: '续聊', exact: true })).toBeVisible()
   expect(data.resumed).toHaveLength(1)
-  await page.goto(`/runs?run=${runId}`)
+  await page.goto(workspacePage(`/runs?run=${runId}`))
   await expect(page.getByRole('button', { name: '续聊', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '从此会话创建任务', exact: true })).toHaveCount(0)
 })
 
 test('missing sessions and active Runs do not expose continuation actions', async ({ page }) => {
   await fixture(page, { ready: false })
-  await page.goto(`/runs?run=${runId}`)
+  await page.goto(workspacePage(`/runs?run=${runId}`))
   await expect(page.getByRole('heading', { name: configuration.name, exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '续聊', exact: true })).toHaveCount(0)
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await expect(page.locator('.moment-card')).toBeVisible()
   await expect(page.getByRole('button', { name: '续聊', exact: true })).toHaveCount(0)
   await page.unrouteAll({ behavior: 'wait' })
   await fixture(page, { state: 'running' })
-  await page.goto(`/runs?run=${runId}`)
+  await page.goto(workspacePage(`/runs?run=${runId}`))
   await expect(page.getByRole('heading', { name: configuration.name, exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '续聊', exact: true })).toHaveCount(0)
   await page.unrouteAll({ behavior: 'wait' })
   await fixture(page, { noCommand: true })
-  await page.goto(`/runs?run=${runId}`)
+  await page.goto(workspacePage(`/runs?run=${runId}`))
   await expect(page.getByRole('heading', { name: configuration.name, exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '续聊', exact: true })).toHaveCount(0)
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await expect(page.locator('.moment-card')).toBeVisible()
   await expect(page.getByRole('button', { name: '续聊', exact: true })).toHaveCount(0)
 })
@@ -510,7 +512,7 @@ test('search result groups have equal outer padding without a trailing group mar
   page,
 }) => {
   await fixture(page)
-  await page.goto('/tasks')
+  await page.goto(workspacePage('/tasks'))
   await page.getByRole('button', { name: /搜索/ }).click()
   const results = page.locator('.search-results')
   await expect(results.locator('.search-group').last()).toBeAttached()
@@ -551,7 +553,7 @@ test('session controls and continuation keep the workbench style in light, dark 
     })
   }
   await editor.locator('.modal-heading').getByRole('button', { name: '关闭', exact: true }).click()
-  await page.goto(`/runs?run=${runId}`)
+  await page.goto(workspacePage(`/runs?run=${runId}`))
   if (page.viewportSize()!.width <= 720)
     await page.getByRole('button', { name: '页面操作', exact: true }).click()
   await page.getByRole('button', { name: '续聊', exact: true }).click()
@@ -649,12 +651,12 @@ test('page context and actions live only in the topbar across workbenches and na
     [`/runs?run=${runId}`, configuration.name, '复制 Run ID'],
     [`/runners?runner=${runnerId}&section=overview`, 'dev-mac', '创建任务'],
     ['/settings?section=workspace', '工作区', null],
-    ['/settings?section=members', '成员', '新建账号'],
+    ['/settings?section=members', '成员', '邀请成员'],
     ['/settings?section=tokens', 'API Key', '创建 API Key'],
   ] as const) {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 })
-      await page.goto(url)
+      await page.goto(workspacePage(url))
       const header = page.locator('.topbar')
       const breadcrumbs = header.getByRole('navigation', { name: '层级导航' })
       await expect(breadcrumbs).toContainText(label)

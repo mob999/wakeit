@@ -1,10 +1,9 @@
-import { t as tr, roleName } from '../i18n'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, type Member } from '../api'
 import { Button, Field, Modal } from '../ui'
-import { ChoicePicker } from '../ChoicePicker'
 export function AccountDialog({
   member,
   self,
@@ -21,7 +20,6 @@ export function AccountDialog({
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [role, setRole] = useState('operator')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const busy = useRef(false)
@@ -42,8 +40,8 @@ export function AccountDialog({
     busy.current = true
     setPending(true)
     try {
-      if (member) await api(`/users/${member.id}/password`, 'POST', { password })
-      else await api('/users', 'POST', { username: username.trim(), password, role })
+      if (member) await api(`/instance/users/${member.id}/password`, 'POST', { password })
+      else await api('/instance/users', 'POST', { username: username.trim(), password })
       if (!alive.current) return
       setPassword('')
       setConfirm('')
@@ -52,7 +50,7 @@ export function AccountDialog({
         location.assign('/')
         return
       }
-      client.invalidateQueries({ queryKey: ['members'] })
+      client.invalidateQueries({ queryKey: ['instance-users'] })
       if (!member) onCreated?.()
       onClose()
     } catch (e) {
@@ -118,20 +116,6 @@ export function AccountDialog({
               onChange={(e) => setConfirm(e.target.value)}
             />
           </Field>
-          {!member && (
-            <Field label={tr('角色')}>
-              <ChoicePicker
-                label={tr('角色')}
-                value={role}
-                disabled={pending}
-                onChange={setRole}
-                options={['admin', 'operator', 'viewer'].map((value) => ({
-                  value,
-                  label: roleName(value),
-                }))}
-              />
-            </Field>
-          )}
           {error && (
             <p className="error" role="alert">
               {error}

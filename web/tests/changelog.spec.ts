@@ -1,3 +1,4 @@
+import { workspacePage, apiPath, mockWorkspace } from './workspace'
 import { expect, test, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -8,8 +9,9 @@ const chinese = fs.readFileSync(path.resolve('../CHANGELOG.zh-CN.md'), 'utf8')
 async function fixture(page: Page, { role = 'admin', failures = 0, long = false } = {}) {
   const calls: string[] = []
   await page.route('**/api/v1/**', async (route) => {
+    if (await mockWorkspace(route, role)) return
     const url = new URL(route.request().url())
-    const name = url.pathname.replace('/api/v1', '')
+    const name = apiPath(url.pathname)
     const send = (json: unknown, status = 200) => route.fulfill({ json, status })
     if (name === '/session') return send({ id: 'fixture-user', username: 'fixture', role })
     if (name === '/meta')
@@ -42,7 +44,7 @@ async function fixture(page: Page, { role = 'admin', failures = 0, long = false 
 for (const role of ['admin', 'operator', 'viewer']) {
   test(`${role} opens notes on demand with keyboard and restores focus`, async ({ page }) => {
     const calls = await fixture(page, { role })
-    await page.goto('/')
+    await page.goto(workspacePage('/'))
     const trigger = page.getByRole('button', { name: `更新日志 ${version}`, exact: true })
     await expect(trigger).toBeVisible()
     expect(calls).toEqual([])
@@ -64,7 +66,7 @@ test('language switches in the open dialog and keeps separate cached documents',
   page,
 }) => {
   const calls = await fixture(page)
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await page.getByRole('button', { name: `更新日志 ${version}`, exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('支持 Cron')
@@ -79,7 +81,7 @@ test('language switches in the open dialog and keeps separate cached documents',
 
 test('failed loading can be retried without closing the dialog', async ({ page }) => {
   const calls = await fixture(page, { failures: 1 })
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await page.getByRole('button', { name: `更新日志 ${version}`, exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('alert')).toContainText('无法加载更新日志')
@@ -98,7 +100,7 @@ for (const [name, width, height, dark] of [
   test(`${name}: notes fit the viewport with scrolling inside the dialog`, async ({ page }) => {
     await page.setViewportSize({ width, height })
     await fixture(page, { long: true })
-    await page.goto('/')
+    await page.goto(workspacePage('/'))
     if (dark) await page.getByRole('button', { name: '切换主题', exact: true }).click()
     await page.getByRole('button', { name: `更新日志 ${version}`, exact: true }).click()
     const dialog = page.getByRole('dialog')

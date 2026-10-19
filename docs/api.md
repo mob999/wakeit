@@ -1,6 +1,13 @@
 # REST API v1
 
-基路径 `/api/v1`，JSON 请求与响应。错误为 `{"error":"说明"}`。需要登录的接口支持 `Authorization: Bearer <token>`；WebUI 使用 HttpOnly 会话 Cookie。
+业务基路径 `/api/v1/workspaces/{workspace-id}`，JSON 请求与响应。账号登录、工作区目录、实例账号管理、OAuth 与设备执行通道保留全局 `/api/v1` 基路径。错误为 `{"error":"说明"}`。需要登录的接口支持 `Authorization: Bearer <token>`；WebUI 使用 HttpOnly 会话 Cookie。
+
+
+工作区由路径显式确定，API Key 固定一个工作区；浏览器会话只代表全局账号，业务角色来自目标区成员关系。不存在或不可访问的工作区/资源返回 404。旧的无工作区业务地址返回 426 和 `workspace_required`，不能通过请求头或其他标签页的选择改变作用域。
+
+全局接口：`GET/POST /api/v1/workspaces` 列出已加入的工作区及演示入口 / 创建并成为 Admin；`GET/PUT /api/v1/workspaces/{workspace-id}` 读取 / 更名；`POST .../leave` 退出。成员接口为 `GET .../members?page=1&page_size=20`、`PUT/DELETE .../members/{user-id}`，修改 `{role?,active?}` 或移除成员。最后有效 Admin 不能退出、停用或降权。
+
+`/api/v1/session` 返回全局身份、`instance_admin`、凭据类型及 API Key 的固定 `workspace_id`；全局身份中的兼容 `role` 不用于业务授权。`/api/v1/instance/users` 及其账号启停、密码接口仅接受实例管理员的浏览器会话，不授予工作区数据读取权。
 
 Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gateway.public_url。API Key 请求不依赖 Cookie。权限变更和 API Key 撤销立即从共享数据库生效。
 
@@ -24,14 +31,14 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 | POST `/runs/{id}/resolve` | `{state,reason}`；仅 unknown，记录核对说明 | Operator |
 | GET `/runners`、`/agents` | 设备及其公开适配能力 | Viewer |
 | GET `/agents/templates/{id}` | 内置模板 YAML | Viewer |
-| POST `/runners/enrollment` | 一次性设备注册 token | Admin |
+| POST `/runners/enrollment` | 一次性设备注册 token，兑换时复核签发人的本区权限 | Operator |
 | POST `/runners/{id}/revoke` | 撤销设备；报告 broker_revocation_pending | Admin |
-| GET `/users` | 工作区成员；支持 page/page_size，分页结果含 active_admins | Admin |
-| POST `/users` | `{username,password,role}` 创建启用账号 | Admin |
-| PUT `/users/{id}` | `{role?,active?}`，省略字段保持当前值；禁止移除最后一名有效管理员 | Admin |
-| POST `/users/{id}/password` | `{password}` 重置密码，撤销全部登录与 API Key | Admin |
+| GET `/members` | 工作区成员；支持 page/page_size，分页结果含 active_admins | Admin |
+| POST `/api/v1/instance/users` | `{username,password}` 创建全局本地账号，不自动加入工作区 | 实例管理员 |
+| PUT `/members/{id}` | `{role?,active?}`，省略字段保持当前值；禁止移除最后一名有效管理员 | Admin |
+| POST `/api/v1/instance/users/{id}/password` | `{password}` 重置本地密码，撤销全局登录与 API Key | 实例管理员 |
 | POST `/invites` | `{role}`，返回 token 和邀请链接 | Admin |
-| POST `/invites/accept` | `{token,username,password}` | 邀请持有人 |
+| POST `/api/v1/invites/accept` | 已登录账号 `{token}`；有效邀请允许本地新账号提交 `{token,username,password}` | 邀请持有人 |
 | GET / POST `/tokens` | API Key 元数据支持 page/page_size / `{name,expires_at?}` 创建，secret 仅返回一次 | Viewer |
 | DELETE `/tokens/{id}` | 撤销本人 API Key | Viewer |
 | GET / PUT `/settings` | 时区与日志/运行保留天数；写需要 Admin | Viewer / Admin |
@@ -41,15 +48,15 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 
 设备使用独立 Token，不能调用用户 API。设备接口为 `/device/enroll`、`/device/hello`、`/device/heartbeat`、`/device/claim`，由 Runner 自动处理。设备注册要求一次性令牌及用户 NKey 公钥，私钥由设备生成并保存。
 
-健康检查：`/health/live`、`/health/ready`。Prometheus 格式指标：`/metrics`，需要 Admin Token，包含调度延迟、Outbox 积压、设备离线和各 Run 状态数量。
+健康检查：`/health/live`、`/health/ready`。Prometheus 格式指标：`/metrics`，需要实例管理员会话，包含调度延迟、Outbox 积压、设备离线和各 Run 状态数量。
 
 动态 OpenAPI 文档位于 `/api/v1/openapi.json`。可用 `wakeit schema openapi`、`wakeit schema task`、`wakeit schema agent` 导出定义。
 
 ## 即时能力 API
 
-- `GET /api/v1/meta`：公开返回 `{version:"0.1.1"}`。
-- `GET /api/v1/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
-- `POST /api/v1/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
+- `GET /api/v1/meta`：公开返回 `{version:"0.2.0"}`。
+- `GET /api/v1/workspaces/{workspace-id}/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
+- `POST /api/v1/workspaces/{workspace-id}/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
 
 查询错误分别返回 400（目录/适配错误）、403（角色限制）、404（设备不存在或已吊销）、503（离线）、504（超时）。成功但无模型的响应是空数组。CLI 与 WebUI 保存 Task.parameters，Run.execution_snapshot 提供最终解析参数和工作目录。
 
@@ -59,13 +66,13 @@ WebUI 使用 `GET /tasks?page=1&page_size=20` 与 `GET /runs?page=1&page_size=20
 
 q 在名称、ID、指令、工作目录、Runner、Agent 字段上进行不区分大小写的部分匹配；空格分隔的词按顺序匹配，百分号与下划线作为字面字符处理。runner 和 agent 按名称/ID 精确筛选；任务可用 enabled 筛选启用/暂停，运行可用 state 筛选状态。所有读取均保留 Viewer 权限要求。未传 page 的调用返回数组，运行最多 100 条；CLI 与脚本可显式请求分页。
 
-全局搜索的 Runner、Agent 使用公开目录进行匹配；Settings 搜索可见设置项，Viewer/Operator 不提供成员或工作区管理入口。搜索不读取个人 Token 的值。
+全局搜索的 Runner、Agent 使用公开目录进行匹配；Settings 搜索只显示当前权限可见的设置项；所有角色可查看工作区设置，仅 Admin 可修改配置或管理成员。搜索不读取个人 Token 的值。
 
 ## 设置页接口
 
 `GET /timezones` 需 Viewer 身份，返回 Gateway 内置时区库实际支持的名称数组，按名称排序并去重。设置页通过该目录搜索选择时区，目录请求失败显示重试，保留现有选值。
 
-`GET /users?page=1&page_size=20` 返回 `{items,total,page,page_size,active_admins}`，成员包含 id、username、role、active、created_at，按 created_at 和 id 升序排列。active_admins 是整个工作区有效管理员总数。角色修改仍由 Gateway 原子保护最后一名管理员；前端提交时保留成员已有 active 值。
+`GET /members?page=1&page_size=20` 返回 `{items,total,page,page_size,active_admins}`，成员包含 id、username、role、active、created_at，按 created_at 和 id 升序排列。active_admins 是整个工作区有效管理员总数。角色修改仍由 Gateway 原子保护最后一名管理员；前端提交时保留成员已有 active 值。
 
 `GET /tokens?page=1&page_size=20` 返回 `{items,total,page,page_size}`，仅包含当前用户的 API Key 元数据：id、name、created_at、expires_at，按创建时间和 id 倒序排列。查询不返回密钥。上述接口不传 page 时返回数组；分页规则与 Tasks/Runs 相同。创建 API Key 名称去除首尾空白且不能为空。
 
@@ -113,10 +120,12 @@ Run.session增加可空command，为Runner执行时生成的原生Agent续聊命
 
 ## Device authorization
 
+GitHub login is configured per Gateway. `GET /api/v1/auth/github/start?return_to=/…` starts an authorization-code flow with S256 PKCE and a short-lived browser-binding cookie. `GET /api/v1/auth/github/callback` consumes the state once, verifies the immutable GitHub account ID and establishes a global Wakeit browser session. These routes request no repository/email scope and never return GitHub tokens. `/meta` exposes `auth.mode` and `auth.allow_registration`, never credentials. See [Workspace deployment](workspaces.md) for configuration and demo isolation.
+
 `GET /api/v1/meta` adds `public_url` and `install` (explicit preview release, manifest, checksums and package base URL). No secrets are included. The topbar Agent Prompt uses this configured origin.
 
-Device-flow endpoints accept JSON. `POST /oauth/device/code` accepts `{name,os,register_runner,allowed_roots}` and returns `device_code,user_code,verification_uri,verification_uri_complete,expires_in:600,interval:5`. `POST /oauth/token` accepts `{grant_type:"urn:ietf:params:oauth:grant-type:device_code",device_code}`. Errors include `authorization_pending`, `slow_down` (increase interval by five seconds), `access_denied`, `expired_token`, `invalid_grant`. A successful exchange returns `access_token,token_type,user` once; loss before local persistence requires reauthorization.
+Device-flow endpoints accept JSON. `POST /oauth/device/code` accepts `{workspace_id,name,os,register_runner,allowed_roots}` and returns `device_code,user_code,verification_uri,verification_uri_complete,expires_in:600,interval:5`. `POST /oauth/token` accepts `{grant_type:"urn:ietf:params:oauth:grant-type:device_code",device_code}`. Errors include `authorization_pending`, `slow_down` (increase interval by five seconds), `access_denied`, `expired_token`, `invalid_grant`. A successful exchange returns `access_token,token_type,user` once; loss before local persistence requires reauthorization.
 
 `GET /device-authorizations/{user_code}` and `POST .../approve|deny` require a Web session cookie; API keys and bearer sessions cannot approve. Cookie writes require existing CSRF headers/origin checks. Merely loading a URL never approves. Requests and rate limits live in PostgreSQL, codes are hashed, and responses use no-store. Approval and exchange recheck active account and role.
 
-Admin/Operator may register; Viewer may authorize CLI-only. Revocation remains Admin-only. `POST /runners/connect` accepts `request_id,public_key,name,allowed_roots,timestamp,signature` and requires Operator plus Ed25519/NKey proof over canonical JSON produced by `device_auth::proof`. Persist request ID and private key before calling. Retrying the same signed identity reissues the device bearer and invalidates the prior bearer; different keys, owners, revoked devices and name conflicts are rejected. OAuth-issued setup keys cannot change the approved name or roots.
+Admin/Operator may register; Viewer may authorize CLI-only. Revocation remains Admin-only. `POST /workspaces/{workspace-id}/runners/connect` accepts `request_id,public_key,name,allowed_roots,timestamp,signature` and requires Operator plus Ed25519/NKey proof over canonical JSON produced by `device_auth::proof`. Persist request ID and private key before calling. Retrying the same signed identity reissues the device bearer and invalidates the prior bearer; different keys, owners, revoked devices and name conflicts are rejected. OAuth-issued setup keys cannot change the approved name or roots.
