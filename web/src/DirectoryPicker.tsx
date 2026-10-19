@@ -24,7 +24,7 @@ export function DirectoryPicker({
     if (disabled) setOpen(false)
   }, [disabled])
   return (
-    <div className="field">
+    <div className="field" data-field="cwd">
       <label htmlFor={id}>{tr('工作目录')}</label>
       <button
         id={id}

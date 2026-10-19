@@ -159,7 +159,9 @@ export type DagRunNode = DagNode & {
   started_at?: string | null
   finished_at?: string | null
 }
+export type EditorLayout = { version: 1; positions: Record<string, { x: number; y: number }> }
 export type Task = {
+  editor_layout?: EditorLayout | null
   archived_at: string | null
   id: string
   revision: number

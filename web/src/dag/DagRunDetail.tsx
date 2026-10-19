@@ -1,4 +1,7 @@
 import { ErrorToast } from '../Toast'
+import { EditorMemoryContext, useEditorValue, type EditorMemory } from '../EditorMemory'
+import { shortId } from './identity'
+import { outputs } from './model'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -15,6 +18,7 @@ import {
   type DagRunNode,
   type User,
   type Agent,
+  type Runner,
 } from '../api'
 import { IconButton, Button } from '../ui'
 import { PageActions } from '../PageHeader'
@@ -45,12 +49,15 @@ export function DagRunDetail({
   const nodes: DagRunNode[] =
     r.nodes ?? r.config.dag!.nodes.map((n) => ({ ...n, state: 'waiting' }))
   const [selected, setSelected] = useState(nodes[0]?.id)
+  const [memory, setMemory] = useState<Record<string, EditorMemory>>({})
+  const runners = useQuery<Runner[]>({ queryKey: ['runners'], queryFn: () => api('/runners') })
   const [visited, setVisited] = useState(new Set([nodes[0]?.id]))
   const [tab, setTab] = useState<'execute' | 'details'>('execute')
   const [processOpen, setProcessOpen] = useState(true)
   const [resultOpen, setResultOpen] = useState(false)
   const [raw, setRaw] = useState(false)
   const highlighted = useRef(false)
+  const emptyShown = useRef(false)
   const resultTop = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const client = useQueryClient()
@@ -60,8 +67,13 @@ export function DagRunDetail({
     setSelected(id)
     setVisited((old) => new Set([...old, id]))
   }
-  const hasResult = r.result != null
+  const hasResult = r.result != null && r.result !== ''
   useEffect(() => {
+    if (['succeeded', 'warning'].includes(r.state) && !hasResult && !emptyShown.current) {
+      emptyShown.current = true
+      setResultOpen(true)
+      return
+    }
     if (['succeeded', 'warning'].includes(r.state) && hasResult && !highlighted.current) {
       highlighted.current = true
       setProcessOpen(false)
@@ -86,12 +98,6 @@ export function DagRunDetail({
     <>
       <PageActions>
         <CopyValue label={t('复制 Run ID')} value={id} toast={toast} />
-        <ResumeRun
-          run={r}
-          id={id}
-          available={terminal(r.state) && nodes.some((n) => n.continuation_available)}
-          toast={toast}
-        />
         {user.role !== 'viewer' && !terminal(r.state) && (
           <IconButton
             label={t('取消执行')}
@@ -127,46 +133,35 @@ export function DagRunDetail({
         ))}
       </div>
       <div className="run-page dag-run-page" ref={viewport}>
-        {r.reason && (
-          <div
-            className={`content-card dag-outcome ${r.state === 'warning' ? 'dag-warning' : ''}`}
-            role="status"
-          >
-            <span>{r.reason}</span>
-            {['warning', 'failed', 'unknown'].includes(r.state) && (
-              <Button
-                onClick={() => {
-                  const problem = nodes.find((n) =>
-                    ['failed', 'timed_out', 'interrupted', 'skipped', 'unknown'].includes(n.state),
-                  )
-                  if (problem) select(problem.id)
-                  setTab('execute')
-                  setProcessOpen(true)
-                }}
-              >
-                {t('dag.problemNodes')}
-              </Button>
-            )}
-          </div>
-        )}
-        {tab === 'details' && (
-          <div className="dag-selected-caption content-card">
-            <ChoicePicker
-              label={t('dag.selectNode')}
-              value={selected ?? ''}
-              options={nodes.map((n) => ({
-                value: n.id,
-                label: n.name,
-                status: stateNames[n.state] ?? n.state,
-              }))}
-              onChange={select}
-            />
-          </div>
-        )}
         <div hidden={tab !== 'execute'}>
           <RunSection title={t('过程')} open={processOpen} onChange={setProcessOpen}>
+            {!hasResult && r.reason && (
+              <div className="dag-outcome" role="status">
+                <span>{r.reason}</span>
+                {['warning', 'failed', 'unknown'].includes(r.state) && (
+                  <Button
+                    onClick={() => {
+                      const problem = nodes.find((n) =>
+                        ['failed', 'timed_out', 'interrupted', 'skipped', 'unknown'].includes(
+                          n.state,
+                        ),
+                      )
+                      if (problem) select(problem.id)
+                      setTab('execute')
+                      setProcessOpen(true)
+                    }}
+                  >
+                    {t('dag.problemNodes')}
+                  </Button>
+                )}
+              </div>
+            )}
+
             <DagGraph
               compact
+              hideTitle
+              runners={runners.data}
+              outputIds={outputs(r.config.dag!)}
               nodes={nodes}
               agents={agents.data}
               selected={selected}
@@ -175,21 +170,35 @@ export function DagRunDetail({
             {nodes
               .filter((n) => visited.has(n.id))
               .map((n) => (
-                <NodeExecution
+                <EditorMemoryContext.Provider
                   key={n.id}
-                  parent={id}
-                  node={n.id}
-                  name={n.name}
-                  state={n.state}
-                  reason={n.reason}
-                  executionId={n.execution_id}
-                  active={selected === n.id && processOpen && tab === 'execute'}
-                  hidden={selected !== n.id}
-                  mode="trace"
-                  user={user}
-                  toast={toast}
-                  agents={agents.data}
-                />
+                  value={{
+                    value: memory[n.id] ?? {},
+                    update: (update) =>
+                      setMemory((previous) => ({
+                        ...previous,
+                        [n.id]:
+                          typeof update === 'function' ? update(previous[n.id] ?? {}) : update,
+                      })),
+                  }}
+                >
+                  <NodeExecution
+                    nodes={nodes}
+                    onSelect={select}
+                    parent={id}
+                    node={n.id}
+                    name={n.name}
+                    state={n.state}
+                    reason={n.reason}
+                    executionId={n.execution_id}
+                    active={selected === n.id && processOpen && tab === 'execute'}
+                    hidden={selected !== n.id}
+                    mode="trace"
+                    user={user}
+                    toast={toast}
+                    agents={agents.data}
+                  />
+                </EditorMemoryContext.Provider>
               ))}
           </RunSection>
           <div ref={resultTop} />
@@ -197,34 +206,70 @@ export function DagRunDetail({
             title={t('结果')}
             open={resultOpen}
             onChange={setResultOpen}
-            hidden={!hasResult}
+            hidden={!hasResult && !['succeeded', 'warning'].includes(r.state)}
             actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
           >
-            <RunResult result={r.result} raw={raw} toast={toast} />
+            {hasResult && r.reason && (
+              <div className="dag-outcome" role="status">
+                <span>{r.reason}</span>
+                {['warning', 'failed', 'unknown'].includes(r.state) && (
+                  <Button
+                    onClick={() => {
+                      const problem = nodes.find((n) =>
+                        ['failed', 'timed_out', 'interrupted', 'skipped', 'unknown'].includes(
+                          n.state,
+                        ),
+                      )
+                      if (problem) select(problem.id)
+                      setTab('execute')
+                      setProcessOpen(true)
+                    }}
+                  >
+                    {t('dag.problemNodes')}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {hasResult ? (
+              <RunResult result={r.result} raw={raw} toast={toast} />
+            ) : (
+              <p className="quiet dag-node-empty">{t('未返回结果')}</p>
+            )}
           </RunSection>
-          {!hasResult && terminal(r.state) && (
-            <p className="quiet content-card run-waiting">{t('未返回结果')}</p>
-          )}
         </div>
         <div hidden={tab !== 'details'}>
           {nodes
             .filter((n) => visited.has(n.id))
             .map((n) => (
-              <NodeExecution
+              <EditorMemoryContext.Provider
                 key={n.id}
-                parent={id}
-                node={n.id}
-                name={n.name}
-                state={n.state}
-                reason={n.reason}
-                executionId={n.execution_id}
-                active={selected === n.id && tab === 'details'}
-                hidden={selected !== n.id}
-                mode="details"
-                user={user}
-                toast={toast}
-                agents={agents.data}
-              />
+                value={{
+                  value: memory[n.id] ?? {},
+                  update: (update) =>
+                    setMemory((previous) => ({
+                      ...previous,
+                      [n.id]: typeof update === 'function' ? update(previous[n.id] ?? {}) : update,
+                    })),
+                }}
+              >
+                <NodeExecution
+                  nodes={nodes}
+                  onSelect={select}
+                  parent={id}
+                  node={n.id}
+                  name={n.name}
+                  state={n.state}
+                  reason={n.reason}
+                  executionId={n.execution_id}
+                  active={selected === n.id && tab === 'details'}
+                  hidden={selected !== n.id}
+                  mode="details"
+                  user={user}
+                  toast={toast}
+                  agents={agents.data}
+                />
+              </EditorMemoryContext.Provider>
             ))}
         </div>
       </div>
@@ -232,6 +277,8 @@ export function DagRunDetail({
   )
 }
 function NodeExecution({
+  nodes,
+  onSelect,
   parent,
   node,
   name,
@@ -245,6 +292,8 @@ function NodeExecution({
   agents,
   toast,
 }: {
+  nodes: DagRunNode[]
+  onSelect: (id: string) => void
   parent: string
   node: string
   name: string
@@ -270,9 +319,9 @@ function NodeExecution({
   const [logError, setLogError] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const cursor = useRef(0)
-  const [follow, setFollow] = useState(true)
-  const [logsOpen, setLogsOpen] = useState(true)
-  const [infoOpen, setInfoOpen] = useState(false)
+  const [follow, setFollow] = useEditorValue('follow', true)
+  const [logsOpen, setLogsOpen] = useEditorValue('logsOpen', true)
+  const [infoOpen, setInfoOpen] = useEditorValue('infoOpen', false)
   const [resolve, setResolve] = useState(false)
   useEffect(() => {
     if (!active || !executionId) return
@@ -298,11 +347,56 @@ function NodeExecution({
     .map((e) => e.data.text ?? e.data.message ?? '')
     .join('')
     .replace(/\x1b\[[0-9;]*m/g, '')
+  const logActions = (
+    <>
+      <RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />
+      {logError && (
+        <>
+          <ErrorToast error={t('日志连接已中断，正在重连')} />
+          <IconButton label={t('重新连接日志')} onClick={() => setAttempt((v) => v + 1)}>
+            <RefreshCw />
+          </IconButton>
+        </>
+      )}
+    </>
+  )
   return (
-    <div hidden={hidden}>
-      <div className="dag-selected-caption">
-        <strong>{name}</strong>
+    <div
+      hidden={hidden}
+      aria-label={mode === 'details' ? t('dag.nodeDetails') : undefined}
+      className={mode === 'details' ? 'content-card dag-node-details' : 'dag-node-process'}
+    >
+      <div className="dag-node-context">
+        {nodes.length > 1 ? (
+          <ChoicePicker
+            label={t('dag.selectNode')}
+            searchable
+            value={node}
+            options={nodes.map((n) => ({
+              value: n.id,
+              label: n.name,
+              description: shortId(n.id),
+              keywords: n.id,
+              status: stateNames[n.state] ?? n.state,
+            }))}
+            onChange={onSelect}
+          />
+        ) : (
+          <strong>{name}</strong>
+        )}
         <Status state={state} />
+        {nodes.find((n) => n.id === node)?.started_at &&
+          nodes.find((n) => n.id === node)?.finished_at && (
+            <span className="quiet mono">
+              {Math.max(
+                0,
+                (Date.parse(nodes.find((n) => n.id === node)!.finished_at!) -
+                  Date.parse(nodes.find((n) => n.id === node)!.started_at!)) /
+                  1000,
+              ).toFixed(1)}
+              s
+            </span>
+          )}
         {run && (
           <ResumeRun
             run={run}
@@ -317,6 +411,7 @@ function NodeExecution({
           </IconButton>
         )}
       </div>
+      {reason && executionId && <p className="dag-node-reason">{reason}</p>}
       {!executionId ? (
         <p className="quiet dag-node-empty">
           {reason || stateNames[state] || t('dag.noExecution')}
@@ -336,14 +431,14 @@ function NodeExecution({
           <>
             <div className="dag-selected-caption">
               <span>{t('输出')}</span>
-              <RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />
+              {logActions}
             </div>
             <RunLogs
               run={run}
               text={logs}
               follow={follow}
               visible={active}
-              error={logError}
+              error={false}
               retry={() => setAttempt((v) => v + 1)}
             />
           </>
@@ -353,23 +448,22 @@ function NodeExecution({
       ) : (
         <>
           <RunSection
+            embedded
             title={t('日志')}
             open={logsOpen}
             onChange={setLogsOpen}
-            actions={
-              <RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />
-            }
+            actions={logActions}
           >
             <RunLogs
               run={run}
               text={logs}
               follow={follow}
               visible={active && logsOpen}
-              error={logError}
+              error={false}
               retry={() => setAttempt((v) => v + 1)}
             />
           </RunSection>
-          <RunSection title={t('执行信息')} open={infoOpen} onChange={setInfoOpen}>
+          <RunSection embedded title={t('执行信息')} open={infoOpen} onChange={setInfoOpen}>
             <RunDetails run={run} agents={agents} events={events} />
           </RunSection>
         </>

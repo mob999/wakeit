@@ -154,7 +154,9 @@ export function Field({
   label,
   children,
   hint,
+  fieldKey,
 }: {
+  fieldKey?: string
   label: string
   children: ReactNode
   hint?: string
@@ -168,7 +170,7 @@ export function Field({
       })
     : children
   return (
-    <div className="field">
+    <div className="field" data-field={fieldKey}>
       <label htmlFor={id}>{label}</label>
       {child}
       {hint && <small id={`${id}-hint`}>{hint}</small>}

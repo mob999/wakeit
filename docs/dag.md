@@ -39,11 +39,19 @@ Pausing cancels scheduled rounds that have not started. Archiving cancels all un
 
 ## WebUI
 
-Tasks → Plus → DAG task opens the dedicated two-step editor. The first step provides a graph or keyboard-accessible node list and the selected node's form. The second step configures scheduling and saves the entire draft. Switching steps does not validate or write a Task; Save validates the complete draft. Save errors and revision conflicts preserve both steps.
+Tasks → Plus → DAG task opens a full-height graph workbench without a secondary sidebar. The Task name is editable in the final top-bar breadcrumb on either step. A new draft is empty. Drag an installed Agent from its Runner group onto the canvas, or use Plus and choose an Agent with a click or keyboard. Each item identifies a specific Runner and Agent; unavailable adapters and revoked devices are excluded, while offline devices remain selectable. The same Agent can create multiple independent nodes.
 
-Predecessors use searchable multiple selection. “Reference upstream result” lists ancestors only. Output selection defaults to leaves. Copying a node creates a fresh ID; deleting a referenced node is blocked until dependencies, prompt references and output selection are adjusted.
+Drag from a node's output port to another node's input port to declare a predecessor. All incoming edges are AND dependencies. Drag to empty space, or use the node's Plus, to choose an Agent for a successor. Invalid cycles, self-connections and duplicate edges are rejected. Connections and the predecessor picker edit the same `pre` list. They do not insert result references into instructions. Nodes can move individually or as a selection; pan, zoom, search and explicit Organize layout preserve an editable canvas. Undo/redo covers graph changes and coordinates without reverting unrelated instruction edits. Text fields retain native undo. The upper-right canvas controls provide zoom and a full workspace editor view; Escape restores the view after closing active overlays.
 
-Run keeps Execution and Details. Execution shows the graph, selected node's actual Agent process, and selected reports. Successful and warning rounds highlight reports once; Details is never forcibly left. Details provides the selected node's logs, resolved instruction, snapshot, state events and actual Session. Unknown reconciliation is per node. Continuation commands belong to a concrete node Session.
+Clicking a node opens its floating configuration inside the canvas. The panel has its own scrolling body, can be resized on desktop and becomes a full-size overlay below 960px. Blank clicks or Escape close it; panning does not. Instructions can expand into a larger editor within the workbench. The table view uses aligned Node, Predecessors, Runner, Agent and Actions columns and opens the same inspector. Only the selected node runs discovery queries; per-node Session drafts, model mode, caret and scroll position survive switches.
+
+Result settings use the same floating panel, with Automatic leaves or explicit nodes. Explicit output drafts may temporarily be empty or refer to a deleted node; Save requires valid nonempty outputs. Successors inherit a working directory on the same Runner and compatible model parameters and timeout for the same Runner/Agent, with an empty instruction and fresh Session. Copy preserves execution configuration, Session and predecessors under a new ID. Deleting removes incident dependency edges without reconnecting neighbors. A confirmation lists affected instruction/output references; these stay in the draft for explicit repair, can be undone and prevent Save until valid.
+
+The Time step uses matching scheduling and execution-policy cards. Cron, interval and one-time inputs keep separate drafts. One-time input is interpreted in the selected IANA timezone: nonexistent local times are rejected and repeated times use the earlier occurrence. Previews include the actual UTC offset. Switching steps and Next never validate or write a Task; Save validates the complete draft. Validation uses Toasts and stable field markers, while request failures and revision conflicts retain the draft. Per-node editor state and graph viewport survive node and step changes.
+
+Run keeps Execution and Details. Execution has Process followed by Results, with the same graph/table and a white context row for the selected node. Reports are separated by rows inside one card. Successful and warning rounds highlight reports once; Details is never forcibly left. Details is a single node-details card with node selection, state and node actions in its sole header. Logs start expanded and execution information starts collapsed; both use internal white folding rows. Single-node Runs show a name without a picker. Both tabs share node selection and preserve each node's folding and log-follow state. Unknown reconciliation and continuation commands belong to a concrete node execution and its actual Session.
+
+Task overview and Run graphs share the editor’s three upper-right zoom/full-workspace controls. Fullscreen keeps node selection and scale; Escape or a switch to table view restores the normal layout without changing the Task.
 
 Moments has one entry per graph round, with separate output previews sharing a total 2048 Unicode character budget. Internal node executions do not enter ordinary Run lists, pagination, history or timeline counts.
 
@@ -51,7 +59,8 @@ Moments has one entry per graph round, with separate output previews sharing a t
 
 All paths below are workspace-scoped under `/api/v1/workspaces/{workspace}`:
 
-- `POST /tasks/validate`: `{config}` → `{errors:[{path,node_id?,message,cycle?}]}`; read-only, Operator required. PUT validates again and applies the entire definition atomically with `expected_revision`.
+- `POST /tasks/validate`: `{config,editor_layout?}` → `{errors:[{path,node_id?,message,cycle?}]}`; read-only, Operator required. PUT validates again and applies the entire definition atomically with `expected_revision`.
+- `GET /tasks/{id}` returns `editor_layout` separately from `config`. `PUT /tasks/{id}` accepts `{config,expected_revision,editor_layout?}` and atomically saves the definition and shared node coordinates. Layout version is 1, with `positions` indexed by stable node ID and finite `x`/`y` coordinates. Omitted or null layout preserves remaining positions; removed nodes are pruned, so CLI apply does not erase layout. Ordinary Tasks reject DAG layouts. Viewport, selection and panel width are local UI state.
 - `GET /runs/{id}`: frozen parent configuration, selected reports and node summaries.
 - `GET /runs/{id}/nodes/{node}`: `{node,execution}`; execution is null before dispatch.
 - `GET /runs/{id}/nodes/{node}/events?after=0&kind=trace`: original node execution events, at most 500 per batch.
@@ -59,7 +68,7 @@ All paths below are workspace-scoped under `/api/v1/workspaces/{workspace}`:
 
 Parent events merge node events in durable ID order. Child events include `node_id`, `execution_id` and `original_seq`; child state events use `node_state`. Read every batch, advance `after` only after processing it, and aggregate Trace by **DAG node ID plus native Trace ID**. Whole-graph `run watch --json` preserves these identities and ends with the parent report. `succeeded` and `warning` exit 0.
 
-Migration `0003_dag.sql` appends to the published 0.2.0 baselines. It preserves ordinary Task/Run IDs and device credentials. Gateway owns graph scheduling; Runners receive ordinary version-1 assignments, so existing Runners remain compatible. A node's real execution ID is for read-only diagnostics and local continuation, never independent trigger/retry/cancel.
+Migrations `0003_dag.sql` and `0004_task_editor_layout.sql` append to the published 0.2.0 baselines. They preserve ordinary Task/Run IDs and device credentials. Gateway owns graph scheduling; Runners receive ordinary version-1 assignments, so existing Runners remain compatible. A node's real execution ID is for read-only diagnostics and local continuation, never independent trigger/retry/cancel.
 
 ## Local acceptance
 
@@ -73,4 +82,4 @@ python3 scripts/integration_workspaces.py --keep-running
 
 The script creates its own PostgreSQL, NATS, Gateways, test accounts, CLI profiles and Runners under ignored `.local/workspaces-*`. Its summary records ports, process IDs and checks; private test credentials are separate. Omit `--keep-running` for automatic service shutdown. Add `--old-runner /absolute/path/to/previous/wakeit` to verify legacy Runner assignment compatibility. Never point it at an existing user database.
 
-Local browser fixtures in `web/tests/dag-editor.spec.ts` and `dag-runs.spec.ts` use synthetic data and do not run in CI. Set `WAKEIT_TEST_URL` to the Vite address. Screenshots must not contain personal accounts, paths, credentials or actual user output.
+Local browser fixtures in `web/tests/dag-editor.spec.ts`, `dag-workbench-ux.spec.ts`, `dag-canvas.spec.ts` and `dag-runs.spec.ts` use synthetic data and do not run in CI. Set `WAKEIT_TEST_URL` to the Vite address. Screenshots must not contain personal accounts, paths, credentials or actual user output.

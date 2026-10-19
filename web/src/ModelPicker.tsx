@@ -1,7 +1,9 @@
 import { ErrorToast } from './Toast'
+import { EditorMemoryContext, useEditorValue } from './EditorMemory'
+import { useContext } from 'react'
 import { t as tr, parameterLabel } from './i18n'
 import { useTranslation } from 'react-i18next'
-import { useState, useId, useEffect } from 'react'
+import { useId, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, ChevronDown, Loader2 } from 'lucide-react'
 import { api, type Agent, type Runner, type ModelCatalog } from './api'
@@ -27,17 +29,19 @@ export function ModelPicker({
 }) {
   useTranslation()
   const id = useId()
-  const [custom, setCustom] = useState(false)
+  const memory = useContext(EditorMemoryContext)
+  const [custom, setCustom] = useEditorValue('model.custom', false)
   const catalog = useQuery<ModelCatalog>({
     queryKey: ['models', runner?.id, agent?.id, cwd, agent?.digest],
-    enabled: !!(runner?.online && agent?.models_supported && cwd),
+    enabled: memory?.active !== false && !!(runner?.online && agent?.models_supported && cwd),
     queryFn: () =>
       api(`/runners/${runner!.id}/agents/${encodeURIComponent(agent!.id)}/models/query`, 'POST', {
         cwd,
       }),
     retry: false,
     refetchOnWindowFocus: false,
-    gcTime: 0,
+    gcTime: memory ? 300000 : 0,
+    staleTime: memory ? 30000 : 0,
   })
   const models =
     runner?.online && cwd && !catalog.isError && !catalog.isFetching
@@ -82,7 +86,7 @@ export function ModelPicker({
     onChange(next)
   }
   return (
-    <div className="field model-field">
+    <div className="field model-field" data-field="parameters.model">
       <label htmlFor={id}>{tr('模型')}</label>
       <div className="model-control">
         {models.length && !custom ? (
@@ -203,6 +207,7 @@ export function ParameterFields({
           return (
             <Field
               key={key}
+              fieldKey={'parameters.' + key}
               label={parameterLabel(spec.label || key)}
               hint={spec.default ? tr('默认：{{v0}}', { v0: spec.default }) : undefined}
             >

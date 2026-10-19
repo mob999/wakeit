@@ -294,8 +294,12 @@ test('one session control auto-inspects, clears errors on selection, and permits
   await manualSession(page, dialog, 'missing-session')
   await expect(page.getByRole('alert')).toHaveText('未找到会话')
   await manualSession(page, dialog, 'fixed-session')
-  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(dialog.getByRole('combobox', { name: '会话', exact: true })).not.toHaveAttribute(
+    'aria-describedby',
+  )
   await expect.poll(() => data.inspections.length).toBe(3)
+  expect(data.inspections.at(-1).id).toBe('fixed-session')
+  await page.getByRole('button', { name: '关闭提示', exact: true }).click()
   await dialog.getByRole('button', { name: '下一步', exact: true }).click()
   await dialog.getByRole('button', { name: '保存任务', exact: true }).click()
   await expect(dialog).toHaveCount(0)
@@ -337,6 +341,7 @@ test('changing Agent, directory or Runner clears the binding and new tasks defau
   )
   await dialog.locator('.modal-heading').getByRole('button', { name: '关闭', exact: true }).click()
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const fresh = page.getByRole('dialog', { name: '新建任务', exact: true })
   await selectChoice(page, fresh, 'Runner', 'dev-mac')
   await selectChoice(page, fresh, 'Agent', agent.name)

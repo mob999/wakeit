@@ -1,7 +1,8 @@
 import { ErrorToast } from '../Toast'
+import { EditorMemoryContext, useEditorValue } from '../EditorMemory'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useContext, useEffect, useId, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { ArrowLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 import { api, type Agent, type Runner, type SessionCatalog } from '../api'
@@ -24,13 +25,14 @@ export function SessionPicker({
   onChange: (id: string) => void
 }) {
   useTranslation()
+  const memory = useContext(EditorMemoryContext)
   const controlId = useId()
   const [open, setOpen] = useState(false)
-  const [manual, setManual] = useState(false)
-  const [draft, setDraft] = useState('')
+  const [manual, setManual] = useEditorValue('session.manual', false)
+  const [draft, setDraft] = useEditorValue('session.draft', '')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [labels, setLabels] = useState(new Map<string, string>())
+  const [labels, setLabels] = useEditorValue('session.labels', new Map<string, string>())
   const inputRef = useRef<HTMLInputElement>(null)
   const canQuery = !!runner?.online && !!agent?.session_list_supported && !!cwd
 
@@ -50,7 +52,7 @@ export function SessionPicker({
         'POST',
         { cwd, id },
       ),
-    enabled: canInspect,
+    enabled: canInspect && memory?.active !== false,
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -73,7 +75,7 @@ export function SessionPicker({
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor || undefined,
-    enabled: open && !manual && canQuery && !disabled,
+    enabled: open && !manual && canQuery && !disabled && memory?.active !== false,
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -88,6 +90,7 @@ export function SessionPicker({
     ).values(),
   )
   function choose(next: string) {
+    setDraft(next)
     const selected = sessions.find((session) => session.id === next)
     if (selected) setLabels((previous) => new Map(previous).set(next, selected.title?.trim() || ''))
     if (next === id && canInspect) void inspection.refetch()
@@ -105,7 +108,7 @@ export function SessionPicker({
         ? ''
         : undefined
   return (
-    <div className="field session-binding">
+    <div className="field session-binding" data-field="session.id">
       <label htmlFor={controlId}>{tr('会话')}</label>
       <ChoicePicker
         id={controlId}
@@ -202,7 +205,7 @@ export function SessionPicker({
               className="session-manual-entry"
               disabled={disabled}
               onClick={() => {
-                setDraft(id)
+                if (!draft) setDraft(id)
                 setManual(true)
               }}
             >

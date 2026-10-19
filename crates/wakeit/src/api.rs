@@ -843,6 +843,8 @@ async fn task(State(s): State<App>, h: HeaderMap, Path(id): Path<String>) -> Res
 pub(crate) struct Apply {
     config: TaskConfig,
     expected_revision: Option<i64>,
+    #[serde(default)]
+    editor_layout: Option<crate::editor_layout::EditorLayout>,
 }
 async fn validate_task(
     State(s): State<App>,
@@ -850,6 +852,11 @@ async fn validate_task(
     ApiJson(b): ApiJson<Apply>,
 ) -> Result<Json<Value>> {
     let u = user(&s, &h, "operator", true).await?;
+    if let Some(layout) = &b.editor_layout {
+        layout
+            .validate(&b.config)
+            .map_err(|e| Error::bad(e.to_string()))?;
+    }
     Ok(Json(
         json!({"errors":crate::dag_store::validation(&s.pool,u.workspace()?,&b.config).await?}),
     ))
@@ -926,6 +933,7 @@ async fn apply(
             &b.config,
             b.expected_revision,
             u.id,
+            b.editor_layout.as_ref(),
         )
         .await
         .map_err(|e| Error::bad(e.to_string()))?
