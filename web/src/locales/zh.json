@@ -510,7 +510,7 @@
   "dag.pre": "前置节点",
   "dag.insertResult": "引用上游结果",
   "dag.results": "结果节点",
-  "dag.autoResults": "末端节点（自动）",
+  "dag.autoResults": "自动",
   "dag.addNode": "新增节点",
   "dag.resize": "调整节点配置宽度",
   "dag.nodeActions": "节点操作",

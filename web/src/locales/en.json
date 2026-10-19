@@ -510,7 +510,7 @@
   "dag.pre": "Predecessors",
   "dag.insertResult": "Insert upstream result",
   "dag.results": "Result nodes",
-  "dag.autoResults": "Terminal nodes (automatic)",
+  "dag.autoResults": "Automatic",
   "dag.addNode": "Add node",
   "dag.resize": "Resize node configuration",
   "dag.nodeActions": "Node actions",

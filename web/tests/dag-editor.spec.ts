@@ -158,7 +158,7 @@ test('DAG output selection switches between automatic leaves and an explicit sub
   await expect(
     page.locator('.dag-graph-node').filter({ hasText: 'Output A' }).getByLabel('结果节点'),
   ).toHaveCount(1)
-  await selectChoice(page, page, '结果选择', '末端节点（自动）')
+  await selectChoice(page, page, '结果选择', '自动')
   await expect(page.locator('.dag-graph-node').getByLabel('结果节点')).toHaveCount(2)
 })
 
