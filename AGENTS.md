@@ -5,3 +5,5 @@ Product/package versions follow releases (current version: 0.1.1); keep config/m
 Keep product copy focused on user data, controls, and necessary operational errors or consequences. Do not add implementation notes, development history, or automatic-ID explanations to titles, forms, or footers.
 
 Changelogs describe only final, user-visible changes since the preceding version. The first release may summarize its core capabilities. Never include implementation progress, work logs, discussion history, test transcripts, or development diaries. Keep one entry per version and keep English and Chinese entries aligned. Curate release notes from these entries rather than generating them from commit titles.
+
+Keep README.md in English and README-zh.md in Chinese with reciprocal language links and aligned content. Do not capture, commit or publish screenshots containing personal information, credentials, local account details or real runtime data. Use synthetic examples for any future documentation images.
