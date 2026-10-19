@@ -41,8 +41,8 @@ def main():
             def snapshot():
                 result = {}
                 for table in ['users','credentials','runners','tasks','runs','events','settings']:
-                    # Compare legacy payloads while allowing the additive workspace schema.
-                    expression = "to_jsonb(t)-'archived_at'-'session'-'session_seq'-'workspace_id'-'instance_admin'"
+                    # Compare legacy payloads while allowing additive workspace and DAG metadata.
+                    expression = "to_jsonb(t)-'archived_at'-'session'-'session_seq'-'workspace_id'-'instance_admin'-'parent_run_id'-'node_id'"
                     if table == 'settings': expression += "-'id'"
                     result[table] = sql(f"SELECT jsonb_agg({expression}) FROM {table} t")
                 return result
@@ -71,6 +71,7 @@ def main():
             run(migrate,env)
             assert sql("SELECT string_agg(version::text,',' ORDER BY version) FROM _sqlx_migrations WHERE success")==','.join(str(int(p.name.split('_')[0])) for p in sorted((ROOT/'crates/wakeit/migrations').glob('*.sql')))
             assert snapshot()==before
+            assert sql('SELECT count(*) FROM runs WHERE parent_run_id IS NOT NULL OR node_id IS NOT NULL')=='0'
             print('Archive upgrade: old checksum rejected by normal migrate; backup, data preservation, published baseline plus workspace migration, repeat and unknown-checksum refusal passed.')
         finally:run([pg/'pg_ctl','-D',folder/'pg','-m','immediate','stop'])
 if __name__=='__main__':main()
