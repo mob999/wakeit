@@ -35,6 +35,7 @@ pub fn document() -> Value {
             schemas.insert($name.into(), schema::<$ty>($name));
         };
     }
+    add!("DagValidationIssue", crate::dag::ValidationIssue);
     add!("Task", crate::config::TaskConfig);
     add!("Agent", crate::config::AgentConfig);
     add!("Schedule", crate::config::Schedule);
@@ -77,11 +78,40 @@ pub fn document() -> Value {
         "type":"object", "required":["version","sessions"],
         "properties":{"version":{"const":1},"next_cursor":{"type":["string","null"]},"sessions":{"type":"array","items":{"type":"object","required":["id","cwd"],"properties":{"id":{"type":"string"},"title":{"type":["string","null"],"description":"Original native Agent title; null for unnamed sessions. No conversation preview or synthesized title."},"cwd":{"type":"string"},"updated_at":{"type":["string","null"],"format":"date-time"}}}}}
     }));
+    let mut node = schema::<crate::dag::Node>("DagRunNode");
+    node["additionalProperties"] = json!(true);
+    for (key, value) in [
+        ("state", json!({"type":"string"})),
+        ("reason", json!({"type":["string","null"]})),
+        (
+            "execution_id",
+            json!({"type":["string","null"],"format":"uuid"}),
+        ),
+        ("continuation_available", json!({"type":"boolean"})),
+        (
+            "started_at",
+            json!({"type":["string","null"],"format":"date-time"}),
+        ),
+        (
+            "finished_at",
+            json!({"type":["string","null"],"format":"date-time"}),
+        ),
+    ] {
+        node["properties"][key] = value;
+    }
+    schemas.insert("DagRunNode".into(), node);
+    schemas.insert("RunEvent".into(),json!({"type":"object","required":["id","run_id","seq","kind","data"],"properties":{
+      "id":{"type":"integer"},"run_id":{"type":"string","format":"uuid"},"seq":{"type":"integer"},"kind":{"type":"string"},"data":{},
+      "node_id":{"type":"string"},"execution_id":{"type":"string","format":"uuid"},"original_seq":{"type":"integer"}
+    }}));
+    schemas.insert("MomentOutput".into(),json!({"type":"object","required":["node_id","name","state","preview","format","has_more","truncated"],"properties":{
+      "node_id":{"type":"string"},"name":{"type":"string"},"state":{"type":"string"},"reason":{"type":["string","null"]},"preview":{"type":["string","null"],"maxLength":2048},"format":{"enum":["markdown","json"]},"has_more":{"type":"boolean"},"truncated":{"type":"boolean"}
+    }}));
     schemas.insert("Run".into(), json!({
         "type":"object", "required":["id","task_id","config","state","session"],
         "properties":{
             "id":{"type":"string","format":"uuid"},"task_id":{"type":"string"},
-            "config":{"$ref":"#/components/schemas/Task"},"state":{"type":"string"},
+            "config":{"$ref":"#/components/schemas/Task"},"state":{"type":"string","enum":["queued","starting","running","unknown","succeeded","warning","failed","timed_out","cancelled","skipped","interrupted"]},"nodes":{"type":"array","items":{"$ref":"#/components/schemas/DagRunNode"}},"parent_run_id":{"type":["string","null"],"format":"uuid"},"node_id":{"type":["string","null"]},
             "task_archived":{"type":"boolean"},
             "session":{"anyOf":[{"$ref":"#/components/schemas/RunSession"},{"type":"null"}],"description":"Actual session captured by this execution. Null for historical or unsupported runs; a configured binding alone does not establish continuation readiness."},
             "result":{},"reason":{"type":["string","null"]},
@@ -116,6 +146,7 @@ pub fn document() -> Value {
         ("/session", vec!["get", "post", "delete"]),
         ("/tasks", vec!["get"]),
         ("/tasks/{id}", vec!["get", "put"]),
+        ("/tasks/validate", vec!["post"]),
         ("/tasks/{id}/runs", vec!["post"]),
         ("/tasks/{id}/archive", vec!["post"]),
         ("/tasks/{id}/restore", vec!["post"]),
@@ -124,6 +155,9 @@ pub fn document() -> Value {
         ("/runs", vec!["get"]),
         ("/runs/{id}", vec!["get"]),
         ("/runs/{id}/events", vec!["get"]),
+        ("/runs/{id}/nodes/{node}", vec!["get"]),
+        ("/runs/{id}/nodes/{node}/events", vec!["get"]),
+        ("/runs/{id}/nodes/{node}/resolve", vec!["post"]),
         ("/runs/{id}/stream", vec!["get"]),
         ("/runs/{id}/cancel", vec!["post"]),
         ("/runs/{id}/retry", vec!["post"]),
@@ -169,8 +203,10 @@ pub fn document() -> Value {
                 ("/runners/{id}/agents/{agent}/models/query", "post") => Some("ModelsQuery"),
                 ("/runners/{id}/agents/{agent}/sessions/inspect", "post") => Some("SessionInspect"),
                 ("/runners/{id}/agents/{agent}/sessions/query", "post") => Some("SessionListQuery"),
-                ("/tasks/{id}", "put") => Some("ApplyTask"),
-                ("/runs/{id}/resolve", "post") => Some("Resolution"),
+                ("/tasks/{id}", "put") | ("/tasks/validate", "post") => Some("ApplyTask"),
+                ("/runs/{id}/resolve" | "/runs/{id}/nodes/{node}/resolve", "post") => {
+                    Some("Resolution")
+                }
                 ("/users/{id}", "put") => Some("MemberUpdate"),
                 ("/invites", "post") => Some("Role"),
                 ("/invites/accept", "post") => Some("AcceptInvite"),
@@ -227,6 +263,11 @@ pub fn document() -> Value {
             if path == "/tasks" && method == "get" {
                 parameters.push(json!({"name":"archived","in":"query","schema":{"type":"boolean","default":false},"description":"Archived tasks only; requires Operator."}));
             }
+            if path.contains("{node}") {
+                parameters.push(
+                    json!({"name":"node","in":"path","required":true,"schema":{"type":"string"}}),
+                );
+            }
             if path.contains("{agent}") {
                 parameters.push(
                     json!({"name":"agent","in":"path","required":true,"schema":{"type":"string"}}),
@@ -243,12 +284,15 @@ pub fn document() -> Value {
             if matches!(path, "/tasks/{id}/runs" | "/runs/{id}/retry") {
                 parameters.push(json!({"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","maxLength":200}}));
             }
-            if matches!(path, "/runs/{id}/events" | "/runs/{id}/stream") {
+            if matches!(
+                path,
+                "/runs/{id}/events" | "/runs/{id}/stream" | "/runs/{id}/nodes/{node}/events"
+            ) {
                 parameters.push(
                     json!({"name":"after","in":"query","schema":{"type":"integer","default":0}}),
                 );
             }
-            if path == "/runs/{id}/events" {
+            if path == "/runs/{id}/events" || path == "/runs/{id}/nodes/{node}/events" {
                 parameters.push(json!({"name":"kind","in":"query","schema":{"type":"string"},"description":"Filter event kind; trace includes trace_status. Up to 500 rows ordered by ID per page."}));
             }
             if path == "/runs/{id}/stream" {
@@ -302,11 +346,36 @@ pub fn document() -> Value {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["timezone","date","items","next_cursor"],"properties":{"timezone":{"type":"string"},"date":{"type":"string","format":"date"},"next_cursor":{"type":["string","null"]},"items":{"type":"array","items":{"type":"object","required":["id","task_id","name","state","reason","finished_at","runner","agent","logo","preview","format","has_more","truncated"],"properties":{"id":{"type":"string","format":"uuid"},"task_id":{"type":"string"},"name":{"type":"string"},"state":{"type":"string"},"reason":{"type":["string","null"]},"finished_at":{"type":"string","format":"date-time"},"runner":{"type":"string"},"agent":{"type":"string"},"logo":{"type":["string","null"]},"preview":{"type":["string","null"],"maxLength":2048},"format":{"enum":["markdown","json"]},"has_more":{"type":"boolean"},"truncated":{"type":"boolean"}}}}}}}});
                 let item = &mut op["responses"]["200"]["content"]["application/json"]["schema"]["properties"]
                     ["items"]["items"];
+                item["properties"]["runner"] = json!({"type":["string","null"]});
+                item["properties"]["agent"] = json!({"type":["string","null"]});
+                item["properties"]["format"] = json!({"enum":["markdown","json","dag"]});
+                item["properties"]["node_count"] = json!({"type":"integer"});
+                item["properties"]["outputs"] = json!({"type":"array","items":{"$ref":"#/components/schemas/MomentOutput"},"description":"Selected output reports in frozen definition order, sharing a total 2048-Unicode-character preview budget."});
                 item["properties"]["continuation_available"] = json!({"type":"boolean","description":"This completed Run has an actual, ready session. Fetch its Run details before displaying continuation commands."});
                 item["required"]
                     .as_array_mut()
                     .unwrap()
                     .push(json!("continuation_available"));
+            }
+            if path.ends_with("/events") {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"array","maxItems":500,"items":{"$ref":"#/components/schemas/RunEvent"}}}});
+                op["description"] = json!(
+                    "Parent DAG events merge child events in durable event-ID order and include node_id, execution_id and original_seq. Child state events have kind node_state. Trace snapshots are keyed by node_id plus native Trace ID."
+                );
+            }
+            if path == "/tasks/validate" {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["errors"],"properties":{"errors":{"type":"array","items":{"$ref":"#/components/schemas/DagValidationIssue"}}}}}});
+                op["description"] = json!(
+                    "Read-only whole-definition validation for Operator. Does not create or update a task. PUT validates again transactionally."
+                );
+            }
+            if path == "/runs/{id}/nodes/{node}" {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["node","execution"],"properties":{"node":{"$ref":"#/components/schemas/DagRunNode"},"execution":{"anyOf":[{"$ref":"#/components/schemas/Run"},{"type":"null"}]}}}}});
+            }
+            if path == "/runs/{id}/nodes/{node}/resolve" {
+                op["description"] = json!(
+                    "Reconcile an unknown concrete node after checking the actual process. The parent is derived from all nodes; it cannot be independently marked successful."
+                );
             }
             if path == "/runs/{id}" {
                 op["responses"]["200"]["content"] =

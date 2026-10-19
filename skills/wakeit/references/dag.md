@@ -1,0 +1,17 @@
+# AND DAG tasks
+
+Use one Task for an entire inline graph. Keep its ID, revision and paused state when editing. Obtain actual Runner names/IDs, installed Agents and allowed working directories before writing nodes. Use `wakeit schema task` for the current schema. The CLI uses the same `task apply`, `task trigger`, `run watch`, `run cancel` and `run retry` commands as ordinary Tasks.
+
+A DAG config has common `version: 1`, `id`, `name`, `schedule`, `enabled`, `execution`, plus `dag.nodes` and optional `dag.results`. It must not define top-level Runner, Agent, cwd, prompt, parameters or Session. Each node contains a stable ID, name, `pre` list and its own execution fields. Give copied nodes new IDs. Names may change without changing references.
+
+All roots start together, subject to Runner capacity and Session locks. Only AND is supported: every predecessor must succeed. Failure skips impossible descendants while independent branches continue. Never trigger, retry or cancel an internal execution independently; a retry starts a new whole round from the current Task definition. Do not add node automatic retries or bypass unsuccessful predecessors.
+
+To use upstream output, add the predecessor explicitly, then insert `{{ nodes.<ancestor-id>.result }}` into the consumer's prompt. Only ancestors in the same round are allowed. Strings remain literal and objects become JSON; no expressions or recursive template expansion. Missing, empty, expired, incomplete or persistently truncated results fail the consumer before Agent submission. Expanded instructions are limited to 1 MiB. Do not substitute logs for results.
+
+Omit `dag.results` to use every leaf, or provide a nonempty explicit subset. Reports keep definition order. All nodes successful means succeeded; selected outputs successful with another unsuccessful branch means warning (Watch exit 0). An unsuccessful selected output means failed. unknown is nonterminal until the actual uncertain node is reconciled. Whole cancellation/timeout waits for confirmation; graph timeout starts at first claim and defaults to 1h, as do individual node timeouts.
+
+Validate through workspace-scoped `POST /tasks/validate` with `{config}` when available. Resolve reported field/node/cycle errors; final apply validates atomically again. Revision conflicts require reading the latest definition and preserving intended changes, not blindly overwriting. Do not create or trigger a task merely to validate it.
+
+`GET /runs/{parent}` includes frozen nodes and selected reports. `GET /runs/{parent}/nodes/{node}` returns the actual execution or null. Its events use the existing `after` cursor, at most 500 per batch. Parent event streams label node IDs and original execution identity. For continuation, use that actual node's `session.command`; the parent itself has no Agent session.
+
+WebUI offers Tasks → Plus → DAG task, with graph/list and selected-node form, then timing. Next only validates, Save applies the entire draft. Saved task types cannot be converted. Subgraphs, references to independent Tasks and resuming from a failed node are unsupported.

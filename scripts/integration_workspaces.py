@@ -80,8 +80,8 @@ def main():
         assert account['instance_admin'] and account['role'] == 'viewer'
         workspace_a = global_api('/workspaces')['items'][0]['id']
 
-        def api(path, method='GET', body=None, workspace=workspace_a, token=admin, gateway=base):
-            return call(gateway, '/api/v1/workspaces/' + workspace + path, method, body, token, headers=global_headers)
+        def api(path, method='GET', body=None, workspace=workspace_a, token=admin, gateway=base, key=None):
+            return call(gateway, '/api/v1/workspaces/' + workspace + path, method, body, token, key=key, headers=global_headers)
 
         invite = api('/invites', 'POST', {'role': 'viewer'})['token']
         call(base, '/api/v1/invites/accept', 'POST', {'token': invite, 'username': 'other', 'password': env['WAKEIT_PASSWORD']}, headers=global_headers)
@@ -169,7 +169,8 @@ def main():
         check('last Admin protection and member removal affect only the selected workspace across Gateways')
 
         from dag_checks import verify as verify_dags
-        dag_runs = verify_dags(api, a, b, check)
+        def sql(query): return command([pg / 'psql', database, '-At', '-v', 'ON_ERROR_STOP=1', '-c', query]).strip()
+        dag_runs = verify_dags(api, a, b, check, dict(other=other, sql=sql, binary=binary, cli_env=cli_env, workspace=workspace_a, root=root, spawn=spawn))
 
         summary = dict(base_url=base, other_url=other, root=str(root), checks=checks, workspaces=[workspace_a, workspace_b],
                        processes=[p.pid for p in processes], pg_port=pg_port, dag_runs=dag_runs)

@@ -159,3 +159,49 @@ test('DAG output selection switches between automatic leaves and an explicit sub
     'Output A',
   )
 })
+
+for (const count of [20, 100])
+  test(`${count}-node DAG keeps an accessible list and bounded layout`, async ({ page }) => {
+    await mock(page)
+    const nodes = Array.from({ length: count }, (_, index) => ({
+      id: `node-${index}`,
+      name: `Research step ${index} 中文 long name`,
+      pre: index > 1 ? [`node-${Math.floor((index - 1) / 2)}`] : [],
+      runner: runner.id,
+      agent: 'pi',
+      cwd: '/workspace',
+      prompt: 'Research this step',
+      parameters: {},
+      timeout: '1h',
+    }))
+    const config = {
+      version: 1,
+      id: 'layout-fixture',
+      name: 'Synthetic research graph',
+      dag: { nodes },
+      schedule: null,
+      enabled: true,
+      execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
+    }
+    await page.route('**/tasks/layout-fixture', (route) =>
+      route.fulfill({ json: { id: config.id, config, revision: 1, archived_at: null } }),
+    )
+    await page.goto(`/w/${workspace}/tasks/dag?task=layout-fixture`)
+    await expect(page.locator('.dag-graph-node')).toHaveCount(count)
+    await page.getByRole('button', { name: '列表', exact: true }).click()
+    const list = page.getByRole('listbox', { name: '节点', exact: true })
+    await expect(list.getByRole('option')).toHaveCount(count)
+    const first = list.getByRole('option').first()
+    await first.focus()
+    await page.keyboard.press('ArrowDown')
+    await expect(list.getByRole('option').nth(1)).toBeFocused()
+    await expect(page.getByLabel('名称', { exact: true })).toHaveValue(nodes[1].name)
+    await page.getByRole('textbox', { name: '搜索节点', exact: true }).fill(`step ${count - 1} `)
+    await expect(list.getByRole('option')).toHaveCount(1)
+    for (const width of [390, 1440, 2200]) {
+      await page.setViewportSize({ width, height: 900 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+    }
+  })
