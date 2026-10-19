@@ -22,8 +22,8 @@ def verify(api, a, b, check, context):
         return api('/tasks/'+id,'PUT',dict(config=config,expected_revision=old['revision'] if old else None))
 
     def start(id): return api('/tasks/'+id+'/runs','POST',{})['id']
-    def finish(id):
-        return wait(lambda:(r if (r:=api('/runs/'+id))['state'] in ['succeeded','warning','failed','cancelled','timed_out'] else None),'DAG '+id,timeout=40)
+    def finish(id, timeout=40):
+        return wait(lambda:(r if (r:=api('/runs/'+id))['state'] in ['succeeded','warning','failed','cancelled','timed_out'] else None),'DAG '+id,timeout=timeout)
 
     root_a=node('a',sleep=.3)
     root_b=node('b',sleep=.3)
@@ -179,13 +179,22 @@ def verify(api, a, b, check, context):
 
     # Larger than a single 500-record page, including identical native Trace IDs in different nodes.
     many=node('many',text='report');many['prompt']=json.dumps(dict(text='report',trace_count=5300,sleep=0))
-    save('dag-many',[many])
-    large=finish(start('dag-many'))
+    # This checks durable pagination, not the 20-second deadline used by the
+    # small lifecycle fixtures. Each record crosses SQLite and JetStream.
+    many['timeout']='2m'
+    definition=save('dag-many',[many]);definition['config']['execution']['timeout']='3m'
+    api('/tasks/dag-many','PUT',dict(config=definition['config'],expected_revision=definition['revision']))
+    large=finish(start('dag-many'),timeout=190)
+    assert large['state']=='succeeded',large
     # Terminal state and durable content travel independently. Wait for this
     # fixture's known records before asserting pagination, including on slower CI.
     execution=large['nodes'][0]['execution_id']
-    wait(lambda:int(sql("SELECT count(*) FROM events WHERE run_id='"+execution+"' AND kind='trace'"))>=5300,
-         'large DAG Trace content is persisted',timeout=90)
+    try:
+        wait(lambda:int(sql("SELECT count(*) FROM events WHERE run_id='"+execution+"' AND kind='trace'"))>=5300,
+             'large DAG Trace content is persisted',timeout=90)
+    except AssertionError as error:
+        count=sql("SELECT count(*) FROM events WHERE run_id='"+execution+"' AND kind='trace'")
+        raise AssertionError(f'Large Trace fixture persisted {count}/5300 records; execution={api("/runs/"+large["id"]+"/nodes/many")}') from error
     cursor=0;count=0
     while True:
         batch=api('/runs/'+large['id']+'/events?kind=trace&after='+str(cursor))
