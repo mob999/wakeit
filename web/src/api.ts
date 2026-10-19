@@ -154,6 +154,7 @@ export type DagIssue = { path: string; node_id?: string; message: string; cycle?
 export type DagRunNode = DagNode & {
   state: string
   execution_id?: string | null
+  continuation_available?: boolean
   reason?: string | null
   started_at?: string | null
   finished_at?: string | null
@@ -167,6 +168,8 @@ export type Task = {
   last_run?: { id: string; state: string; created_at: string }
 }
 export type Run = {
+  parent_run_id?: string | null
+  node_id?: string | null
   nodes?: DagRunNode[]
   task_archived: boolean
   id: string
@@ -207,6 +210,10 @@ export type SessionEntry = {
 }
 export type SessionCatalog = { version: 1; sessions: SessionEntry[]; next_cursor?: string | null }
 export type RunEvent = {
+  run_id?: string
+  node_id?: string | null
+  execution_id?: string | null
+  original_seq?: number
   id: number
   seq: number
   kind: string
@@ -221,7 +228,9 @@ export type RunEvent = {
   }
 }
 export const terminal = (state: string) =>
-  ['succeeded', 'failed', 'cancelled', 'timed_out', 'skipped', 'interrupted'].includes(state)
+  ['succeeded', 'warning', 'failed', 'cancelled', 'timed_out', 'skipped', 'interrupted'].includes(
+    state,
+  )
 export const time = (value: string | null | undefined, timezone?: string) =>
   value
     ? new Date(value).toLocaleString(locale(), {
@@ -246,6 +255,12 @@ export const stateNames: Record<string, string> = {
   },
   get succeeded() {
     return tr('成功')
+  },
+  get warning() {
+    return tr('dag.warning')
+  },
+  get waiting() {
+    return tr('dag.waitingDependencies')
   },
   get failed() {
     return tr('失败')
@@ -313,7 +328,18 @@ export type MomentEntry = {
   agent: string
   logo: string | null
   preview: string | null
-  format: 'markdown' | 'json'
+  format: 'markdown' | 'json' | 'dag'
+  node_count?: number
+  outputs?: {
+    node_id: string
+    name: string
+    state: string
+    reason?: string | null
+    preview: string | null
+    format: 'markdown' | 'json'
+    has_more: boolean
+    truncated: boolean
+  }[]
   has_more: boolean
   truncated: boolean
 }

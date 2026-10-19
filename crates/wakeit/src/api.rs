@@ -1190,7 +1190,7 @@ async fn event_rows(
     kind: Option<&str>,
 ) -> std::result::Result<Vec<Value>, sqlx::Error> {
     sqlx::query_scalar(
-        "SELECT to_jsonb(e.*) || CASE WHEN r.parent_run_id IS NOT NULL THEN jsonb_build_object('run_id',$1,'node_id',r.node_id,'execution_id',r.id,'original_seq',e.seq,'kind',CASE WHEN e.kind='state' THEN 'node_state' ELSE e.kind END) ELSE '{}'::jsonb END FROM events e JOIN runs r ON r.id=e.run_id AND r.workspace_id=e.workspace_id WHERE e.workspace_id=$4 AND (e.run_id=$1 OR r.parent_run_id=$1) AND e.id>$2 AND ($3::text IS NULL OR e.kind=$3 OR ($3='trace' AND e.kind='trace_status')) ORDER BY e.id LIMIT 500",
+        "SELECT to_jsonb(e.*) || CASE WHEN r.parent_run_id IS NOT NULL THEN jsonb_build_object('run_id',$1,'node_id',r.node_id,'execution_id',r.id,'original_seq',e.seq,'kind',CASE WHEN e.kind='state' THEN 'node_state' ELSE e.kind END) ELSE CASE WHEN e.kind='node' THEN jsonb_build_object('node_id',e.data->'node_id') ELSE '{}'::jsonb END END FROM events e JOIN runs r ON r.id=e.run_id AND r.workspace_id=e.workspace_id WHERE e.workspace_id=$4 AND (e.run_id=$1 OR r.parent_run_id=$1) AND e.id>$2 AND ($3::text IS NULL OR e.kind=$3 OR ($3='trace' AND e.kind='trace_status')) ORDER BY e.id LIMIT 500",
     )
     .bind(id)
     .bind(after)

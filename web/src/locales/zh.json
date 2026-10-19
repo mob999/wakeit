@@ -533,5 +533,11 @@
   "dag.field.agent": "Agent",
   "dag.field.cwd": "工作目录",
   "dag.nodeCount": "{{count}} 个节点",
-  "dag.latest": "执行最近一次"
+  "dag.latest": "执行最近一次",
+  "dag.waitingDependencies": "等待前置节点",
+  "dag.problemNodes": "查看问题节点",
+  "dag.selectNode": "选择节点",
+  "dag.noExecution": "此节点尚未开始执行",
+  "dag.outputs": "结果节点",
+  "dag.nodeExecution": "节点执行"
 }

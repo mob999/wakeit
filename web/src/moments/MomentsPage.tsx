@@ -12,13 +12,13 @@ import {
 } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, Monitor, RefreshCw, Copy, Check } from 'lucide-react'
+import { ArrowUpRight, Monitor, RefreshCw, Copy, Check, GitBranch } from 'lucide-react'
 import { api, type MomentDays, type MomentEntries, type MomentEntry, type Run } from '../api'
 import { IconButton, Button, TooltipTarget } from '../ui'
 import { Status } from '../Status'
 import { AgentLogo } from '../AgentLogo'
 import { MarkdownContent } from '../runs/MarkdownContent'
-import { resultData } from '../runs/RunResult'
+import { RunResult, resultData } from '../runs/RunResult'
 import { ResumeRun } from '../sessions/ResumeRun'
 import './moments.css'
 
@@ -274,17 +274,18 @@ function MomentCard({
   async function copy() {
     setCopying(true)
     try {
-      const value = entry.has_more
-        ? (resultData(
-            (
-              await client.fetchQuery({
-                queryKey: ['run', entry.id],
-                queryFn: () => api<Run>(`/runs/${entry.id}`),
-                staleTime: Infinity,
-              })
-            ).result,
-          ).source ?? '')
-        : (entry.preview ?? '')
+      const value =
+        entry.has_more || entry.format === 'dag'
+          ? (resultData(
+              (
+                await client.fetchQuery({
+                  queryKey: ['run', entry.id],
+                  queryFn: () => api<Run>(`/runs/${entry.id}`),
+                  staleTime: Infinity,
+                })
+              ).result,
+            ).source ?? '')
+          : (entry.preview ?? '')
       await navigator.clipboard.writeText(value)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
@@ -314,19 +315,31 @@ function MomentCard({
             </Link>
           </h3>
           <div className="moment-identity">
-            <span>
-              <Monitor size={13} />
-              {entry.runner}
-            </span>
-            <span>
-              <AgentLogo name={entry.agent} logo={entry.logo} />
-              {entry.agent}
-            </span>
+            {entry.format === 'dag' ? (
+              <span>
+                <GitBranch size={13} />
+                DAG{' '}
+                <span className="quiet">
+                  {tr('dag.nodeCount', { count: entry.node_count ?? 0 })}
+                </span>
+              </span>
+            ) : (
+              <>
+                <span>
+                  <Monitor size={13} />
+                  {entry.runner}
+                </span>
+                <span>
+                  <AgentLogo name={entry.agent} logo={entry.logo} />
+                  {entry.agent}
+                </span>
+              </>
+            )}
           </div>
           <div className="moment-actions">
             <Status state={entry.state} />
             <ResumeRun id={entry.id} available={entry.continuation_available} toast={toast} />
-            {entry.preview && (
+            {(entry.preview || !!entry.outputs?.length) && (
               <IconButton
                 label={tr('复制结果')}
                 tooltip={copied ? tr('已复制') : tr('复制结果')}
@@ -354,14 +367,43 @@ function MomentCard({
             <p className="moment-reason">{entry.reason}</p>
           )}
           {entry.truncated && <p className="quiet">{tr('结果已截断')}</p>}
-          {text ? (
+          {text || entry.outputs?.length ? (
             <div
               ref={body}
               className={`moment-report ${expanded ? 'moment-report-expanded' : 'moment-report-preview'}`}
             >
-              {format === 'markdown' ? (
+              {entry.format === 'dag' ? (
+                content && full.data ? (
+                  <RunResult result={full.data.result} raw={false} />
+                ) : (
+                  <div className="moment-dag-reports">
+                    {entry.outputs?.map((output) => (
+                      <section key={output.node_id}>
+                        <header>
+                          <strong>{output.name}</strong>
+                          <Status state={output.state} />
+                        </header>
+                        {output.reason && output.state !== 'succeeded' && (
+                          <p className="quiet">{output.reason}</p>
+                        )}
+                        {output.preview ? (
+                          output.format === 'markdown' ? (
+                            <article className="markdown-result">
+                              <MarkdownContent text={output.preview} />
+                            </article>
+                          ) : (
+                            <pre className="code result-raw">{output.preview}</pre>
+                          )
+                        ) : (
+                          <p className="quiet">{tr('未返回结果')}</p>
+                        )}
+                      </section>
+                    ))}
+                  </div>
+                )
+              ) : format === 'markdown' ? (
                 <article className="markdown-result">
-                  <MarkdownContent text={text} />
+                  <MarkdownContent text={text ?? ''} />
                 </article>
               ) : (
                 <pre className="code result-raw">{text}</pre>

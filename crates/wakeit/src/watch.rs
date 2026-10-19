@@ -89,6 +89,12 @@ struct Event {
     run_id: Uuid,
     kind: String,
     data: Value,
+    #[serde(default)]
+    node_id: Option<String>,
+    #[serde(default)]
+    execution_id: Option<Uuid>,
+    #[serde(default)]
+    original_seq: Option<i64>,
 }
 
 struct Reporter<W> {
@@ -134,6 +140,15 @@ impl<W: Write> Reporter<W> {
         if let Some(event) = event {
             record["event_id"] = json!(event.id);
             record["seq"] = json!(event.seq);
+            if let Some(node) = &event.node_id {
+                record["node_id"] = json!(node);
+            }
+            if let Some(execution) = event.execution_id {
+                record["execution_id"] = json!(execution);
+            }
+            if let Some(seq) = event.original_seq {
+                record["original_seq"] = json!(seq);
+            }
         }
         serde_json::to_writer(&mut self.output, &record)?;
         self.output.write_all(b"\n")
@@ -173,7 +188,10 @@ impl<W: Write> Reporter<W> {
         Ok(())
     }
     fn notice(&mut self, status: &str, message: &str, event: Option<&Event>) -> io::Result<()> {
-        if self.notices.insert(status.to_string()) {
+        if self.notices.insert(format!(
+            "{}:{status}",
+            event.and_then(|e| e.node_id.as_deref()).unwrap_or("")
+        )) {
             if self.json {
                 self.emit("notice", json!({"status":status,"message":message}), event)?;
             } else {
@@ -210,7 +228,8 @@ impl<W: Write> Reporter<W> {
         }
         let node: TraceNode =
             serde_json::from_value(data).map_err(|_| Failure::query("invalid Trace response"))?;
-        let old = self.traces.get(&node.id).cloned();
+        let key = format!("{}\0{}", event.node_id.as_deref().unwrap_or(""), node.id);
+        let old = self.traces.get(&key).cloned();
         if old.as_ref().is_some_and(|(seq, old)| {
             *seq >= event.seq
                 || (old.status != crate::trace::TraceState::Running
@@ -231,15 +250,27 @@ impl<W: Write> Reporter<W> {
                 };
                 let status = serde_json::to_value(&node.status).expect("Trace state");
                 self.line(&format!(
-                    "[{kind} {}] {}",
+                    "{}[{kind} {}] {}",
+                    event
+                        .node_id
+                        .as_ref()
+                        .map(|id| format!("[{id}] "))
+                        .unwrap_or_default(),
                     status.as_str().unwrap_or("unknown"),
                     node.title
                 ))?;
             }
+            if let Some(id) = &event.node_id
+                && old
+                    .as_ref()
+                    .is_some_and(|(_, n)| n.input != node.input || n.output != node.output)
+            {
+                self.line(&format!("[{id}]"))?;
+            }
             self.delta(old.as_ref().map(|(_, n)| &n.input), &node.input, "Input")?;
             self.delta(old.as_ref().map(|(_, n)| &n.output), &node.output, "Output")?;
         }
-        self.traces.insert(node.id.clone(), (event.seq, node));
+        self.traces.insert(key, (event.seq, node));
         Ok(())
     }
     fn event(&mut self, event: &Event) -> std::result::Result<(), Failure> {
@@ -251,11 +282,14 @@ impl<W: Write> Reporter<W> {
                 if self.json {
                     self.emit("log", event.data.clone(), Some(event))?;
                 } else {
+                    if let Some(node) = &event.node_id {
+                        self.line(&format!("[{node}]"))?;
+                    }
                     self.raw(text)?;
                 }
             }
             "trace" => self.trace(event)?,
-            "state" => {
+            "state" | "node_state" | "node" => {
                 let state = event.data["state"]
                     .as_str()
                     .ok_or_else(|| Failure::query("invalid state event"))?;
@@ -266,7 +300,15 @@ impl<W: Write> Reporter<W> {
                         Some(event),
                     )?;
                 } else {
-                    self.line(&format!("State: {state}"))?;
+                    self.line(&format!(
+                        "{}State: {state}",
+                        event
+                            .node_id
+                            .as_deref()
+                            .or_else(|| event.data["node_id"].as_str())
+                            .map(|id| format!("[{id}] "))
+                            .unwrap_or_default()
+                    ))?;
                 }
             }
             "progress" => {
@@ -300,7 +342,7 @@ impl<W: Write> Reporter<W> {
     }
     fn finish(&mut self, run: Option<&RunView>, failure: Option<&Failure>) -> io::Result<i32> {
         let code = failure.map(|e| e.code).unwrap_or_else(|| {
-            if run.is_some_and(|r| r.state == "succeeded") {
+            if run.is_some_and(|r| matches!(r.state.as_str(), "succeeded" | "warning")) {
                 0
             } else {
                 1
@@ -694,6 +736,37 @@ mod tests {
         assert!(!text.contains("你你好"));
         assert!(!text.contains("late"));
     }
+    #[test]
+    fn dag_traces_do_not_collide_and_json_preserves_child_identity() {
+        let id = Uuid::new_v4();
+        let execution = Uuid::new_v4();
+        for json_output in [false, true] {
+            let mut reporter = Reporter::new(vec![], id, json_output);
+            for (seq, node_id, text) in [(1, "a", "Alpha"), (2, "b", "Beta"), (3, "a", "Alpha!")] {
+                let mut value = event(id, seq, "trace", node(json!(text), "running"));
+                value["node_id"] = json!(node_id);
+                value["execution_id"] = json!(execution);
+                value["original_seq"] = json!(seq);
+                reporter
+                    .event(&serde_json::from_value(value).unwrap())
+                    .unwrap();
+            }
+            if json_output {
+                let records = lines(&reporter.output);
+                assert_eq!(records.len(), 3);
+                assert_eq!(records[1]["node_id"], "b");
+                assert_eq!(records[2]["execution_id"], execution.to_string());
+                assert_eq!(records[2]["original_seq"], 3);
+            } else {
+                let text = String::from_utf8(reporter.output).unwrap();
+                assert!(text.contains("[a]"));
+                assert!(text.contains("[b]"));
+                assert!(text.contains("Alpha"));
+                assert!(text.contains("Beta"));
+                assert_eq!(text.matches("Alpha").count(), 1);
+            }
+        }
+    }
     #[tokio::test]
     async fn drains_more_than_500_and_terminal_tail_then_returns_final_result() {
         let id = Uuid::new_v4();
@@ -740,6 +813,7 @@ mod tests {
     async fn every_terminal_state_finishes_without_fabricating_a_report() {
         for state in [
             "succeeded",
+            "warning",
             "failed",
             "cancelled",
             "timed_out",
@@ -763,7 +837,14 @@ mod tests {
                 .reporter
                 .finish(observer.last.as_ref(), None)
                 .unwrap();
-            assert_eq!(code, if state == "succeeded" { 0 } else { 1 });
+            assert_eq!(
+                code,
+                if matches!(state, "succeeded" | "warning") {
+                    0
+                } else {
+                    1
+                }
+            );
             assert!(String::from_utf8_lossy(&observer.reporter.output).contains("\"answer\": 42"));
             assert!(server.script.lock().unwrap().is_empty());
         }

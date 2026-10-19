@@ -408,3 +408,20 @@
 .dag-prompt-head .icon-button {
   margin-left: auto;
 }
+.dag-run-page > div > .run-section + .run-section {
+  margin-top: 16px;
+}
+.dag-node-empty {
+  padding: 16px;
+}
+.dag-run-page .dag-selected-caption > strong {
+  margin-right: auto;
+  font-size: 13px;
+}
+.dag-run-page .dag-selected-caption .choice-selector {
+  max-width: 420px;
+}
+.dag-outcome {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}

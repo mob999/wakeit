@@ -1,6 +1,6 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { MessageSquare, Terminal, Wrench, ChevronRight, RefreshCw } from 'lucide-react'
 import { MarkdownContent } from './MarkdownContent'
 import { api, terminal, type Run, type RunEvent, type TraceNode, stateNames } from '../api'
@@ -31,7 +31,9 @@ function merge(state: TraceState, events: RunEvent[]): TraceState {
   }
   return { nodes, notices }
 }
-export function useRunTrace(id: string) {
+export function useRunTrace(id: string, enabled = true) {
+  const cursor = useRef(0)
+  const previousId = useRef(id)
   const [state, setState] = useState<TraceState>(empty)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,20 +41,26 @@ export function useRunTrace(id: string) {
   const receive = useCallback((events: RunEvent[]) => setState((old) => merge(old, events)), [id])
   useEffect(() => {
     let cancelled = false
-    setState(empty())
+    if (previousId.current !== id) {
+      previousId.current = id
+      cursor.current = 0
+      setState(empty())
+    }
+    if (!enabled) return
     setLoading(true)
     setError('')
     async function load() {
-      let cursor = 0
       try {
         for (;;) {
-          const batch = await api<RunEvent[]>(`/runs/${id}/events?kind=trace&after=${cursor}`)
+          const batch = await api<RunEvent[]>(
+            `/runs/${id}/events?kind=trace&after=${cursor.current}`,
+          )
           if (cancelled) return
           receive(batch)
-          if (batch.length < 500) break
           const next = Math.max(...batch.map((e) => e.id))
-          if (next <= cursor) throw new Error(tr('无法继续读取过程'))
-          cursor = next
+          if (batch.length && next <= cursor.current) throw new Error(tr('无法继续读取过程'))
+          if (batch.length) cursor.current = next
+          if (batch.length < 500) break
         }
       } catch (e) {
         if (!cancelled) setError((e as Error).message)
@@ -64,7 +72,7 @@ export function useRunTrace(id: string) {
     return () => {
       cancelled = true
     }
-  }, [id, attempt, receive])
+  }, [id, enabled, attempt, receive])
   return { state, loading, error, receive, retry: () => setAttempt((v) => v + 1) }
 }
 export function RunTrace({ run, trace }: { run: Run; trace: ReturnType<typeof useRunTrace> }) {

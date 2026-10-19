@@ -3475,3 +3475,6 @@ input:disabled {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
 }
+
+.status.warning { color: var(--pending); }
+.status.warning i { background: var(--pending); }

@@ -533,5 +533,11 @@
   "dag.field.agent": "Agent",
   "dag.field.cwd": "working directory",
   "dag.nodeCount": "{{count}} nodes",
-  "dag.latest": "Run latest"
+  "dag.latest": "Run latest",
+  "dag.waitingDependencies": "Waiting for predecessors",
+  "dag.problemNodes": "View problem nodes",
+  "dag.selectNode": "Select a node",
+  "dag.noExecution": "This node has not started",
+  "dag.outputs": "Output nodes",
+  "dag.nodeExecution": "Node execution"
 }
