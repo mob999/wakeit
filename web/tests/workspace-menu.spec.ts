@@ -16,7 +16,7 @@ async function fixture(page: Page, role: 'admin' | 'operator' | 'viewer', demo =
     if (path.endsWith('/leave')) return send({ error: 'cannot remove the last administrator' }, 409)
     const name = apiPath(path)
     if (name === '/meta')
-      return send({ version: '0.1.1', public_url: 'https://example.test', install: {} })
+      return send({ version: '0.2.0', public_url: 'https://example.test', install: {} })
     if (name === '/settings')
       return send({ timezone: 'UTC', log_retention_days: 7, run_retention_days: 90 })
     if (name === '/timezones') return send(['UTC', 'Asia/Shanghai'])

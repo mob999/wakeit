@@ -13,11 +13,11 @@
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
 - **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
 
-最新已发布版本为 **0.1.1**，使用 Apache-2.0 许可。工作区功能需要源码构建，并使用与 Gateway 匹配的 CLI。接口与数据结构仍可能调整。
+最新已发布版本为 **0.2.0**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
 
 ## 安装
 
-从 [v0.1.1 Release](https://github.com/mob999/wakeit/releases/tag/v0.1.1) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
+从 [v0.2.0 Release](https://github.com/mob999/wakeit/releases/tag/v0.2.0) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
 
 从源码构建需要 Rust 1.89+、Node.js 22.12+：
 
@@ -33,7 +33,7 @@ cargo install --locked --path crates/wakeit
 
 已有 Gateway 时，点击 WebUI 顶栏的 `{}` 复制 Agent Prompt，交给 Agent 完成 CLI 与 Wakeit skill 安装、浏览器授权请求、设备注册和用户级自启；你在浏览器中核对并授权。
 
-以下命令使用支持工作区的源码构建版本。将 `WORKSPACE_ID` 替换为工作区 WebUI 地址中的 UUID：
+将 `WORKSPACE_ID` 替换为工作区 WebUI 地址中的 UUID：
 
 ```sh
 wakeit setup --gateway https://wakeit.example.com --workspace WORKSPACE_ID

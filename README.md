@@ -13,11 +13,11 @@ Define the instructions and timing, and Wakeit sends the task to a Runner on you
 - **Separate workspaces.** Keep tasks, runs, devices and permissions isolated across teams. See [workspace configuration and authentication](docs/workspaces.md).
 - **Host locally or in the cloud.** One Rust binary includes the Gateway, Runner and CLI; the WebUI ships with the Gateway.
 
-The latest published release is **0.1.1**, licensed under Apache-2.0. Workspace support requires a source build and a CLI that matches your Gateway. APIs and data formats may still change.
+The latest published release is **0.2.0**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
 
 ## Install
 
-Download the binary for your platform from the [v0.1.1 Release](https://github.com/mob999/wakeit/releases/tag/v0.1.1), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
+Download the binary for your platform from the [v0.2.0 Release](https://github.com/mob999/wakeit/releases/tag/v0.2.0), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
 
 To build from source, install Rust 1.89+ and Node.js 22.12+, then run:
 
@@ -33,7 +33,7 @@ cargo install --locked --path crates/wakeit
 
 With an existing Gateway, click `{}` in the WebUI toolbar to copy the Agent Prompt. Give it to your Agent to install the CLI and Wakeit skill, request browser authorization, register the device and configure user-level autostart. Review and approve the request in your browser.
 
-The following commands use the workspace-enabled source build. Replace `WORKSPACE_ID` with the workspace UUID from its WebUI URL:
+Replace `WORKSPACE_ID` with the workspace UUID from its WebUI URL:
 
 ```sh
 wakeit setup --gateway https://wakeit.example.com --workspace WORKSPACE_ID
