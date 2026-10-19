@@ -1,14 +1,14 @@
 import { workspacePage, apiPath, mockWorkspace, fixtureWorkspace } from './workspace'
 import { test, expect, type Page } from '@playwright/test'
 const meta = {
-  version: '0.1.1',
+  version: '0.2.0',
   public_url: 'https://wakeit.example.test',
   install: {
-    version: '0.1.1',
-    release: 'https://github.com/mob999/wakeit/releases/tag/v0.1.1',
-    manifest: 'https://github.com/mob999/wakeit/releases/download/v0.1.1/wakeit-release.json',
-    checksums: 'https://github.com/mob999/wakeit/releases/download/v0.1.1/SHA256SUMS',
-    base_url: 'https://github.com/mob999/wakeit/releases/download/v0.1.1',
+    version: '0.2.0',
+    release: 'https://github.com/mob999/wakeit/releases/tag/v0.2.0',
+    manifest: 'https://github.com/mob999/wakeit/releases/download/v0.2.0/wakeit-release.json',
+    checksums: 'https://github.com/mob999/wakeit/releases/download/v0.2.0/SHA256SUMS',
+    base_url: 'https://github.com/mob999/wakeit/releases/download/v0.2.0',
   },
 }
 async function fixture(page: Page, role = 'operator', loggedIn = true) {
