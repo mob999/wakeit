@@ -19,6 +19,8 @@ setup 保存连接和设备身份、导出全部内置适配、安装当前用�
 
 连接按 Gateway、工作区、账号隔离，API Key 固定一个工作区，在平台标准配置目录私密存储，后续命令跨目录可用。显式 `--gateway`、`--token`、`--token-file` 及对应 WAKEIT 环境变量优先；切换地址不会把另一连接的 Key 发过去。保留显式用户名的密码登录供已有脚本使用；密码由用户在本地提供，不粘贴到聊天。
 
+安装 CLI 时同时配置持久的用户 PATH。Unix 按 `$SHELL` 识别当前用户实际使用的 shell，未设置时才回退到账户登录 shell，并更新该 shell 对应的启动文件；不能因为是 macOS 就假定使用 zsh。Windows 保留已有用户 PATH，并在刷新环境后的新 shell 进程中验证。从其他目录启动匹配的新登录 shell，直接执行 `wakeit --version` 和 `wakeit connection list`；绝对可执行文件路径、临时 export 或换用另一种 shell 都不能证明 PATH 已正确配置。
+
 完成后从其他工作目录检查 `wakeit connection list`、`wakeit runner list`、`wakeit agent list`、`wakeit task list`，确认 Runner 在线、范围正确、自启已安装，并报告实际检测结果。不自动创建或运行任务。
 
 Admin、Operator 可注册 Runner，只有 Admin 可吊销；Viewer 可单独登录 CLI。API Key 默认不过期，Settings → API Key 可撤销。设备身份不能代替个人凭据。
