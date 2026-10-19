@@ -232,6 +232,9 @@ fn main() -> Result<()> {
                 "trace",
                 json!({"id":"message-final","kind":"message","status":"succeeded","title":"消息","input":null,"output":result,"occurred_at":finish,"finished_at":finish}),
             )?;
+            if options["fail"] == true {
+                std::process::exit(7);
+            }
             send("result", result)?;
             return Ok(());
         }

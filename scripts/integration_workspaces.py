@@ -168,8 +168,11 @@ def main():
         assert api('/tasks', workspace=workspace_b, token=secondary, gateway=other)[0]['config']['name'] == 'Workspace b'
         check('last Admin protection and member removal affect only the selected workspace across Gateways')
 
+        from dag_checks import verify as verify_dags
+        dag_runs = verify_dags(api, a, b, check)
+
         summary = dict(base_url=base, other_url=other, root=str(root), checks=checks, workspaces=[workspace_a, workspace_b],
-                       processes=[p.pid for p in processes], pg_port=pg_port)
+                       processes=[p.pid for p in processes], pg_port=pg_port, dag_runs=dag_runs)
         (root / 'summary.json').write_text(json.dumps(summary, indent=2))
         (root / 'test-credentials.json').write_text(json.dumps({'admin_token': admin, 'other_token': secondary}))
         os.chmod(root / 'test-credentials.json', 0o600)

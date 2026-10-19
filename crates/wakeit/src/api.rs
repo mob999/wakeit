@@ -107,7 +107,10 @@ impl<S: Send + Sync, T: serde::de::DeserializeOwned> axum::extract::FromRequestP
         let value = if params.len() == 1 {
             json!(params.into_values().next().unwrap())
         } else {
-            json!([params.remove("id"), params.remove("agent")])
+            json!([
+                params.remove("id"),
+                params.remove("agent").or_else(|| params.remove("node"))
+            ])
         };
         Ok(Self(
             serde_json::from_value(value).map_err(|e| Error::bad(e.to_string()))?,
@@ -312,6 +315,7 @@ pub fn router(app: App) -> Router {
         .route("/tokens", get(tokens).post(create_token))
         .route("/tokens/{id}", delete(delete_token))
         .route("/tasks", get(tasks))
+        .route("/tasks/validate", post(validate_task))
         .route("/tasks/{id}", get(task).put(apply))
         .route("/tasks/{id}/runs", post(trigger))
         .route("/tasks/{id}/archive", post(archive_task))
@@ -321,6 +325,9 @@ pub fn router(app: App) -> Router {
         .route("/moments", get(crate::moments::entries))
         .route("/runs", get(runs))
         .route("/runs/{id}", get(run))
+        .route("/runs/{id}/nodes/{node}", get(run_node))
+        .route("/runs/{id}/nodes/{node}/events", get(node_events))
+        .route("/runs/{id}/nodes/{node}/resolve", post(resolve_node))
         .route("/runs/{id}/cancel", post(cancel))
         .route("/runs/{id}/retry", post(retry))
         .route("/runs/{id}/resolve", post(resolve))
@@ -810,7 +817,7 @@ async fn tasks(
     .await?;
     let (page, size) = pagination(q.page, q.page_size)?;
     let result: Value = sqlx::query_scalar(
-        "WITH filtered AS (SELECT t.* FROM tasks t WHERE workspace_id=$10 AND (archived_at IS NOT NULL)=$9 AND ($1::text IS NULL OR concat_ws(' ',config->>'name',id,config->>'prompt',config->>'cwd',config->>'runner',config->>'agent') ILIKE $1) AND ($2::text IS NULL OR config->>'runner'=$2) AND ($3::text IS NULL OR config->>'agent'=$3) AND ($4::boolean IS NULL OR enabled=$4)), paged AS (SELECT to_jsonb(t.*) || jsonb_build_object('last_run',(SELECT jsonb_build_object('id',id,'state',state,'created_at',created_at) FROM runs WHERE workspace_id=t.workspace_id AND task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1)) AS item FROM filtered t ORDER BY updated_at DESC,id DESC LIMIT $5 OFFSET $6) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$7::bigint,'page_size',$8::bigint)"
+        "WITH filtered AS (SELECT t.* FROM tasks t WHERE workspace_id=$10 AND (archived_at IS NOT NULL)=$9 AND ($1::text IS NULL OR concat_ws(' ',config->>'name',id,config->>'prompt',config->>'cwd',config->>'runner',config->>'agent',config->'dag') ILIKE $1) AND (($2::text IS NULL AND $3::text IS NULL) OR ((config->>'runner'=$2 OR $2::text IS NULL) AND (config->>'agent'=$3 OR $3::text IS NULL)) OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(config->'dag'->'nodes','[]'::jsonb)) n WHERE ($2::text IS NULL OR n->>'runner'=$2 OR EXISTS(SELECT 1 FROM runners x WHERE x.workspace_id=t.workspace_id AND x.name=$2 AND x.id::text=n->>'runner')) AND ($3::text IS NULL OR n->>'agent'=$3))) AND ($4::boolean IS NULL OR enabled=$4)), paged AS (SELECT to_jsonb(t.*) || jsonb_build_object('last_run',(SELECT jsonb_build_object('id',id,'state',state,'created_at',created_at) FROM runs WHERE parent_run_id IS NULL AND workspace_id=t.workspace_id AND task_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1)) AS item FROM filtered t ORDER BY updated_at DESC,id DESC LIMIT $5 OFFSET $6) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$7::bigint,'page_size',$8::bigint)"
     ).bind(search_pattern(q.q)?).bind(q.runner).bind(q.agent).bind(q.enabled)
     .bind(q.page.map(|_| size)).bind(if q.page.is_some() { (page-1)*size } else {0})
     .bind(page).bind(size).bind(q.archived).bind(workspace).fetch_one(&s.pool).await?;
@@ -836,6 +843,68 @@ async fn task(State(s): State<App>, h: HeaderMap, Path(id): Path<String>) -> Res
 pub(crate) struct Apply {
     config: TaskConfig,
     expected_revision: Option<i64>,
+}
+async fn validate_task(
+    State(s): State<App>,
+    h: HeaderMap,
+    ApiJson(b): ApiJson<Apply>,
+) -> Result<Json<Value>> {
+    let u = user(&s, &h, "operator", true).await?;
+    Ok(Json(
+        json!({"errors":crate::dag_store::validation(&s.pool,u.workspace()?,&b.config).await?}),
+    ))
+}
+async fn node_execution(s: &App, workspace: Uuid, id: Uuid, node: &str) -> Result<Option<Uuid>> {
+    sqlx::query_scalar("SELECT execution_id FROM dag_run_nodes WHERE workspace_id=$1 AND parent_run_id=$2 AND node_id=$3")
+        .bind(workspace).bind(id).bind(node).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)
+}
+async fn run_node(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path((id, node)): Path<(Uuid, String)>,
+) -> Result<Json<Value>> {
+    let u = user(&s, &h, "viewer", false).await?;
+    let workspace = u.workspace()?;
+    let execution = node_execution(&s, workspace, id, &node).await?;
+    let summary = crate::dag_store::summaries(&s.pool, workspace, id)
+        .await?
+        .into_iter()
+        .find(|n| n["id"] == node)
+        .ok_or_else(Error::missing)?;
+    let execution = if let Some(id) = execution {
+        run(State(s), h, Path(id)).await?.0
+    } else {
+        Value::Null
+    };
+    Ok(Json(json!({"node":summary,"execution":execution})))
+}
+async fn node_events(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path((id, node)): Path<(Uuid, String)>,
+    Query(q): Query<Cursor>,
+) -> Result<Json<Value>> {
+    let u = user(&s, &h, "viewer", false).await?;
+    let workspace = u.workspace()?;
+    if let Some(execution) = node_execution(&s, workspace, id, &node).await? {
+        Ok(Json(json!(
+            event_rows(&s, execution, workspace, q.after, q.kind.as_deref()).await?
+        )))
+    } else {
+        Ok(Json(json!([])))
+    }
+}
+async fn resolve_node(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path((id, node)): Path<(Uuid, String)>,
+    ApiJson(b): ApiJson<Resolution>,
+) -> Result<Json<Value>> {
+    let u = user(&s, &h, "operator", true).await?;
+    let execution = node_execution(&s, u.workspace()?, id, &node)
+        .await?
+        .ok_or_else(Error::missing)?;
+    resolve(State(s), h, Path(execution), ApiJson(b)).await
 }
 async fn apply(
     State(s): State<App>,
@@ -940,13 +1009,14 @@ async fn trigger(
 async fn retry(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
-    let task: String =
-        sqlx::query_scalar("SELECT task_id FROM runs WHERE workspace_id=$2 AND id=$1")
-            .bind(id)
-            .bind(workspace)
-            .fetch_optional(&s.pool)
-            .await?
-            .ok_or_else(Error::missing)?;
+    let task: String = sqlx::query_scalar(
+        "SELECT task_id FROM runs WHERE workspace_id=$2 AND id=$1 AND parent_run_id IS NULL",
+    )
+    .bind(id)
+    .bind(workspace)
+    .fetch_optional(&s.pool)
+    .await?
+    .ok_or_else(Error::missing)?;
     let id = store::trigger(
         &s.pool,
         workspace,
@@ -980,7 +1050,7 @@ async fn runs(
     user(&s, &h, "viewer", false).await?;
     let (page, size) = pagination(q.page, q.page_size)?;
     let result: Value = sqlx::query_scalar(
-        "WITH filtered AS (SELECT r.*,EXISTS(SELECT 1 FROM tasks t WHERE t.workspace_id=r.workspace_id AND t.id=r.task_id AND t.archived_at IS NOT NULL) AS task_archived FROM runs r WHERE r.workspace_id=$11 AND ($1::text IS NULL OR task_id=$1) AND ($2::text IS NULL OR state=$2) AND ($3::timestamptz IS NULL OR created_at<$3) AND ($4::text IS NULL OR concat_ws(' ',id::text,task_id,config->>'name',config->>'prompt',config->>'cwd',config->>'runner',config->>'agent') ILIKE $4) AND ($5::text IS NULL OR config->>'runner'=$5) AND ($6::text IS NULL OR config->>'agent'=$6)), paged AS (SELECT to_jsonb(r.*) AS item FROM filtered r ORDER BY created_at DESC,id DESC LIMIT $7 OFFSET $8) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$9::bigint,'page_size',$10::bigint)"
+        "WITH filtered AS (SELECT r.*,EXISTS(SELECT 1 FROM tasks t WHERE t.workspace_id=r.workspace_id AND t.id=r.task_id AND t.archived_at IS NOT NULL) AS task_archived FROM runs r WHERE r.parent_run_id IS NULL AND r.workspace_id=$11 AND ($1::text IS NULL OR task_id=$1) AND ($2::text IS NULL OR state=$2) AND ($3::timestamptz IS NULL OR created_at<$3) AND ($4::text IS NULL OR concat_ws(' ',id::text,task_id,config->>'name',config->>'prompt',config->>'cwd',config->>'runner',config->>'agent',config->'dag') ILIKE $4) AND (($5::text IS NULL AND $6::text IS NULL) OR ((config->>'runner'=$5 OR $5::text IS NULL) AND (config->>'agent'=$6 OR $6::text IS NULL)) OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(config->'dag'->'nodes','[]'::jsonb)) n WHERE ($5::text IS NULL OR n->>'runner'=$5 OR EXISTS(SELECT 1 FROM runners x WHERE x.workspace_id=r.workspace_id AND x.name=$5 AND x.id::text=n->>'runner')) AND ($6::text IS NULL OR n->>'agent'=$6)))), paged AS (SELECT to_jsonb(r.*) AS item FROM filtered r ORDER BY created_at DESC,id DESC LIMIT $7 OFFSET $8) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$9::bigint,'page_size',$10::bigint)"
     ).bind(q.task).bind(q.state).bind(q.before).bind(search_pattern(q.q)?).bind(q.runner).bind(q.agent)
     .bind(if q.page.is_some() {size} else {100}).bind(if q.page.is_some() {(page-1)*size} else {0})
     .bind(page).bind(size).bind(workspace).fetch_one(&s.pool).await?;
@@ -993,13 +1063,11 @@ async fn runs(
 async fn run(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
-    Ok(Json(
-        sqlx::query_scalar("SELECT to_jsonb(r.*)||jsonb_build_object('task_archived',t.archived_at IS NOT NULL) FROM runs r JOIN tasks t ON t.id=r.task_id AND t.workspace_id=r.workspace_id WHERE r.workspace_id=$2 AND r.id=$1")
-            .bind(id)
-            .bind(workspace).fetch_optional(&s.pool)
-            .await?
-            .ok_or_else(Error::missing)?,
-    ))
+    let mut value:Value=sqlx::query_scalar("SELECT to_jsonb(r.*)||jsonb_build_object('task_archived',t.archived_at IS NOT NULL) FROM runs r JOIN tasks t ON t.id=r.task_id AND t.workspace_id=r.workspace_id WHERE r.workspace_id=$2 AND r.id=$1").bind(id).bind(workspace).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)?;
+    if value["config"].get("dag").is_some() {
+        value["nodes"] = json!(crate::dag_store::summaries(&s.pool, workspace, id).await?);
+    }
+    Ok(Json(value))
 }
 async fn cancel(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
@@ -1015,21 +1083,31 @@ async fn cancel(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Res
     .bind(workspace).fetch_optional(&mut *tx)
     .await?
     .ok_or_else(Error::missing)?;
-    let row = sqlx::query("SELECT state,runner_id FROM runs WHERE id=$1 FOR UPDATE")
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let row =
+        sqlx::query("SELECT state,runner_id,parent_run_id,config FROM runs WHERE id=$1 FOR UPDATE")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if row.get::<Option<Uuid>, _>("parent_run_id").is_some() {
+        return Err(Error::bad(
+            "node executions cannot be cancelled independently",
+        ));
+    }
     let state: String = row.get("state");
     if !protocol::terminal(&state) {
         sqlx::query("UPDATE runs SET cancel_requested=true,state=CASE WHEN state='queued' THEN 'cancelled' ELSE state END,finished_at=CASE WHEN state='queued' THEN now() ELSE finished_at END WHERE id=$1").bind(id).execute(&mut *tx).await?;
-        store::enqueue(
-            &mut tx,
-            workspace,
-            protocol::control_subject(row.get("runner_id")),
-            format!("cancel:{id}"),
-            json!({"version":1,"run_id":id,"action":"cancel"}),
-        )
-        .await?;
+        if row.get::<Option<Uuid>, _>("runner_id").is_none() {
+            crate::dag_store::cancel_nodes(&mut tx, workspace, id).await?;
+        } else {
+            store::enqueue(
+                &mut tx,
+                workspace,
+                protocol::control_subject(row.get("runner_id")),
+                format!("cancel:{id}"),
+                json!({"version":1,"run_id":id,"action":"cancel"}),
+            )
+            .await?;
+        }
     }
     store::audit(
         &mut tx,
@@ -1066,6 +1144,15 @@ async fn resolve(
     let mut tx = s.pool.begin().await?;
     crate::workspaces::lock(&mut tx, workspace).await?;
     reauthorize(&mut tx, &u, "operator").await?;
+    crate::dag_store::lock_parent(&mut tx, id).await?;
+    let graph: bool = sqlx::query_scalar("SELECT config ? 'dag' FROM runs WHERE id=$1")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+    if graph {
+        return Err(Error::bad("reconcile unknown graph nodes individually"));
+    }
+
     let n = sqlx::query(
         "UPDATE runs SET state=$2,reason=$3,finished_at=now() WHERE id=$1 AND state='unknown'",
     )
@@ -1103,7 +1190,7 @@ async fn event_rows(
     kind: Option<&str>,
 ) -> std::result::Result<Vec<Value>, sqlx::Error> {
     sqlx::query_scalar(
-        "SELECT to_jsonb(e.*) FROM events e WHERE workspace_id=$4 AND run_id=$1 AND id>$2 AND ($3::text IS NULL OR kind=$3 OR ($3='trace' AND kind='trace_status')) ORDER BY id LIMIT 500",
+        "SELECT to_jsonb(e.*) || CASE WHEN r.parent_run_id IS NOT NULL THEN jsonb_build_object('run_id',$1,'node_id',r.node_id,'execution_id',r.id,'original_seq',e.seq,'kind',CASE WHEN e.kind='state' THEN 'node_state' ELSE e.kind END) ELSE '{}'::jsonb END FROM events e JOIN runs r ON r.id=e.run_id AND r.workspace_id=e.workspace_id WHERE e.workspace_id=$4 AND (e.run_id=$1 OR r.parent_run_id=$1) AND e.id>$2 AND ($3::text IS NULL OR e.kind=$3 OR ($3='trace' AND e.kind='trace_status')) ORDER BY e.id LIMIT 500",
     )
     .bind(id)
     .bind(after)
@@ -1383,6 +1470,19 @@ async fn claim(
     let runner = device(&s, &h).await?;
     let mut tx = s.pool.begin().await?;
     let task_row = sqlx::query("SELECT t.id,t.archived_at FROM tasks t JOIN runs r ON r.task_id=t.id AND r.workspace_id=t.workspace_id WHERE r.id=$1 AND r.runner_id=$2 FOR UPDATE OF t").bind(b.run_id).bind(runner).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
+    let graph_parent = crate::dag_store::lock_parent(&mut tx, b.run_id).await?;
+    let parent = if let Some(id) = graph_parent {
+        Some(
+            sqlx::query(
+                "SELECT state,started_at,cancel_requested,finished_at FROM runs WHERE id=$1",
+            )
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?,
+        )
+    } else {
+        None
+    };
     let row = sqlx::query("SELECT * FROM runs WHERE id=$1 FOR UPDATE")
         .bind(b.run_id)
         .fetch_one(&mut *tx)
@@ -1406,9 +1506,16 @@ async fn claim(
             json!({"execute":true,"cancel_requested":row.get::<bool,_>("cancel_requested"),"session_title":row.get::<Option<Value>,_>("execution_snapshot").and_then(|v|v.get("session_title").cloned())}),
         ));
     }
-    if task_row
+    if (task_row
         .get::<Option<DateTime<Utc>>, _>("archived_at")
         .is_some()
+        && parent
+            .as_ref()
+            .is_none_or(|p| p.get::<Option<DateTime<Utc>>, _>("started_at").is_none()))
+        || parent.as_ref().is_some_and(|p| {
+            p.get::<bool, _>("cancel_requested")
+                || p.get::<Option<DateTime<Utc>>, _>("finished_at").is_some()
+        })
         || state != "queued"
         || row.get::<bool, _>("cancel_requested")
         || row.get::<DateTime<Utc>, _>("deadline")
@@ -1450,7 +1557,7 @@ async fn claim(
             return Ok(Json(json!({"execute":false,"state":"skipped"})));
         }
     }
-    if task.execution.overlap == crate::config::Overlap::Skip {
+    if graph_parent.is_none() && task.execution.overlap == crate::config::Overlap::Skip {
         let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$3 AND task_id=$1 AND id<>$2 AND state IN ('starting','running','unknown'))").bind(&task.id).bind(b.run_id).bind(workspace).fetch_one(&mut *tx).await?;
         if busy {
             return Err(Error::conflict("task has an active run"));
@@ -1474,6 +1581,14 @@ async fn claim(
             .bind(&snapshot)
             .execute(&mut *tx)
             .await?;
+    }
+    if let Some(parent) = graph_parent {
+        sqlx::query(
+            "UPDATE runs SET state='running',started_at=COALESCE(started_at,now()) WHERE id=$1",
+        )
+        .bind(parent)
+        .execute(&mut *tx)
+        .await?;
     }
     sqlx::query("UPDATE runs SET state='starting',claim_id=$2,runtime_id=$3,agent_digest=$4,started_at=now(),last_seen=now() WHERE id=$1").bind(b.run_id).bind(b.claim_id).bind(b.runtime_id).bind(b.agent_digest).execute(&mut *tx).await?;
     tx.commit().await?;
