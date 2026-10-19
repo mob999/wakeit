@@ -21,10 +21,12 @@ def main():
                     assert (path.parent / target).resolve().is_relative_to(ROOT / 'skills/wakeit'), f'Skill is not standalone: {target}'
     import yaml
     import jsonschema
-    for filename, kind in [('task.yaml','task'), ('sync-agent.yaml','agent'), ('async-agent.yaml','agent'), ('events-agent.yaml','agent')]:
+    for filename, kind in [('task.yaml','task'), ('task-dag.yaml','task'), ('sync-agent.yaml','agent'), ('async-agent.yaml','agent'), ('events-agent.yaml','agent')]:
         value = yaml.safe_load((ROOT / 'skills/wakeit/assets' / filename).read_text(encoding='utf-8'))
         schema = json.loads((ROOT / 'schemas' / f'{kind}.v1.json').read_text(encoding='utf-8'))
         jsonschema.validate(value, schema)
+    jsonschema.validate(yaml.safe_load((ROOT / 'examples/task-dag.yaml').read_text(encoding='utf-8')),
+                        json.loads((ROOT / 'schemas/task.v1.json').read_text(encoding='utf-8')))
     adapter = ROOT / 'skills/wakeit/references/adapters.md'
     stream_schema = json.loads((ROOT / 'schemas/stream.v1.json').read_text(encoding='utf-8'))
     for line in adapter.read_text(encoding='utf-8').splitlines():

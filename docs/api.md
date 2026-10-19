@@ -58,7 +58,7 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 
 ## 即时能力 API
 
-- `GET /api/v1/meta`：公开返回 `{version:"0.2.0"}`。
+- `GET /api/v1/meta`：公开返回 `{version:"0.3.0"}`。
 - `GET /api/v1/workspaces/{workspace-id}/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
 - `POST /api/v1/workspaces/{workspace-id}/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
 
@@ -126,7 +126,7 @@ Run.session增加可空command，为Runner执行时生成的原生Agent续聊命
 
 GitHub login is configured per Gateway. `GET /api/v1/auth/github/start?return_to=/…` starts an authorization-code flow with S256 PKCE and a short-lived browser-binding cookie. `GET /api/v1/auth/github/callback` consumes the state once, verifies the immutable GitHub account ID and establishes a global Wakeit browser session. These routes request no repository/email scope and never return GitHub tokens. `/meta` exposes `auth.mode` and `auth.allow_registration`, never credentials. See [Workspace deployment](workspaces.md) for configuration and demo isolation.
 
-`GET /api/v1/meta` adds `public_url` and `install` (explicit preview release, manifest, checksums and package base URL). No secrets are included. The topbar Agent Prompt uses this configured origin.
+`GET /api/v1/meta` adds `public_url` and `install` (explicit official release, manifest, checksums and package base URL). No secrets are included. The topbar Agent Prompt uses this configured origin.
 
 Device-flow endpoints accept JSON. `POST /oauth/device/code` accepts `{workspace_id,name,os,register_runner,allowed_roots}` and returns `device_code,user_code,verification_uri,verification_uri_complete,expires_in:600,interval:5`. `POST /oauth/token` accepts `{grant_type:"urn:ietf:params:oauth:grant-type:device_code",device_code}`. Errors include `authorization_pending`, `slow_down` (increase interval by five seconds), `access_denied`, `expired_token`, `invalid_grant`. A successful exchange returns `access_token,token_type,user` once; loss before local persistence requires reauthorization.
 
@@ -139,3 +139,5 @@ Admin/Operator may register; Viewer may authorize CLI-only. Revocation remains A
 完整配置、状态和同轮结果引用见 [DAG 指南](dag.md)。普通 Task 形态保留；DAG 与顶层执行字段互斥。所有任务写入使用同一完整校验及 revision 检查，不分节点提交。Run 新增 nodes；selected result 为 `{type:"dag",outputs:[{node_id,name,state,reason,result}]}`。终态新增 warning；unknown 继续非终态。
 
 Task、Run、搜索、历史与 Moments 只计入整图，不把子执行列为普通 Run。结果预览 format 可为 dag，outputs 按节点分段且共用 2048 Unicode 字符预算。runner、agent 在整图摘要中可空，不代表任意单个节点。父事件以 ID 为连续游标，子事件含 node_id、execution_id、original_seq。触发、重试、取消仅作用于整图；子执行的独立写入口由服务端拒绝。
+
+Task GET 返回独立的 `editor_layout`；PUT 接受可选 `{version:1,positions:{node_id:{x,y}}}`，与配置和 revision 原子保存。省略或 null 保留仍存在节点的坐标，删除节点时清理；普通 Task 不接受 DAG 布局。布局不进入 YAML、Run 快照或 Runner 消息。`POST /tasks/validate` 只读校验完整配置和可选布局，最终 PUT 再次校验。

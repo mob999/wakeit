@@ -12,3 +12,5 @@ GitHub 凭据与 Gateway Token 分开。依次读取 WAKEIT_GITHUB_TOKEN、GH_TO
 先检查，用户要求更新时才执行替换。更新校验 Release manifest、当前编译目标、SHA-256 和候选二进制版本；只替换当前实际执行路径，不更新 Docker 镜像或另一个 PATH 中的副本。目录不可写则说明该安装应由所有者或包管理器更新，不自行提权。
 
 运行中的 Gateway/Runner 不会自动重启。服务升级另行备份、执行独立迁移、重启并验证 ready；保留数据库、Runner journal、NATS 身份和 Agent 凭据。容器/系统包安装用对应更新方式。
+
+从 0.2.0 升级至 0.3.0 时，先备份并停止全部 Gateway 写入，再执行 `wakeit gateway migrate --config gateway.yaml`，统一升级并启动 Gateway，验证 ready 后恢复使用。新增 DAG 与布局迁移保留旧任务、历史和 Runner 身份；旧 Runner 继续接收单次执行的 version 1 消息，不需为 DAG 理解整图。不要混跑新旧 Gateway，也不要改写已发布迁移。

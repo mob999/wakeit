@@ -131,6 +131,12 @@ WAKEIT_DEV_PUBLIC_URL=http://127.0.0.1:5173 \
 
 Vite 将 `/api` 和 `/health` 代理到 Gateway，包括会话、写操作和 SSE 实时日志；修改 React 或 CSS 后会自动更新浏览器。开发服务器可由用户服务管理器独立托管，避免依赖临时测试进程。生产部署仍使用嵌入 Gateway 的静态 WebUI。
 
+## Upgrading from 0.2.0
+
+0.3.0 adds `0003_dag.sql` and `0004_task_editor_layout.sql` after the published workspace migration. Back up PostgreSQL and preserve NATS state, Runner configuration and journals. Stop every Gateway that writes to the database, run `wakeit gateway migrate --config gateway.yaml` with the new binary, then start all Gateways on the same new version and verify `/health/ready`. Do not run old and new Gateways together.
+
+The migrations retain ordinary Task IDs, Run history, API Keys and device identities. Existing Runners still receive version-1 single-execution assignments; no Agent authentication changes are required. DAG graph configuration belongs to the parent Task/Run, while shared editor coordinates stay outside YAML and execution snapshots. CLI apply preserves coordinates for remaining nodes when layout is omitted. Upgrade CLI clients to use DAG-aware reports and the `warning` terminal state.
+
 ## 未发布归档字段升级
 
 全新数据库通过 `gateway migrate` 依次执行 `0001_initial.sql` 和 `0002_workspaces.sql`。已部署的归档功能前 0.1.0 数据库，先验证隔离环境，短暂停止所有 Gateway，保留 Runner 运行；使用当前环境中的 WAKEIT_DATABASE_URL 执行：
@@ -158,4 +164,4 @@ wakeit gateway migrate --config gateway.yaml
 
 For an existing known pre-device baseline, stop Gateway writers, preserve Runner processes, and explicitly run `WAKEIT_DATABASE_URL=... python3 scripts/upgrade-unreleased-device-auth.py --backup /private/path/backup.dump`. It creates a private backup, checks the exact prior SQLx checksum, adds grant/limit/registration tables in one transaction and updates the single initial migration checksum. Unknown baselines are refused. Normal migration validation remains enabled. Older archive/session upgrade scripts also create the final device-authorization schema.
 
-The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.2.0. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
+The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.3.0. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
