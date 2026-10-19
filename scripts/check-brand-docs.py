@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    files = [ROOT / 'README.md', ROOT / 'CONTRIBUTING.md']
+    files = sorted(ROOT.glob('README*.md')) + [ROOT / 'CONTRIBUTING.md']
     files += list((ROOT / 'docs').glob('*.md'))
     files += list((ROOT / 'skills/wakeit').rglob('*.md'))
     for path in files:
