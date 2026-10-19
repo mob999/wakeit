@@ -1,4 +1,6 @@
 {
+  "暂无工作区": "No workspaces",
+  "GitHub 授权已取消": "GitHub authorization was cancelled",
   "1 年": "1 year",
   "30 天": "30 days",
   "7 天": "7 days",
@@ -283,7 +285,7 @@
   "每次新建": "New session each run",
   "没有子目录": "No subdirectories",
   "注册 Runner": "Register Runner",
-  "注册 Runner 需要 Operator 或 Admin 权限。": "Registering a Runner requires the Operator or Admin role.",
+  "注册 Runner 需要 Operator 或 Admin 权限。": "Registering a Runner requires Read/write or Admin permissions.",
   "浏览": "Browse",
   "清除筛选": "Clear filters",
   "版本": "Version",
@@ -419,8 +421,8 @@
   "你将退出登录。": "You will be signed out.",
   "Task YAML": "Task YAML",
   "role.admin": "Admin",
-  "role.operator": "Operator",
-  "role.viewer": "Viewer",
+  "role.operator": "Read/write",
+  "role.viewer": "Read-only",
   "Provider": "Provider",
   "推理强度": "Reasoning effort",
   "在 {{v0}} 上执行。": "Run on {{v0}}.",
@@ -484,5 +486,6 @@
   "password login is disabled": "password login is disabled",
   "membership is disabled": "membership is disabled",
   "registration is disabled": "registration is disabled",
-  "workspace is unavailable": "workspace is unavailable"
+  "workspace is unavailable": "workspace is unavailable",
+  "cannot remove the last administrator": "At least one active administrator must remain."
 }

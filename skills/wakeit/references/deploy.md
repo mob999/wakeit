@@ -2,7 +2,7 @@
 
 先查现有服务和用户目标：本机测试还是常驻服务、地址/域名、系统与账号、已有 PostgreSQL/NATS。如果是连接已有 Gateway，转 connect.md，不在当前机器创建数据库。先安装 CLI，见 connect.md。
 
-Gateway 自己不执行模型推理；Runner 使用独立的 Agent 已登录身份。默认单工作区，本地只绑定回环，公开部署需要 HTTPS 和可达的 NATS WSS/TLS 地址。
+Gateway 自己不执行模型推理；Runner 使用独立的 Agent 已登录身份。新安装包含 Default 工作区，可继续创建独立工作区。本地只绑定回环，公开部署需要 HTTPS 和可达的 NATS WSS/TLS 地址。
 
 ## 选择部署路径
 
@@ -54,4 +54,8 @@ wakeit gateway service --config /persistent/wakeit/gateway.yaml \
 
 不为测试而擅自重启用户机器；能实际重启的环境验证重启后就绪，其他环境只报告已验证的服务配置/启动，并注明重启未实测。给出系统服务名、数据/日志路径、停止与卸载方法。卸载只移除服务，不删数据库、身份或 Agent 凭据。
 
-默认日志保留 7 天、运行记录 90 天；升级先备份 PostgreSQL、NATS 数据和身份，再独立迁移与重启。安装使用官方 v0.1.1 Release 或源码构建，校验发布清单；不要使用 Actions 临时产物代替公开安装包。
+默认日志保留 7 天、运行记录 90 天；升级先备份 PostgreSQL、NATS 数据和身份，再独立迁移与重启。安装使用官方 v0.2.0 Release 或源码构建，校验发布清单；不要使用 Actions 临时产物代替公开安装包。
+
+## 多工作区与 GitHub 登录
+
+当前 Gateway 支持独立工作区；详见仓库 `docs/workspaces.md`。自托管默认密码登录、关闭公开注册，有效邀请仍可注册。官方站配置 `auth.mode: github`，通过环境变量提供 OAuth App Client ID、Secret，回调为公开地址的 `/api/v1/auth/github/callback`；不把 Secret 写进配置仓库或对话。演示区只能使用合成数据，GitHub 登录后只读。不要把工作区 Admin 当作实例管理员；旧库升级保留 `0001`，应用新增迁移，再由运维显式指定实例管理员。

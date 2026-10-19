@@ -45,7 +45,7 @@ test('members create with guarded submission, reset passwords, disable and enabl
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
   await expect(dialog.getByRole('alert')).toHaveText('两次输入的密码不一致')
   await dialog.getByLabel('确认密码', { exact: true }).fill(password)
-  await expect(dialog.getByRole('combobox', { name: '角色', exact: true })).toHaveText('操作员')
+  await expect(dialog.getByRole('combobox', { name: '角色', exact: true })).toHaveText('读写')
   await page.route('**/api/v1/users', (route) =>
     route.request().method() === 'POST'
       ? route.fulfill({
@@ -221,7 +221,9 @@ test('archive and restore preserves history, exposes read-only tasks and respect
     .toBeTruthy()
   await page.goto(`/tasks?task=${id}`)
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
-  await expect(page.locator('.header-page-actions').getByText('已归档', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.header-page-actions').getByText('已归档', { exact: true }),
+  ).toBeVisible()
   for (const action of ['编辑', '归档任务', '立即执行', '恢复任务'])
     await expect(page.getByRole('button', { name: action, exact: true })).toHaveCount(0)
   await expect
@@ -263,7 +265,8 @@ test('archive and restore preserves history, exposes read-only tasks and respect
   await page.context().clearCookies()
   await loginSession(page, 'viewer', 'wakeit-role-test-password')
   await page.goto('/settings?section=archived')
-  await expect(page.getByRole('heading', { name: 'API Key', exact: true })).toBeVisible()
+  await expect(page.locator('.workspace-settings')).toBeVisible()
+  await expect(page.getByRole('button', { name: '创建工作区', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '归档任务', exact: true })).toHaveCount(0)
 })
 test('archive conflicts and restore failures keep dialogs, settings search finds archived tasks', async ({
@@ -290,5 +293,7 @@ test('archive conflicts and restore failures keep dialogs, settings search finds
   await expect(restore.getByRole('alert')).toHaveText('task changed; reload before saving')
   await restore.getByRole('button', { name: '取消', exact: true }).click()
   await row.locator('.archive-name').click()
-  await expect(page.locator('.header-page-actions').getByText('已归档', { exact: true })).toBeVisible()
+  await expect(
+    page.locator('.header-page-actions').getByText('已归档', { exact: true }),
+  ).toBeVisible()
 })

@@ -398,19 +398,37 @@ pub struct GatewayConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayAuth {
+    #[serde(default = "session_cookie")]
+    pub session_cookie: String,
     #[serde(default = "local_auth")]
     pub mode: String,
     #[serde(default)]
     pub allow_registration: bool,
+    #[serde(default)]
+    pub github: Option<GitHubAuth>,
+    #[serde(default)]
+    pub demo_workspace: bool,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitHubAuth {
+    pub client_id_env: String,
+    pub client_secret_env: String,
 }
 fn local_auth() -> String {
     "local".into()
 }
+fn session_cookie() -> String {
+    "wakeit_session".into()
+}
 impl Default for GatewayAuth {
     fn default() -> Self {
         Self {
+            session_cookie: session_cookie(),
             mode: local_auth(),
             allow_registration: false,
+            github: None,
+            demo_workspace: false,
         }
     }
 }

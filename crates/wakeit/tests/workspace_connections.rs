@@ -108,6 +108,22 @@ async fn current_account_is_used_and_explicit_credentials_override_ambiguous_pro
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let selected = command(home.path())
+        .args([
+            "--gateway",
+            &url,
+            "--workspace",
+            &workspace.to_string(),
+            "task",
+            "list",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        selected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&selected.stderr)
+    );
     let output = command(home.path())
         .args([
             "--gateway",
@@ -133,7 +149,11 @@ async fn current_account_is_used_and_explicit_credentials_override_ambiguous_pro
             .iter()
             .map(|(_, auth)| auth.clone())
             .collect::<Vec<_>>(),
-        vec![format!("Bearer key-{b}"), "Bearer explicit-key".into()]
+        vec![
+            format!("Bearer key-{b}"),
+            format!("Bearer key-{b}"),
+            "Bearer explicit-key".into()
+        ]
     );
     assert_eq!(std::fs::read(path).unwrap(), before);
 }

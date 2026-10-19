@@ -96,6 +96,8 @@ pub fn document() -> Value {
     );
     let mut paths = serde_json::Map::new();
     for (path, methods) in [
+        ("/auth/github/start", vec!["get"]),
+        ("/auth/github/callback", vec!["get"]),
         ("/meta", vec!["get"]),
         ("/changelog", vec!["get"]),
         ("/runners/{id}/directories", vec!["get"]),
@@ -325,6 +327,17 @@ pub fn document() -> Value {
             if matches!(path, "/schema/{kind}" | "/openapi.json" | "/meta") {
                 op["security"] = json!([]);
             }
+            if path.starts_with("/auth/github/") {
+                op["security"] = json!([]);
+                if path.ends_with("/start") {
+                    op["parameters"] = json!([{"name":"return_to","in":"query","schema":{"type":"string","maxLength":2048},"description":"A local application path. Absolute, protocol-relative and API paths are rejected."}]);
+                    op["responses"]["303"] = json!({"description":"GitHub authorization redirect with S256 PKCE, state and a short-lived HttpOnly SameSite=Lax browser-binding cookie."});
+                } else {
+                    op["parameters"] = json!([{"name":"state","in":"query","required":true,"schema":{"type":"string"}},{"name":"code","in":"query","schema":{"type":"string"}},{"name":"error","in":"query","schema":{"type":"string"}}]);
+                    op["responses"]["200"] = json!({"description":"Same-origin navigation document establishes the Strict Wakeit session before returning to the application. No GitHub access token is returned.","content":{"text/html":{"schema":{"type":"string"}}}});
+                    op["responses"]["303"] = json!({"description":"Authorization denied; returns to login without a session."});
+                }
+            }
             if matches!(path, "/session" | "/invites/accept" | "/device/enroll") && method == "post"
             {
                 op["security"] = json!([]);
@@ -342,6 +355,7 @@ pub fn document() -> Value {
                 | "/schema/{kind}"
                 | "/openapi.json"
         ) || path.starts_with("/device/")
+            || path.starts_with("/auth/")
             || path.starts_with("/device-authorizations/");
         let mapped = if path.starts_with("/users") {
             format!("/api/v1/instance{path}")

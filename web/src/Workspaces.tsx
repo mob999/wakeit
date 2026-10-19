@@ -59,16 +59,10 @@ export function CreateWorkspace({ onClose }: { onClose: () => void }) {
   )
 }
 
-export function WorkspaceSwitcher({ user, collapsed }: { user: User; collapsed: boolean }) {
+export function WorkspaceAccountMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
   useTranslation()
   const client = useQueryClient()
   const controls = useSearchControls()
-  const [create, setCreate] = useState(false)
-  const [leaving, setLeaving] = useState(false)
-  const leave = useMutation({
-    mutationFn: () => api(`/workspaces/${workspaceId}/leave`, 'POST', {}),
-    onSuccess: () => location.assign('/'),
-  })
   const workspaces = useQuery<WorkspaceList>({
     queryKey: ['workspaces'],
     queryFn: () => api('/workspaces'),
@@ -79,26 +73,31 @@ export function WorkspaceSwitcher({ user, collapsed }: { user: User; collapsed: 
     location.assign(`/w/${id}/`)
   }
   return (
-    <>
-      <Dropdown.Root>
-        <TooltipTarget label={user.workspace?.name ?? tr('工作区')} enabled={collapsed}>
-          <Dropdown.Trigger asChild>
-            <button
-              className={`workspace-switcher ${collapsed ? 'is-collapsed' : ''}`}
-              aria-label={tr('切换工作区')}
-            >
-              <Building2 size={16} />
-              {!collapsed && (
-                <>
-                  <span>{user.workspace?.name}</span>
-                  <ChevronDown size={12} />
-                </>
-              )}
-            </button>
-          </Dropdown.Trigger>
-        </TooltipTarget>
-        <Dropdown.Portal>
-          <Dropdown.Content className="dropdown workspace-menu" align="start">
+    <Dropdown.Root>
+      <TooltipTarget label={`${user.username} (${roleName(user.role)})`}>
+        <Dropdown.Trigger asChild>
+          <button className="user-menu" aria-label={tr('用户菜单')}>
+            <span className="user-name">{user.username}</span>
+            <ChevronDown size={12} aria-hidden="true" />
+          </button>
+        </Dropdown.Trigger>
+      </TooltipTarget>
+      <Dropdown.Portal>
+        <Dropdown.Content
+          className="dropdown workspace-menu"
+          align="end"
+          sideOffset={6}
+          collisionPadding={12}
+        >
+          <Dropdown.Label className="user-menu-label">{user.username}</Dropdown.Label>
+          <Dropdown.Separator className="workspace-menu-separator" />
+          <Dropdown.Label className="workspace-menu-label">{tr('工作区')}</Dropdown.Label>
+          <Dropdown.RadioGroup
+            className="workspace-menu-list"
+            aria-label={tr('工作区')}
+            value={workspaceId}
+            onValueChange={(id) => void select(id)}
+          >
             {workspaces.isPending && <Dropdown.Item disabled>{tr('加载中…')}</Dropdown.Item>}
             {workspaces.error && (
               <Dropdown.Item onSelect={() => void workspaces.refetch()}>{tr('重试')}</Dropdown.Item>
@@ -107,62 +106,42 @@ export function WorkspaceSwitcher({ user, collapsed }: { user: User; collapsed: 
               ...(workspaces.data?.items ?? []),
               ...(workspaces.data?.demo ? [workspaces.data.demo] : []),
             ].map((workspace) => (
-              <Dropdown.Item key={workspace.id} onSelect={() => void select(workspace.id)}>
-                <Building2 size={14} />
-                <span>{workspace.name}</span>
-                {workspace.id === workspaceId && <Check size={14} className="workspace-check" />}
-              </Dropdown.Item>
-            ))}
-            <Dropdown.Item
-              onSelect={() => controls.requestLeave().then((allowed) => allowed && setCreate(true))}
-            >
-              <Plus size={14} />
-              {tr('创建工作区')}
-            </Dropdown.Item>
-            {!user.workspace?.is_demo && (
-              <Dropdown.Item
-                onSelect={() =>
-                  controls.requestLeave().then((allowed) => {
-                    if (allowed) {
-                      leave.reset()
-                      setLeaving(true)
-                    }
-                  })
-                }
+              <Dropdown.RadioItem
+                key={workspace.id}
+                value={workspace.id}
+                aria-label={workspace.name}
+                className="workspace-option"
               >
-                <LogOut size={14} />
-                {tr('退出工作区')}
-              </Dropdown.Item>
-            )}
-          </Dropdown.Content>
-        </Dropdown.Portal>
-      </Dropdown.Root>
-      {create && <CreateWorkspace onClose={() => setCreate(false)} />}
-      <Modal
-        open={leaving}
-        onOpenChange={(open) => !leave.isPending && setLeaving(open)}
-        title={tr('退出工作区')}
-        description={tr('退出「{{v0}}」后，你将失去该工作区的访问权限。', {
-          v0: user.workspace?.name,
-        })}
-      >
-        <div className="modal-body">
-          {leave.error && (
-            <p className="error" role="alert">
-              {leave.error.message}
-            </p>
+                <span className="workspace-option-name" title={workspace.name}>
+                  {workspace.name}
+                </span>
+                <span className="workspace-option-meta">
+                  {workspace.id === workspaceId && <small>{roleName(workspace.role)}</small>}
+                  <Dropdown.ItemIndicator className="workspace-check">
+                    <Check size={14} aria-hidden="true" />
+                  </Dropdown.ItemIndicator>
+                </span>
+              </Dropdown.RadioItem>
+            ))}
+          </Dropdown.RadioGroup>
+          <Dropdown.Separator className="workspace-menu-separator" />
+          {user.instance_admin && (
+            <Dropdown.Item
+              onSelect={() =>
+                controls.requestLeave().then((allowed) => allowed && location.assign('/instance'))
+              }
+            >
+              {tr('实例账号管理')}
+            </Dropdown.Item>
           )}
-        </div>
-        <div className="modal-footer">
-          <Button disabled={leave.isPending} onClick={() => setLeaving(false)}>
-            {tr('取消')}
-          </Button>
-          <Button variant="solid" disabled={leave.isPending} onClick={() => leave.mutate()}>
-            {tr('退出')}
-          </Button>
-        </div>
-      </Modal>
-    </>
+          <Dropdown.Item
+            onSelect={() => controls.requestLeave().then((allowed) => allowed && onLogout())}
+          >
+            {tr('退出登录')}
+          </Dropdown.Item>
+        </Dropdown.Content>
+      </Dropdown.Portal>
+    </Dropdown.Root>
   )
 }
 
@@ -241,13 +220,8 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
                   <ArrowUpRight size={14} />
                 </a>
               ))}
-              {!workspaces.data.items.length && (
-                <div className="card-body">
-                  <Button onClick={() => setCreate(true)}>
-                    <Plus size={14} />
-                    {tr('创建工作区')}
-                  </Button>
-                </div>
+              {!workspaces.data.items.length && !workspaces.data.demo && (
+                <div className="card-body quiet">{tr('暂无工作区')}</div>
               )}
               {workspaces.data.demo && (
                 <a className="workspace-home-row" href={`/w/${workspaces.data.demo.id}/`}>
@@ -271,9 +245,20 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
   )
 }
 
-export function WorkspaceName({ user }: { user: User }) {
+export function WorkspaceManagement({ user }: { user: User }) {
   useTranslation()
   const client = useQueryClient()
+  const controls = useSearchControls()
+  const editable = user.role === 'admin' && !user.workspace?.is_demo
+  const [create, setCreate] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const leave = useMutation({
+    mutationFn: () => api(`/workspaces/${workspaceId}/leave`, 'POST', {}),
+    onSuccess: async () => {
+      await client.cancelQueries()
+      location.assign('/')
+    },
+  })
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(user.workspace?.name ?? '')
   useEffect(() => {
@@ -293,17 +278,66 @@ export function WorkspaceName({ user }: { user: User }) {
         <div className="setting-row">
           <span>{tr('工作区名称')}</span>
           <span className="workspace-current-name">{user.workspace?.name}</span>
-          <IconButton
-            label={tr('更改工作区名称')}
-            onClick={() => {
-              save.reset()
-              setOpen(true)
+          {editable && (
+            <IconButton
+              label={tr('更改工作区名称')}
+              onClick={() => {
+                save.reset()
+                setOpen(true)
+              }}
+            >
+              <FileCog />
+            </IconButton>
+          )}
+        </div>
+        <div className="workspace-management-actions">
+          <Button
+            onClick={async () => {
+              if (await controls.requestLeave()) setCreate(true)
             }}
           >
-            <FileCog />
-          </IconButton>
+            <Plus size={14} />
+            {tr('创建工作区')}
+          </Button>
+          {!user.workspace?.is_demo && (
+            <Button
+              onClick={async () => {
+                if (await controls.requestLeave()) {
+                  leave.reset()
+                  setLeaving(true)
+                }
+              }}
+            >
+              {tr('退出工作区')}
+            </Button>
+          )}
         </div>
       </div>
+      {create && <CreateWorkspace onClose={() => setCreate(false)} />}
+      <Modal
+        open={leaving}
+        onOpenChange={(value) => !leave.isPending && setLeaving(value)}
+        title={tr('退出工作区')}
+        description={tr('退出「{{v0}}」后，你将失去该工作区的访问权限。', {
+          v0: user.workspace?.name,
+        })}
+      >
+        <div className="modal-body">
+          {leave.error && (
+            <p className="error" role="alert">
+              {leave.error.message}
+            </p>
+          )}
+        </div>
+        <div className="modal-footer">
+          <Button disabled={leave.isPending} onClick={() => setLeaving(false)}>
+            {tr('取消')}
+          </Button>
+          <Button variant="solid" disabled={leave.isPending} onClick={() => leave.mutate()}>
+            {tr('退出')}
+          </Button>
+        </div>
+      </Modal>
       <Modal
         open={open}
         onOpenChange={(value) => !save.isPending && setOpen(value)}

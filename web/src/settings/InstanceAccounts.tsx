@@ -38,7 +38,6 @@ function AccountRow({
     <>
       <div className="settings-member-row">
         <div className="settings-member-name">
-          <span className="avatar">{account.username[0].toUpperCase()}</span>
           <span>{account.username}</span>
         </div>
         <span className="quiet">{account.instance_admin ? tr('实例管理员') : '—'}</span>
@@ -60,7 +59,7 @@ function AccountRow({
               >
                 {account.active ? tr('停用账号') : tr('启用账号')}
               </Dropdown.Item>
-              {local && (
+              {local && account.has_password !== false && (
                 <Dropdown.Item onSelect={() => setPassword(true)}>{tr('重置密码')}</Dropdown.Item>
               )}
             </Dropdown.Content>

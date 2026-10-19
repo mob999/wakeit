@@ -117,6 +117,7 @@ function TimezonePicker({
   )
 }
 export function WorkspaceSettingsView({
+  readOnly = false,
   draft,
   dirty,
   pending,
@@ -125,6 +126,7 @@ export function WorkspaceSettingsView({
   onCancel,
   onSave,
 }: {
+  readOnly?: boolean
   draft: WorkspaceDraft
   dirty: boolean
   pending: boolean
@@ -140,7 +142,7 @@ export function WorkspaceSettingsView({
       className="workspace-settings content-card"
       onSubmit={(e) => {
         e.preventDefault()
-        onSave()
+        if (!readOnly) onSave()
       }}
     >
       <div className="form-card-head table-head">
@@ -149,42 +151,52 @@ export function WorkspaceSettingsView({
       </div>
       <div className="setting-row">
         <label>{tr('默认时区')}</label>
-        <TimezonePicker
-          value={draft.timezone}
-          disabled={pending}
-          onChange={(timezone) => onChange({ ...draft, timezone })}
-        />
+        {readOnly ? (
+          <span className="mono">{draft.timezone}</span>
+        ) : (
+          <TimezonePicker
+            value={draft.timezone}
+            disabled={pending}
+            onChange={(timezone) => onChange({ ...draft, timezone })}
+          />
+        )}
       </div>
       {(['log_retention_days', 'run_retention_days'] as const).map((key, index) => (
         <div className="setting-row" key={key}>
-          <label htmlFor={`setting-${key}`}>
+          <label htmlFor={readOnly ? undefined : `setting-${key}`}>
             {index === 0 ? tr('日志保留') : tr('运行记录保留')}
           </label>
-          <div className="setting-control">
-            <div className="retention-input">
-              <input
-                id={`setting-${key}`}
-                aria-invalid={!!errors[key]}
-                aria-describedby={errors[key] ? `${key}-error` : undefined}
-                type="number"
-                disabled={pending}
-                min={1}
-                max={3650}
-                step={1}
-                value={draft[key]}
-                onChange={(e) => onChange({ ...draft, [key]: e.target.value })}
-              />
-              <span>{tr('unit.days', { count: Number(draft[key]) })}</span>
+          {readOnly ? (
+            <span>
+              {draft[key]} {tr('unit.days', { count: Number(draft[key]) })}
+            </span>
+          ) : (
+            <div className="setting-control">
+              <div className="retention-input">
+                <input
+                  id={`setting-${key}`}
+                  aria-invalid={!!errors[key]}
+                  aria-describedby={errors[key] ? `${key}-error` : undefined}
+                  type="number"
+                  disabled={pending}
+                  min={1}
+                  max={3650}
+                  step={1}
+                  value={draft[key]}
+                  onChange={(e) => onChange({ ...draft, [key]: e.target.value })}
+                />
+                <span>{tr('unit.days', { count: Number(draft[key]) })}</span>
+              </div>
+              {errors[key] && (
+                <small id={`${key}-error`} className="error">
+                  {errors[key]}
+                </small>
+              )}
             </div>
-            {errors[key] && (
-              <small id={`${key}-error`} className="error">
-                {errors[key]}
-              </small>
-            )}
-          </div>
+          )}
         </div>
       ))}
-      {dirty && (
+      {!readOnly && dirty && (
         <div className="settings-savebar">
           {error && (
             <span className="error" role="alert">

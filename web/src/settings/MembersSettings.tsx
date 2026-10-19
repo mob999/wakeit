@@ -59,7 +59,6 @@ function MemberRow({
     <>
       <div className="settings-member-row">
         <div className="settings-member-name">
-          <span className="avatar">{member.username[0].toUpperCase()}</span>
           <span>{member.username}</span>
         </div>
         <div className="settings-member-role">

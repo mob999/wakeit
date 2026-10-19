@@ -525,11 +525,9 @@ async fn run(mut cli: Cli) -> Result<()> {
         || explicit_token_file
     {
         None
-    } else if !explicit_gateway
-        && current
-            .as_ref()
-            .is_some_and(|p| cli.workspace.is_none_or(|w| p.workspace_id == Some(w)))
-    {
+    } else if current.as_ref().is_some_and(|p| {
+        p.gateway == cli.gateway && cli.workspace.is_none_or(|w| p.workspace_id == Some(w))
+    }) {
         current.clone()
     } else {
         wakeit::connection::resolve(Some(&cli.gateway), cli.workspace)?

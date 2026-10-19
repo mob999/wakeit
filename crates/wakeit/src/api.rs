@@ -114,12 +114,16 @@ impl<S: Send + Sync, T: serde::de::DeserializeOwned> axum::extract::FromRequestP
         ))
     }
 }
-pub(crate) fn cookie(h: &HeaderMap) -> Option<String> {
+pub(crate) fn cookie(config: &GatewayConfig, h: &HeaderMap) -> Option<String> {
     h.get(header::COOKIE)?
         .to_str()
         .ok()?
         .split(';')
-        .find_map(|s| s.trim().strip_prefix("wakeit_session=").map(str::to_owned))
+        .find_map(|s| {
+            s.trim()
+                .strip_prefix(&format!("{}=", config.auth.session_cookie))
+                .map(str::to_owned)
+        })
 }
 pub(crate) async fn user(s: &App, h: &HeaderMap, needed: &str, write: bool) -> Result<User> {
     let bearer = h
@@ -144,7 +148,7 @@ pub(crate) async fn user(s: &App, h: &HeaderMap, needed: &str, write: bool) -> R
         }
     }
     let token = bearer
-        .or_else(|| cookie(h))
+        .or_else(|| cookie(&s.config, h))
         .ok_or_else(|| Error(StatusCode::UNAUTHORIZED, "authentication required".into()))?;
     let hash = auth::hash(&token);
     let identity = crate::workspaces::identity(&s.pool, &hash)
@@ -341,6 +345,7 @@ pub fn router(app: App) -> Router {
         .merge(crate::device_auth::routes())
         .merge(crate::workspace_api::routes())
         .merge(crate::changelog::routes())
+        .merge(crate::github_auth::routes())
         .route("/api/v1/meta", get(meta))
         .route("/api/v1/session", post(login).get(me).delete(logout))
         .route("/api/v1/instance/users", get(users).post(create_user))
@@ -356,7 +361,7 @@ pub fn router(app: App) -> Router {
         .route("/api/v1/{*legacy}", axum::routing::any(legacy_business))
         .fallback(static_file)
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
-        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(tower_http::trace::TraceLayer::new_for_http().make_span_with(|request: &axum::http::Request<axum::body::Body>| tracing::info_span!("http.request", method=%request.method(), path=request.uri().path())))
         .layer(axum::middleware::from_fn(clear_scope))
         .with_state(app)
 }
@@ -411,7 +416,12 @@ async fn login(State(s): State<App>, h: HeaderMap, ApiJson(b): ApiJson<Login>) -
             "invalid credentials".into(),
         ));
     };
-    let encoded: String = row.get("password_hash");
+    let Some(encoded) = row.get::<Option<String>, _>("password_hash") else {
+        return Err(Error(
+            StatusCode::UNAUTHORIZED,
+            "invalid credentials".into(),
+        ));
+    };
     let checked_hash = encoded.clone();
     let valid = tokio::task::spawn_blocking(move || auth::verify(&b.password, &encoded)).await?;
     if !valid {
@@ -453,7 +463,8 @@ async fn login(State(s): State<App>, h: HeaderMap, ApiJson(b): ApiJson<Login>) -
         [(
             header::SET_COOKIE,
             format!(
-                "wakeit_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{secure}"
+                "{}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{secure}",
+                s.config.auth.session_cookie
             ),
         )],
         Json(json!({"ok":true,"token":token})),
@@ -475,7 +486,10 @@ async fn logout(State(s): State<App>, h: HeaderMap) -> Result<Response> {
     Ok((
         [(
             header::SET_COOKIE,
-            "wakeit_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+            format!(
+                "{}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+                s.config.auth.session_cookie
+            ),
         )],
         Json(json!({"ok":true})),
     )
@@ -494,7 +508,7 @@ async fn users(
     user(&s, &h, "admin", false).await?;
     let (page, size) = pagination(q.page, q.page_size)?;
     let result: Value = sqlx::query_scalar(
-        "WITH paged AS (SELECT id,username,instance_admin,active,created_at FROM users ORDER BY created_at,id LIMIT $1 OFFSET $2) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY created_at,id) FROM paged p),'[]'::jsonb),'total',(SELECT count(*) FROM users),'active_admins',(SELECT count(*) FROM users WHERE active AND instance_admin),'page',$3::bigint,'page_size',$4::bigint)"
+        "WITH paged AS (SELECT id,username,instance_admin,active,password_hash IS NOT NULL AS has_password,created_at FROM users ORDER BY created_at,id LIMIT $1 OFFSET $2) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY created_at,id) FROM paged p),'[]'::jsonb),'total',(SELECT count(*) FROM users),'active_admins',(SELECT count(*) FROM users WHERE active AND instance_admin),'page',$3::bigint,'page_size',$4::bigint)"
     ).bind(q.page.map(|_|size)).bind(if q.page.is_some(){(page-1)*size}else{0}).bind(page).bind(size).fetch_one(&s.pool).await?;
     Ok(Json(if q.page.is_some() {
         result
@@ -1197,6 +1211,18 @@ async fn enroll(State(s): State<App>, ApiJson(b): ApiJson<Enroll>) -> Result<Jso
         .runner_jwt(id, &b.public_key)
         .map_err(|e| Error::bad(e.to_string()))?;
     let mut tx = s.pool.begin().await?;
+    let enrollment_workspace: Option<Uuid> =
+        sqlx::query_scalar("SELECT workspace_id FROM enrollments WHERE hash=$1")
+            .bind(auth::hash(&b.token))
+            .fetch_optional(&mut *tx)
+            .await?;
+    let enrollment_workspace = enrollment_workspace.ok_or_else(|| {
+        Error(
+            StatusCode::UNAUTHORIZED,
+            "enrollment token expired or already used".into(),
+        )
+    })?;
+    crate::workspaces::lock(&mut tx, enrollment_workspace).await?;
     let workspace:Option<Uuid>=sqlx::query_scalar("UPDATE enrollments SET used_at=now() WHERE hash=$1 AND used_at IS NULL AND expires_at>now() AND EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=enrollments.workspace_id AND m.user_id=enrollments.created_by AND m.active AND u.active AND m.role IN ('admin','operator')) RETURNING workspace_id").bind(auth::hash(&b.token)).fetch_optional(&mut *tx).await?;
     if workspace.is_none() {
         return Err(Error(
@@ -1775,6 +1801,41 @@ async fn meta(State(s): State<App>) -> Json<Value> {
     let version = env!("CARGO_PKG_VERSION");
     let base_url = format!("https://github.com/mob999/wakeit/releases/download/v{version}");
     Json(
-        json!({"version":version,"public_url":s.config.public_url,"install":{"version":version,"release":format!("https://github.com/mob999/wakeit/releases/tag/v{version}"),"manifest":format!("{base_url}/wakeit-release.json"),"checksums":format!("{base_url}/SHA256SUMS"),"base_url":base_url}}),
+        json!({"version":version,"public_url":s.config.public_url,"auth":{"mode":s.config.auth.mode,"allow_registration":s.config.auth.mode=="local" && s.config.auth.allow_registration},"install":{"version":version,"release":format!("https://github.com/mob999/wakeit/releases/tag/v{version}"),"manifest":format!("{base_url}/wakeit-release.json"),"checksums":format!("{base_url}/SHA256SUMS"),"base_url":base_url}}),
     )
+}
+
+#[cfg(test)]
+mod workspace_cookie_tests {
+    use super::*;
+
+    #[test]
+    fn configured_session_cookie_isolated_from_other_services() {
+        let mut config: GatewayConfig = serde_json::from_value(json!({
+            "version": 1,
+            "public_url": "http://127.0.0.1:58620",
+            "database_url_env": "UNUSED_TEST_DATABASE",
+            "nats_url": "nats://127.0.0.1:1",
+            "nats_public_url": "ws://127.0.0.1:2",
+            "nats_auth_dir": "unused"
+        }))
+        .unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            "wakeit_session=original; wakeit_workspace_preview=preview"
+                .parse()
+                .unwrap(),
+        );
+        assert_eq!(cookie(&config, &headers).as_deref(), Some("original"));
+        config.auth.session_cookie = "wakeit_workspace_preview".into();
+        assert_eq!(cookie(&config, &headers).as_deref(), Some("preview"));
+        headers.insert(
+            header::COOKIE,
+            "wakeit_session=original; another_wakeit_workspace_preview=wrong"
+                .parse()
+                .unwrap(),
+        );
+        assert!(cookie(&config, &headers).is_none());
+    }
 }

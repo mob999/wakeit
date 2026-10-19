@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Real PostgreSQL + NATS integration tests. Uses only the Python standard library."""
-import argparse, concurrent.futures, datetime, getpass, json, os, pathlib, shutil, signal, socket, subprocess, time, urllib.request, urllib.error, uuid
+import argparse, concurrent.futures, datetime, getpass, json, os, pathlib, re, shutil, signal, socket, subprocess, time, urllib.request, urllib.error, uuid
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BIN = ROOT / 'target/debug/wakeit'
 MOCK = ROOT / 'target/debug/examples/mock_agent'
 PROBE = ROOT / 'target/debug/examples/bus_probe'
+
+def timestamp(value):
+    value = re.sub(r'\.(\d+)(?=[+-]|Z|$)', lambda m: '.' + m.group(1).ljust(6, '0')[:6], value)
+    return datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 class APIError(Exception):
     def __init__(self, status, body): self.status, self.body = status, body; super().__init__(f'{status}: {body}')
@@ -13,8 +17,19 @@ class APIError(Exception):
 def port():
     with socket.socket() as sock: sock.bind(('127.0.0.1', 0)); return sock.getsockname()[1]
 
+def scope_path(path):
+    # Only the legacy single-workspace regression fixture sets this explicitly.
+    # Production APIs never infer a workspace; multi-workspace tests pass full paths.
+    workspace = os.environ.get('WAKEIT_TEST_WORKSPACE')
+    tail = path[len('/api/v1/'):] if path.startswith('/api/v1/') else ''
+    global_paths = ['session', 'meta', 'changelog', 'workspaces', 'instance', 'oauth', 'auth', 'device-authorizations', 'device', 'schema', 'openapi.json', 'register']
+    if workspace and tail and tail.split('/')[0].split('?')[0] not in global_paths and not tail.startswith(('invites/accept', 'invites/inspect')):
+        return '/api/v1/workspaces/' + workspace + '/' + tail
+    return path
+
 def call(base, path, method='GET', body=None, token=None, key=None, headers=None):
-    headers = dict(headers or {})
+    path = scope_path(path)
+    headers = dict(headers) if headers is not None else {'X-Wakeit-Request': '1'}
     if token: headers['Authorization'] = f'Bearer {token}'
     if method == 'POST': headers['Idempotency-Key'] = key or str(uuid.uuid4())
     data = json.dumps(body).encode() if body is not None else None
@@ -51,6 +66,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pg-bin', default=os.environ.get('PG_BIN'))
     parser.add_argument('--keep-running', action='store_true')
+    parser.add_argument('--device-auth-only', action='store_true', help='Run the device-flow subset against a fresh disposable service')
     parser.add_argument('--gateway-port', type=int, help='Optional fixed port for the local preview')
     parser.add_argument('--state-file', default='.local/integration-stack.json')
     args = parser.parse_args()
@@ -91,6 +107,9 @@ def main():
         wait(lambda:call(base,'/health/ready'),'first Gateway ready')
         wait(lambda:call(other,'/health/ready'),'second Gateway ready')
         token=call(base,'/api/v1/session','POST',{'username':'admin','password':env['WAKEIT_PASSWORD']})['token']
+        workspace=call(base,'/api/v1/workspaces',token=token)['items'][0]['id']
+        os.environ['WAKEIT_TEST_WORKSPACE']=workspace
+        env['WAKEIT_WORKSPACE']=workspace
         def api(path,method='GET',body=None,key=None):return call(base,'/api/v1'+path,method,body,token,key)
         assert call(other,'/api/v1/session',token=token)['username']=='admin'
         check('shared authentication across Gateway instances')
@@ -104,20 +123,25 @@ def main():
             role_tokens[role]=call(base,'/api/v1/session','POST',{'username':role,'password':'wakeit-role-test-password'})['token']
         assert call(base,'/api/v1/runners/enrollment','POST',{},role_tokens['operator'])['token']
         expect_status(lambda:call(base,'/api/v1/runners/enrollment','POST',{},role_tokens['viewer']),403)
-        expect_status(lambda:call(base,'/api/v1/users',token=role_tokens['viewer']),403)
+        expect_status(lambda:call(base,'/api/v1/members',token=role_tokens['viewer']),403)
         check('member roles and single-use invitations')
+        if args.device_auth_only:
+            from device_auth_checks import verify as verify_device_auth
+            verify_device_auth(api,base,other,sql,role_tokens,check)
+            return
         zones=api('/timezones');assert zones==sorted(set(zones)) and 'Asia/Shanghai' in zones and 'UTC' in zones
         assert call(base,'/api/v1/timezones',token=role_tokens['viewer'])==zones
         expect_status(lambda:call(base,'/api/v1/timezones'),401)
         admin_user=api('/session')['id']
-        expect_status(lambda:api('/users/'+admin_user,'PUT',{'role':'operator','active':True}),409)
+        expect_status(lambda:api('/members/'+admin_user,'PUT',{'role':'operator','active':True}),409)
         sql("INSERT INTO users(id,username,password_hash,role,active) SELECT gen_random_uuid(),'inactive-fixture',password_hash,'viewer',false FROM users WHERE username='admin'")
         sql("INSERT INTO users(id,username,password_hash,role) SELECT gen_random_uuid(),'pagination-member-'||lpad(i::text,2,'0'),password_hash,'viewer' FROM users CROSS JOIN generate_series(0,22) i WHERE username='admin'")
-        members1=api('/users?page=1&page_size=20');members2=api('/users?page=2&page_size=20')
+        sql(f"INSERT INTO workspace_members(workspace_id,user_id,role,active) SELECT '{workspace}',id,'viewer',active FROM users WHERE username='inactive-fixture' OR username LIKE 'pagination-member-%'")
+        members1=api('/members?page=1&page_size=20');members2=api('/members?page=2&page_size=20')
         assert members1['total']==27 and members1['active_admins']==1 and len(members1['items'])==20 and len(members2['items'])==7
         assert not {m['id'] for m in members1['items']} & {m['id'] for m in members2['items']}
-        expect_status(lambda:call(base,'/api/v1/users?page=1',token=role_tokens['operator']),403)
-        expect_status(lambda:api('/users?page=0'),400)
+        expect_status(lambda:call(base,'/api/v1/members?page=1',token=role_tokens['operator']),403)
+        expect_status(lambda:api('/members?page=0'),400)
         expect_status(lambda:api('/tokens','POST',{'name':'   '}),400)
         for i in range(23):api('/tokens','POST',{'name':f'pagination-token-{i:02}'})
         token1=api('/tokens?page=1&page_size=20');token2=api('/tokens?page=2&page_size=20')
@@ -137,7 +161,7 @@ def main():
         assert call(base,'/api/v1/session',token=explicit_null)['id']==admin_user
         rows={t['name']:t for t in api('/tokens')}
         assert rows['no-expiration']['expires_at'] is None and rows['explicit-null']['expires_at'] is None
-        assert datetime.datetime.fromisoformat(rows['with-expiration']['expires_at'])==datetime.datetime.fromisoformat(future)
+        assert timestamp(rows['with-expiration']['expires_at'])==timestamp(future)
         assert call(base,'/api/v1/session',token=expiring)['id']==admin_user
         for invalid,status in [('2000-01-01T00:00:00Z',400), ('not-a-date',422)]:
             expect_status(lambda:api('/tokens','POST',{'name':'invalid-expiration','expires_at':invalid}),status)
@@ -194,7 +218,7 @@ def main():
         assert release_meta['install']['release'].endswith('/v'+package_version)
         assert release_meta['install']['manifest']==release_meta['install']['base_url']+'/wakeit-release.json'
         assert next(a for a in api('/agents') if a['id']=='mock-sync')['logo']=='/agent-logos/pi.svg'
-        assert sql('SELECT count(*) FROM _sqlx_migrations')=='1'
+        assert sql('SELECT count(*) FROM _sqlx_migrations')=='2'
         roots=api(f'/runners/{runner_id}/directories'); assert roots['directories'][0]['path']==str(cwd)
         for name in ['child 中文','other child']: (cwd/name).mkdir()
         from urllib.parse import urlencode
@@ -266,7 +290,7 @@ def main():
         default_task=apply(task('workspace-timezone',schedule={'cron':'0 9 * * *'}))
         assert default_task['config']['schedule']['timezone']=='UTC'
         preview=api('/schedule/preview','POST',{'cron':'0 9 * * *'})
-        assert all(datetime.datetime.fromisoformat(t.replace('Z','+00:00')).hour==9 for t in preview)
+        assert all(timestamp(t).hour==9 for t in preview)
         api('/settings','PUT',defaults)
         expect_status(lambda:call(base,'/api/v1/session','POST',{'username':42,'password':'invalid'}),422)
         check('workspace timezone defaults and structured input errors')
@@ -290,7 +314,7 @@ def main():
         assert api('/tasks?page=1&q='+urlencode({'q':'%_'})[2:])['total']==23
         assert api('/tasks?page=1&q=Pagination&enabled=true')['total']==0
         expect_status(lambda:api('/tasks?page=0'),400);expect_status(lambda:api('/runs?page=1&page_size=101'),400)
-        sql("INSERT INTO runs(id,task_id,task_revision,runner_id,config,state,source,scheduled_at,deadline,finished_at) SELECT gen_random_uuid(),id,revision,runner_id,config,'succeeded','manual',now(),now()+interval '1 hour',now() FROM tasks WHERE id LIKE 'pagination-fixture-%'")
+        sql("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,state,source,scheduled_at,deadline,finished_at) SELECT workspace_id,gen_random_uuid(),id,revision,runner_id,config,'succeeded','manual',now(),now()+interval '1 hour',now() FROM tasks WHERE id LIKE 'pagination-fixture-%'")
         first_page=api('/runs?page=1&page_size=20&q=Pagination&state=succeeded')
         second_page=api('/runs?page=2&page_size=20&q=Pagination&state=succeeded')
         assert first_page['total']==23 and len(first_page['items'])==20 and len(second_page['items'])==3
@@ -430,7 +454,7 @@ def main():
         events=api('/runs/'+run_id+'/events'); assert events
         resumed=call(other,f'/api/v1/runs/{run_id}/events?after={events[0]["id"]}',token=token)
         assert all(event['id']>events[0]['id'] for event in resumed)
-        req=urllib.request.Request(other+f'/api/v1/runs/{run_id}/stream',headers={'Authorization':'Bearer '+token})
+        req=urllib.request.Request(other+scope_path(f'/api/v1/runs/{run_id}/stream'),headers={'Authorization':'Bearer '+token})
         with urllib.request.urlopen(req,timeout=5) as response:
             assert response.headers['Content-Type'].startswith('text/event-stream')
             assert any(b'run_event' in response.readline() for _ in range(6))
