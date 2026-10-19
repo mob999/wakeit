@@ -1,3 +1,23 @@
+## 0.2.0
+
+### Added
+
+- Create and join multiple workspaces, with separate tasks, runs, Runners, settings and member permissions in each workspace.
+- Sign in with GitHub and explore a synthetic, server-enforced read-only demo workspace. Self-hosted Gateways retain password authentication and invitation-based registration.
+- Watch a specific execution with `wakeit run watch <run-id>`, including live status, logs, Agent activity and the final result; supports JSONL output and observation timeouts.
+
+### Improved
+
+- Switch workspaces from the account menu. Settings stays available to all roles, with workspace creation and leaving in Settings and privileged controls restricted to administrators.
+- Permission labels use Admin, Read/write and Read-only. User lists show names directly, and the Chinese Runs label is shortened to 运行.
+- The navigation includes a GitHub repository link. The primary README is English, with a linked Chinese edition and workspace-aware setup instructions.
+
+### Changed
+
+- Business APIs now require an explicit workspace path, and API Keys and CLI connections are scoped to a Gateway, workspace and account. Update CLI clients when upgrading the Gateway.
+- Workspace administrators manage memberships; global account administration requires separate instance privileges. Upgrading preserves existing resources, API Keys and Runner identities in the Default workspace without automatically granting instance privileges to existing administrators.
+- Upgrading from 0.1.1 requires the new workspace database migration. Back up and stop old Gateways before migration; existing Runners can keep their identities. See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.2.0/docs/workspaces.md#upgrading-an-existing-service).
+
 ## 0.1.1
 
 ### Added

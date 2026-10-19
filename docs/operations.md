@@ -111,7 +111,7 @@ Compose 部署可在服务干净停止后备份对应命名卷。身份目录包
 
 ## 本机服务升级
 
-0.1.1 沿用当前数据库结构，无需重建数据。升级前检查活跃 Run，备份 PostgreSQL、设备配置与 journal，并保留 Agent 自身凭据；旧预览基线按下文明确的保数据脚本升级。已发布迁移不可改写，未来结构变更通过新增迁移完成。
+0.2.0 新增 `0002_workspaces.sql`，保留已发布的 `0001_initial.sql`。升级前备份 PostgreSQL、设备配置与 journal，停止所有旧 Gateway 的写入与调度，再执行 `wakeit gateway migrate --config gateway.yaml` 并启动新 Gateway；不允许新旧 Gateway 混跑。已有资源和 API Key 归入 Default，原 ID、设备身份及 Agent 凭据保留，Runner 可继续运行。原管理员不自动获得实例管理权限，需运维使用 `gateway grant-instance-admin` 显式指定。更新 CLI 以使用工作区 API，详见[工作区升级指南](workspaces.md#upgrading-an-existing-service)。旧预览基线先按下文明确的保数据脚本修复，再执行正常迁移。
 
 正式本机预览使用独立的 runtime 目录与用户服务管理（macOS launchd），PostgreSQL、NATS、Gateway 和 Runner 独立托管。集成脚本仅运行隔离的验收栈，不用它承载日常预览。测试栈和 runtime 都处于 .local/，不得提交凭据或运行数据。
 
@@ -133,7 +133,7 @@ Vite 将 `/api` 和 `/health` 代理到 Gateway，包括会话、写操作和 SS
 
 ## 未发布归档字段升级
 
-全新数据库直接执行唯一的 0001_initial.sql。已部署的归档功能前 0.1.0 数据库，先验证隔离环境，短暂停止所有 Gateway，保留 Runner 运行；使用当前环境中的 WAKEIT_DATABASE_URL 执行：
+全新数据库通过 `gateway migrate` 依次执行 `0001_initial.sql` 和 `0002_workspaces.sql`。已部署的归档功能前 0.1.0 数据库，先验证隔离环境，短暂停止所有 Gateway，保留 Runner 运行；使用当前环境中的 WAKEIT_DATABASE_URL 执行：
 
 ```sh
 python3 scripts/upgrade-unreleased-archive.py --backup .local/backups/archive-upgrade.dump
@@ -158,4 +158,4 @@ wakeit gateway migrate --config gateway.yaml
 
 For an existing known pre-device baseline, stop Gateway writers, preserve Runner processes, and explicitly run `WAKEIT_DATABASE_URL=... python3 scripts/upgrade-unreleased-device-auth.py --backup /private/path/backup.dump`. It creates a private backup, checks the exact prior SQLx checksum, adds grant/limit/registration tables in one transaction and updates the single initial migration checksum. Unknown baselines are refused. Normal migration validation remains enabled. Older archive/session upgrade scripts also create the final device-authorization schema.
 
-The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.1.1. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
+The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.2.0. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.

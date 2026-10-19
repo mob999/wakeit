@@ -38,7 +38,6 @@ function AccountRow({
     <>
       <div className="settings-member-row">
         <div className="settings-member-name">
-          <span className="avatar">{account.username[0].toUpperCase()}</span>
           <span>{account.username}</span>
         </div>
         <span className="quiet">{account.instance_admin ? tr('实例管理员') : '—'}</span>

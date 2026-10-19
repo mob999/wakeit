@@ -140,23 +140,21 @@ export function Layout({
                 { to: '/runs', icon: History, label: tr('Runs') },
                 { to: '/runners', icon: Monitor, label: tr('Runners') },
                 { to: '/settings', icon: Settings2, label: tr('Settings') },
-              ]
-                .filter((item) => !user.workspace?.is_demo || item.to !== '/settings')
-                .map(({ to, icon: Icon, label }) => (
-                  <TooltipTarget key={to} label={label} enabled={collapsed}>
-                    <Link
-                      to={to}
-                      aria-label={label}
-                      activeOptions={{ exact: to === '/' }}
-                      className="nav-item"
-                      activeProps={{ className: 'nav-item selected' }}
-                      onClick={() => setMobileOpen(false)}
-                    >
-                      <Icon size={16} aria-hidden="true" />
-                      <span className="nav-label">{label}</span>
-                    </Link>
-                  </TooltipTarget>
-                ))}
+              ].map(({ to, icon: Icon, label }) => (
+                <TooltipTarget key={to} label={label} enabled={collapsed}>
+                  <Link
+                    to={to}
+                    aria-label={label}
+                    activeOptions={{ exact: to === '/' }}
+                    className="nav-item"
+                    activeProps={{ className: 'nav-item selected' }}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    <span className="nav-label">{label}</span>
+                  </Link>
+                </TooltipTarget>
+              ))}
               <TooltipTarget label="@mob999/wakeit" enabled={collapsed}>
                 <a
                   className="nav-bottom repository-link"

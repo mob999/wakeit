@@ -30,15 +30,23 @@ test('workspace switch guards unsaved edits and starts the other workspace with 
   await expect(input).toBeVisible()
   const original = await input.inputValue()
   await input.fill(String(Number(original) + 1))
+  for (const action of ['创建工作区', '退出工作区']) {
+    await page.getByRole('button', { name: action, exact: true }).click()
+    const prompt = page.getByRole('dialog', { name: '有未保存的更改', exact: true })
+    await expect(prompt).toBeVisible()
+    await prompt.getByRole('button', { name: '继续编辑', exact: true }).click()
+    await expect(input).toHaveValue(String(Number(original) + 1))
+    await expect(page.getByRole('dialog', { name: action, exact: true })).toHaveCount(0)
+  }
   await page.getByRole('button', { name: '用户菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'B', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'B', exact: true }).click()
   const guard = page.getByRole('dialog', { name: '有未保存的更改', exact: true })
   await expect(guard).toBeVisible()
   await guard.getByRole('button', { name: '继续编辑', exact: true }).click()
   await expect(input).toHaveValue(String(Number(original) + 1))
   await expect(page).toHaveURL(new RegExp(`/w/${stack.workspaces[0]}/settings`))
   await page.getByRole('button', { name: '用户菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'B', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'B', exact: true }).click()
   await guard.getByRole('button', { name: '放弃更改', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/w/${stack.workspaces[1]}/`))
   await expect(page.getByRole('link', { name: '设置', exact: true })).toHaveCount(1)
@@ -52,8 +60,8 @@ test('create and rename a workspace without inheriting tasks or roles from anoth
   page,
 }) => {
   await enterDefault(page)
-  await page.getByRole('button', { name: '用户菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: '创建工作区', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
+  await page.getByRole('button', { name: '创建工作区', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '创建工作区', exact: true })
   const name = `Browser fixture ${Date.now()}`
   await dialog.getByLabel('工作区名称', { exact: true }).fill(name)
@@ -62,7 +70,7 @@ test('create and rename a workspace without inheriting tasks or roles from anoth
   await expect(page).toHaveURL(/\/w\/[0-9a-f-]+\/$/)
   expect(page.url()).not.toContain(stack.workspaces[0])
   await page.getByRole('button', { name: '用户菜单', exact: true }).click()
-  await expect(page.getByRole('menuitem', { name, exact: true })).toBeVisible()
+  await expect(page.getByRole('menuitemradio', { name, exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await page.getByRole('link', { name: '任务', exact: true }).click()
   await expect(page.getByRole('button', { name: '新建任务', exact: true }).first()).toBeVisible()
@@ -74,10 +82,14 @@ test('create and rename a workspace without inheriting tasks or roles from anoth
   await rename.getByRole('button', { name: '保存', exact: true }).click()
   await expect(rename).not.toBeVisible()
   await page.getByRole('button', { name: '用户菜单', exact: true }).click()
-  await expect(page.getByRole('menuitem', { name: name + ' renamed', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('menuitemradio', { name: name + ' renamed', exact: true }),
+  ).toBeVisible()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '成员', exact: true }).click()
-  await expect(page.locator('.settings-member-name')).toContainText('admin')
+  await expect(page.locator('.settings-member-name').filter({ hasText: /^admin$/ })).toHaveText(
+    'admin',
+  )
   await expect(page.locator('.settings-member-name')).toHaveCount(1)
 })
 
@@ -107,7 +119,7 @@ test('workspace URLs, independent tabs, role-specific controls and scoped reques
   await expect(page).toHaveURL(new RegExp(`/w/${stack.workspaces[0]}/tasks`))
 
   await page.getByRole('button', { name: '用户菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'B', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'B', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/w/${stack.workspaces[1]}/`))
   await page.getByRole('link', { name: '任务', exact: true }).click()
   await expect(page.locator('.list-pane')).toContainText('Workspace b')
@@ -125,6 +137,10 @@ test('workspace and instance accounts remain separate and responsive in both the
   await page.getByRole('link', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '成员', exact: true }).click()
   await expect(page.getByRole('button', { name: '邀请成员', exact: true })).toBeVisible()
+  await expect(page.locator('.settings-member-name').filter({ hasText: /^admin$/ })).toHaveText(
+    'admin',
+  )
+  await expect(page.locator('.avatar')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '新建账号', exact: true })).toHaveCount(0)
   for (const width of [390, 1440, 2200]) {
     await page.setViewportSize({ width, height: 900 })
@@ -137,9 +153,11 @@ test('workspace and instance accounts remain separate and responsive in both the
       await expect(account.locator('.user-name')).toHaveText('admin')
       await account.click()
       const menu = page.getByRole('menu')
-      await expect(menu.getByRole('menuitem', { name: 'Default', exact: true })).toBeVisible()
+      await expect(menu.getByRole('menuitemradio', { name: 'Default', exact: true })).toBeVisible()
       await expect(
-        menu.getByRole('menuitem', { name: 'Default', exact: true }).locator('.workspace-check'),
+        menu
+          .getByRole('menuitemradio', { name: 'Default', exact: true })
+          .locator('.workspace-check'),
       ).toHaveCount(1)
       const bounds = (await menu.boundingBox())!
       expect(bounds.x).toBeGreaterThanOrEqual(0)
@@ -154,6 +172,10 @@ test('workspace and instance accounts remain separate and responsive in both the
   await page.getByRole('menuitem', { name: '实例账号管理', exact: true }).click()
   await expect(page).toHaveURL('/instance')
   await expect(page.getByRole('button', { name: '新建账号', exact: true })).toBeVisible()
+  await expect(page.locator('.settings-member-name').filter({ hasText: /^admin$/ })).toHaveText(
+    'admin',
+  )
+  await expect(page.locator('.avatar')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '邀请成员', exact: true })).toHaveCount(0)
   for (const width of [390, 1440, 2200]) {
     await page.setViewportSize({ width, height: 900 })
@@ -169,4 +191,31 @@ test('workspace and instance accounts remain separate and responsive in both the
       await page.screenshot({ path: test.info().outputPath(`instance-${width}-${theme}.png`) })
     }
   }
+})
+
+test('a read-only member leaves the current workspace only after confirming in Settings', async ({
+  page,
+}) => {
+  await enterDefault(page)
+  await page.getByRole('button', { name: '用户菜单', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'B', exact: true }).click()
+  await page.getByRole('link', { name: '设置', exact: true }).click()
+  await expect(page.getByRole('button', { name: '更改工作区名称', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '退出工作区', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '退出工作区', exact: true })
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+  let memberships = await (await page.request.get('/api/v1/workspaces')).json()
+  expect(memberships.items.some((item: { id: string }) => item.id === stack.workspaces[1])).toBe(
+    true,
+  )
+  await page.getByRole('button', { name: '退出工作区', exact: true }).click()
+  await dialog.getByRole('button', { name: '退出', exact: true }).click()
+  await expect(page).not.toHaveURL(new RegExp(`/w/${stack.workspaces[1]}/`))
+  memberships = await (await page.request.get('/api/v1/workspaces')).json()
+  expect(memberships.items.some((item: { id: string }) => item.id === stack.workspaces[1])).toBe(
+    false,
+  )
+  expect(memberships.items.some((item: { id: string }) => item.id === stack.workspaces[0])).toBe(
+    true,
+  )
 })

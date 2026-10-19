@@ -6,6 +6,7 @@
 
 ```sh
 export WAKEIT_GATEWAY=https://wakeit.example.com
+export WAKEIT_WORKSPACE=WORKSPACE_ID
 export WAKEIT_PASSWORD='你的账号密码'
 wakeit login --username your-name
 unset WAKEIT_PASSWORD
@@ -13,7 +14,7 @@ unset WAKEIT_PASSWORD
 
 个人 API Key 由连接配置私密保存，跨工作目录生效；也可显式设置 `WAKEIT_TOKEN_FILE` 或 `WAKEIT_TOKEN`。不要把 API Key 写进任务 YAML。
 
-Admin 管理成员、设备与设置；Operator 注册设备、管理任务和运行；Viewer 只读。Runner 的独立设备身份不能代替个人 API Key。
+Admin（管理员）管理本区成员、设备与设置；Operator（读写）注册设备、管理任务和运行；Viewer（只读）查看本区数据。全局账号管理需要独立的实例管理员权限。Runner 的独立设备身份不能代替个人 API Key。
 
 API 查询及更新命令支持全局 `--json`。适配导出、进程启动和服务配置生成等本地命令遵循自己的输出形式。
 
@@ -64,7 +65,7 @@ wakeit task restore <task-id>
 wakeit task resume <task-id>
 ```
 
-WebUI 可在 Settings → 归档任务恢复；账号新建、启停和重置密码在 Settings → 成员完成，需要 Admin。停用或重置密码会使该账号已有登录与 API Key 全部失效。
+WebUI 可在设置 → 归档任务恢复；成员关系和邀请在设置 → 成员管理，需要本区管理员。全局账号新建、启停及本地密码重置通过实例账号管理完成，需要实例管理员。停用或重置密码会使该账号已有登录与 API Key 全部失效。
 
 ## 查看、取消与重试
 
