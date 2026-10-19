@@ -67,6 +67,10 @@ wakeit task resume <task-id>
 
 WebUI 可在设置 → 归档任务恢复；成员关系和邀请在设置 → 成员管理，需要本区管理员。全局账号新建、启停及本地密码重置通过实例账号管理完成，需要实例管理员。停用或重置密码会使该账号已有登录与 API Key 全部失效。
 
+## DAG 任务
+
+一个 Task 可以通过内嵌 `dag` 定义整张 AND 图，多个根统一开始，不支持独立触发、重试或取消节点。WebUI 提供两步图编辑器，CLI 使用相同 `task apply --file`、trigger 和 run watch 命令。配置、结果引用、输出选择、warning 与取消规则见 [DAG 指南](dag.md)，完整示例见 [task-dag.yaml](../examples/task-dag.yaml)。
+
 ## 查看、取消与重试
 
 ```sh
@@ -91,11 +95,11 @@ wakeit --json run watch <run-id> --timeout 10m
 
 每秒查询一次，事件按游标补读；终态后补读当前已入库的尾部事件，再读取最终结果。断线后最多重连 30 秒，观察超时仍优先生效。内容截断、过期或未记录时会明确提示；没有结果时不从日志拼接报告。
 
-`--json` 输出 JSONL，每行含 `type`、`run_id`、`data`；事件记录还含 `event_id` 和 `seq`。类型为 `status`、`log`、`trace`、`notice`、`error`、`summary`。Trace 是按节点 ID 更新的完整快照。最后一行 `summary.data` 包含 `state`、`terminal`、`reason`、`result` 和 `exit_code`；超时或读取错误不会伪造执行终态。输出不包含整份任务配置或无关 Session 信息。
+`--json` 输出 JSONL，每行含 `type`、`run_id`、`data`；事件记录还含 `event_id` 和 `seq`。DAG 子事件还携带 `node_id`、`execution_id` 和 `original_seq`；Trace 按 DAG 节点 ID 与原生 Trace ID 组合归并。类型为 `status`、`log`、`trace`、`notice`、`error`、`summary`。Trace 是按节点 ID 更新的完整快照。最后一行 `summary.data` 包含 `state`、`terminal`、`reason`、`result` 和 `exit_code`；超时或读取错误不会伪造执行终态。输出不包含整份任务配置或无关 Session 信息。
 
 | 退出码 | 含义 |
 |---|---|
-| `0` | Run 成功 |
+| `0` | Run 成功，或 DAG 警告（warning） |
 | `1` | 失败、取消、执行超时、跳过或中断 |
 | `2` | 参数、认证、查询或持续连接错误 |
 | `124` | 观察等待超时 |

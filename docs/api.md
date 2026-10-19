@@ -18,12 +18,16 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 | GET / DELETE `/session` | 当前用户 / 退出 | Viewer |
 | GET `/tasks` | 支持 page、page_size、q、runner、agent、enabled；含 last_run | Viewer |
 | GET `/tasks/{id}` | 单个 Task | Viewer |
+| POST `/tasks/validate` | `{config}`，只读完整校验，返回 `{errors}` | Operator |
 | PUT `/tasks/{id}` | `{config,expected_revision}`；新建版本为 null，更新须匹配 | Operator |
 | POST `/tasks/{id}/archive`、`/tasks/{id}/restore` | `{expected_revision}`，归档或恢复为暂停 | Operator |
 | POST `/tasks/{id}/runs` | 返回 `{id}` | Operator |
 | POST `/schedule/preview` | Schedule 对象，返回接下来五次 UTC 时间 | Viewer |
 | GET `/runs` | 支持 page、page_size、q、runner、agent、task、state、before | Viewer |
 | GET `/runs/{id}` | Run、状态、结果、配置快照 | Viewer |
+| GET `/runs/{id}/nodes/{node}` | `{node,execution}`，含冻结节点配置与真实执行 | Viewer |
+| GET `/runs/{id}/nodes/{node}/events?after=0` | 节点事件，最多 500 条 | Viewer |
+| POST `/runs/{id}/nodes/{node}/resolve` | 核对具体 unknown 节点，父状态自动聚合 | Operator |
 | GET `/runs/{id}/events?after=0` | 按游标读取，最多 500 个事件 | Viewer |
 | GET `/runs/{id}/stream?after=0` | SSE，事件名 run_event，支持 Last-Event-ID | Viewer |
 | POST `/runs/{id}/cancel` | 保存取消请求；确认完成后才进入 cancelled | Operator |
@@ -129,3 +133,9 @@ Device-flow endpoints accept JSON. `POST /oauth/device/code` accepts `{workspace
 `GET /device-authorizations/{user_code}` and `POST .../approve|deny` require a Web session cookie; API keys and bearer sessions cannot approve. Cookie writes require existing CSRF headers/origin checks. Merely loading a URL never approves. Requests and rate limits live in PostgreSQL, codes are hashed, and responses use no-store. Approval and exchange recheck active account and role.
 
 Admin/Operator may register; Viewer may authorize CLI-only. Revocation remains Admin-only. `POST /workspaces/{workspace-id}/runners/connect` accepts `request_id,public_key,name,allowed_roots,timestamp,signature` and requires Operator plus Ed25519/NKey proof over canonical JSON produced by `device_auth::proof`. Persist request ID and private key before calling. Retrying the same signed identity reissues the device bearer and invalidates the prior bearer; different keys, owners, revoked devices and name conflicts are rejected. OAuth-issued setup keys cannot change the approved name or roots.
+
+## AND DAG
+
+完整配置、状态和同轮结果引用见 [DAG 指南](dag.md)。普通 Task 形态保留；DAG 与顶层执行字段互斥。所有任务写入使用同一完整校验及 revision 检查，不分节点提交。Run 新增 nodes；selected result 为 `{type:"dag",outputs:[{node_id,name,state,reason,result}]}`。终态新增 warning；unknown 继续非终态。
+
+Task、Run、搜索、历史与 Moments 只计入整图，不把子执行列为普通 Run。结果预览 format 可为 dag，outputs 按节点分段且共用 2048 Unicode 字符预算。runner、agent 在整图摘要中可空，不代表任意单个节点。父事件以 ID 为连续游标，子事件含 node_id、execution_id、original_seq。触发、重试、取消仅作用于整图；子执行的独立写入口由服务端拒绝。

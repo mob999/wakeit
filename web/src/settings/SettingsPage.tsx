@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -194,7 +195,6 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         ) : section === 'workspace' ? (
           <>
             <DetailBody limited>
-              <WorkspaceManagement user={user} />
               {!draft ? (
                 <RequestState
                   pending={settings.isPending}
@@ -210,16 +210,22 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
                       retry={() => settings.refetch()}
                     />
                   )}
-                  <WorkspaceSettingsView
-                    readOnly={!admin}
-                    draft={draft}
-                    dirty={dirty}
-                    pending={saveMutation.isPending}
-                    error={saveError}
-                    onChange={setDraft}
-                    onCancel={cancel}
-                    onSave={() => save()}
-                  />
+                  <WorkspaceManagement user={user}>
+                    {(name, actions) => (
+                      <WorkspaceSettingsView
+                        workspaceName={name}
+                        workspaceActions={actions}
+                        readOnly={!admin}
+                        draft={draft}
+                        dirty={dirty}
+                        pending={saveMutation.isPending}
+                        error={saveError}
+                        onChange={setDraft}
+                        onCancel={cancel}
+                        onSave={() => save()}
+                      />
+                    )}
+                  </WorkspaceManagement>
                 </>
               )}
             </DetailBody>
@@ -239,13 +245,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         }}
         title={tr('有未保存的更改')}
       >
-        <div className="modal-body">
-          {saveError && (
-            <p className="error" role="alert">
-              {saveError}
-            </p>
-          )}
-        </div>
+        <div className="modal-body">{saveError && <ErrorToast>{saveError}</ErrorToast>}</div>
         <div className="modal-footer">
           <Button disabled={saveMutation.isPending} onClick={() => finishLeave(false)}>
             {tr('继续编辑')}

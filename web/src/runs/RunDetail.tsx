@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { apiUrl } from '../api'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
@@ -116,7 +117,7 @@ function SingleRunDetail({
         <h3>{run.error ? tr('无法读取运行记录') : tr('正在加载…')}</h3>
         {run.error && (
           <>
-            <p className="error">{run.error.message}</p>
+            <ErrorToast>{run.error.message}</ErrorToast>
             <Button onClick={() => run.refetch()}>
               <RefreshCw size={14} />
               {tr('重试')}
@@ -355,7 +356,7 @@ export function ResolveDialog({
           />{' '}
           {tr('我已核对实际任务状态')}
         </label>
-        {error && <p className="error">{error}</p>}
+        {error && <ErrorToast>{error}</ErrorToast>}
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>{tr('取消')}</Button>

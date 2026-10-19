@@ -1,3 +1,4 @@
+import { ToastContext, useToast, ErrorToast } from './Toast'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { MomentsPage, MomentsVisit } from './moments/MomentsPage'
@@ -23,8 +24,16 @@ import { RunDetail } from './runs/RunDetail'
 import { RunListRow, RunIdentity, RunDevice, RunAgent } from './runs/RunListRow'
 import { SearchProvider, useFilters, listPath, type PageResult } from './Search'
 import { Pagination } from './Pagination'
-import React, { useState, useEffect, createContext, useContext, type ReactNode } from 'react'
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  createContext,
+  useContext,
+  type ReactNode,
+} from 'react'
 import { createRoot } from 'react-dom/client'
+import { createPortal } from 'react-dom'
 import { QueryClient, QueryClientProvider, useQuery, useMutation } from '@tanstack/react-query'
 import {
   createRootRoute,
@@ -77,9 +86,9 @@ const client = new QueryClient({
   },
 })
 const UserContext = createContext<User | null>(null)
-const ToastContext = createContext<(message: string) => void>(() => {})
+
 const useUser = () => useContext(UserContext)!
-const useToast = () => useContext(ToastContext)
+
 function useList<T>(key: string, path: string) {
   return useQuery<T[]>({ queryKey: [key], queryFn: () => api(path), refetchInterval: 3000 })
 }
@@ -134,7 +143,8 @@ function App() {
       location.assign('/')
     }
   }, [me.error, me.data])
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState<{ id: number; content: ReactNode } | null>(null)
+  const notify = useCallback((content: ReactNode) => setToast({ id: Date.now(), content }), [])
   const [dark, setDark] = useState(
     () =>
       localStorage.getItem('wakeit-theme') === 'dark' ||
@@ -146,13 +156,13 @@ function App() {
   }, [dark])
   useEffect(() => {
     if (toast) {
-      const timer = setTimeout(() => setToast(''), 5000)
+      const timer = setTimeout(() => setToast(null), 5000)
       return () => clearTimeout(timer)
     }
   }, [toast])
   const path = useRouterState({ select: (s) => s.location.pathname })
   return (
-    <ToastContext.Provider value={setToast}>
+    <ToastContext.Provider value={notify}>
       {path === '/invite' ? (
         <InvitationPage user={me.data} />
       ) : me.isPending ? (
@@ -166,12 +176,15 @@ function App() {
             error={tr('无法访问此工作区')}
           />
         ) : (
-          <Empty title={tr('无法连接 Gateway')} detail={me.error.message}>
-            <Button onClick={() => me.refetch()}>
-              <RefreshCw size={14} />
-              {tr('重试')}
-            </Button>
-          </Empty>
+          <>
+            <ErrorToast error={me.error} />
+            <Empty title={tr('无法连接 Gateway')}>
+              <Button onClick={() => me.refetch()}>
+                <RefreshCw size={14} />
+                {tr('重试')}
+              </Button>
+            </Empty>
+          </>
         )
       ) : (
         <UserContext.Provider value={me.data!}>
@@ -195,7 +208,7 @@ function App() {
                       client.clear()
                       location.assign('/')
                     })
-                    .catch((e) => setToast(e.message))
+                    .catch((e) => notify(e.message))
                 }
               >
                 <MomentsVisit>
@@ -206,14 +219,19 @@ function App() {
           </SearchProvider>
         </UserContext.Provider>
       )}
-      {toast && (
-        <div className="toast" role="status">
-          <AlertCircle size={15} />
-          {toast}
-          <IconButton label={tr('关闭提示')} onClick={() => setToast('')}>
-            <X />
-          </IconButton>
-        </div>
+      {createPortal(
+        <div className="toast-viewport" aria-live="assertive" aria-atomic="true">
+          {toast && (
+            <div className="toast" role="alert" key={toast.id}>
+              <AlertCircle size={15} />
+              <div className="toast-content">{toast.content}</div>
+              <IconButton label={tr('关闭提示')} onClick={() => setToast(null)}>
+                <X />
+              </IconButton>
+            </div>
+          )}
+        </div>,
+        document.body,
       )}
     </ToastContext.Provider>
   )
@@ -261,15 +279,13 @@ function Login() {
         <h1 className="card-header">{signup ? tr('创建账号') : tr('欢迎回来')}</h1>
         <div className="card-body">
           {new URLSearchParams(location.search).get('auth_error') === 'github_denied' && (
-            <p className="error" role="alert">
-              {tr('GitHub 授权已取消')}
-            </p>
+            <ErrorToast>{tr('GitHub 授权已取消')}</ErrorToast>
           )}
           {meta.isPending ? (
             <span className="quiet">{tr('加载中…')}</span>
           ) : meta.error ? (
             <>
-              <p className="error">{meta.error.message}</p>
+              <ErrorToast>{meta.error.message}</ErrorToast>
               <Button type="button" onClick={() => void meta.refetch()}>
                 {tr('重试')}
               </Button>
@@ -324,11 +340,7 @@ function Login() {
                   />
                 </Field>
               )}
-              {login.error && (
-                <div className="error" role="alert">
-                  {login.error.message}
-                </div>
-              )}
+              {login.error && <ErrorToast>{login.error.message}</ErrorToast>}
               <Button variant="solid" type="submit" disabled={login.isPending}>
                 {login.isPending ? tr('正在连接…') : signup ? tr('创建账号') : tr('登录工作区')}
                 <ArrowUpRight size={14} />
@@ -350,9 +362,7 @@ function Login() {
             </>
           )}
           {new URLSearchParams(location.search).has('login_error') && (
-            <p className="error" role="alert">
-              {tr('GitHub 登录失败，请重试')}
-            </p>
+            <ErrorToast>{tr('GitHub 登录失败，请重试')}</ErrorToast>
           )}
         </div>
       </form>
@@ -451,11 +461,7 @@ function TasksPage() {
         }}
       >
         <div className="modal-body">
-          {archive.error && (
-            <p className="error" role="alert">
-              {archive.error.message}
-            </p>
-          )}
+          {archive.error && <ErrorToast>{archive.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={archive.isPending} onClick={() => setArchiving(null)}>
@@ -502,7 +508,7 @@ function TasksPage() {
             </div>
             <div className="list-scroll">
               {tasks.error ? (
-                <div className="error">{tasks.error.message}</div>
+                <ErrorToast>{tasks.error.message}</ErrorToast>
               ) : tasks.isPending ? (
                 <p className="quiet padded">{tr('正在加载…')}</p>
               ) : tasks.data?.total === 0 ? (
@@ -795,7 +801,7 @@ function RunsPage() {
           </div>
           <div className="list-scroll">
             {runs.error ? (
-              <p className="error padded">{runs.error.message}</p>
+              <ErrorToast>{runs.error.message}</ErrorToast>
             ) : !runs.data?.items.length ? (
               <Empty title={tr('暂无执行记录')} />
             ) : (
