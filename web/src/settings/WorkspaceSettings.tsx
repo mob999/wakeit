@@ -1,6 +1,6 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as Popover from '@radix-ui/react-popover'
 import { Check, ChevronDown, Search } from 'lucide-react'
@@ -125,6 +125,8 @@ export function WorkspaceSettingsView({
   onChange,
   onCancel,
   onSave,
+  workspaceName,
+  workspaceActions,
 }: {
   readOnly?: boolean
   draft: WorkspaceDraft
@@ -134,6 +136,8 @@ export function WorkspaceSettingsView({
   onChange: (draft: WorkspaceDraft) => void
   onCancel: () => void
   onSave: () => void
+  workspaceName?: ReactNode
+  workspaceActions?: ReactNode
 }) {
   useTranslation()
   const errors = draftErrors(draft)
@@ -149,6 +153,7 @@ export function WorkspaceSettingsView({
         <span>{tr('设置')}</span>
         <span>{tr('值')}</span>
       </div>
+      {workspaceName}
       <div className="setting-row">
         <label>{tr('默认时区')}</label>
         {readOnly ? (
@@ -196,6 +201,7 @@ export function WorkspaceSettingsView({
           )}
         </div>
       ))}
+      {workspaceActions}
       {!readOnly && dirty && (
         <div className="settings-savebar">
           {error && (

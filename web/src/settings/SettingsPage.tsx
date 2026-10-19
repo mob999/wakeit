@@ -194,7 +194,6 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         ) : section === 'workspace' ? (
           <>
             <DetailBody limited>
-              <WorkspaceManagement user={user} />
               {!draft ? (
                 <RequestState
                   pending={settings.isPending}
@@ -210,16 +209,22 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
                       retry={() => settings.refetch()}
                     />
                   )}
-                  <WorkspaceSettingsView
-                    readOnly={!admin}
-                    draft={draft}
-                    dirty={dirty}
-                    pending={saveMutation.isPending}
-                    error={saveError}
-                    onChange={setDraft}
-                    onCancel={cancel}
-                    onSave={() => save()}
-                  />
+                  <WorkspaceManagement user={user}>
+                    {(name, actions) => (
+                      <WorkspaceSettingsView
+                        workspaceName={name}
+                        workspaceActions={actions}
+                        readOnly={!admin}
+                        draft={draft}
+                        dirty={dirty}
+                        pending={saveMutation.isPending}
+                        error={saveError}
+                        onChange={setDraft}
+                        onCancel={cancel}
+                        onSave={() => save()}
+                      />
+                    )}
+                  </WorkspaceManagement>
                 </>
               )}
             </DetailBody>
