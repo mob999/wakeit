@@ -142,7 +142,7 @@ test('all four workbenches switch between list and detail on narrow screens', as
   await page.setViewportSize({ width: 390, height: 840 })
   for (const [name, row] of [
     ['任务', '.task-row'],
-    ['运行记录', '.task-row'],
+    ['运行', '.task-row'],
     ['设备', '.runner-row'],
     ['设置', '.settings-category'],
   ]) {

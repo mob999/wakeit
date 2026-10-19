@@ -87,7 +87,9 @@ test('create and rename a workspace without inheriting tasks or roles from anoth
   ).toBeVisible()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '成员', exact: true }).click()
-  await expect(page.locator('.settings-member-name')).toContainText('admin')
+  await expect(page.locator('.settings-member-name').filter({ hasText: /^admin$/ })).toHaveText(
+    'admin',
+  )
   await expect(page.locator('.settings-member-name')).toHaveCount(1)
 })
 
@@ -135,6 +137,10 @@ test('workspace and instance accounts remain separate and responsive in both the
   await page.getByRole('link', { name: '设置', exact: true }).click()
   await page.getByRole('button', { name: '成员', exact: true }).click()
   await expect(page.getByRole('button', { name: '邀请成员', exact: true })).toBeVisible()
+  await expect(page.locator('.settings-member-name').filter({ hasText: /^admin$/ })).toHaveText(
+    'admin',
+  )
+  await expect(page.locator('.avatar')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '新建账号', exact: true })).toHaveCount(0)
   for (const width of [390, 1440, 2200]) {
     await page.setViewportSize({ width, height: 900 })
@@ -166,6 +172,10 @@ test('workspace and instance accounts remain separate and responsive in both the
   await page.getByRole('menuitem', { name: '实例账号管理', exact: true }).click()
   await expect(page).toHaveURL('/instance')
   await expect(page.getByRole('button', { name: '新建账号', exact: true })).toBeVisible()
+  await expect(page.locator('.settings-member-name').filter({ hasText: /^admin$/ })).toHaveText(
+    'admin',
+  )
+  await expect(page.locator('.avatar')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '邀请成员', exact: true })).toHaveCount(0)
   for (const width of [390, 1440, 2200]) {
     await page.setViewportSize({ width, height: 900 })
