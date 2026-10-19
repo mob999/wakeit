@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Clock, ChevronRight } from 'lucide-react'
@@ -93,7 +94,7 @@ export function TimeFields({
             <div>
               <span>{t('接下来的执行时间')}</span>
               {preview.error ? (
-                <small className="error">{preview.error.message}</small>
+                <ErrorToast>{preview.error.message}</ErrorToast>
               ) : (
                 preview.data?.map((v) => (
                   <small key={v}>

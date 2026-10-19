@@ -36,12 +36,6 @@ export function NodeForm({
   const patch = (value: Partial<DagNode>) => onChange({ ...node, ...value })
   const error = (field: string) =>
     errors.find((e) => e.node_id === node.id && e.path.endsWith(`.${field}`))
-  const hint = (field: string) =>
-    error(field) && (
-      <small className="error" role="alert">
-        {error(field)!.message}
-      </small>
-    )
   return (
     <fieldset disabled={disabled} className="editor-fields dag-config-body">
       <Field label={t('dag.field.name')}>
@@ -51,7 +45,6 @@ export function NodeForm({
           aria-invalid={!!error('name')}
           onChange={(e) => patch({ name: e.target.value })}
         />
-        {hint('name')}
       </Field>
       <Field label={t('dag.pre')}>
         <MultiPicker
@@ -69,7 +62,6 @@ export function NodeForm({
             }))}
           onChange={(pre) => patch({ pre })}
         />
-        {hint('pre')}
       </Field>
       <div className="field">
         <div className="dag-prompt-head">
@@ -116,7 +108,6 @@ export function NodeForm({
           aria-invalid={!!error('prompt')}
           onChange={(e) => patch({ prompt: e.target.value })}
         />
-        {hint('prompt')}
       </div>
       <div className="form-grid">
         <Field label={t('Runner')}>
@@ -138,7 +129,6 @@ export function NodeForm({
                 patch({ runner: id, agent: '', cwd: '', parameters: {}, session: null })
             }}
           />
-          {hint('runner')}
         </Field>
         <Field label={t('Agent')}>
           <ChoicePicker
@@ -159,16 +149,16 @@ export function NodeForm({
               if (id !== node.agent) patch({ agent: id, parameters: {}, session: null })
             }}
           />
-          {hint('agent')}
         </Field>
       </div>
       <DirectoryPicker
         disabled={disabled}
         runner={runner}
         value={node.cwd}
-        onChange={(cwd) => { if(cwd !== node.cwd) patch({ cwd, session: null }) }}
+        onChange={(cwd) => {
+          if (cwd !== node.cwd) patch({ cwd, session: null })
+        }}
       />
-      {hint('cwd')}
       <ModelPicker
         runner={runner}
         agent={agent}
@@ -190,7 +180,6 @@ export function NodeForm({
               value={node.timeout}
               onChange={(e) => patch({ timeout: e.target.value })}
             />
-            {hint('timeout')}
           </Field>
           {(agent?.session_supported || node.session) && (
             <SessionBinding

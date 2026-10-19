@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState } from 'react'
@@ -229,11 +230,7 @@ export function SessionPicker({
           </>
         }
       />
-      {error && (
-        <p className="error" id={`${controlId}-error`} role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast id={`${controlId}-error`}>{error}</ErrorToast>}
     </div>
   )
 }

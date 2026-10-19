@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
@@ -50,7 +51,7 @@ export function ArchivedTasks() {
         ) : !query.data.items.length ? (
           <div className="settings-request content-card">{tr('暂无归档任务')}</div>
         ) : (
-          <div className="content-card archive-table">
+          <div className="content-card settings-table archive-table">
             <div className="archive-row table-head">
               <span>{tr('任务')}</span>
               <span>{tr('Runner')}</span>
@@ -122,11 +123,7 @@ export function ArchivedTasks() {
         }}
       >
         <div className="modal-body">
-          {restore.error && (
-            <p className="error" role="alert">
-              {restore.error.message}
-            </p>
-          )}
+          {restore.error && <ErrorToast>{restore.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={restore.isPending} onClick={() => setSelected(null)}>

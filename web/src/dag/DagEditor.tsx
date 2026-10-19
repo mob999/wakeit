@@ -1,3 +1,4 @@
+import { ErrorToast, useToast } from '../Toast'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -6,7 +7,7 @@ import * as Menu from '@radix-ui/react-dropdown-menu'
 import { Plus, MoreHorizontal, ChevronLeft } from 'lucide-react'
 import { api, type Task, type TaskConfig, type Runner, type Agent, type DagIssue } from '../api'
 import { t } from '../i18n'
-import { Button, IconButton, Field, Modal } from '../ui'
+import { Button, IconButton, focusEditorField, Field, Modal } from '../ui'
 import { PageBreadcrumbs } from '../PageHeader'
 import { PaneResizeHandle } from '../PaneResizeHandle'
 import { useSearchControls } from '../Search'
@@ -61,6 +62,7 @@ export function DagEditor({
   const [mobile, setMobile] = useState<'node' | 'list'>(task ? 'list' : 'node')
   const [width, setWidth] = useState(400)
   const [focusNode, setFocusNode] = useState(false)
+  const [focusField, setFocusField] = useState<string | null>(null)
   useEffect(() => {
     if (focusNode) {
       requestAnimationFrame(() =>
@@ -71,13 +73,15 @@ export function DagEditor({
   }, [focusNode, selected])
   const [room, setRoom] = useState(0)
   const pane = useRef<HTMLDivElement>(null)
+  const editor = useRef<HTMLDivElement>(null)
   const [errors, setErrors] = useState<DagIssue[]>([])
   const [error, setError] = useState('')
   const [validating, setValidating] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [leave, setLeave] = useState(false)
   const leaveResolve = useRef<((value: boolean) => void) | null>(null)
-  const client = useQueryClient(),
+  const client = useQueryClient()
+  const toast = useToast(),
     controls = useSearchControls()
   const runners = useQuery<Runner[]>({
     queryKey: ['runners'],
@@ -120,18 +124,30 @@ export function DagEditor({
     node = dag.nodes.find((n) => n.id === selected)
   const changeDag = (next: typeof dag) => setConfig((c) => ({ ...c, dag: next }))
   const locate = (issue: DagIssue) => {
-    if (issue.path.startsWith('execution.') || issue.path.startsWith('schedule')) {
-      setStep('time')
-      return
-    }
-    setStep('task')
+    const time = issue.path.startsWith('execution.') || issue.path.startsWith('schedule')
+    setStep(time ? 'time' : 'task')
     if (issue.node_id) {
       setSelected(issue.node_id)
       setMobile('node')
     }
-    requestAnimationFrame(() =>
-      pane.current?.querySelector<HTMLElement>('[aria-invalid=true]')?.focus(),
-    )
+    const field = issue.path.split('.').at(-1) ?? ''
+    const labels: Record<string, string> = {
+      name: issue.node_id ? t('dag.field.name') : t('任务名称'),
+      prompt: t('指令'),
+      runner: t('Runner'),
+      agent: t('Agent'),
+      cwd: t('工作目录'),
+      pre: t('dag.pre'),
+      results: t('dag.results'),
+      timeout: issue.node_id ? t('执行超时') : t('dag.graphTimeout'),
+      start_grace: t('允许延迟'),
+      schedule: config.schedule?.every
+        ? t('间隔')
+        : config.schedule?.at
+          ? t('执行时间')
+          : t('Cron 表达式'),
+    }
+    setFocusField(labels[field] ?? '')
   }
   const validate = async () => {
     const local = issues(dag)
@@ -139,6 +155,7 @@ export function DagEditor({
     if (local.length) {
       setErrors(local)
       locate(local[0])
+      toast(local[0].message + (local[0].cycle?.length ? ` (${local[0].cycle.join(' → ')})` : ''))
       return false
     }
     setValidating(true)
@@ -149,25 +166,23 @@ export function DagEditor({
       setErrors(result.errors)
       if (result.errors.length) {
         locate(result.errors[0])
+        toast(result.errors[0].message)
         return false
       }
       return true
     } catch (e) {
-      setError((e as Error).message)
-      return false
+      throw e
     } finally {
       setValidating(false)
     }
   }
-  const next = async () => {
-    if (busyRef.current) return
-    setError('')
-    if (await validate()) setStep('time')
+  const next = () => {
+    if (!busyRef.current) setStep('time')
   }
   const save = useMutation({
     mutationFn: async () => {
       setError('')
-      if (!(await validate())) throw new Error(t('dag.fixErrors'))
+      if (!(await validate())) return null
       if (config.schedule) await api('/schedule/preview', 'POST', config.schedule)
       const id = task?.id ?? createTaskId(config.name, suffix)
       return api<Task>(`/tasks/${encodeURIComponent(id)}`, 'PUT', {
@@ -176,6 +191,7 @@ export function DagEditor({
       })
     },
     onSuccess: (result) => {
+      if (!result) return
       baseline.current = JSON.stringify(config)
       dirtyRef.current = false
       busyRef.current = false
@@ -186,12 +202,17 @@ export function DagEditor({
   })
   const busy = save.isPending || validating
   busyRef.current = busy
+  useEffect(() => {
+    if (focusField === null || busy) return
+    focusEditorField(editor.current, focusField)
+    setFocusField(null)
+  }, [focusField, busy, step, selected, mobile])
   const used = node ? referencesTo(dag, node.id) : []
   const resultUsed = !!node && !!dag.results?.includes(node.id)
   const blockedDelete = used.length > 0 || resultUsed
   const invalid = errors.flatMap((e) => (e.node_id ? [e.node_id] : []))
   return (
-    <div className="dag-editor">
+    <div className="dag-editor" ref={editor}>
       <PageBreadcrumbs
         label={t('Tasks')}
         crumbs={[{ label: task ? task.config.name : t('dag.new') }]}
@@ -217,19 +238,6 @@ export function DagEditor({
           {t('时间')}
         </button>
       </div>
-      {!!errors.length && (
-        <div className="dag-error-list" role="alert">
-          {errors.map((e, i) => (
-            <button key={i} onClick={() => locate(e)}>
-              {e.node_id
-                ? `${dag.nodes.find((n) => n.id === e.node_id)?.name || t('dag.unnamed')}: `
-                : ''}
-              {e.message}
-              {!!e.cycle?.length && ` (${e.cycle.join(' → ')})`}
-            </button>
-          ))}
-        </div>
-      )}
       {step === 'task' ? (
         <>
           <div className="dag-editor-name">
@@ -366,10 +374,10 @@ export function DagEditor({
                 <p className="quiet padded">{t('dag.noNodes')}</p>
               )}
               {runners.error && (
-                <p className="error padded" role="alert">
+                <ErrorToast>
                   {runners.error.message}
                   <Button onClick={() => void runners.refetch()}>{t('重试')}</Button>
-                </p>
+                </ErrorToast>
               )}
             </section>
           </div>
@@ -378,11 +386,7 @@ export function DagEditor({
         <TimeFields config={config} timezone={timezone} disabled={busy} onChange={setConfig} />
       )}
       <footer className="dag-editor-footer">
-        {error && (
-          <span className="error" role="alert">
-            {error}
-          </span>
-        )}
+        {error && <ErrorToast>{error}</ErrorToast>}
         <Button
           disabled={busy}
           onClick={async () => {

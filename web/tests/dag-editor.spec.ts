@@ -92,7 +92,7 @@ test('DAG prototype keeps node drafts, renders worker graph and protects referen
   }
 })
 
-test('DAG Next only validates; failed saves and revision conflicts retain the complete draft', async ({
+test('DAG Next only switches steps; failed saves and revision conflicts retain the complete draft', async ({
   page,
 }) => {
   await mock(page)

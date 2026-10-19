@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useState, useRef } from 'react'
@@ -95,13 +96,13 @@ export function RunTrace({ run, trace }: { run: Run; trace: ReturnType<typeof us
     <DetailBody>
       <div className="run-trace">
         {trace.error && (
-          <div className="trace-notice" role="alert">
+          <ErrorToast>
             <span className="error">{trace.error}</span>
             <Button onClick={trace.retry}>
               <RefreshCw size={14} />
               {tr('重试')}
             </Button>
-          </div>
+          </ErrorToast>
         )}
         {notices.has('expired') && entries.length > 0 && (
           <p className="quiet">{tr('部分过程已过期')}</p>

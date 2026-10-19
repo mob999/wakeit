@@ -70,9 +70,13 @@ export function RunDetails({
         <dd>{time(r.finished_at)}</dd>
         <dt>{tr('来源')}</dt>
         <dd>
-          {{ manual: tr('手动'), scheduled: tr('定时'), schedule: tr('定时'), retry: tr('重试') }[
-            r.source
-          ] ?? r.source}
+          {{
+            manual: tr('手动'),
+            scheduled: tr('定时'),
+            schedule: tr('定时'),
+            retry: tr('重试'),
+            dag_node: tr('dag.nodeExecution'),
+          }[r.source] ?? r.source}
         </dd>
         {r.reason && (
           <>

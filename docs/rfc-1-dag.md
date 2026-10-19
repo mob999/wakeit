@@ -14,7 +14,7 @@ Outputs default to the graph's leaves. Explicit output selections must contain a
 - Whole-graph cancellation or timeout takes precedence after all executions have confirmed their end.
 - `unknown` remains nonterminal and retains session occupancy until reconciled.
 
-Warning is a terminal state, displayed as “Completed with warnings” / “完成但有警告”. Watch returns 0 for succeeded and warning; other execution terminals return 1. Results are actual node reports, never reconstructed logs.
+Warning is a terminal state, displayed as “Warning” / “警告”. Watch returns 0 for succeeded and warning; other execution terminals return 1. Results are actual node reports, never reconstructed logs.
 
 Only `{{ nodes.<id>.result }}` references are interpolated, from ancestors in the same round. Strings are inserted verbatim; structured values are JSON. No recursive interpolation or expression evaluation. Missing, expired, incomplete or truncated input fails before Agent submission. Actual rendered instructions are snapshotted.
 
@@ -22,7 +22,7 @@ Only `{{ nodes.<id>.result }}` references are interpolated, from ancestors in th
 
 Both WebUI and `wakeit task apply --file task.yaml` edit the same complete definition through revision-checked, atomic saves. Ordinary tasks retain their existing editor and wire representation.
 
-The full-page DAG editor keeps primary navigation, top-bar breadcrumbs and Task → Time steps. It temporarily replaces the secondary task list. The first step has the task name/output selection, then exactly two panes: graph or node list on the left, selected node form on the right (400px default, resizable). Below 960px available width, list and selected-node configuration become separate single-pane views. The bottom action bar remains visible. Next validates without saving; only Time saves.
+The full-page DAG editor keeps primary navigation, top-bar breadcrumbs and Task → Time steps. It temporarily replaces the secondary task list. The first step has the task name/output selection, then exactly two panes: graph or node list on the left, selected node form on the right (400px default, resizable). Below 960px available width, list and selected-node configuration become separate single-pane views. The bottom action bar remains visible. Task and Time switch freely with incomplete drafts. Next only changes the step; Save validates the complete definition and writes from Time.
 
 Node fields: name, predecessors, instruction/result insertion, Runner, Agent, directory, model; advanced parameters, session and execution timeout. Add, duplicate and delete retain all other drafts. Referenced nodes cannot be deleted until references and explicit output selection are changed. Node IDs remain stable when display names change.
 

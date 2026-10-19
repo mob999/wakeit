@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr, roleName } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { PageActions } from '../PageHeader'
@@ -94,11 +95,7 @@ function MemberRow({
               </Dropdown.Content>
             </Dropdown.Portal>
           </Dropdown.Root>
-          {change.error && (
-            <small className="error" role="alert">
-              {change.error.message}
-            </small>
-          )}
+          {change.error && <ErrorToast>{change.error.message}</ErrorToast>}
         </div>
         <span className="quiet">
           {member.account_active === false
@@ -153,11 +150,7 @@ function MemberRow({
         }
       >
         <div className="modal-body">
-          {update.error && (
-            <p className="error" role="alert">
-              {update.error.message}
-            </p>
-          )}
+          {update.error && <ErrorToast>{update.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={update.isPending} onClick={() => setAction(null)}>
@@ -177,11 +170,7 @@ function MemberRow({
         })}
       >
         <div className="modal-body">
-          {change.error && (
-            <p className="error" role="alert">
-              {change.error.message}
-            </p>
-          )}
+          {change.error && <ErrorToast>{change.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={change.isPending} onClick={() => setProposed(null)}>
@@ -260,11 +249,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
               </select>
             </Field>
           )}
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <ErrorToast>{error}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>
@@ -311,7 +296,7 @@ export function MembersSettings({ user }: { user: User }) {
         ) : !query.data.items.length ? (
           <div className="settings-request content-card">{tr('暂无成员')}</div>
         ) : (
-          <div className="settings-table content-card">
+          <div className="settings-table settings-table-members content-card">
             <div className="settings-member-row settings-table-head table-head">
               <span>{tr('成员')}</span>
               <span>{tr('角色')}</span>

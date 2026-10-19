@@ -1,3 +1,4 @@
+import { ErrorToast } from './Toast'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import {
@@ -273,7 +274,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
           <span>{total}</span>
         </div>
         {error ? (
-          <p className="error">{error.message}</p>
+          <ErrorToast>{error.message}</ErrorToast>
         ) : loading || q !== debounced ? (
           <p className="quiet">{tr('正在加载…')}</p>
         ) : !items.length ? (

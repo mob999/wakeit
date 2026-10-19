@@ -1,3 +1,4 @@
+import { ErrorToast } from './Toast'
 import { t as tr, parameterLabel } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { useState, useId, useEffect } from 'react'
@@ -161,10 +162,10 @@ export function ModelPicker({
         )}
       </div>
       {catalog.error ? (
-        <small className="error" role="alert">
+        <ErrorToast>
           {catalog.error.message}
           {tr('，可手填或重试。')}
-        </small>
+        </ErrorToast>
       ) : agent?.models_supported && catalog.data && !catalog.isFetching && !models.length ? (
         <small>{tr('未返回可选模型，可手填。')}</small>
       ) : !runner?.online && agent?.models_supported ? (

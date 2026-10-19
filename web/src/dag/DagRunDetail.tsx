@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -321,13 +322,13 @@ function NodeExecution({
           {reason || stateNames[state] || t('dag.noExecution')}
         </p>
       ) : execution.error ? (
-        <div className="dag-node-empty error" role="alert">
+        <ErrorToast>
           {execution.error.message}
           <Button onClick={() => execution.refetch()}>
             <RefreshCw size={14} />
             {t('重试')}
           </Button>
-        </div>
+        </ErrorToast>
       ) : !run ? (
         <p className="quiet dag-node-empty">{t('正在加载…')}</p>
       ) : mode === 'trace' ? (

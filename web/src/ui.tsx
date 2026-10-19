@@ -124,6 +124,10 @@ export function Modal({
           className={`modal ${wide ? 'wide' : ''}`}
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={onCloseAutoFocus}
+          onInteractOutside={(event) => {
+            const target = event.detail.originalEvent.target
+            if (target instanceof Element && target.closest('.toast')) event.preventDefault()
+          }}
           {...(!description ? { 'aria-describedby': undefined } : {})}
         >
           <div className="modal-heading">
@@ -170,4 +174,16 @@ export function Field({
       {hint && <small id={`${id}-hint`}>{hint}</small>}
     </div>
   )
+}
+
+export function focusEditorField(root: HTMLElement | null, label: string) {
+  const field = [...(root?.querySelectorAll<HTMLLabelElement>('label') ?? [])]
+    .find((item) => item.textContent?.trim() === label)
+    ?.closest('.field')
+  const control =
+    field?.querySelector<HTMLElement>('input, textarea, button, select') ??
+    root?.querySelector<HTMLElement>('[aria-invalid=true]')
+  const advanced = control?.closest('details')
+  if (advanced) advanced.open = true
+  control?.focus()
 }

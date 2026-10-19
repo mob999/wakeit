@@ -292,9 +292,9 @@ test('one session control auto-inspects, clears errors on selection, and permits
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await manualSession(page, dialog, 'missing-session')
-  await expect(dialog.getByRole('alert')).toHaveText('未找到会话')
+  await expect(page.getByRole('alert')).toHaveText('未找到会话')
   await manualSession(page, dialog, 'fixed-session')
-  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
   await expect.poll(() => data.inspections.length).toBe(3)
   await dialog.getByRole('button', { name: '下一步', exact: true }).click()
   await dialog.getByRole('button', { name: '保存任务', exact: true }).click()

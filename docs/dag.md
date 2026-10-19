@@ -31,7 +31,7 @@ Omit `dag.results` to select all leaves automatically, or specify a nonempty lis
 
 ## State and lifetime
 
-The parent waits for every node to settle. All successful nodes produce `succeeded`. If all selected outputs succeed but another branch fails or skips, the parent is `warning` (Completed with warnings). Any unsuccessful selected output makes it `failed`; AND never bypasses an unsuccessful predecessor. Whole-graph cancellation or timeout takes precedence once all active processes have confirmed termination. `unknown` stays nonterminal, with no completion time, until the actual uncertain nodes are reconciled.
+The parent waits for every node to settle. All successful nodes produce `succeeded`. If all selected outputs succeed but another branch fails or skips, the parent is `warning` (Warning). Any unsuccessful selected output makes it `failed`; AND never bypasses an unsuccessful predecessor. Whole-graph cancellation or timeout takes precedence once all active processes have confirmed termination. `unknown` stays nonterminal, with no completion time, until the actual uncertain nodes are reconciled.
 
 Graph and node timeouts default to one hour. The graph clock starts when the first node is claimed; node timeout can be overridden on that node. Allowed delay is measured from each node becoming ready. Whole-graph overlap defaults to skip. Session locks apply across all Tasks on the same Runner/Agent/Session, including nodes; unknown executions retain their locks.
 
@@ -39,7 +39,7 @@ Pausing cancels scheduled rounds that have not started. Archiving cancels all un
 
 ## WebUI
 
-Tasks → Plus → DAG task opens the dedicated two-step editor. The first step provides a graph or keyboard-accessible node list and the selected node's form. The second step configures scheduling and saves the entire draft. Next validates without writing a Task. Save errors and revision conflicts preserve both steps.
+Tasks → Plus → DAG task opens the dedicated two-step editor. The first step provides a graph or keyboard-accessible node list and the selected node's form. The second step configures scheduling and saves the entire draft. Switching steps does not validate or write a Task; Save validates the complete draft. Save errors and revision conflicts preserve both steps.
 
 Predecessors use searchable multiple selection. “Reference upstream result” lists ancestors only. Output selection defaults to leaves. Copying a node creates a fresh ID; deleting a referenced node is blocked until dependencies, prompt references and output selection are adjusted.
 

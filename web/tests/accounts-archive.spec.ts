@@ -43,7 +43,7 @@ test('members create with guarded submission, reset passwords, disable and enabl
   await dialog.getByLabel('密码', { exact: true }).fill(password)
   await dialog.getByLabel('确认密码', { exact: true }).fill('different-password')
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toHaveText('两次输入的密码不一致')
+  await expect(page.getByRole('alert')).toHaveText('两次输入的密码不一致')
   await dialog.getByLabel('确认密码', { exact: true }).fill(password)
   await expect(dialog.getByRole('combobox', { name: '角色', exact: true })).toHaveText('读写')
   await page.route('**/api/v1/users', (route) =>
@@ -56,7 +56,7 @@ test('members create with guarded submission, reset passwords, disable and enabl
       : route.continue(),
   )
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toHaveText('创建失败')
+  await expect(page.getByRole('alert')).toHaveText('创建失败')
   await expect(dialog.getByLabel('用户名', { exact: true })).toHaveValue(username)
   await page.unroute('**/api/v1/users')
   let creates = 0
@@ -140,7 +140,7 @@ test('members create with guarded submission, reset passwords, disable and enabl
   await dialog.getByLabel('密码', { exact: true }).fill(password)
   await dialog.getByLabel('确认密码', { exact: true }).fill(password)
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toHaveText('username unavailable')
+  await expect(page.getByRole('alert')).toHaveText('username unavailable')
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
   expect((await page.request.get(`/api/v1/users`)).ok()).toBeTruthy()
   await page.screenshot({ path: 'test-results/members-management-light.png', fullPage: true })
@@ -290,7 +290,7 @@ test('archive conflicts and restore failures keep dialogs, settings search finds
   )
   const restore = page.getByRole('dialog', { name: '恢复任务', exact: true })
   await restore.getByRole('button', { name: '恢复', exact: true }).click()
-  await expect(restore.getByRole('alert')).toHaveText('task changed; reload before saving')
+  await expect(page.getByRole('alert')).toHaveText('task changed; reload before saving')
   await restore.getByRole('button', { name: '取消', exact: true }).click()
   await row.locator('.archive-name').click()
   await expect(

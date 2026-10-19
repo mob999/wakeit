@@ -522,7 +522,7 @@
   "dag.graphTimeout": "整图超时",
   "dag.task": "DAG 任务",
   "dag.resultMissing": "未返回结果",
-  "dag.warning": "完成但有警告",
+  "dag.warning": "警告",
   "dag.problems": "查看问题节点",
   "dag.selectedNode": "当前节点",
   "dag.waiting": "等待前置节点",

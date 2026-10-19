@@ -522,7 +522,7 @@
   "dag.graphTimeout": "Graph timeout",
   "dag.task": "DAG task",
   "dag.resultMissing": "No result returned",
-  "dag.warning": "Completed with warnings",
+  "dag.warning": "Warning",
   "dag.problems": "View problem nodes",
   "dag.selectedNode": "Selected node",
   "dag.waiting": "Waiting for predecessors",

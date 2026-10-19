@@ -1,10 +1,11 @@
+import { ErrorToast } from './Toast'
 import { t as tr, parameterLabel } from './i18n'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock, ChevronRight } from 'lucide-react'
 import { api, time, type Task, type TaskConfig, type Runner } from './api'
-import { Button, Field, Modal } from './ui'
+import { Button, Field, Modal, focusEditorField } from './ui'
 import { ChoicePicker } from './ChoicePicker'
 import { AgentLogo } from './AgentLogo'
 import { DirectoryPicker } from './DirectoryPicker'
@@ -30,6 +31,7 @@ export function TaskEditor({
   onClose: () => void
 }) {
   useTranslation()
+  const form = useRef<HTMLFormElement>(null)
   const client = useQueryClient()
   const runners = useQuery<Runner[]>({
     queryKey: ['runners'],
@@ -58,6 +60,7 @@ export function TaskEditor({
         },
   )
   const [error, setError] = useState('')
+  const [focusField, setFocusField] = useState<string | null>(null)
   const [scheduleType, setScheduleType] = useState(
     config.schedule?.every
       ? 'every'
@@ -88,15 +91,19 @@ export function TaskEditor({
       ...(key === 'cwd' && value !== c.cwd ? { session: null } : {}),
       ...(key === 'name' && !task ? { id: createTaskId(value, suffix) } : {}),
     }))
+  function invalid(message: string, field: string): never {
+    throw Object.assign(new Error(message), { field })
+  }
   const validateTask = () => {
-    if (!config.name.trim()) throw new Error(tr('请填写任务名称'))
-    if (!config.prompt.trim()) throw new Error(tr('请填写指令'))
-    if (!selectedRunner || selectedRunner.revoked) throw new Error(tr('请选择 Runner'))
+    if (!config.name.trim()) invalid(tr('请填写任务名称'), tr('任务名称'))
+    if (!config.prompt.trim()) invalid(tr('请填写指令'), tr('指令'))
+    if (!selectedRunner || selectedRunner.revoked) invalid(tr('请选择 Runner'), tr('Runner'))
     const agent = selectedRunner.agents.find((a) => a.id === config.agent)
-    if (!agent) throw new Error(tr('请选择该 Runner 的 Agent'))
-    if (!config.cwd.trim()) throw new Error(tr('请选择工作目录'))
-    if (config.session && !config.session.id.trim()) throw new Error(tr('请填写会话 ID'))
-    if (config.session && !agent.session_supported) throw new Error(tr('该 Agent 不支持绑定会话'))
+    if (!agent) invalid(tr('请选择该 Runner 的 Agent'), tr('Agent'))
+    if (!config.cwd.trim()) invalid(tr('请选择工作目录'), tr('工作目录'))
+    if (config.session && !config.session.id.trim()) invalid(tr('请填写会话 ID'), tr('会话'))
+    if (config.session && !agent.session_supported)
+      invalid(tr('该 Agent 不支持绑定会话'), tr('会话'))
     for (const [key, value] of Object.entries(config.parameters)) {
       const spec = agent.parameters[key]
       if (!spec) throw new Error(tr('未知参数：{{v0}}', { v0: key }))
@@ -108,14 +115,7 @@ export function TaskEditor({
     }
   }
   const advance = () => {
-    if (save.isPending) return
-    try {
-      validateTask()
-      setError('')
-      setStep('time')
-    } catch (e) {
-      setError((e as Error).message)
-    }
+    if (!save.isPending) setStep('time')
   }
   const save = useMutation({
     mutationFn: async () => {
@@ -123,6 +123,7 @@ export function TaskEditor({
         validateTask()
       } catch (e) {
         setStep('task')
+        setFocusField((e as Error & { field?: string }).field ?? '')
         throw e
       }
       try {
@@ -147,6 +148,11 @@ export function TaskEditor({
     },
     onError: (e) => setError(e.message),
   })
+  useEffect(() => {
+    if (focusField === null || save.isPending) return
+    focusEditorField(form.current, focusField)
+    setFocusField(null)
+  }, [focusField, save.isPending, step])
   return (
     <Modal
       open
@@ -180,6 +186,7 @@ export function TaskEditor({
         </button>
       </div>
       <form
+        ref={form}
         noValidate
         onSubmit={(e) => {
           e.preventDefault()
@@ -382,7 +389,7 @@ export function TaskEditor({
                   <div>
                     <span>{tr('接下来的执行时间')}</span>
                     {preview.error ? (
-                      <small className="error">{preview.error.message}</small>
+                      <ErrorToast>{preview.error.message}</ErrorToast>
                     ) : (
                       preview.data?.map((t) => (
                         <small key={t}>
@@ -452,11 +459,7 @@ export function TaskEditor({
           </fieldset>
         </div>
         <div className="modal-footer">
-          {error && (
-            <span className="error" role="alert">
-              {error}
-            </span>
-          )}
+          {error && <ErrorToast>{error}</ErrorToast>}
           <Button type="button" disabled={save.isPending} onClick={onClose}>
             {tr('取消')}
           </Button>

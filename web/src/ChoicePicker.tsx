@@ -1,3 +1,4 @@
+import { ErrorToast } from './Toast'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState, type ReactNode, type KeyboardEvent } from 'react'
@@ -130,6 +131,7 @@ export function ChoicePicker({
   }
   return (
     <Popover.Root open={open && !disabled} onOpenChange={changeOpen}>
+      <ErrorToast error={error} />
       <Popover.Trigger asChild>
         <button
           type="button"
@@ -243,11 +245,8 @@ export function ChoicePicker({
                   </button>
                 ))}
                 {!filteredOptions.length && (error || pending || emptyLabel) && (
-                  <p
-                    className={`choice-empty ${error ? 'error' : ''}`}
-                    role={error ? 'alert' : undefined}
-                  >
-                    {error || (pending ? tr('正在加载…') : emptyLabel)}
+                  <p className="choice-empty">
+                    {error ? null : pending ? tr('正在加载…') : emptyLabel}
                   </p>
                 )}
               </div>

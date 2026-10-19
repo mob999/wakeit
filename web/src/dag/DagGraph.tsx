@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ELK, { type ElkNode } from 'elkjs/lib/elk-api'
@@ -133,6 +134,7 @@ export function DagGraph({
     <section
       className={`dag-structure ${compact ? 'dag-compact' : ''}`}
       aria-label={t('dag.nodes')}
+      data-view={view === 'list' || error ? 'list' : 'graph'}
     >
       <header className="dag-structure-head">
         <strong>{t('dag.nodes')}</strong>
@@ -165,11 +167,7 @@ export function DagGraph({
       </header>
       {view === 'list' || error ? (
         <div className="dag-node-list" role="listbox" aria-label={t('dag.nodes')}>
-          {error && (
-            <p className="quiet padded" role="status">
-              {t('dag.layoutFailed')}
-            </p>
-          )}
+          {error && <ErrorToast error={t('dag.layoutFailed')} />}
           {visible.map((n, index) => (
             <button
               type="button"
@@ -187,7 +185,7 @@ export function DagGraph({
                     ]
                   select(next.id)
                   ;(
-                    e.currentTarget.parentElement?.children[
+                    e.currentTarget.parentElement?.querySelectorAll('[role=option]')[
                       (index + (e.key === 'ArrowDown' ? 1 : -1) + visible.length) % visible.length
                     ] as HTMLElement
                   )?.focus()
