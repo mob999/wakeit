@@ -181,6 +181,11 @@ def verify(api, a, b, check, context):
     many=node('many',text='report');many['prompt']=json.dumps(dict(text='report',trace_count=5300,sleep=0))
     save('dag-many',[many])
     large=finish(start('dag-many'))
+    # Terminal state and durable content travel independently. Wait for this
+    # fixture's known records before asserting pagination, including on slower CI.
+    execution=large['nodes'][0]['execution_id']
+    wait(lambda:int(sql("SELECT count(*) FROM events WHERE run_id='"+execution+"' AND kind='trace'"))>=5300,
+         'large DAG Trace content is persisted',timeout=90)
     cursor=0;count=0
     while True:
         batch=api('/runs/'+large['id']+'/events?kind=trace&after='+str(cursor))
