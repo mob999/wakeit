@@ -7,13 +7,25 @@ export class ApiError extends Error {
     super(message)
   }
 }
+// A document belongs to one workspace. Switching loads a new document, so delayed
+// mutations and queries retain the scope in which they were initiated.
+export const workspaceId = /^\/w\/([0-9a-f-]{36})(?:\/|$)/i.exec(location.pathname)?.[1]
+export const workspaceBase = workspaceId ? `/w/${workspaceId}` : ''
+export function apiUrl(path: string) {
+  const global =
+    /^\/(session(?:$|\?)|meta(?:$|\?)|changelog(?:$|\?)|workspaces(?:$|[/?])|instance\/|oauth\/|auth\/|device-authorizations\/|invites\/(accept|inspect)|register(?:$|\?)|schema\/|openapi\.json)/.test(
+      path,
+    )
+  if (!global && !workspaceId) throw new Error(tr('请选择工作区'))
+  return `/api/v1${global ? '' : `/workspaces/${workspaceId}`}${path}`
+}
 export async function api<T = any>(
   path: string,
   method = 'GET',
   body?: unknown,
   key?: string,
 ): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, {
+  const response = await fetch(apiUrl(path), {
     method,
     credentials: 'same-origin',
     headers: {
@@ -33,7 +45,23 @@ export async function api<T = any>(
     )
   return value
 }
-export type User = { id: string; username: string; role: 'admin' | 'operator' | 'viewer' }
+export type Workspace = {
+  id: string
+  name: string
+  role: 'admin' | 'operator' | 'viewer'
+  is_demo: boolean
+  is_default?: boolean
+}
+export type WorkspaceList = { items: Workspace[]; demo: Workspace | null }
+export type User = {
+  id: string
+  username: string
+  role: 'admin' | 'operator' | 'viewer'
+  instance_admin?: boolean
+  kind?: string
+  workspace_id?: string | null
+  workspace?: Workspace
+}
 export type ParameterSpec = {
   type: 'string'
   label: string
@@ -216,7 +244,7 @@ export const stateNames: Record<string, string> = {
   },
 }
 
-export type Member = User & { active: boolean; created_at: string }
+export type Member = User & { active: boolean; account_active?: boolean; created_at: string }
 export type WorkspaceSettings = {
   timezone: string
   log_retention_days: number

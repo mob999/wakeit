@@ -41,7 +41,7 @@ def main():
     def spawn(name, arguments):
         log = open(root / (name + '.log'), 'ab', buffering=0)
         files.append(log)
-        process = subprocess.Popen([str(a) for a in arguments], cwd=ROOT, env=env, stdout=log, stderr=log)
+        process = subprocess.Popen([str(a) for a in arguments], cwd=ROOT, env=env, stdout=log, stderr=log, start_new_session=True)
         processes.append(process)
         return process
 

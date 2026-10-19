@@ -11,6 +11,7 @@ import { Globe, Users, KeyRound, Archive } from 'lucide-react'
 import { RequestState } from './shared'
 import { WorkspaceSettingsView, draftErrors, type WorkspaceDraft } from './WorkspaceSettings'
 import { MembersSettings } from './MembersSettings'
+import { WorkspaceName } from '../Workspaces'
 import { ArchivedTasks } from './ArchivedTasks'
 import { TokenSettings } from './TokenSettings'
 const toDraft = (s: WorkspaceSettings): WorkspaceDraft => ({
@@ -199,6 +200,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         ) : section === 'workspace' ? (
           <>
             <DetailBody limited>
+              <WorkspaceName user={user} />
               {!draft ? (
                 <RequestState
                   pending={settings.isPending}

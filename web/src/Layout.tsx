@@ -23,6 +23,7 @@ import { PaneResizeHandle } from './PaneResizeHandle'
 import { PageHeaderContext } from './PageHeader'
 import { LanguageSwitch } from './LanguageSwitch'
 import { BrandMark } from './BrandMark'
+import { WorkspaceSwitcher } from './Workspaces'
 import { AgentPrompt, type GatewayMeta } from './onboarding/AgentPrompt'
 import { Changelog } from './Changelog'
 export function Layout({
@@ -120,7 +121,7 @@ export function Layout({
             <div className="top-actions">
               <Changelog version={meta.data?.version} />
               <LanguageSwitch />
-              <AgentPrompt meta={meta.data} />
+              {!user.workspace?.is_demo && <AgentPrompt meta={meta.data} />}
               <IconButton label={tr('切换主题')} onClick={onTheme}>
                 {dark ? <Sun /> : <Moon />}
               </IconButton>
@@ -140,6 +141,15 @@ export function Layout({
                       {user.username}
                       <small>{roleName(user.role)}</small>
                     </Dropdown.Label>
+                    {user.instance_admin && (
+                      <Dropdown.Item
+                        onSelect={() =>
+                          requestLeave().then((allowed) => allowed && location.assign('/instance'))
+                        }
+                      >
+                        {tr('实例账号管理')}
+                      </Dropdown.Item>
+                    )}
                     <Dropdown.Item
                       onSelect={() => requestLeave().then((allowed) => allowed && onLogout())}
                     >
@@ -167,6 +177,7 @@ export function Layout({
               className={`navigation ${collapsed ? 'collapsed' : ''} ${narrow && mobileOpen ? 'navigation-overlay' : ''}`}
               style={narrow && mobileOpen ? { width } : undefined}
             >
+              <WorkspaceSwitcher user={user} collapsed={collapsed} />
               <SearchLauncher collapsed={collapsed} onOpen={() => setMobileOpen(false)} />
               {[
                 { to: '/', icon: Rss, label: tr('Moments') },
@@ -174,21 +185,23 @@ export function Layout({
                 { to: '/runs', icon: History, label: tr('Runs') },
                 { to: '/runners', icon: Monitor, label: tr('Runners') },
                 { to: '/settings', icon: Settings2, label: tr('Settings') },
-              ].map(({ to, icon: Icon, label }) => (
-                <TooltipTarget key={to} label={label} enabled={collapsed}>
-                  <Link
-                    to={to}
-                    aria-label={label}
-                    activeOptions={{ exact: to === '/' }}
-                    className="nav-item"
-                    activeProps={{ className: 'nav-item selected' }}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <Icon size={16} aria-hidden="true" />
-                    <span className="nav-label">{label}</span>
-                  </Link>
-                </TooltipTarget>
-              ))}
+              ]
+                .filter((item) => !user.workspace?.is_demo || item.to !== '/settings')
+                .map(({ to, icon: Icon, label }) => (
+                  <TooltipTarget key={to} label={label} enabled={collapsed}>
+                    <Link
+                      to={to}
+                      aria-label={label}
+                      activeOptions={{ exact: to === '/' }}
+                      className="nav-item"
+                      activeProps={{ className: 'nav-item selected' }}
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      <Icon size={16} aria-hidden="true" />
+                      <span className="nav-label">{label}</span>
+                    </Link>
+                  </TooltipTarget>
+                ))}
               <TooltipTarget label="@mob999/wakeit" enabled={collapsed}>
                 <a
                   className="nav-bottom repository-link"

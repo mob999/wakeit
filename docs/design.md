@@ -127,3 +127,9 @@ HTML 先经 rehype-raw 解析，受限文本样式处理后经 rehype-sanitize �
 mermaid 代码块按需加载 Mermaid，随明暗主题重绘。图表使用 strict 模式，清理后的 SVG 在独立无脚本沙箱内展示；不能覆盖工作台样式或启动页面回调。源码保留在紧凑折叠区；语法或加载失败显示简短状态并保留源码，不影响其余报告。正文和源码不进入本地存储。
 
 参考：[rehype-sanitize](https://github.com/rehypejs/rehype-sanitize)、[remark-math](https://github.com/remarkjs/remark-math)、[Mermaid](https://mermaid.js.org/config/usage.html)。
+
+## Workspace 导航
+
+工作区使用稳定 `/w/{workspace-id}/…` 地址。一级侧栏在搜索上方提供紧凑切换入口，折叠时只显示图标。切换先通过现有未保存保护，再加载目标工作区的新文档；每个文档拥有独立的查询缓存、搜索状态和 SSE，两个标签页不共享“当前工作区”。
+
+工作区成员页只管理成员关系及邀请。全局本地账号的创建、启停与密码管理放在实例管理员专用页面，从账号菜单进入；不授予普通工作区 Admin 全局账号权限。演示区隐藏无效的设置及设备接入操作，服务端仍执行只读限制。
