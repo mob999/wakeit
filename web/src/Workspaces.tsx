@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { Building2, Check, ChevronDown, Plus, LogOut, ArrowUpRight, FileCog } from 'lucide-react'
@@ -245,7 +245,13 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
   )
 }
 
-export function WorkspaceManagement({ user }: { user: User }) {
+export function WorkspaceManagement({
+  user,
+  children,
+}: {
+  user: User
+  children: (name: ReactNode, actions: ReactNode) => ReactNode
+}) {
   useTranslation()
   const client = useQueryClient()
   const controls = useSearchControls()
@@ -274,22 +280,24 @@ export function WorkspaceManagement({ user }: { user: User }) {
   })
   return (
     <>
-      <div className="content-card workspace-name-settings">
-        <div className="setting-row">
+      {children(
+        <div className="setting-row workspace-name-row">
           <span>{tr('工作区名称')}</span>
-          <span className="workspace-current-name">{user.workspace?.name}</span>
-          {editable && (
-            <IconButton
-              label={tr('更改工作区名称')}
-              onClick={() => {
-                save.reset()
-                setOpen(true)
-              }}
-            >
-              <FileCog />
-            </IconButton>
-          )}
-        </div>
+          <div className="workspace-name-value">
+            <span className="workspace-current-name">{user.workspace?.name}</span>
+            {editable && (
+              <IconButton
+                label={tr('更改工作区名称')}
+                onClick={() => {
+                  save.reset()
+                  setOpen(true)
+                }}
+              >
+                <FileCog />
+              </IconButton>
+            )}
+          </div>
+        </div>,
         <div className="workspace-management-actions">
           <Button
             onClick={async () => {
@@ -311,8 +319,8 @@ export function WorkspaceManagement({ user }: { user: User }) {
               {tr('退出工作区')}
             </Button>
           )}
-        </div>
-      </div>
+        </div>,
+      )}
       {create && <CreateWorkspace onClose={() => setCreate(false)} />}
       <Modal
         open={leaving}

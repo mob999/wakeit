@@ -3425,15 +3425,6 @@ input:disabled {
   align-items: center;
   overflow-wrap: anywhere;
 }
-.workspace-name-settings {
-  margin-bottom: 16px;
-}
-.workspace-name-settings .setting-row {
-  padding: 16px;
-}
-.workspace-name-settings input {
-  width: min(280px, 100%);
-}
 @media (max-width: 720px) {
   .workspace-home-body {
     margin-top: 24px;
@@ -3441,7 +3432,7 @@ input:disabled {
   .instance-accounts-body {
     padding: 16px;
   }
-  .workspace-name-settings .setting-row {
+  .workspace-settings .workspace-name-row {
     align-items: stretch;
     gap: 8px;
   }
@@ -3451,7 +3442,7 @@ input:disabled {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.workspace-name-settings .setting-row > .icon-button {
+.workspace-name-value > .icon-button {
   flex: 0 0 auto;
 }
 .workspace-home-header .breadcrumbs {
@@ -3478,3 +3469,18 @@ input:disabled {
 
 .status.warning { color: var(--pending); }
 .status.warning i { background: var(--pending); }
+.workspace-name-value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .workspace-name-value {
+    justify-content: flex-start;
+  }
+  .workspace-name-value .workspace-current-name {
+    margin-left: 0;
+  }
+}
