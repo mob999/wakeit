@@ -121,7 +121,7 @@ export function Layout({
             <div className="top-actions">
               <Changelog version={meta.data?.version} />
               <LanguageSwitch />
-              {!user.workspace?.is_demo && <AgentPrompt meta={meta.data} />}
+              {!user.workspace?.is_demo && <AgentPrompt meta={meta.data} workspace={user.workspace} />}
               <IconButton label={tr('切换主题')} onClick={onTheme}>
                 {dark ? <Sun /> : <Moon />}
               </IconButton>
