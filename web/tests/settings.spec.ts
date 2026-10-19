@@ -127,13 +127,13 @@ test('member pages, last admin, inactive status and failed role changes', async 
   await expect(page.locator('.settings-member-name')).toHaveCount(Math.min(20, totalMembers - 20))
   await page.getByRole('button', { name: '上一页' }).click()
   await page.getByRole('button', { name: 'admin 角色', exact: true }).click()
-  await expect(page.getByRole('menuitemradio', { name: '操作员', exact: true })).toBeDisabled()
+  await expect(page.getByRole('menuitemradio', { name: '读写', exact: true })).toBeDisabled()
   await page.keyboard.press('Escape')
   const inactive = page.locator('.settings-member-row').filter({ hasText: 'inactive-fixture' })
   await inactive.getByRole('button', { name: 'inactive-fixture 角色' }).click()
-  await page.getByRole('menuitemradio', { name: '操作员', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: '读写', exact: true }).click()
   await expect(inactive.getByRole('button', { name: 'inactive-fixture 角色' })).toContainText(
-    '操作员',
+    '读写',
   )
   const members = await (await page.request.get('/api/v1/users')).json()
   const record = members.find((m: any) => m.username === 'inactive-fixture')
@@ -146,16 +146,16 @@ test('member pages, last admin, inactive status and failed role changes', async 
     }),
   )
   await inactive.getByRole('button', { name: 'inactive-fixture 角色' }).click()
-  await page.getByRole('menuitemradio', { name: '查看者', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: '只读', exact: true }).click()
   await expect(inactive.getByText('角色保存失败', { exact: true })).toBeVisible()
   await expect(inactive.getByRole('button', { name: 'inactive-fixture 角色' })).toContainText(
-    '操作员',
+    '读写',
   )
   await page.unroute(`**/api/v1/users/${record.id}`)
   await inactive.getByRole('button', { name: 'inactive-fixture 角色' }).click()
-  await page.getByRole('menuitemradio', { name: '查看者', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: '只读', exact: true }).click()
   await expect(inactive.getByRole('button', { name: 'inactive-fixture 角色' })).toContainText(
-    '查看者',
+    '只读',
   )
   await page.screenshot({ path: 'test-results/settings-members-light.png', fullPage: true })
 })
@@ -177,16 +177,17 @@ test('own downgrade refreshes permissions and invalid sections resolve by role',
   try {
     await page.getByRole('button', { name: '成员' }).click()
     await page.getByRole('button', { name: 'admin 角色', exact: true }).click()
-    await page.getByRole('menuitemradio', { name: '操作员', exact: true }).click()
+    await page.getByRole('menuitemradio', { name: '读写', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '更改自己的角色' })
     await expect(dialog).toBeVisible()
     expect((await (await page.request.get('/api/v1/session')).json()).role).toBe('admin')
     await dialog.getByRole('button', { name: '确认更改' }).click()
-    await expect(page.getByRole('button', { name: '工作区' })).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: /^API Key/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: '工作区', exact: true })).toBeVisible()
+    await expect(page.locator('.workspace-settings')).toBeVisible()
+    await expect(page.locator('.workspace-settings input')).toHaveCount(0)
     await page.goto('/settings?section=members')
-    await expect(page).toHaveURL(/section=tokens/)
-    await expect(page.locator('.settings-category')).toHaveCount(2)
+    await expect(page).toHaveURL(/section=workspace/)
+    await expect(page.locator('.settings-category')).toHaveCount(3)
     await expect(page.getByRole('button', { name: '归档任务', exact: true })).toBeVisible()
   } finally {
     const session = await (
