@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef } from 'react'
@@ -29,7 +30,7 @@ export function RunLogs({
     <div className="log-panel">
       {error && (
         <div className="log-connection" role="status">
-          <span>{tr('日志连接已中断，正在重连')}</span>
+          <ErrorToast error={tr('日志连接已中断，正在重连')} />
           <IconButton label={tr('重新连接日志')} onClick={retry}>
             <RefreshCw />
           </IconButton>

@@ -1,0 +1,38 @@
+version: 1
+id: daily-research
+name: Daily research
+schedule: null
+enabled: true
+execution:
+  timeout: 1h
+  start_grace: 1h
+  overlap: skip
+  misfire: latest
+dag:
+  nodes:
+    - id: sources
+      name: Collect sources
+      runner: my-device
+      agent: pi
+      cwd: /workspace/research
+      prompt: Find primary sources and return a Markdown report with links.
+    - id: changes
+      name: Review changes
+      runner: my-device
+      agent: codex
+      cwd: /workspace/research
+      prompt: Review recent changes and return the findings.
+    - id: report
+      name: Write report
+      pre: [sources, changes]
+      runner: my-device
+      agent: pi
+      cwd: /workspace/research
+      prompt: |
+        Write a concise report based on these results.
+        Sources:
+        {{ nodes.sources.result }}
+        Changes:
+        {{ nodes.changes.result }}
+  # Omit results to select all leaves automatically.
+  results: [report]

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { ErrorToast } from './Toast'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { Building2, Check, ChevronDown, Plus, LogOut, ArrowUpRight, FileCog } from 'lucide-react'
@@ -40,11 +41,7 @@ export function CreateWorkspace({ onClose }: { onClose: () => void }) {
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
-          {create.error && (
-            <p className="error" role="alert">
-              {create.error.message}
-            </p>
-          )}
+          {create.error && <ErrorToast>{create.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={create.isPending} onClick={onClose}>
@@ -198,14 +195,10 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
               <Plus />
             </IconButton>
           </div>
-          {error && (
-            <p className="error card-body" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <ErrorToast>{error}</ErrorToast>}
           {workspaces.error ? (
             <div className="card-body">
-              <p className="error">{workspaces.error.message}</p>
+              <ErrorToast>{workspaces.error.message}</ErrorToast>
               <Button onClick={() => void workspaces.refetch()}>{tr('重试')}</Button>
             </div>
           ) : workspaces.isPending ? (
@@ -245,7 +238,13 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
   )
 }
 
-export function WorkspaceManagement({ user }: { user: User }) {
+export function WorkspaceManagement({
+  user,
+  children,
+}: {
+  user: User
+  children: (name: ReactNode, actions: ReactNode) => ReactNode
+}) {
   useTranslation()
   const client = useQueryClient()
   const controls = useSearchControls()
@@ -274,45 +273,47 @@ export function WorkspaceManagement({ user }: { user: User }) {
   })
   return (
     <>
-      <div className="content-card workspace-name-settings">
-        <div className="setting-row">
+      {children(
+        <div className="setting-row workspace-name-row">
           <span>{tr('工作区名称')}</span>
-          <span className="workspace-current-name">{user.workspace?.name}</span>
-          {editable && (
-            <IconButton
-              label={tr('更改工作区名称')}
-              onClick={() => {
-                save.reset()
-                setOpen(true)
-              }}
-            >
-              <FileCog />
-            </IconButton>
-          )}
-        </div>
-        <div className="workspace-management-actions">
-          <Button
-            onClick={async () => {
-              if (await controls.requestLeave()) setCreate(true)
-            }}
-          >
-            <Plus size={14} />
-            {tr('创建工作区')}
-          </Button>
-          {!user.workspace?.is_demo && (
-            <Button
-              onClick={async () => {
-                if (await controls.requestLeave()) {
-                  leave.reset()
-                  setLeaving(true)
-                }
-              }}
-            >
-              {tr('退出工作区')}
-            </Button>
-          )}
-        </div>
-      </div>
+          <div className="workspace-name-value">
+            <span className="workspace-current-name">{user.workspace?.name}</span>
+            {editable && (
+              <IconButton
+                label={tr('更改工作区名称')}
+                onClick={() => {
+                  save.reset()
+                  setOpen(true)
+                }}
+              >
+                <FileCog />
+              </IconButton>
+            )}
+            {!user.workspace?.is_demo && (
+              <IconButton
+                label={tr('退出工作区')}
+                danger
+                onClick={async () => {
+                  if (await controls.requestLeave()) {
+                    leave.reset()
+                    setLeaving(true)
+                  }
+                }}
+              >
+                <LogOut />
+              </IconButton>
+            )}
+          </div>
+        </div>,
+        <IconButton
+          label={tr('创建工作区')}
+          onClick={async () => {
+            if (await controls.requestLeave()) setCreate(true)
+          }}
+        >
+          <Plus />
+        </IconButton>,
+      )}
       {create && <CreateWorkspace onClose={() => setCreate(false)} />}
       <Modal
         open={leaving}
@@ -323,11 +324,7 @@ export function WorkspaceManagement({ user }: { user: User }) {
         })}
       >
         <div className="modal-body">
-          {leave.error && (
-            <p className="error" role="alert">
-              {leave.error.message}
-            </p>
-          )}
+          {leave.error && <ErrorToast>{leave.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={leave.isPending} onClick={() => setLeaving(false)}>
@@ -360,11 +357,7 @@ export function WorkspaceManagement({ user }: { user: User }) {
                 onChange={(event) => setName(event.target.value)}
               />
             </Field>
-            {save.error && (
-              <p className="error" role="alert">
-                {save.error.message}
-              </p>
-            )}
+            {save.error && <ErrorToast>{save.error.message}</ErrorToast>}
           </div>
           <div className="modal-footer">
             <Button type="button" disabled={save.isPending} onClick={() => setOpen(false)}>

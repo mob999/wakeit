@@ -1,0 +1,17 @@
+.dag-canvas-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px;
+}
+@media (max-width: 600px) {
+  .dag-canvas-controls {
+    top: 12px;
+  }
+}

@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr, roleName } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
@@ -87,7 +88,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
                 </form>
               )}
               {query.isFetching && <p role="status">{tr('正在读取授权请求…')}</p>}
-              {query.error && <p role="alert">{query.error.message}</p>}
+              {query.error && <ErrorToast>{query.error.message}</ErrorToast>}
               {request && (
                 <>
                   <dl className="authorization-fields">
@@ -130,7 +131,9 @@ export function DeviceAuthorization({ user }: { user: User }) {
                       </div>
                     )}
                   </dl>
-                  {denied && <p role="alert">{tr('注册 Runner 需要 Operator 或 Admin 权限。')}</p>}
+                  {denied && (
+                    <ErrorToast>{tr('注册 Runner 需要 Operator 或 Admin 权限。')}</ErrorToast>
+                  )}
                   {request.state !== 'pending' && (
                     <p role="status">
                       {(
@@ -145,7 +148,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
                   )}
                 </>
               )}
-              {error && <p role="alert">{error}</p>}
+              {error && <ErrorToast>{error}</ErrorToast>}
             </>
           )}
         </div>

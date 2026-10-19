@@ -1,6 +1,6 @@
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
-import { useState, useId } from 'react'
+import { useState, useId, useEffect } from 'react'
 import { Folder, ChevronRight } from 'lucide-react'
 import { type Runner } from './api'
 import { Modal } from './ui'
@@ -10,23 +10,28 @@ export function DirectoryPicker({
   runner,
   value,
   onChange,
+  disabled = false,
 }: {
   runner?: Runner
+  disabled?: boolean
   value: string
   onChange: (v: string) => void
 }) {
   useTranslation()
   const id = useId()
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (disabled) setOpen(false)
+  }, [disabled])
   return (
-    <div className="field">
+    <div className="field" data-field="cwd">
       <label htmlFor={id}>{tr('工作目录')}</label>
       <button
         id={id}
         type="button"
         aria-label={tr('选择目录')}
         className="directory-selector"
-        disabled={!runner?.online || !runner.directory_roots?.length}
+        disabled={disabled || !runner?.online || !runner.directory_roots?.length}
         onClick={() => setOpen(true)}
       >
         <Folder size={15} />
@@ -53,7 +58,7 @@ export function DirectoryPicker({
             onCancel={() => setOpen(false)}
             onSelect={(path) => {
               lastDirectory.set(runner.id, path)
-              onChange(path)
+              if (!disabled) onChange(path)
               setOpen(false)
             }}
           />

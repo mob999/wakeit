@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { Monitor, ChevronRight, Clock } from 'lucide-react'
+import { Monitor, ChevronRight, Clock, GitBranch } from 'lucide-react'
+import { t } from '../i18n'
 import { type Agent, type Run, time } from '../api'
 import { Status } from '../Status'
 import { AgentLogo } from '../AgentLogo'
@@ -12,6 +13,16 @@ export function runAgent(run: Pick<Run, 'config'>, agents?: Agent[]) {
 }
 export function RunIdentity({ run, agents }: { run: Pick<Run, 'config'>; agents?: Agent[] }) {
   useTranslation()
+  if (run.config.dag)
+    return (
+      <span className="run-identity">
+        <span className="run-device">
+          <GitBranch size={13} />
+          DAG
+        </span>
+        <span className="quiet">{t('dag.nodeCount', { count: run.config.dag.nodes.length })}</span>
+      </span>
+    )
   return (
     <div className="run-identity">
       <RunDevice run={run} agents={agents} />
