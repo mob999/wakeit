@@ -20,7 +20,7 @@ export const PageHeaderContext = createContext<{
 
 export const PageListViewContext = createContext(false)
 
-export type Breadcrumb = { label: string; onClick?: () => void }
+export type Breadcrumb = { label: string; content?: ReactNode; onClick?: () => void }
 export function PageBreadcrumbs({
   label,
   crumbs = [],
@@ -47,7 +47,7 @@ export function PageBreadcrumbs({
           )}
         </li>
         {crumbs.map((crumb, index) => (
-          <li key={`${index}-${crumb.label}`}>
+          <li key={index}>
             <span className="breadcrumb-separator" aria-hidden="true">
               /
             </span>
@@ -56,18 +56,19 @@ export function PageBreadcrumbs({
               role={index === 0 ? 'heading' : undefined}
               aria-level={index === 0 ? 1 : undefined}
             >
-              {index < crumbs.length - 1 && crumb.onClick ? (
-                <button onClick={crumb.onClick} title={crumb.label}>
-                  {crumb.label}
-                </button>
-              ) : (
-                <span
-                  aria-current={index === crumbs.length - 1 ? 'page' : undefined}
-                  title={crumb.label}
-                >
-                  {crumb.label}
-                </span>
-              )}
+              {crumb.content ??
+                (index < crumbs.length - 1 && crumb.onClick ? (
+                  <button onClick={crumb.onClick} title={crumb.label}>
+                    {crumb.label}
+                  </button>
+                ) : (
+                  <span
+                    aria-current={index === crumbs.length - 1 ? 'page' : undefined}
+                    title={crumb.label}
+                  >
+                    {crumb.label}
+                  </span>
+                ))}
             </span>
           </li>
         ))}

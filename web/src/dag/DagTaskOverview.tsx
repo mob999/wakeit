@@ -1,10 +1,14 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api, type Runner } from '../api'
+import { runnerName } from './identity'
+import { outputs } from './model'
 import { type TaskConfig, type Agent } from '../api'
 import { t } from '../i18n'
-import { ContentCard } from '../ContentCard'
 import { DagGraph } from './DagGraph'
 import { AgentLogo } from '../AgentLogo'
 export function DagTaskOverview({ config, agents }: { config: TaskConfig; agents?: Agent[] }) {
+  const runners = useQuery<Runner[]>({ queryKey: ['runners'], queryFn: () => api('/runners') })
   const [selected, setSelected] = useState(config.dag!.nodes[0]?.id)
   const node = config.dag!.nodes.find((n) => n.id === selected)
   const agent =
@@ -16,6 +20,8 @@ export function DagTaskOverview({ config, agents }: { config: TaskConfig; agents
     <section className="content-card">
       <DagGraph
         compact
+        runners={runners.data}
+        outputIds={outputs(config.dag!)}
         nodes={config.dag!.nodes}
         agents={agents}
         selected={selected}
@@ -27,7 +33,7 @@ export function DagTaskOverview({ config, agents }: { config: TaskConfig; agents
             <dt>{t('dag.field.name')}</dt>
             <dd>{node.name}</dd>
             <dt>{t('Runner')}</dt>
-            <dd>{agent?.runner ?? node.runner}</dd>
+            <dd>{runnerName(node, runners.data ?? [], agents ?? [])}</dd>
             <dt>{t('Agent')}</dt>
             <dd>
               <span className="run-agent">

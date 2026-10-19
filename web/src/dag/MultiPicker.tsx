@@ -1,7 +1,15 @@
-import { useState } from 'react'
-import * as Popover from '@radix-ui/react-popover'
-import { Check, ChevronDown, Search } from 'lucide-react'
+import { ChoicePicker } from '../ChoicePicker'
+import { IconButton } from '../ui'
+import { X } from 'lucide-react'
 import { t } from '../i18n'
+export type NodeOption = {
+  id: string
+  name: string
+  description?: string
+  keywords?: string
+  disabled?: boolean
+  reason?: string
+}
 export function MultiPicker({
   label,
   value,
@@ -9,108 +17,60 @@ export function MultiPicker({
   disabled = false,
   onChange,
   empty,
+  minimum = 0,
+  chips = false,
 }: {
   label: string
   value: string[]
-  options: { id: string; name: string; disabled?: boolean; reason?: string }[]
+  options: NodeOption[]
   disabled?: boolean
   onChange: (ids: string[]) => void
   empty?: string
+  minimum?: number
+  chips?: boolean
 }) {
-  const [search, setSearch] = useState(''),
-    [open, setOpen] = useState(false)
+  const toggle = (id: string) =>
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id])
   return (
-    <Popover.Root
-      open={open && !disabled}
-      onOpenChange={(v) => {
-        setOpen(v)
-        setSearch('')
-      }}
-    >
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          className="model-selector choice-selector"
-          role="combobox"
-          aria-expanded={open && !disabled}
-          aria-label={label}
-          disabled={disabled}
-        >
-          <span className="choice-label">
-            {value.length
-              ? value.map((id) => options.find((n) => n.id === id)?.name || id).join(', ')
-              : (empty ?? t('dag.selectNodes'))}
-          </span>
-          <ChevronDown size={14} />
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          className="model-popover choice-popover"
-          align="start"
-          sideOffset={4}
-          collisionPadding={12}
-        >
-          <div className="model-search">
-            <Search size={14} />
-            <input
-              aria-label={t('dag.search')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div
-            className="model-options"
-            role="listbox"
-            aria-label={label}
-            aria-multiselectable="true"
-          >
-            {options
-              .filter((n) => n.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
-              .map((n) => (
-                <button
-                  type="button"
-                  role="option"
-                  key={n.id}
-                  aria-selected={value.includes(n.id)}
-                  disabled={disabled || n.disabled}
-                  title={n.reason}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                      e.preventDefault()
-                      const buttons = [
-                        ...e.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>(
-                          'button:not(:disabled)',
-                        ),
-                      ]
-                      buttons[
-                        (buttons.indexOf(e.currentTarget) +
-                          (e.key === 'ArrowDown' ? 1 : -1) +
-                          buttons.length) %
-                          buttons.length
-                      ]?.focus()
-                    }
-                  }}
-                  onClick={() =>
-                    !disabled &&
-                    onChange(
-                      value.includes(n.id) ? value.filter((id) => id !== n.id) : [...value, n.id],
-                    )
-                  }
-                >
-                  <span className="choice-option-label">
-                    {n.name}
-                    {n.reason && <small>{n.reason}</small>}
-                  </span>
-                  <span className="choice-option-meta">
-                    {value.includes(n.id) && <Check size={13} />}
-                  </span>
-                </button>
-              ))}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+    <div className="dag-multi-picker">
+      <ChoicePicker
+        label={label}
+        searchable
+        value={value[0] ?? ''}
+        selectionLabel={
+          value.length
+            ? value.map((id) => options.find((o) => o.id === id)?.name || id).join(', ')
+            : empty || t('dag.selectNodes')
+        }
+        disabled={disabled}
+        multiple={value}
+        minimum={minimum}
+        onToggle={toggle}
+        onChange={() => {}}
+        options={options.map((o) => ({
+          value: o.id,
+          label: o.name,
+          description: [o.description, o.reason].filter(Boolean).join(' · '),
+          keywords: o.keywords || o.id,
+          disabled: o.disabled,
+        }))}
+      />
+      {chips && value.length > 0 && (
+        <div className="dag-predecessors">
+          {value.map((id) => (
+            <div key={id}>
+              <span>{options.find((o) => o.id === id)?.name || id}</span>
+              <IconButton
+                label={t('dag.removePre', { name: options.find((o) => o.id === id)?.name || id })}
+                disabled={disabled || value.length <= minimum}
+                onClick={() => toggle(id)}
+              >
+                <X />
+              </IconButton>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

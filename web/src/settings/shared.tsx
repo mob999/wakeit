@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
@@ -13,19 +14,21 @@ export function RequestState({
   retry: () => void
 }) {
   useTranslation()
-  return (
-    <div className="settings-request content-card" role={error ? 'alert' : 'status'}>
-      {error ? (
-        <>
-          <span>{error.message}</span>
+  if (error)
+    return (
+      <>
+        <ErrorToast error={error} />
+        <div className="settings-request content-card">
           <Button onClick={retry}>
             <RefreshCw size={14} />
             {tr('重试')}
           </Button>
-        </>
-      ) : pending ? (
-        tr('正在加载…')
-      ) : null}
+        </div>
+      </>
+    )
+  return (
+    <div className="settings-request content-card" role="status">
+      {pending ? tr('正在加载…') : null}
     </div>
   )
 }
@@ -60,11 +63,7 @@ export function SecretValue({ label, value }: { label: string; value: string }) 
           {copied ? <Check /> : <Copy />}
         </IconButton>
       </div>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <ErrorToast>{error}</ErrorToast>}
     </>
   )
 }

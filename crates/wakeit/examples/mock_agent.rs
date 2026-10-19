@@ -208,6 +208,12 @@ fn main() -> Result<()> {
                     json!({"stream":"stdout","text":format!("检查 {n}\n")}),
                 )?;
             }
+            for n in 0..options["trace_count"].as_u64().unwrap_or(0).min(6000) {
+                send(
+                    "trace",
+                    json!({"id":format!("message-{n}"),"kind":"message","status":"succeeded","title":"Fixture message","input":null,"output":"fixture","occurred_at":start,"finished_at":start}),
+                )?;
+            }
             let bytes = options["log_bytes"]
                 .as_u64()
                 .unwrap_or(0)

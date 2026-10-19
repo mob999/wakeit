@@ -442,5 +442,5 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
 }
 
 pub async fn summaries(pool: &PgPool, workspace: Uuid, id: Uuid) -> Result<Vec<Value>> {
-    Ok(sqlx::query_scalar("SELECT n.config || jsonb_build_object('execution_id',n.execution_id,'state',COALESCE(r.state,n.state),'reason',COALESCE(r.reason,n.reason),'started_at',COALESCE(r.started_at,n.started_at),'finished_at',COALESCE(r.finished_at,n.finished_at)) FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.workspace_id=$1 AND n.parent_run_id=$2 ORDER BY n.position").bind(workspace).bind(id).fetch_all(pool).await?)
+    Ok(sqlx::query_scalar("SELECT n.config || jsonb_build_object('execution_id',n.execution_id,'continuation_available',(COALESCE(r.session->>'ready'='true',false) AND COALESCE(length(r.session->>'command')>0,false)),'state',COALESCE(r.state,n.state),'reason',COALESCE(r.reason,n.reason),'started_at',COALESCE(r.started_at,n.started_at),'finished_at',COALESCE(r.finished_at,n.finished_at)) FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.workspace_id=$1 AND n.parent_run_id=$2 ORDER BY n.position").bind(workspace).bind(id).fetch_all(pool).await?)
 }
