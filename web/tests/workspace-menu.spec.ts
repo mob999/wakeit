@@ -45,6 +45,13 @@ for (const [role, label, english] of [
     const calls = await fixture(page, role)
     await page.goto(workspacePage('/settings?section=workspace'))
     await expect(page.getByRole('link', { name: '设置', exact: true })).toBeVisible()
+    await expect(page.locator('.workspace-name-settings')).toHaveCount(0)
+    await expect(page.locator('.workspace-settings .workspace-name-row')).toContainText(
+      'Workspace Preview',
+    )
+    await expect(
+      page.locator('.workspace-settings').getByRole('button', { name: '创建工作区', exact: true }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: '创建工作区', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '退出工作区', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '更改工作区名称', exact: true })).toHaveCount(
