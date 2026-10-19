@@ -1,29 +1,17 @@
-import { t as tr, roleName } from './i18n'
+import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import {
-  ListTodo,
-  Rss,
-  History,
-  Monitor,
-  Settings2,
-  Sun,
-  Moon,
-  ChevronDown,
-  LogOut,
-  PanelLeft,
-} from 'lucide-react'
+import { ListTodo, Rss, History, Monitor, Settings2, Sun, Moon, PanelLeft } from 'lucide-react'
 import { api, type User } from './api'
 import { IconButton, TooltipTarget } from './ui'
-import { SearchLauncher, useSearchControls } from './Search'
+import { SearchLauncher } from './Search'
 import { PaneResizeHandle } from './PaneResizeHandle'
 import { PageHeaderContext } from './PageHeader'
 import { LanguageSwitch } from './LanguageSwitch'
 import { BrandMark } from './BrandMark'
-import { WorkspaceSwitcher } from './Workspaces'
+import { WorkspaceAccountMenu } from './Workspaces'
 import { AgentPrompt, type GatewayMeta } from './onboarding/AgentPrompt'
 import { Changelog } from './Changelog'
 export function Layout({
@@ -40,7 +28,6 @@ export function Layout({
   children: ReactNode
 }) {
   useTranslation()
-  const { requestLeave } = useSearchControls()
   const [breadcrumbs, setBreadcrumbs] = useState<HTMLDivElement | null>(null)
   const [actions, setActions] = useState<HTMLDivElement | null>(null)
   const meta = useQuery<GatewayMeta>({
@@ -121,44 +108,13 @@ export function Layout({
             <div className="top-actions">
               <Changelog version={meta.data?.version} />
               <LanguageSwitch />
-              {!user.workspace?.is_demo && <AgentPrompt meta={meta.data} workspace={user.workspace} />}
+              {!user.workspace?.is_demo && (
+                <AgentPrompt meta={meta.data} workspace={user.workspace} />
+              )}
               <IconButton label={tr('切换主题')} onClick={onTheme}>
                 {dark ? <Sun /> : <Moon />}
               </IconButton>
-              <Dropdown.Root>
-                <TooltipTarget label={`${user.username} (${roleName(user.role)})`}>
-                  <Dropdown.Trigger asChild>
-                    <button className="user-menu" aria-label={tr('用户菜单')}>
-                      <span className="avatar">{user.username[0].toUpperCase()}</span>
-                      <span className="user-name">{user.username}</span>
-                      <ChevronDown size={12} aria-hidden="true" />
-                    </button>
-                  </Dropdown.Trigger>
-                </TooltipTarget>
-                <Dropdown.Portal>
-                  <Dropdown.Content className="dropdown" align="end">
-                    <Dropdown.Label className="user-menu-label">
-                      {user.username}
-                      <small>{roleName(user.role)}</small>
-                    </Dropdown.Label>
-                    {user.instance_admin && (
-                      <Dropdown.Item
-                        onSelect={() =>
-                          requestLeave().then((allowed) => allowed && location.assign('/instance'))
-                        }
-                      >
-                        {tr('实例账号管理')}
-                      </Dropdown.Item>
-                    )}
-                    <Dropdown.Item
-                      onSelect={() => requestLeave().then((allowed) => allowed && onLogout())}
-                    >
-                      <LogOut size={14} />
-                      {tr('退出登录')}
-                    </Dropdown.Item>
-                  </Dropdown.Content>
-                </Dropdown.Portal>
-              </Dropdown.Root>
+              <WorkspaceAccountMenu user={user} onLogout={onLogout} />
             </div>
           </div>
         </header>
@@ -177,7 +133,6 @@ export function Layout({
               className={`navigation ${collapsed ? 'collapsed' : ''} ${narrow && mobileOpen ? 'navigation-overlay' : ''}`}
               style={narrow && mobileOpen ? { width } : undefined}
             >
-              <WorkspaceSwitcher user={user} collapsed={collapsed} />
               <SearchLauncher collapsed={collapsed} onOpen={() => setMobileOpen(false)} />
               {[
                 { to: '/', icon: Rss, label: tr('Moments') },

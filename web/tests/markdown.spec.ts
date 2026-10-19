@@ -1,3 +1,4 @@
+import { workspacePage, apiPath, mockWorkspace } from './workspace'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 
 const id = '22222222-3333-4444-8555-666666666666'
@@ -49,8 +50,9 @@ async function fixture(page: Page, text = report) {
     },
   }
   await page.route('**/api/v1/**', async (route) => {
+    if (await mockWorkspace(route, 'admin')) return
     const url = new URL(route.request().url())
-    const path = url.pathname.replace('/api/v1', '')
+    const path = apiPath(url.pathname)
     if (path === '/session')
       return route.fulfill({ json: { id: 'tester', username: 'tester', role: 'admin' } })
     if (path === '/meta') return route.fulfill({ json: { version: '0.1.0' } })
@@ -143,7 +145,7 @@ test('Run results, trace messages and Moments share syntax, math, HTML and Merma
   page,
 }) => {
   await fixture(page)
-  await page.goto(`/runs?run=${id}`)
+  await page.goto(workspacePage(`/runs?run=${id}`))
   const result = page.locator('.run-result-panel .markdown-result')
   await assertReport(result)
   const diagram = result.locator('iframe[title="Mermaid 图表"]')
@@ -154,7 +156,7 @@ test('Run results, trace messages and Moments share syntax, math, HTML and Merma
   await expect(diagram.contentFrame().locator('body')).toContainText('结果')
   await page.getByRole('button', { name: '过程', exact: true }).click()
   await assertReport(page.locator('.trace-message'))
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await page.locator('.moment-card').getByRole('button', { name: '阅读全文', exact: true }).click()
   await assertReport(page.locator('.moment-report'))
   await expect(page.locator('.moment-report iframe')).toBeVisible()
@@ -168,7 +170,7 @@ test('raw HTML and diagram input cannot inject scripts, links or layout CSS; raw
   page.on('request', (request) => {
     if (request.url().includes('invalid.example')) probes.push(request.url())
   })
-  await page.goto(`/runs?run=${id}`)
+  await page.goto(workspacePage(`/runs?run=${id}`))
   const result = page.locator('.run-result-panel .markdown-result')
   await expect(
     result.locator('script, style, iframe:not([sandbox]), [onclick], a[href^="javascript:"]'),
@@ -189,7 +191,7 @@ test('malformed diagrams and formulas retain readable source without breaking th
     page,
     '# 仍可阅读\n\n```mermaid\nflowchart LR\nA[未闭合\n```\n\n$$\n\\notarealcommand{a}\n$$\n\n结尾正文',
   )
-  await page.goto(`/runs?run=${id}`)
+  await page.goto(workspacePage(`/runs?run=${id}`))
   const result = page.locator('.run-result-panel .markdown-result')
   await expect(result.getByRole('heading', { name: '仍可阅读' })).toBeVisible()
   await expect(result.getByText('图表无法渲染', { exact: true })).toBeVisible({ timeout: 30000 })
@@ -204,7 +206,7 @@ test('Markdown extensions follow light and dark themes without overflowing 390px
   page,
 }) => {
   await fixture(page)
-  await page.goto(`/runs?run=${id}`)
+  await page.goto(workspacePage(`/runs?run=${id}`))
   for (const [width, theme] of [
     [1440, 'light'],
     [1440, 'dark'],
@@ -241,7 +243,7 @@ test('diagram dependencies load only when needed and download failures preserve 
     if (/\/mermaid\.js(?:\?|$)|\/assets\/mermaid(?:\.core)?-[^/]+\.js/.test(request.url()))
       loads.push(request.url())
   })
-  await page.goto(`/runs?run=${id}`)
+  await page.goto(workspacePage(`/runs?run=${id}`))
   await expect(page.locator('.run-result-panel .markdown-result h1')).toHaveText('普通报告')
   expect(loads).toEqual([])
   await page.unrouteAll({ behavior: 'wait' })

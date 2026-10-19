@@ -120,6 +120,8 @@ Run.session增加可空command，为Runner执行时生成的原生Agent续聊命
 
 ## Device authorization
 
+GitHub login is configured per Gateway. `GET /api/v1/auth/github/start?return_to=/…` starts an authorization-code flow with S256 PKCE and a short-lived browser-binding cookie. `GET /api/v1/auth/github/callback` consumes the state once, verifies the immutable GitHub account ID and establishes a global Wakeit browser session. These routes request no repository/email scope and never return GitHub tokens. `/meta` exposes `auth.mode` and `auth.allow_registration`, never credentials. See [Workspace deployment](workspaces.md) for configuration and demo isolation.
+
 `GET /api/v1/meta` adds `public_url` and `install` (explicit preview release, manifest, checksums and package base URL). No secrets are included. The topbar Agent Prompt uses this configured origin.
 
 Device-flow endpoints accept JSON. `POST /oauth/device/code` accepts `{workspace_id,name,os,register_runner,allowed_roots}` and returns `device_code,user_code,verification_uri,verification_uri_complete,expires_in:600,interval:5`. `POST /oauth/token` accepts `{grant_type:"urn:ietf:params:oauth:grant-type:device_code",device_code}`. Errors include `authorization_pending`, `slow_down` (increase interval by five seconds), `access_denied`, `expired_token`, `invalid_grant`. A successful exchange returns `access_token,token_type,user` once; loss before local persistence requires reauthorization.

@@ -40,7 +40,7 @@ async fn list(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
         ));
     }
     let items:Vec<Value>=sqlx::query_scalar("SELECT jsonb_build_object('id',w.id,'name',w.name,'role',m.role,'is_demo',w.is_demo,'is_default',w.is_default) FROM workspaces w JOIN workspace_members m ON m.workspace_id=w.id WHERE m.user_id=$1 AND m.active AND NOT w.is_demo ORDER BY w.created_at,w.id").bind(u.id).fetch_all(&s.pool).await?;
-    let demo:Option<Value>=sqlx::query_scalar("SELECT jsonb_build_object('id',id,'name',name,'role','viewer','is_demo',true) FROM workspaces WHERE is_demo").fetch_optional(&s.pool).await?;
+    let demo:Option<Value>=sqlx::query_scalar("SELECT jsonb_build_object('id',id,'name',name,'role','viewer','is_demo',true) FROM workspaces WHERE is_demo AND EXISTS(SELECT 1 FROM user_identities WHERE user_id=$1 AND provider='github')").bind(u.id).fetch_optional(&s.pool).await?;
     Ok(Json(json!({"items":items,"demo":demo})))
 }
 #[derive(Deserialize)]
@@ -137,6 +137,9 @@ async fn update(
     ApiJson(b): ApiJson<Member>,
 ) -> Result<Json<Value>> {
     let u = user(&s, &scoped(h, workspace), "admin", true).await?;
+    if b.role.as_deref().is_some_and(|role| auth::role(role) == 0) {
+        return Err(Error::bad("invalid role"));
+    }
     workspaces::update_member(
         &s.pool,
         &u.credential,
@@ -179,7 +182,8 @@ async fn accept_invite(
     h: HeaderMap,
     ApiJson(b): ApiJson<Invitation>,
 ) -> Result<Json<Value>> {
-    let existing = if crate::api::cookie(&h).is_some() || h.contains_key("authorization") {
+    let existing = if crate::api::cookie(&s.config, &h).is_some() || h.contains_key("authorization")
+    {
         Some(user(&s, &h, "viewer", true).await?)
     } else {
         None

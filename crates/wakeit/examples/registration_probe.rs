@@ -7,6 +7,11 @@ async fn main() -> Result<()> {
     let base = args.next().expect("Gateway");
     let token_file = args.next().expect("private key file");
     let root = args.next().expect("root");
+    let workspace: uuid::Uuid = args
+        .next()
+        .or_else(|| std::env::var("WAKEIT_TEST_WORKSPACE").ok())
+        .expect("workspace UUID")
+        .parse()?;
     let token = std::fs::read_to_string(token_file)?;
     let client = reqwest::Client::new();
     let key = nkeys::KeyPair::new_user();
@@ -21,7 +26,9 @@ async fn main() -> Result<()> {
     };
     let post = |body: Value| {
         client
-            .post(format!("{base}/api/v1/runners/connect"))
+            .post(format!(
+                "{base}/api/v1/workspaces/{workspace}/runners/connect"
+            ))
             .bearer_auth(token.trim())
             .json(&body)
             .send()

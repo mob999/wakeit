@@ -59,7 +59,7 @@ export function CreateWorkspace({ onClose }: { onClose: () => void }) {
   )
 }
 
-export function WorkspaceSwitcher({ user, collapsed }: { user: User; collapsed: boolean }) {
+export function WorkspaceAccountMenu({ user, onLogout }: { user: User; onLogout: () => void }) {
   useTranslation()
   const client = useQueryClient()
   const controls = useSearchControls()
@@ -81,24 +81,23 @@ export function WorkspaceSwitcher({ user, collapsed }: { user: User; collapsed: 
   return (
     <>
       <Dropdown.Root>
-        <TooltipTarget label={user.workspace?.name ?? tr('工作区')} enabled={collapsed}>
+        <TooltipTarget label={`${user.username} (${roleName(user.role)})`}>
           <Dropdown.Trigger asChild>
-            <button
-              className={`workspace-switcher ${collapsed ? 'is-collapsed' : ''}`}
-              aria-label={tr('切换工作区')}
-            >
-              <Building2 size={16} />
-              {!collapsed && (
-                <>
-                  <span>{user.workspace?.name}</span>
-                  <ChevronDown size={12} />
-                </>
-              )}
+            <button className="user-menu" aria-label={tr('用户菜单')}>
+              <span className="user-name">{user.username}</span>
+              <ChevronDown size={12} aria-hidden="true" />
             </button>
           </Dropdown.Trigger>
         </TooltipTarget>
         <Dropdown.Portal>
-          <Dropdown.Content className="dropdown workspace-menu" align="start">
+          <Dropdown.Content className="dropdown workspace-menu" align="end">
+            <Dropdown.Label className="user-menu-label">
+              {user.username}
+              <small>
+                {user.workspace?.name} — {roleName(user.role)}
+              </small>
+            </Dropdown.Label>
+            <Dropdown.Label className="workspace-menu-label">{tr('工作区')}</Dropdown.Label>
             {workspaces.isPending && <Dropdown.Item disabled>{tr('加载中…')}</Dropdown.Item>}
             {workspaces.error && (
               <Dropdown.Item onSelect={() => void workspaces.refetch()}>{tr('重试')}</Dropdown.Item>
@@ -134,6 +133,21 @@ export function WorkspaceSwitcher({ user, collapsed }: { user: User; collapsed: 
                 {tr('退出工作区')}
               </Dropdown.Item>
             )}
+            {user.instance_admin && (
+              <Dropdown.Item
+                onSelect={() =>
+                  controls.requestLeave().then((allowed) => allowed && location.assign('/instance'))
+                }
+              >
+                {tr('实例账号管理')}
+              </Dropdown.Item>
+            )}
+            <Dropdown.Item
+              onSelect={() => controls.requestLeave().then((allowed) => allowed && onLogout())}
+            >
+              <LogOut size={14} />
+              {tr('退出登录')}
+            </Dropdown.Item>
           </Dropdown.Content>
         </Dropdown.Portal>
       </Dropdown.Root>
@@ -241,13 +255,8 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
                   <ArrowUpRight size={14} />
                 </a>
               ))}
-              {!workspaces.data.items.length && (
-                <div className="card-body">
-                  <Button onClick={() => setCreate(true)}>
-                    <Plus size={14} />
-                    {tr('创建工作区')}
-                  </Button>
-                </div>
+              {!workspaces.data.items.length && !workspaces.data.demo && (
+                <div className="card-body quiet">{tr('暂无工作区')}</div>
               )}
               {workspaces.data.demo && (
                 <a className="workspace-home-row" href={`/w/${workspaces.data.demo.id}/`}>

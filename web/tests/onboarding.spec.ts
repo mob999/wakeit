@@ -1,3 +1,4 @@
+import { workspacePage, apiPath, mockWorkspace, fixtureWorkspace } from './workspace'
 import { test, expect, type Page } from '@playwright/test'
 const meta = {
   version: '0.1.1',
@@ -12,8 +13,9 @@ const meta = {
 }
 async function fixture(page: Page, role = 'operator', loggedIn = true) {
   const calls: string[] = []
-  await page.route('**/api/v1/**', (route) => {
-    const path = new URL(route.request().url()).pathname.replace('/api/v1', '')
+  await page.route('**/api/v1/**', async (route) => {
+    if (await mockWorkspace(route, role)) return
+    const path = apiPath(new URL(route.request().url()).pathname)
     if (path === '/session') {
       if (route.request().method() === 'POST') {
         loggedIn = true
@@ -43,8 +45,10 @@ async function fixture(page: Page, role = 'operator', loggedIn = true) {
       return route.fulfill({
         json: {
           gateway: meta.public_url,
+          workspace_id: fixtureWorkspace, workspace: 'Default', role,
           state: 'pending',
           intent: {
+            workspace_id: fixtureWorkspace,
             name: 'dev-mac',
             os: 'macos',
             register_runner: true,
@@ -70,7 +74,7 @@ test('topbar Prompt copies configured Gateway and verified public installation i
       },
     })
   })
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await page.getByRole('button', { name: '复制 Agent Prompt' }).click()
   const text = await page.evaluate(() => (window as any).copiedPrompt as string)
   expect(text).toContain(meta.public_url)
@@ -95,7 +99,7 @@ test('clipboard rejection has manual copy without changing Prompt content', asyn
       },
     }),
   )
-  await page.goto('/')
+  await page.goto(workspacePage('/'))
   await page.getByRole('button', { name: '复制 Agent Prompt' }).click()
   await expect(page.getByRole('dialog', { name: 'Agent Prompt' })).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Agent Prompt' })).toContainText(meta.public_url)
@@ -104,7 +108,7 @@ test('device consent requires explicit action and preserves verification after l
   page,
 }) => {
   const calls = await fixture(page, 'operator', false)
-  await page.goto('/authorize/device?user_code=ABCD2345')
+  await page.goto(workspacePage('/authorize/device?user_code=ABCD2345'))
   await page.getByLabel('用户名').fill('tester')
   await page.getByLabel('密码', { exact: true }).fill('fixture-password')
   await page.getByRole('button', { name: '登录工作区' }).click()
@@ -117,14 +121,14 @@ test('device consent requires explicit action and preserves verification after l
 })
 test('Viewer cannot consent to Runner registration and can reject', async ({ page }) => {
   const calls = await fixture(page, 'viewer')
-  await page.goto('/authorize/device?user_code=ABCD2345')
+  await page.goto(workspacePage('/authorize/device?user_code=ABCD2345'))
   await expect(page.getByRole('button', { name: '授权', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '取消', exact: true }).click()
   expect(calls).toEqual(['/device-authorizations/ABCD2345/deny'])
 })
 test('authorization can switch language without approving the request', async ({ page }) => {
   const calls = await fixture(page, 'viewer')
-  await page.goto('/authorize/device?user_code=ABCD2345')
+  await page.goto(workspacePage('/authorize/device?user_code=ABCD2345'))
   await page.getByRole('button', { name: '切换到英文' }).click()
   await expect(page.getByRole('dialog', { name: 'Connect Wakeit CLI' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Authorize', exact: true })).toBeDisabled()
@@ -138,7 +142,7 @@ test('consent fits light/dark narrow and desktop layouts', async ({ page }) => {
     for (const theme of ['light', 'dark']) {
       await page.setViewportSize({ width, height: 900 })
       await page.addInitScript((t) => localStorage.setItem('wakeit-theme', t), theme)
-      await page.goto('/authorize/device?user_code=ABCD2345')
+      await page.goto(workspacePage('/authorize/device?user_code=ABCD2345'))
       await expect(page.getByText('ABCD2345', { exact: true })).toBeVisible()
       const box = await page.getByRole('dialog').boundingBox()
       expect(box!.x).toBeGreaterThanOrEqual(0)

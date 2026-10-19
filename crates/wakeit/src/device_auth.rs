@@ -90,7 +90,7 @@ async fn limit(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, key: &str, max: i
     Ok(())
 }
 async fn browser(s: &App, h: &HeaderMap, write: bool) -> Result<User> {
-    if h.contains_key(header::AUTHORIZATION) || super::api::cookie(h).is_none() {
+    if h.contains_key(header::AUTHORIZATION) || super::api::cookie(&s.config, h).is_none() {
         return Err(Error(
             StatusCode::UNAUTHORIZED,
             "Web session required".into(),
@@ -183,7 +183,7 @@ async fn details(
         .bind(code_hash(&code)?)
         .fetch_optional(&mut *tx)
         .await?
-        .ok_or_else(|| Error::bad("invalid verification code"))?;
+        .ok_or_else(|| Error(StatusCode::NOT_FOUND, "invalid verification code".into()))?;
     tx.commit().await?;
     let member = browser(&s, &scoped(h, ws), false).await?;
     let mut v = v;
@@ -290,10 +290,10 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
         return Ok(oauth_error("invalid_grant"));
     };
     let mut tx = s.pool.begin().await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
     let row=sqlx::query("SELECT *,expires_at>now() AS valid, last_poll IS NOT NULL AND last_poll>now()-make_interval(secs=>poll_interval) AS too_fast FROM device_grants WHERE device_hash=$1 FOR UPDATE").bind(auth::hash(&b.device_code)).fetch_optional(&mut *tx).await?;
     let Some(row) = row else {
         return Ok(oauth_error("invalid_grant"));

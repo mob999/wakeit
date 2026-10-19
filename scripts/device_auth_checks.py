@@ -4,7 +4,8 @@ from integration import ROOT,BIN
 from integration import call,expect_status,APIError
 
 def verify(api,base,other,sql,tokens,check):
-    intent={'name':'device-flow-fixture','os':'test','register_runner':True,'allowed_roots':['/tmp/测试 workspace']}
+    workspace=os.environ['WAKEIT_TEST_WORKSPACE']
+    intent={'workspace_id':workspace,'name':'device-flow-fixture','os':'test','register_runner':True,'allowed_roots':['/tmp/测试 workspace']}
     def create(i=None):return call(base,'/api/v1/oauth/device/code','POST',i or intent)
     def browser(token):return {'Cookie':'wakeit_session='+token,'X-Wakeit-Request':'1','Origin':base}
     def decide(g,token,allow=True,gateway=other):return call(gateway,'/api/v1/device-authorizations/'+g['user_code']+('/approve' if allow else '/deny'),'POST',{},headers=browser(token))
@@ -34,8 +35,8 @@ def verify(api,base,other,sql,tokens,check):
     error(lambda:poll(expired),'expired_token');expect_status(lambda:decide(expired,tokens['operator']),400)
     viewer=create(dict(intent,register_runner=False,allowed_roots=[]));decide(viewer,tokens['viewer']);viewer_key=poll(viewer)['access_token'];assert call(base,'/api/v1/session',token=viewer_key)['role']=='viewer'
     expect_status(lambda:call(base,'/api/v1/runners/enrollment','POST',{},viewer_key),403)
-    downgraded=create();decide(downgraded,tokens['operator']);sql("UPDATE users SET role='viewer' WHERE username='operator'")
-    error(lambda:poll(downgraded),'access_denied');sql("UPDATE users SET role='operator' WHERE username='operator'")
+    downgraded=create();decide(downgraded,tokens['operator']);sql(f"UPDATE workspace_members SET role='viewer' WHERE workspace_id='{workspace}' AND user_id=(SELECT id FROM users WHERE username='operator')")
+    error(lambda:poll(downgraded),'access_denied');sql(f"UPDATE workspace_members SET role='operator' WHERE workspace_id='{workspace}' AND user_id=(SELECT id FROM users WHERE username='operator')")
     disabled=create();decide(disabled,tokens['operator']);sql("UPDATE users SET active=false WHERE username='operator'")
     error(lambda:poll(disabled),'access_denied');sql("UPDATE users SET active=true WHERE username='operator'")
     # No-store includes error responses and no raw code is persisted.
@@ -45,7 +46,7 @@ def verify(api,base,other,sql,tokens,check):
     with tempfile.TemporaryDirectory(prefix='wakeit-connect-check-') as directory:
         root=pathlib.Path(directory)
         env={k:v for k,v in os.environ.items() if not k.startswith('WAKEIT_')}
-        env.update(HOME=directory,USERPROFILE=directory,APPDATA=directory,XDG_CONFIG_HOME=str(root/'config'),WAKEIT_PASSWORD='wakeit-role-test-password')
+        env.update(HOME=directory,USERPROFILE=directory,APPDATA=directory,XDG_CONFIG_HOME=str(root/'config'),WAKEIT_PASSWORD='wakeit-role-test-password',WAKEIT_WORKSPACE=workspace)
         def cli(*args,success=True,cwd=None,environment=None):
             p=subprocess.run([str(BIN),*args],env=environment or env,cwd=cwd or directory,text=True,capture_output=True)
             assert (p.returncode==0)==success,p.stderr

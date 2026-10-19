@@ -257,6 +257,7 @@ function Login() {
       >
         <h1 className="card-header">{signup ? tr('创建账号') : tr('欢迎回来')}</h1>
         <div className="card-body">
+          {new URLSearchParams(location.search).get('auth_error') === 'github_denied' && <p className="error" role="alert">{tr('GitHub 授权已取消')}</p>}
           {meta.isPending ? (
             <span className="quiet">{tr('加载中…')}</span>
           ) : meta.error ? (

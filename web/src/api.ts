@@ -244,7 +244,7 @@ export const stateNames: Record<string, string> = {
   },
 }
 
-export type Member = User & { active: boolean; account_active?: boolean; created_at: string }
+export type Member = User & { active: boolean; account_active?: boolean; has_password?: boolean; created_at: string }
 export type WorkspaceSettings = {
   timezone: string
   log_retention_days: number

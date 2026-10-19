@@ -60,7 +60,7 @@ function AccountRow({
               >
                 {account.active ? tr('停用账号') : tr('启用账号')}
               </Dropdown.Item>
-              {local && (
+              {local && account.has_password !== false && (
                 <Dropdown.Item onSelect={() => setPassword(true)}>{tr('重置密码')}</Dropdown.Item>
               )}
             </Dropdown.Content>
