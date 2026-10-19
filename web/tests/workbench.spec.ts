@@ -110,7 +110,7 @@ test('Viewer can inspect runs but cannot edit or trigger', async ({ page }) => {
   await login(page, 'viewer', 'wakeit-role-test-password')
   await expect(page.getByRole('button', { name: '新建任务', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '立即执行', exact: true })).toHaveCount(0)
-  await page.getByRole('link', { name: '运行记录', exact: true }).click()
+  await page.getByRole('link', { name: '运行', exact: true }).click()
   await expect(page.getByRole('tab', { name: '详情', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0)
   await page.getByRole('link', { name: '设置', exact: true }).click()
@@ -341,7 +341,7 @@ test('global search scopes, filters and server pagination for Tasks and Runs', a
   await expect(list.locator('.task-row')).toHaveCount(20)
 
   await page.getByRole('button', { name: '搜索与筛选', exact: true }).click()
-  await dialog.locator('.search-scopes').getByRole('button', { name: '运行记录', exact: true }).click()
+  await dialog.locator('.search-scopes').getByRole('button', { name: '运行', exact: true }).click()
   await dialog.getByLabel('搜索内容').fill('Pagination')
   await dialog.getByLabel('运行状态').selectOption('succeeded')
   await expect(dialog.locator('.search-group-heading')).toContainText('Runs23')
@@ -404,7 +404,7 @@ test('unscoped search, multiple scopes, navigation, reset and role-aware setting
   await page.getByRole('button', { name: '切换主题', exact: true }).click()
   await page.getByRole('button', { name: '搜索与筛选' }).click()
   await dialog.getByRole('button', { name: '清除筛选', exact: true }).click()
-  await dialog.locator('.search-scopes').getByRole('button', { name: '运行记录', exact: true }).click()
+  await dialog.locator('.search-scopes').getByRole('button', { name: '运行', exact: true }).click()
   await dialog.getByLabel('搜索内容').fill('Pagination')
   await expect(dialog.locator('.search-result').first()).toBeVisible()
   await expect(dialog.locator('.search-group-heading')).toContainText('Runs23')
@@ -438,7 +438,7 @@ test('product copy and status styles stay consistent across all pages', async ({
     '返回列表',
     '适配模板',
   ]
-  for (const name of ['任务', '运行记录', '设备', '设置']) {
+  for (const name of ['任务', '运行', '设备', '设置']) {
     await page.getByRole('link', { name, exact: true }).click()
     await expect(page.getByRole('heading', { name: new RegExp(`^${name}`) }).first()).toBeVisible()
     for (const text of banned) await expect(page.getByText(text, { exact: false })).toHaveCount(0)

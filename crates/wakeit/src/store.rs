@@ -362,7 +362,7 @@ pub async fn tick(pool: &PgPool) -> Result<()> {
     let now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
         .fetch_one(&mut *tx)
         .await?;
-    let rows=sqlx::query("SELECT * FROM tasks WHERE enabled AND archived_at IS NULL AND next_at<=now() ORDER BY next_at LIMIT 50 FOR UPDATE SKIP LOCKED").fetch_all(&mut *tx).await?;
+    let rows=sqlx::query("SELECT * FROM tasks WHERE enabled AND archived_at IS NULL AND next_at<=now() AND EXISTS(SELECT 1 FROM workspaces w WHERE w.id=tasks.workspace_id AND NOT w.is_demo) ORDER BY next_at LIMIT 50 FOR UPDATE SKIP LOCKED").fetch_all(&mut *tx).await?;
     for row in rows {
         let workspace: Uuid = row.get("workspace_id");
         let task: TaskConfig = serde_json::from_value(row.get("config"))?;

@@ -11,6 +11,7 @@ use futures::StreamExt;
 use std::{sync::Arc, time::Duration};
 
 pub async fn start(config: GatewayConfig) -> Result<()> {
+    crate::github_auth::validate(&config)?;
     anyhow::ensure!(
         config.version == 1,
         "unsupported Gateway configuration version"
@@ -20,6 +21,9 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
     sqlx::query("SELECT 1 FROM settings LIMIT 1")
         .execute(&pool)
         .await?;
+    if config.auth.demo_workspace {
+        crate::demo::seed(&pool).await?;
+    }
     let client = bus::connect(
         &config.nats_url,
         &config.nats_auth_dir.join("gateway.creds"),

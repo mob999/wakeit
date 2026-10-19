@@ -1,4 +1,6 @@
 {
+  "暂无工作区": "暂无工作区",
+  "GitHub 授权已取消": "GitHub 授权已取消",
   "1 年": "1 年",
   "30 天": "30 天",
   "7 天": "7 天",
@@ -12,7 +14,7 @@
   "Moments": "动态",
   "Runner": "Runner",
   "Runners": "设备",
-  "Runs": "运行记录",
+  "Runs": "运行",
   "Settings": "设置",
   "Tasks": "任务",
   "{{v0}} 操作": "{{v0}} 操作",
@@ -283,7 +285,7 @@
   "每次新建": "每次新建",
   "没有子目录": "没有子目录",
   "注册 Runner": "注册 Runner",
-  "注册 Runner 需要 Operator 或 Admin 权限。": "注册 Runner 需要操作员或管理员权限。",
+  "注册 Runner 需要 Operator 或 Admin 权限。": "注册 Runner 需要读写或管理员权限。",
   "浏览": "浏览",
   "清除筛选": "清除筛选",
   "版本": "版本",
@@ -419,8 +421,8 @@
   "你将退出登录。": "你将退出登录。",
   "Task YAML": "任务 YAML",
   "role.admin": "管理员",
-  "role.operator": "操作员",
-  "role.viewer": "查看者",
+  "role.operator": "读写",
+  "role.viewer": "只读",
   "Provider": "Provider",
   "推理强度": "推理强度",
   "在 {{v0}} 上执行。": "在 {{v0}} 上执行。",
@@ -484,5 +486,6 @@
   "password login is disabled": "未启用密码登录",
   "membership is disabled": "成员资格已停用",
   "registration is disabled": "未开放注册",
-  "workspace is unavailable": "工作区不可用"
+  "workspace is unavailable": "工作区不可用",
+  "cannot remove the last administrator": "必须至少保留一名有效管理员"
 }

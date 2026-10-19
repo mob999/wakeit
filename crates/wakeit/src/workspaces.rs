@@ -41,19 +41,22 @@ pub async fn authorize(
     if identity.kind == "api" && identity.workspace_id != Some(workspace) {
         return Ok(None);
     }
-    let row=sqlx::query("SELECT w.is_demo,m.role,m.active,u.active AS user_active FROM workspaces w JOIN users u ON u.id=$2 LEFT JOIN workspace_members m ON m.workspace_id=w.id AND m.user_id=u.id WHERE w.id=$1")
+    let row=sqlx::query("SELECT w.is_demo,m.role,m.active,u.active AS user_active,EXISTS(SELECT 1 FROM user_identities i WHERE i.user_id=u.id AND i.provider='github') AS github FROM workspaces w JOIN users u ON u.id=$2 LEFT JOIN workspace_members m ON m.workspace_id=w.id AND m.user_id=u.id WHERE w.id=$1")
         .bind(workspace).bind(identity.id).fetch_optional(pool).await?;
     Ok(row.and_then(|r| {
         if !r.get::<bool, _>("user_active") {
             return None;
         }
         let demo = r.get::<bool, _>("is_demo");
-        if demo && identity.kind == "session" {
+        if demo && identity.kind == "session" && r.get::<bool, _>("github") {
             return Some(WorkspaceContext {
                 workspace_id: workspace,
                 role: "viewer".into(),
                 demo: true,
             });
+        }
+        if demo {
+            return None;
         }
         if r.get::<Option<bool>, _>("active") != Some(true) {
             return None;
@@ -99,6 +102,9 @@ pub async fn create(pool: &PgPool, identity: &Identity, name: &str) -> Result<Va
         "invalid workspace name"
     );
     let mut tx = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock(743273)")
+        .execute(&mut *tx)
+        .await?;
     let active:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND c.kind='session' AND u.active AND (c.expires_at IS NULL OR c.expires_at>now()))").bind(&identity.credential).fetch_one(&mut *tx).await?;
     ensure!(active, "session expired");
     let id = Uuid::new_v4();

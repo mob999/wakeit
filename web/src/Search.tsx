@@ -78,19 +78,23 @@ const scopes = [
     path: '/settings',
   },
 ] as const
-export const settingSections = (role: User['role']) => [
-  ...(role === 'admin'
+export const settingSections = (role: User['role'], demo = false) => [
+  {
+    id: 'workspace',
+    name: tr('工作区'),
+    terms: 'workspace 时区 日志 保留 创建 退出 timezone retention create leave',
+  },
+  ...(!demo && role === 'admin'
     ? [
         {
-          id: 'workspace',
-          name: tr('工作区'),
-          terms: 'workspace 时区 日志 保留 timezone retention',
+          id: 'members',
+          name: tr('成员'),
+          terms: 'members admin operator viewer 管理员 读写 只读 邀请 角色',
         },
-        { id: 'members', name: tr('成员'), terms: 'members admin operator viewer 邀请 角色' },
       ]
     : []),
-  { id: 'tokens', name: tr('个人 API Key'), terms: 'key token api 凭据 cli' },
-  ...(role !== 'viewer'
+  ...(!demo ? [{ id: 'tokens', name: tr('个人 API Key'), terms: 'key token api 凭据 cli' }] : []),
+  ...(!demo && role !== 'viewer'
     ? [{ id: 'archived', name: tr('归档任务'), terms: 'archive archived task 归档 恢复' }]
     : []),
 ]
@@ -490,7 +494,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
         {includes('settings') &&
           group(
             'settings',
-            settingSections(user.role)
+            settingSections(user.role, !!user.workspace?.is_demo)
               .filter((s) => matches(`${s.name} ${s.terms}`, debounced))
               .map((s) => ({ id: s.id, name: s.name, meta: '' })),
           )}

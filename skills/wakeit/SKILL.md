@@ -6,7 +6,7 @@ description: Connect to or deploy Wakeit Gateway, register Runners, define sched
 
 # Wakeit
 
-Wakeit 集中调度 Agent 任务，在用户设备上的 Runner 执行。使用单一 `wakeit` 二进制，当前产品版本为 0.1.1，配置和事件协议为 version: 1。
+Wakeit 集中调度 Agent 任务，在用户设备上的 Runner 执行。使用单一 `wakeit` 二进制，当前产品版本为 0.2.0，配置和事件协议为 version: 1。
 
 先确认用户当前目标及已有环境：是否有可用 CLI、Gateway 地址、认证、Runner 和执行目录。用户要使用 Wakeit，但未说明服务来源时，问是**连接已有 Gateway**还是**自行部署**；已有明确地址或部署意图时直接采用，不重复问。
 
@@ -26,4 +26,4 @@ Gateway 的 PostgreSQL 是 Task 的权威存储；本地 YAML 必须 apply 才�
 
 优先使用 CLI 的 `--json` 读取实际对象及能力。没有 models 接口时手填；查询失败不编造模型列表。任务与运行 ID 从返回数据读取，用户只需表达任务名称和意图。
 
-连接已有服务优先 `wakeit setup --gateway URL`，浏览器明确授权后保存原生连接并注册 Runner、自启和验证；仅 CLI 使用 `wakeit login --gateway URL`。已有连接优先复用。认证也可通过已有环境变量或凭据文件；不要要求用户把密钥贴进对话，也不要打印凭据。部署新服务与连接已有服务分开，不重建现有数据库或 Agent 身份。任务处于 unknown 时先核对原执行，再考虑重试。
+连接已有服务优先 `wakeit setup --gateway URL --workspace WORKSPACE_ID`，浏览器明确授权后保存原生连接并注册 Runner、自启和验证；仅 CLI 使用 `wakeit login --gateway URL --workspace WORKSPACE_ID`。已有连接优先复用。认证也可通过已有环境变量或凭据文件；不要要求用户把密钥贴进对话，也不要打印凭据。部署新服务与连接已有服务分开，不重建现有数据库或 Agent 身份。任务处于 unknown 时先核对原执行，再考虑重试。

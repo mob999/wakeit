@@ -2,7 +2,7 @@
 
 Runner 主动连接 NATS，不需设备开放入站端口。Gateway 对外地址与 NATS/WSS 地址必须能从该设备访问；本机 localhost 不能直接用于另一台设备。
 
-Admin 或 Operator 可用 `wakeit setup --gateway URL` 完成浏览器授权、注册和用户自启。手动流程由 Admin 或 Operator 生成一次性注册令牌：`wakeit runner enrollment`，或 WebUI Runners 的连接设备操作。输出含敏感令牌，直接使用本机文件/环境变量承接，不复制到聊天或日志。令牌 30 分钟内有效、只能用一次。
+Admin 或 Operator 可用 `wakeit setup --gateway URL --workspace WORKSPACE_ID` 完成浏览器授权、注册和用户自启。手动流程由 Admin 或 Operator 生成一次性注册令牌：`wakeit runner enrollment`，或 WebUI Runners 的连接设备操作。输出含敏感令牌，直接使用本机文件/环境变量承接，不复制到聊天或日志。令牌 30 分钟内有效、只能用一次。
 
 ```sh
 wakeit runner enroll --name dev-server --token-env WAKEIT_ENROLL_TOKEN \

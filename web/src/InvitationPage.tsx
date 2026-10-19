@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { t as tr, roleName } from './i18n'
@@ -9,11 +9,15 @@ import { BrandMark } from './BrandMark'
 
 export function InvitationPage({ user }: { user?: User }) {
   useTranslation()
-  const token = location.hash.slice(1)
+  const token = useSyncExternalStore(
+    (update) => { window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) },
+    () => location.hash.slice(1),
+  )
   const [signup, setSignup] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  useEffect(() => { setPassword(''); setConfirm(''); setSignup(false) }, [token])
   const invitation = useQuery<{ workspace_id: string; workspace: string; role: string }>({
     queryKey: ['invitation', token],
     queryFn: () => api('/invites/inspect', 'POST', { token }),

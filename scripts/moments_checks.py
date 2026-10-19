@@ -16,7 +16,7 @@ def verify(api, base, other, sql, task, apply, role_tokens, runner_id, check):
         id = str(uuid.uuid4()); ids.append(id)
         literal = json.dumps(result, ensure_ascii=False).replace("'", "''")
         stamp = "'" + at + "'::timestamptz" if finished else 'NULL'
-        sql(f"INSERT INTO runs(id,task_id,task_revision,runner_id,config,state,reason,source,scheduled_at,deadline,finished_at,result,started_at) SELECT '{id}',id,revision,runner_id,config,'{state}','actual failure reason','{source}',now(),now()+interval '1 hour',{stamp},'{literal}'::jsonb,'{at}'::timestamptz-interval '10 hours' FROM tasks WHERE id='moments-fixture'")
+        sql(f"INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,state,reason,source,scheduled_at,deadline,finished_at,result,started_at) SELECT workspace_id,'{id}',id,revision,runner_id,config,'{state}','actual failure reason','{source}',now(),now()+interval '1 hour',{stamp},'{literal}'::jsonb,'{at}'::timestamptz-interval '10 hours' FROM tasks WHERE id='moments-fixture'")
         return id
     try:
         api('/settings','PUT',dict(settings, timezone='America/New_York',run_retention_days=3650))
