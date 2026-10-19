@@ -3,6 +3,7 @@ import concurrent.futures
 import datetime
 import re
 from zoneinfo import ZoneInfo
+from integration import timestamp
 import json
 import os
 import sqlite3
@@ -58,7 +59,7 @@ def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runn
         assert title and len(title.encode('utf-8'))<=200 and re.search(r'-wakeit-\d{8}-\d{9}$',title),title
         assert row['execution_snapshot']['session_title']==title
         assert 'session_title' not in row['config'] and 'title' not in row['config']
-        started=datetime.datetime.fromisoformat(row['started_at'].replace('Z','+00:00')).astimezone(ZoneInfo(api('/settings')['timezone']))
+        started=timestamp(row['started_at']).astimezone(ZoneInfo(api('/settings')['timezone']))
         suffix=started.strftime('%Y%m%d-%H%M%S')+f'{started.microsecond//1000:03d}'
         assert title.endswith('-wakeit-'+suffix),(title,suffix)
         assert row['config']['name'].startswith(title.rsplit('-wakeit-',1)[0])
@@ -155,7 +156,7 @@ def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runn
     assert not any(line.endswith(' '+blocked) for line in (remote/'calls.log').read_text().splitlines())
     # Synthetic unverified owner exercises cross-Gateway claim protection; cleanup is explicit.
     unknown=str(uuid.uuid4())
-    sql(f"INSERT INTO runs(id,task_id,task_revision,runner_id,config,state,source,scheduled_at,deadline) SELECT '{unknown}',id,revision,runner_id,config,'unknown','manual',now(),now()+interval '1 hour' FROM tasks WHERE id='session-lock-a'")
+    sql(f"INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,state,source,scheduled_at,deadline) SELECT workspace_id,'{unknown}',id,revision,runner_id,config,'unknown','manual',now(),now()+interval '1 hour' FROM tasks WHERE id='session-lock-a'")
     try:
         blocked=trigger('session-lock-b');assert final(blocked,'skipped')['reason']=='会话正在使用'
         expect_status(lambda:api('/runs/'+unknown+'/retry','POST',{}),409)

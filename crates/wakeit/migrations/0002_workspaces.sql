@@ -37,7 +37,9 @@ ALTER TABLE invites ADD COLUMN created_by uuid REFERENCES users(id);
 UPDATE invites SET workspace_id=(SELECT id FROM workspaces WHERE is_default),expires_at=LEAST(expires_at,now());
 ALTER TABLE invites ALTER COLUMN workspace_id SET NOT NULL;
 ALTER TABLE enrollments ADD COLUMN workspace_id uuid REFERENCES workspaces(id);
+ALTER TABLE enrollments ADD COLUMN created_by uuid REFERENCES users(id);
 UPDATE enrollments SET workspace_id=(SELECT id FROM workspaces WHERE is_default);
+UPDATE enrollments SET expires_at=LEAST(expires_at,now());
 ALTER TABLE enrollments ALTER COLUMN workspace_id SET NOT NULL;
 
 ALTER TABLE runners ADD COLUMN workspace_id uuid REFERENCES workspaces(id);

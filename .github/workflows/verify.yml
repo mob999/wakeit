@@ -58,6 +58,9 @@ jobs:
       - run: python3 scripts/check-archive-upgrade.py
       - run: python3 scripts/check-session-upgrade.py
       - run: python3 scripts/check-device-auth-upgrade.py
+      - run: python3 scripts/workspace_migration_checks.py
+      - run: python3 scripts/github_auth_checks.py
+      - run: python3 scripts/integration_workspaces.py
       - name: Service integration
         shell: bash
         run: python3 scripts/integration.py 2>&1 | tee .local-integration.log

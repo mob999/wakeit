@@ -17,6 +17,8 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+const WORKSPACE: &str = "bf14b225-f7b8-4327-8c9e-05818754d48d";
+
 struct Server {
     url: String,
     calls: Arc<Mutex<Vec<String>>>,
@@ -39,6 +41,7 @@ where
         let respond = respond.clone();
         async move {
             let path = request.uri().path_and_query().unwrap().as_str().to_string();
+            assert!(path.starts_with(&format!("/api/v1/workspaces/{WORKSPACE}/runs/")));
             calls
                 .lock()
                 .unwrap()
@@ -67,12 +70,15 @@ fn start(server: &Server, id: Uuid, args: &[&str], home: &std::path::Path) -> Ch
         .env_remove("WAKEIT_GATEWAY")
         .env_remove("WAKEIT_TOKEN")
         .env_remove("WAKEIT_TOKEN_FILE")
+        .env_remove("WAKEIT_WORKSPACE")
         .env("HOME", home)
         .env("XDG_CONFIG_HOME", home)
         .env("APPDATA", home)
         .args([
             "--gateway",
             &server.url,
+            "--workspace",
+            WORKSPACE,
             "--token",
             "fixture-key",
             "--json",

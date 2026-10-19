@@ -19,6 +19,8 @@ type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Intent {
+    #[serde(default)]
+    pub workspace_id: Option<Uuid>,
     pub name: String,
     pub os: String,
     #[serde(default)]
@@ -56,7 +58,10 @@ pub fn routes() -> Router<App> {
             post(approve),
         )
         .route("/api/v1/device-authorizations/{code}/deny", post(deny))
-        .route("/api/v1/runners/connect", post(connect))
+        .route(
+            "/api/v1/workspaces/{workspace}/runners/connect",
+            post(connect_scoped),
+        )
         .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             header::HeaderValue::from_static("no-store"),
@@ -85,7 +90,7 @@ async fn limit(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, key: &str, max: i
     Ok(())
 }
 async fn browser(s: &App, h: &HeaderMap, write: bool) -> Result<User> {
-    if h.contains_key(header::AUTHORIZATION) || super::api::cookie(h).is_none() {
+    if h.contains_key(header::AUTHORIZATION) || super::api::cookie(&s.config, h).is_none() {
         return Err(Error(
             StatusCode::UNAUTHORIZED,
             "Web session required".into(),
@@ -101,7 +106,30 @@ async fn browser(s: &App, h: &HeaderMap, write: bool) -> Result<User> {
     }
     Ok(u)
 }
+fn scoped(mut h: HeaderMap, workspace: Uuid) -> HeaderMap {
+    h.insert("x-wakeit-workspace", workspace.to_string().parse().unwrap());
+    h
+}
+async fn connect_scoped(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path(workspace): Path<Uuid>,
+    body: Json<Connect>,
+) -> Result<Json<Value>> {
+    connect(State(s), scoped(h, workspace), body).await
+}
 async fn create(State(s): State<App>, Json(intent): Json<Intent>) -> Result<Json<Value>> {
+    let workspace = intent
+        .workspace_id
+        .ok_or_else(|| Error::bad("workspace is required"))?;
+    let valid: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM workspaces WHERE id=$1 AND NOT is_demo)")
+            .bind(workspace)
+            .fetch_one(&s.pool)
+            .await?;
+    if !valid {
+        return Err(Error::bad("workspace is unavailable"));
+    }
     if intent.name.is_empty()
         || intent.name.len() > 100
         || intent.os.len() > 100
@@ -129,7 +157,7 @@ async fn create(State(s): State<App>, Json(intent): Json<Intent>) -> Result<Json
     sqlx::query("DELETE FROM device_grants WHERE expires_at<now()-interval '1 day' AND (api_hash IS NULL OR NOT EXISTS (SELECT 1 FROM credentials c WHERE c.hash=device_grants.api_hash))")
         .execute(&mut *tx)
         .await?;
-    sqlx::query("INSERT INTO device_grants(device_hash,user_hash,intent,expires_at) VALUES($1,$2,$3,now()+interval '10 minutes')").bind(auth::hash(&device)).bind(auth::hash(&code)).bind(json!(intent)).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO device_grants(device_hash,user_hash,intent,expires_at,workspace_id) VALUES($1,$2,$3,now()+interval '10 minutes',$4)").bind(auth::hash(&device)).bind(auth::hash(&code)).bind(json!(intent)).bind(workspace).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(
         json!({"device_code":device,"user_code":code,"verification_uri":format!("{base}/authorize/device"),"verification_uri_complete":format!("{base}/authorize/device?user_code={code}"),"expires_in":600,"interval":5}),
@@ -151,18 +179,43 @@ async fn details(
     let mut tx = s.pool.begin().await?;
     limit(&mut tx, "device-lookup-global", 120).await?;
     let v:Option<Value>=sqlx::query_scalar("SELECT jsonb_build_object('intent',intent,'state',CASE WHEN expires_at<=now() THEN 'expired' ELSE state END,'expires_at',expires_at,'gateway',$2::text) FROM device_grants WHERE user_hash=$1").bind(code_hash(&code)?).bind(&s.config.public_url).fetch_optional(&mut *tx).await?;
+    let ws: Uuid = sqlx::query_scalar("SELECT workspace_id FROM device_grants WHERE user_hash=$1")
+        .bind(code_hash(&code)?)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| Error(StatusCode::NOT_FOUND, "invalid verification code".into()))?;
     tx.commit().await?;
+    let member = browser(&s, &scoped(h, ws), false).await?;
+    let mut v = v;
+    if let Some(value) = &mut v {
+        value["workspace_id"] = json!(ws);
+        value["role"] = json!(member.role);
+        value["workspace"] =
+            sqlx::query_scalar::<_, String>("SELECT name FROM workspaces WHERE id=$1")
+                .bind(ws)
+                .fetch_one(&s.pool)
+                .await?
+                .into();
+    }
     Ok(Json(v.ok_or_else(|| {
         Error(StatusCode::NOT_FOUND, "invalid verification code".into())
     })?))
 }
 async fn decide(s: App, h: HeaderMap, code: String, allow: bool) -> Result<Json<Value>> {
-    let initial = browser(&s, &h, true).await?;
+    browser(&s, &h, true).await?;
+    let workspace: Uuid =
+        sqlx::query_scalar("SELECT workspace_id FROM device_grants WHERE user_hash=$1")
+            .bind(code_hash(&code)?)
+            .fetch_optional(&s.pool)
+            .await?
+            .ok_or_else(|| Error::bad("invalid verification code"))?;
+    let initial = browser(&s, &scoped(h, workspace), true).await?;
     let mut tx = s.pool.begin().await?;
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    let u = reauthorize(&mut tx, &initial.credential, "viewer").await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    let u = reauthorize(&mut tx, &initial, "viewer").await?;
     let row=sqlx::query("SELECT intent,state,expires_at>now() AS valid,user_id FROM device_grants WHERE user_hash=$1 FOR UPDATE").bind(code_hash(&code)?).fetch_optional(&mut *tx).await?.ok_or_else(||Error::bad("invalid verification code"))?;
     let intent: Intent = serde_json::from_value(row.get("intent"))?;
     if allow && intent.register_runner && auth::role(&u.role) < 2 {
@@ -194,6 +247,7 @@ async fn decide(s: App, h: HeaderMap, code: String, allow: bool) -> Result<Json<
     store::audit(
         &mut tx,
         u.id,
+        Some(workspace),
         if allow {
             "device.approve"
         } else {
@@ -227,10 +281,19 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
     if b.grant_type != "urn:ietf:params:oauth:grant-type:device_code" || b.device_code.len() != 64 {
         return Ok(oauth_error("invalid_grant"));
     }
+    let workspace: Option<Uuid> =
+        sqlx::query_scalar("SELECT workspace_id FROM device_grants WHERE device_hash=$1")
+            .bind(auth::hash(&b.device_code))
+            .fetch_optional(&s.pool)
+            .await?;
+    let Some(workspace) = workspace else {
+        return Ok(oauth_error("invalid_grant"));
+    };
     let mut tx = s.pool.begin().await?;
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
     let row=sqlx::query("SELECT *,expires_at>now() AS valid, last_poll IS NOT NULL AND last_poll>now()-make_interval(secs=>poll_interval) AS too_fast FROM device_grants WHERE device_hash=$1 FOR UPDATE").bind(auth::hash(&b.device_code)).fetch_optional(&mut *tx).await?;
     let Some(row) = row else {
         return Ok(oauth_error("invalid_grant"));
@@ -260,38 +323,53 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
     }
     let intent: Intent = serde_json::from_value(row.get("intent"))?;
     let credential: String = row.get("approval_credential");
-    let actor = match reauthorize(
-        &mut tx,
-        &credential,
-        if intent.register_runner {
-            "operator"
-        } else {
-            "viewer"
-        },
-    )
-    .await
-    {
-        Ok(u) => u,
-        Err(_) => {
-            return Ok(oauth_error("access_denied"));
-        }
+    let needed = if intent.register_runner {
+        "operator"
+    } else {
+        "viewer"
+    };
+    let actor_id =
+        match crate::workspaces::check_member(&mut tx, &credential, workspace, needed).await {
+            Ok(id) => id,
+            Err(_) => return Ok(oauth_error("access_denied")),
+        };
+    let current=sqlx::query("SELECT u.username,m.role FROM users u JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 WHERE u.id=$1").bind(actor_id).bind(workspace).fetch_one(&mut *tx).await?;
+    let actor = User {
+        id: actor_id,
+        username: current.get("username"),
+        role: current.get("role"),
+        credential,
+        workspace_id: Some(workspace),
+        instance_admin: false,
+        kind: "session".into(),
+        demo: false,
     };
     let token = auth::secret();
     let hash = auth::hash(&token);
-    sqlx::query("INSERT INTO credentials(hash,user_id,kind,name) VALUES($1,$2,'api',$3)")
-        .bind(&hash)
-        .bind(actor.id)
-        .bind(format!("CLI · {}", intent.name))
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO credentials(hash,user_id,kind,name,workspace_id) VALUES($1,$2,'api',$3,$4)",
+    )
+    .bind(&hash)
+    .bind(actor.id)
+    .bind(format!("CLI · {}", intent.name))
+    .bind(workspace)
+    .execute(&mut *tx)
+    .await?;
     sqlx::query("UPDATE device_grants SET state='consumed',api_hash=$2 WHERE device_hash=$1")
         .bind(auth::hash(&b.device_code))
         .bind(&hash)
         .execute(&mut *tx)
         .await?;
-    store::audit(&mut tx, actor.id, "device.exchange", &intent.name).await?;
+    store::audit(
+        &mut tx,
+        actor.id,
+        Some(workspace),
+        "device.exchange",
+        &intent.name,
+    )
+    .await?;
     tx.commit().await?;
-    Ok(Json(json!({"access_token":token,"token_type":"Bearer","user":{"id":actor.id,"username":actor.username,"role":actor.role}})).into_response())
+    Ok(Json(json!({"access_token":token,"token_type":"Bearer","workspace_id":workspace,"user":{"id":actor.id,"username":actor.username,"role":actor.role}})).into_response())
 }
 #[derive(Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Connect {
@@ -311,6 +389,7 @@ async fn connect(
     Json(b): Json<Connect>,
 ) -> Result<Json<Value>> {
     let initial = user(&s, &h, "operator", true).await?;
+    let workspace = initial.workspace()?;
     crate::config::validate_id(&b.name).map_err(|e| Error::bad(e.to_string()))?;
     if (chrono::Utc::now().timestamp() - b.timestamp).abs() > 60
         || b.allowed_roots.is_empty()
@@ -329,7 +408,8 @@ async fn connect(
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    let actor = reauthorize(&mut tx, &initial.credential, "operator").await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    let actor = reauthorize(&mut tx, &initial, "operator").await?;
     let approved: Option<Value> =
         sqlx::query_scalar("SELECT intent FROM device_grants WHERE api_hash=$1")
             .bind(&actor.credential)
@@ -341,9 +421,10 @@ async fn connect(
             return Err(Error::bad("registration differs from browser consent"));
         }
     }
-    let old=sqlx::query("SELECT d.runner_id,d.public_key,d.user_id,r.revoked FROM device_registrations d JOIN runners r ON r.id=d.runner_id WHERE d.request_id=$1 FOR UPDATE OF r").bind(b.request_id).fetch_optional(&mut *tx).await?;
+    let old=sqlx::query("SELECT d.runner_id,d.public_key,d.user_id,d.workspace_id,r.revoked FROM device_registrations d JOIN runners r ON r.id=d.runner_id WHERE d.request_id=$1 FOR UPDATE OF r").bind(b.request_id).fetch_optional(&mut *tx).await?;
     let id = if let Some(row) = old {
-        if row.get::<String, _>("public_key") != b.public_key
+        if row.get::<Uuid, _>("workspace_id") != workspace
+            || row.get::<String, _>("public_key") != b.public_key
             || row.get::<Uuid, _>("user_id") != actor.id
             || row.get::<bool, _>("revoked")
         {
@@ -369,21 +450,28 @@ async fn connect(
             .execute(&mut *tx)
             .await?;
     } else {
-        sqlx::query("INSERT INTO runners(id,name,public_key,token_hash) VALUES($1,$2,$3,$4)")
+        sqlx::query("INSERT INTO runners(id,name,public_key,token_hash,workspace_id) VALUES($1,$2,$3,$4,$5)")
             .bind(id)
             .bind(&b.name)
             .bind(&b.public_key)
             .bind(auth::hash(&token))
-            .execute(&mut *tx)
+            .bind(workspace).execute(&mut *tx)
             .await
             .map_err(|_| {
                 Error::conflict("Runner name or identity already registered; choose another name")
             })?;
-        sqlx::query("INSERT INTO device_registrations(request_id,runner_id,public_key,user_id) VALUES($1,$2,$3,$4)").bind(b.request_id).bind(id).bind(&b.public_key).bind(actor.id).execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO device_registrations(request_id,runner_id,public_key,user_id,workspace_id) VALUES($1,$2,$3,$4,$5)").bind(b.request_id).bind(id).bind(&b.public_key).bind(actor.id).bind(workspace).execute(&mut *tx).await?;
     }
     let jwt = s.authority.runner_jwt(id, &b.public_key)?;
     crate::bus::provision(&s.js, id, 2).await?;
-    store::audit(&mut tx, actor.id, "runner.connect", &id.to_string()).await?;
+    store::audit(
+        &mut tx,
+        actor.id,
+        Some(workspace),
+        "runner.connect",
+        &id.to_string(),
+    )
+    .await?;
     tx.commit().await?;
     Ok(Json(
         json!({"id":id,"token":token,"jwt":jwt,"nats_url":s.config.nats_public_url}),

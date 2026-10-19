@@ -96,6 +96,8 @@ pub fn document() -> Value {
     );
     let mut paths = serde_json::Map::new();
     for (path, methods) in [
+        ("/auth/github/start", vec!["get"]),
+        ("/auth/github/callback", vec!["get"]),
         ("/meta", vec!["get"]),
         ("/changelog", vec!["get"]),
         ("/runners/{id}/directories", vec!["get"]),
@@ -325,13 +327,101 @@ pub fn document() -> Value {
             if matches!(path, "/schema/{kind}" | "/openapi.json" | "/meta") {
                 op["security"] = json!([]);
             }
+            if path.starts_with("/auth/github/") {
+                op["security"] = json!([]);
+                if path.ends_with("/start") {
+                    op["parameters"] = json!([{"name":"return_to","in":"query","schema":{"type":"string","maxLength":2048},"description":"A local application path. Absolute, protocol-relative and API paths are rejected."}]);
+                    op["responses"]["303"] = json!({"description":"GitHub authorization redirect with S256 PKCE, state and a short-lived HttpOnly SameSite=Lax browser-binding cookie."});
+                } else {
+                    op["parameters"] = json!([{"name":"state","in":"query","required":true,"schema":{"type":"string"}},{"name":"code","in":"query","schema":{"type":"string"}},{"name":"error","in":"query","schema":{"type":"string"}}]);
+                    op["responses"]["200"] = json!({"description":"Same-origin navigation document establishes the Strict Wakeit session before returning to the application. No GitHub access token is returned.","content":{"text/html":{"schema":{"type":"string"}}}});
+                    op["responses"]["303"] = json!({"description":"Authorization denied; returns to login without a session."});
+                }
+            }
             if matches!(path, "/session" | "/invites/accept" | "/device/enroll") && method == "post"
             {
                 op["security"] = json!([]);
             }
             methods_map.insert(method.into(), op);
         }
-        paths.insert(format!("/api/v1{path}"), Value::Object(methods_map));
+        let global = matches!(
+            path,
+            "/meta"
+                | "/changelog"
+                | "/session"
+                | "/invites/accept"
+                | "/oauth/device/code"
+                | "/oauth/token"
+                | "/schema/{kind}"
+                | "/openapi.json"
+        ) || path.starts_with("/device/")
+            || path.starts_with("/auth/")
+            || path.starts_with("/device-authorizations/");
+        let mapped = if path.starts_with("/users") {
+            format!("/api/v1/instance{path}")
+        } else if global {
+            format!("/api/v1{path}")
+        } else {
+            format!("/api/v1/workspaces/{{workspace}}{path}")
+        };
+        if !global && !path.starts_with("/users") {
+            for op in methods_map.values_mut() {
+                if !op["parameters"].is_array() {
+                    op["parameters"] = json!([]);
+                }
+                op["parameters"].as_array_mut().unwrap().push(json!({"name":"workspace","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}));
+                op["responses"]["404"] = json!({"description":"Workspace or resource unavailable"});
+            }
+        }
+        paths.insert(mapped, Value::Object(methods_map));
+    }
+    for (path, methods) in [
+        ("/workspaces", vec!["get", "post"]),
+        ("/workspaces/{workspace}", vec!["get", "put"]),
+        ("/workspaces/{workspace}/leave", vec!["post"]),
+        ("/workspaces/{workspace}/members", vec!["get"]),
+        (
+            "/workspaces/{workspace}/members/{id}",
+            vec!["put", "delete"],
+        ),
+        ("/invites/inspect", vec!["post"]),
+        ("/register", vec!["post"]),
+    ] {
+        let mut operations = serde_json::Map::new();
+        for method in methods {
+            let mut op = json!({"operationId":format!("{}_{}",method,path.replace('/',"_").replace(['{','}'],"")),"security":[{"sessionCookie":[]}],"responses":{"200":{"description":"Success"},"400":{"description":"Invalid input"},"401":{"description":"Authentication required"},"403":{"description":"Insufficient permissions"},"404":{"description":"Resource unavailable"},"409":{"description":"Conflict"}}});
+            let mut params = Vec::new();
+            for name in ["workspace", "id"] {
+                if path.contains(&format!("{{{name}}}")) {
+                    params.push(json!({"name":name,"in":"path","required":true,"schema":{"type":"string","format":"uuid"}}));
+                }
+            }
+            if !params.is_empty() {
+                op["parameters"] = json!(params);
+            }
+            if method == "post" || method == "put" {
+                let body = if path == "/workspaces"
+                    || (path == "/workspaces/{workspace}" && method == "put")
+                {
+                    json!({"type":"object","required":["name"],"properties":{"name":{"type":"string","minLength":1,"maxLength":100}}})
+                } else if path.ends_with("/members/{id}") {
+                    json!({"$ref":"#/components/schemas/MemberUpdate"})
+                } else if path == "/invites/inspect" {
+                    json!({"type":"object","required":["token"],"properties":{"token":{"type":"string"}}})
+                } else if path == "/register" {
+                    json!({"$ref":"#/components/schemas/Login"})
+                } else {
+                    json!({"type":"object"})
+                };
+                op["requestBody"] =
+                    json!({"required":true,"content":{"application/json":{"schema":body}}});
+            }
+            if matches!(path, "/register" | "/invites/inspect") {
+                op["security"] = json!([]);
+            }
+            operations.insert(method.into(), op);
+        }
+        paths.insert(format!("/api/v1{path}"), json!(operations));
     }
     json!({"openapi":"3.1.0","info":{"title":"wakeit API","version":env!("CARGO_PKG_VERSION")},"paths":paths,"components":{"securitySchemes":{"bearerAuth":{"type":"http","scheme":"bearer"},"deviceToken":{"type":"http","scheme":"bearer","description":"Runner device token"},"sessionCookie":{"type":"apiKey","in":"cookie","name":"wakeit_session"}},"schemas":schemas}})
 }

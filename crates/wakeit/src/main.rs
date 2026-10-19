@@ -15,6 +15,8 @@ use wakeit::{
 #[derive(Parser)]
 #[command(name = "wakeit", version, about = "Scheduling for agents")]
 struct Cli {
+    #[arg(long, global = true, env = "WAKEIT_WORKSPACE")]
+    workspace: Option<Uuid>,
     #[arg(long, global = true, env = "WAKEIT_GATEWAY", default_value = "")]
     gateway: String,
     #[arg(
@@ -368,6 +370,7 @@ struct Client {
     url: String,
     token: String,
     key: String,
+    workspace: Uuid,
 }
 impl Client {
     fn new(cli: &Cli) -> Result<Self> {
@@ -377,8 +380,12 @@ impl Client {
             .or_else(|| std::fs::read_to_string(&cli.token_file).ok())
             .context("login first, or set WAKEIT_TOKEN / WAKEIT_TOKEN_FILE")?;
         Ok(Self {
+            workspace: cli
+                .workspace
+                .context("choose a workspace with --workspace or connection use")?,
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
+                .redirect(reqwest::redirect::Policy::none())
                 .build()?,
             url: cli.gateway.trim_end_matches('/').into(),
             token,
@@ -388,6 +395,9 @@ impl Client {
                 .unwrap_or_else(|| Uuid::new_v4().to_string()),
         })
     }
+    fn api_url(&self, path: &str) -> String {
+        format!("{}/api/v1/workspaces/{}{path}", self.url, self.workspace)
+    }
     async fn request(
         &self,
         method: reqwest::Method,
@@ -396,7 +406,7 @@ impl Client {
     ) -> Result<Value> {
         let mut request = self
             .http
-            .request(method, format!("{}/api/v1{path}", self.url))
+            .request(method, self.api_url(path))
             .bearer_auth(self.token.trim())
             .header("Idempotency-Key", &self.key);
         if let Some(body) = body {
@@ -482,36 +492,112 @@ async fn run(mut cli: Cli) -> Result<()> {
     if explicit_gateway {
         cli.gateway = wakeit::device_auth::validate_url(&cli.gateway)?;
     }
-    let profile = wakeit::connection::resolve(if explicit_gateway {
-        Some(&cli.gateway)
-    } else {
+    let local_only = matches!(
+        &cli.command,
+        Command::Gateway { .. }
+            | Command::Adapter { .. }
+            | Command::Schema { .. }
+            | Command::Update { .. }
+            | Command::Connection { .. }
+            | Command::Run {
+                command: Run::Resume { .. }
+            }
+    ) || matches!(
+        &cli.command,
+        Command::Runner {
+            command: Runner::Start { .. } | Runner::Enroll { .. } | Runner::Service { .. }
+        }
+    ) || matches!(&cli.command, Command::Agent { command } if !matches!(command, Agent::List));
+    let current = if local_only {
         None
-    })?;
+    } else {
+        wakeit::connection::resolve(None, None)?
+    };
     if !explicit_gateway {
-        cli.gateway = profile
+        cli.gateway = current
             .as_ref()
             .map(|p| p.gateway.clone())
             .unwrap_or_else(|| "http://127.0.0.1:8080".into());
+    }
+    let mut profile = if local_only
+        || matches!(&cli.command, Command::Login { .. })
+        || cli.token.is_some()
+        || explicit_token_file
+    {
+        None
+    } else if current.as_ref().is_some_and(|p| {
+        p.gateway == cli.gateway && cli.workspace.is_none_or(|w| p.workspace_id == Some(w))
+    }) {
+        current.clone()
+    } else {
+        wakeit::connection::resolve(Some(&cli.gateway), cli.workspace)?
+    };
+    if !local_only
+        && !matches!(&cli.command, Command::Login { .. })
+        && let Some(old) = profile.take()
+    {
+        profile = Some(wakeit::connection::upgrade_legacy(old, cli.workspace).await?);
+    }
+    if cli.workspace.is_none() {
+        cli.workspace = profile
+            .as_ref()
+            .or_else(|| current.as_ref().filter(|p| p.gateway == cli.gateway))
+            .and_then(|p| p.workspace_id);
     }
     if !explicit_token_file {
         cli.token_file = profile
             .as_ref()
             .map(|p| p.token_file.clone())
             .unwrap_or_else(|| PathBuf::from(".wakeit/client.token"));
-        // A relative legacy file must never be sent to an explicitly selected, different service.
         if explicit_gateway && profile.is_none() && cli.token.is_none() {
             cli.token_file = wakeit::connection::directory()?.join("not-authenticated");
         }
     }
+    if !local_only
+        && cli.workspace.is_none()
+        && !matches!(&cli.command, Command::Login { .. } | Command::Setup { .. })
+    {
+        let token = cli
+            .token
+            .clone()
+            .or_else(|| std::fs::read_to_string(&cli.token_file).ok())
+            .context("login first, or provide --workspace and credentials")?;
+        let response = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?
+            .get(format!("{}/api/v1/session", cli.gateway))
+            .bearer_auth(token.trim())
+            .send()
+            .await?;
+        ensure!(
+            response.status().is_success(),
+            "could not determine the credential's workspace"
+        );
+        let metadata: Value = response.json().await?;
+        cli.workspace = Some(
+            metadata["workspace_id"]
+                .as_str()
+                .context("choose a workspace with --workspace")?
+                .parse()?,
+        );
+    }
     match &cli.command {
         Command::Setup { runner_name, roots } => {
-            wakeit::setup::run(&cli.gateway, runner_name.as_deref(), roots).await?
+            wakeit::setup::run(
+                &cli.gateway,
+                cli.workspace
+                    .context("setup requires --workspace or a selected workspace connection")?,
+                runner_name.as_deref(),
+                roots,
+            )
+            .await?
         }
         Command::Connection { command } => match command {
             Connection::List => {
                 let p = wakeit::connection::load()?;
                 display(
-                    json!({"current":p.current,"connections":p.connections.iter().map(|(name,p)|json!({"name":name,"gateway":p.gateway,"username":p.username})).collect::<Vec<_>>()}),
+                    json!({"current":p.current,"connections":p.connections.iter().map(|(name,p)|json!({"name":name,"gateway":p.gateway,"username":p.username,"user_id":p.user_id,"workspace_id":p.workspace_id,"workspace":p.workspace_name})).collect::<Vec<_>>()}),
                     true,
                 );
             }
@@ -844,7 +930,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                     } else {
                         let response = c
                             .http
-                            .get(format!("{}/api/v1/tasks/{}", c.url, task.id))
+                            .get(c.api_url(&format!("/tasks/{}", task.id)))
                             .bearer_auth(c.token.trim())
                             .send()
                             .await?;
@@ -917,7 +1003,9 @@ async fn run(mut cli: Cli) -> Result<()> {
             command: Run::Watch { id, timeout },
         } => {
             let c = Client::new(&cli)?;
-            let code = wakeit::watch::run(&c.url, &c.token, *id, *timeout, cli.json).await?;
+            let code =
+                wakeit::watch::run_scoped(&c.url, c.workspace, &c.token, *id, *timeout, cli.json)
+                    .await?;
             std::process::exit(code);
         }
         Command::Run {
@@ -936,7 +1024,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                 }
                 Run::Get { id } => display(c.get(&format!("/runs/{id}")).await?, true),
                 Run::List { task, state } => {
-                    let mut url = reqwest::Url::parse(&format!("{}/api/v1/runs", c.url))?;
+                    let mut url = reqwest::Url::parse(&c.api_url("/runs"))?;
                     if let Some(t) = task {
                         url.query_pairs_mut().append_pair("task", t);
                     }
@@ -1000,7 +1088,7 @@ async fn run(mut cli: Cli) -> Result<()> {
         Command::Members { command } => {
             let c = Client::new(&cli)?;
             match command {
-                Members::List => display(c.get("/users").await?, cli.json),
+                Members::List => display(c.get("/members?page=1&page_size=100").await?, cli.json),
                 Members::Invite { role } => {
                     display(c.post("/invites", json!({"role":role})).await?, true)
                 }
@@ -1012,6 +1100,9 @@ async fn run(mut cli: Cli) -> Result<()> {
         } => {
             let Some(username) = username else {
                 let intent = wakeit::device_auth::Intent {
+                    workspace_id: Some(cli.workspace.context(
+                        "login requires --workspace or a selected workspace connection",
+                    )?),
                     name: std::env::var("HOSTNAME").unwrap_or_else(|_| "wakeit-cli".into()),
                     os: std::env::consts::OS.into(),
                     register_runner: false,
@@ -1021,48 +1112,82 @@ async fn run(mut cli: Cli) -> Result<()> {
                 println!("Connected to {} as {}", p.gateway, p.username);
                 return Ok(());
             };
-            let client = reqwest::Client::new();
-            let response=client.post(format!("{}/api/v1/session",cli.gateway.trim_end_matches('/'))).json(&json!({"username":username,"password":std::env::var(password_env).with_context(||format!("set {password_env}"))?})).send().await?;
+            let workspace = cli
+                .workspace
+                .context("login requires --workspace or a selected workspace connection")?;
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .redirect(reqwest::redirect::Policy::none())
+                .build()?;
+            let response=client.post(format!("{}/api/v1/session",cli.gateway)).json(&json!({"username":username,"password":std::env::var(password_env).with_context(||format!("set {password_env}"))?})).send().await?;
             let status = response.status();
-            let b: Value = response.json().await?;
-            ensure!(status.is_success(), "login {status}: {}", b["error"]);
-            let session = b["token"].as_str().context("session token")?;
-            let response = client
-                .post(format!(
-                    "{}/api/v1/tokens",
-                    cli.gateway.trim_end_matches('/')
-                ))
-                .bearer_auth(session)
-                .json(&json!({"name":"wakeit cli"}))
-                .send()
-                .await?;
-            let status = response.status();
-            let b: Value = response.json().await?;
-            ensure!(status.is_success(), "token creation {status}");
-            if let Some(parent) = cli.token_file.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            let profile = wakeit::connection::save(
-                &cli.gateway,
-                username,
-                b["token"].as_str().context("API token")?,
-            )?;
-            if explicit_token_file {
-                wakeit::connection::atomic(
-                    &cli.token_file,
-                    b["token"].as_str().context("API token")?,
+            let body: Value = response.json().await?;
+            ensure!(status.is_success(), "login {status}: {}", body["error"]);
+            let session = body["token"].as_str().context("session token")?;
+            let result: Result<wakeit::connection::Profile> = async {
+                let response = client
+                    .get(format!("{}/api/v1/session", cli.gateway))
+                    .bearer_auth(session)
+                    .send()
+                    .await?;
+                ensure!(
+                    response.status().is_success(),
+                    "account authentication failed"
+                );
+                let identity: Value = response.json().await?;
+                let response = client
+                    .get(format!("{}/api/v1/workspaces/{workspace}", cli.gateway))
+                    .bearer_auth(session)
+                    .send()
+                    .await?;
+                ensure!(response.status().is_success(), "workspace is unavailable");
+                let metadata: Value = response.json().await?;
+                let response = client
+                    .post(format!(
+                        "{}/api/v1/workspaces/{workspace}/tokens",
+                        cli.gateway
+                    ))
+                    .bearer_auth(session)
+                    .json(&json!({"name":"wakeit cli"}))
+                    .send()
+                    .await?;
+                ensure!(response.status().is_success(), "API Key creation failed");
+                let key: Value = response.json().await?;
+                let token = key["token"].as_str().context("API Key missing")?;
+                let user = identity["id"]
+                    .as_str()
+                    .context("account ID missing")?
+                    .parse()?;
+                let profile = wakeit::connection::save(
+                    &cli.gateway,
+                    workspace,
+                    user,
+                    metadata["name"]
+                        .as_str()
+                        .context("workspace name missing")?,
+                    username,
+                    token,
                 )?;
+                if explicit_token_file {
+                    wakeit::connection::atomic(&cli.token_file, token)?;
+                }
+                Ok(profile)
             }
+            .await;
             let _ = client
-                .delete(format!(
-                    "{}/api/v1/session",
-                    cli.gateway.trim_end_matches('/')
-                ))
+                .delete(format!("{}/api/v1/session", cli.gateway))
                 .bearer_auth(session)
                 .send()
                 .await;
-            println!("Connected to {} as {}", profile.gateway, profile.username);
+            let profile = result?;
+            println!(
+                "Connected to {} / {} as {}",
+                profile.gateway,
+                profile.workspace_name.as_deref().unwrap_or("workspace"),
+                profile.username
+            );
         }
+
         Command::Schema { kind } => {
             let value = match kind.as_str() {
                 "agent" => serde_json::to_value(schemars::schema_for!(AgentConfig))?,

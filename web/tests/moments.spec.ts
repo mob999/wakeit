@@ -193,7 +193,7 @@ test('manual refresh only; full report and scroll survive Run navigation and ref
   await page.goBack()
   await expect(card.getByRole('button', { name: '收起', exact: true })).toBeVisible()
   await page.locator('.moments-page').evaluate((e) => (e.scrollTop = 400))
-  await page.getByRole('link', { name: '运行记录', exact: true }).click()
+  await page.getByRole('link', { name: '运行', exact: true }).click()
   await page.getByRole('link', { name: '动态', exact: true }).click()
   await expect.poll(() => page.locator('.moments-page').evaluate((e) => e.scrollTop)).toBe(400)
   await page.reload()
