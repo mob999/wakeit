@@ -353,18 +353,7 @@ pre {
   color: var(--muted);
   margin-top: 3px;
 }
-.avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 27px;
-  height: 27px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  font-size: 11px;
-  flex-shrink: 0;
-}
+
 .dropdown {
   background: var(--canvas);
   border: 1px solid var(--border);
@@ -1635,17 +1624,9 @@ input:disabled {
   color: var(--muted);
 }
 .settings-member-name {
-  display: flex;
-  align-items: center;
   min-width: 0;
-  gap: 10px;
 }
-.settings-member-name .avatar {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  font-size: 10px;
-}
+
 .settings-member-name > span:last-child {
   overflow-wrap: anywhere;
 }
