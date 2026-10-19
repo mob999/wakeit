@@ -129,7 +129,7 @@ export function TimeFields({
                 value={config.execution.misfire}
                 options={[
                   { value: 'skip', label: t('跳过') },
-                  { value: 'latest', label: t('执行最近一次') },
+                  { value: 'latest', label: t('dag.latest') },
                 ]}
                 onChange={(value) =>
                   patch({ execution: { ...config.execution, misfire: value as 'skip' | 'latest' } })
@@ -143,7 +143,7 @@ export function TimeFields({
                 value={config.execution.overlap}
                 options={[
                   { value: 'skip', label: t('跳过') },
-                  { value: 'allow', label: t('允许') },
+                  { value: 'allow', label: t('允许并行') },
                 ]}
                 onChange={(value) =>
                   patch({ execution: { ...config.execution, overlap: value as 'skip' | 'allow' } })

@@ -11,6 +11,7 @@ import { DetailBody } from '../Workbench'
 import { AgentLogo } from '../AgentLogo'
 import { Button, IconButton, Modal } from '../ui'
 import { RequestState } from './shared'
+import { RunIdentity } from '../runs/RunListRow'
 export function ArchivedTasks() {
   useTranslation()
   const client = useQueryClient()
@@ -68,15 +69,23 @@ export function ArchivedTasks() {
                   <Link className="archive-name" to="/tasks" search={{ task: task.id }}>
                     {task.config.name}
                   </Link>
-                  <span>
-                    {runners.data?.find(
-                      (r) => r.id === task.config.runner || r.name === task.config.runner,
-                    )?.name ?? task.config.runner}
-                  </span>
-                  <span className="archive-agent">
-                    <AgentLogo name={agent?.name ?? task.config.agent} logo={agent?.logo} />
-                    {agent?.name ?? task.config.agent}
-                  </span>
+                  {task.config.dag ? (
+                    <span className="dag-table-identity">
+                      <RunIdentity run={task} />
+                    </span>
+                  ) : (
+                    <>
+                      <span>
+                        {runners.data?.find(
+                          (r) => r.id === task.config.runner || r.name === task.config.runner,
+                        )?.name ?? task.config.runner}
+                      </span>
+                      <span className="archive-agent">
+                        <AgentLogo name={agent?.name ?? task.config.agent} logo={agent?.logo} />
+                        {agent?.name ?? task.config.agent}
+                      </span>
+                    </>
+                  )}
                   <span className="mono quiet">
                     {task.archived_at ? new Date(task.archived_at).toLocaleString(locale()) : '—'}
                   </span>

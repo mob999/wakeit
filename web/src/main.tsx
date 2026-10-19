@@ -13,6 +13,7 @@ import { InstanceAccounts } from './settings/InstanceAccounts'
 import { DeviceAuthorization } from './onboarding/DeviceAuthorization'
 import { TaskEditor } from './TaskEditor'
 import { DagEditor } from './dag/DagEditor'
+import { DagTaskOverview } from './dag/DagTaskOverview'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { SettingsPage } from './settings/SettingsPage'
 import { Split } from './Workbench'
@@ -633,39 +634,45 @@ function TasksPage() {
                       </div>
                     </div>
                   </ContentCard>
-                  <ContentCard title={tr('指令')}>
-                    <pre className="task-prompt">{task.config.prompt}</pre>
-                  </ContentCard>
-                  <ContentCard title={tr('执行内容')}>
-                    <dl className="properties">
-                      <dt>{tr('Runner')}</dt>
-                      <dd>{task.config.runner}</dd>
-                      <dt>{tr('Agent')}</dt>
-                      <dd className="mono">{task.config.agent}</dd>
-                      <dt>{tr('工作目录')}</dt>
-                      <dd className="mono wrap">{task.config.cwd}</dd>
-                      <dt>{tr('参数')}</dt>
-                      <dd className="mono wrap">
-                        {Object.entries(task.config.parameters ?? {})
-                          .map(([key, value]) => `${key}: ${value}`)
-                          .join(' · ') || tr('默认配置')}
-                      </dd>
-                      <dt>{tr('会话')}</dt>
-                      <dd className={task.config.session ? 'mono wrap' : 'quiet'}>
-                        {task.config.session?.id ?? tr('每次新建')}
-                      </dd>
-                      <dt>{tr('执行时间')}</dt>
-                      <dd className="mono">
-                        {task.config.schedule
-                          ? (task.config.schedule.cron ??
-                            task.config.schedule.every ??
-                            time(task.config.schedule.at))
-                          : tr('手动执行')}
-                      </dd>
-                      <dt>{tr('超时')}</dt>
-                      <dd>{task.config.execution.timeout}</dd>
-                    </dl>
-                  </ContentCard>
+                  {task.config.dag ? (
+                    <DagTaskOverview config={task.config} agents={agents.data} />
+                  ) : (
+                    <>
+                      <ContentCard title={tr('指令')}>
+                        <pre className="task-prompt">{task.config.prompt}</pre>
+                      </ContentCard>
+                      <ContentCard title={tr('执行内容')}>
+                        <dl className="properties">
+                          <dt>{tr('Runner')}</dt>
+                          <dd>{task.config.runner}</dd>
+                          <dt>{tr('Agent')}</dt>
+                          <dd className="mono">{task.config.agent}</dd>
+                          <dt>{tr('工作目录')}</dt>
+                          <dd className="mono wrap">{task.config.cwd}</dd>
+                          <dt>{tr('参数')}</dt>
+                          <dd className="mono wrap">
+                            {Object.entries(task.config.parameters ?? {})
+                              .map(([key, value]) => `${key}: ${value}`)
+                              .join(' · ') || tr('默认配置')}
+                          </dd>
+                          <dt>{tr('会话')}</dt>
+                          <dd className={task.config.session ? 'mono wrap' : 'quiet'}>
+                            {task.config.session?.id ?? tr('每次新建')}
+                          </dd>
+                          <dt>{tr('执行时间')}</dt>
+                          <dd className="mono">
+                            {task.config.schedule
+                              ? (task.config.schedule.cron ??
+                                task.config.schedule.every ??
+                                time(task.config.schedule.at))
+                              : tr('手动执行')}
+                          </dd>
+                          <dt>{tr('超时')}</dt>
+                          <dd>{task.config.execution.timeout}</dd>
+                        </dl>
+                      </ContentCard>
+                    </>
+                  )}
                   <RunTable title={tr('最近执行')} runs={history.data?.items.slice(0, 5) ?? []} />
                 </>
               ) : tab === 'runs' ? (
@@ -717,8 +724,16 @@ function RunTable({ runs, title }: { runs: Run[]; title: string }) {
           {runs.map((r) => (
             <Link to="/runs" search={{ run: r.id }} key={r.id} className="run-table-row">
               <Status state={r.state} />
-              <RunDevice run={r} agents={agents.data} />
-              <RunAgent run={r} agents={agents.data} />
+              {r.config.dag ? (
+                <span className="dag-table-identity">
+                  <RunIdentity run={r} />
+                </span>
+              ) : (
+                <>
+                  <RunDevice run={r} agents={agents.data} />
+                  <RunAgent run={r} agents={agents.data} />
+                </>
+              )}
               <span className="run-table-time">{time(r.started_at ?? r.created_at)}</span>
               <ChevronRight size={13} />
             </Link>

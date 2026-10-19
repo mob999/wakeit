@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import * as Menu from '@radix-ui/react-dropdown-menu'
 import { Braces, ChevronRight } from 'lucide-react'
 import { type Dag, type DagNode, type Runner, type DagIssue } from '../api'
 import { t } from '../i18n'
@@ -46,7 +47,6 @@ export function NodeForm({
       <Field label={t('dag.field.name')}>
         <input
           aria-label={t('dag.field.name')}
-          autoFocus
           value={node.name}
           aria-invalid={!!error('name')}
           onChange={(e) => patch({ name: e.target.value })}
@@ -74,28 +74,39 @@ export function NodeForm({
       <div className="field">
         <div className="dag-prompt-head">
           <label htmlFor={`prompt-${node.id}`}>{t('指令')}</label>
-          <ChoicePicker
-            label={t('dag.insertResult')}
-            value=""
-            disabled={disabled || !upstream.size}
-            open={referenceOpen}
-            onOpenChange={setReferenceOpen}
-            placeholder={t('dag.insertResult')}
-            options={dag.nodes
-              .filter((n) => upstream.has(n.id))
-              .map((n) => ({ value: n.id, label: n.name || t('dag.unnamed') }))}
-            onChange={(id) => {
-              const field = prompt.current
-              const start = field?.selectionStart ?? node.prompt.length
-              const end = field?.selectionEnd ?? start
-              const token = `{{ nodes.${id}.result }}`
-              patch({ prompt: node.prompt.slice(0, start) + token + node.prompt.slice(end) })
-              requestAnimationFrame(() => {
-                field?.focus()
-                field?.setSelectionRange(start + token.length, start + token.length)
-              })
-            }}
-          />
+          <Menu.Root open={referenceOpen && !disabled} onOpenChange={setReferenceOpen}>
+            <Menu.Trigger asChild>
+              <IconButton label={t('dag.insertResult')} disabled={disabled || !upstream.size}>
+                <Braces />
+              </IconButton>
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Content className="dropdown" align="end">
+                {dag.nodes
+                  .filter((n) => upstream.has(n.id))
+                  .map((n) => (
+                    <Menu.Item
+                      key={n.id}
+                      onSelect={() => {
+                        const field = prompt.current,
+                          start = field?.selectionStart ?? node.prompt.length,
+                          end = field?.selectionEnd ?? start,
+                          token = `{{ nodes.${n.id}.result }}`
+                        patch({
+                          prompt: node.prompt.slice(0, start) + token + node.prompt.slice(end),
+                        })
+                        requestAnimationFrame(() => {
+                          field?.focus()
+                          field?.setSelectionRange(start + token.length, start + token.length)
+                        })
+                      }}
+                    >
+                      {n.name || t('dag.unnamed')}
+                    </Menu.Item>
+                  ))}
+              </Menu.Content>
+            </Menu.Portal>
+          </Menu.Root>
         </div>
         <textarea
           ref={prompt}
@@ -152,9 +163,10 @@ export function NodeForm({
         </Field>
       </div>
       <DirectoryPicker
+        disabled={disabled}
         runner={runner}
         value={node.cwd}
-        onChange={(cwd) => patch({ cwd, session: null })}
+        onChange={(cwd) => { if(cwd !== node.cwd) patch({ cwd, session: null }) }}
       />
       {hint('cwd')}
       <ModelPicker

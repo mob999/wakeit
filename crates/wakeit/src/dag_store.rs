@@ -43,7 +43,20 @@ pub async fn validation(
         && result.is_empty()
     {
         result.push(ValidationIssue {
-            path: "config".into(),
+            path: if duration(&c.execution.timeout).is_err() {
+                "execution.timeout"
+            } else if duration(&c.execution.start_grace).is_err() {
+                "execution.start_grace"
+            } else if c
+                .schedule
+                .as_ref()
+                .is_some_and(|s| crate::schedule::validate(s).is_err())
+            {
+                "schedule"
+            } else {
+                "config"
+            }
+            .into(),
             node_id: None,
             message: e.to_string(),
             cycle: vec![],

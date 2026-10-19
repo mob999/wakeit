@@ -531,5 +531,7 @@
   "dag.field.prompt": "instruction",
   "dag.field.runner": "Runner",
   "dag.field.agent": "Agent",
-  "dag.field.cwd": "working directory"
+  "dag.field.cwd": "working directory",
+  "dag.nodeCount": "{{count}} nodes",
+  "dag.latest": "Run latest"
 }

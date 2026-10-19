@@ -445,7 +445,9 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
             (tasks.data?.items ?? []).map((t) => ({
               id: t.id,
               name: t.config.name,
-              meta: `${t.config.runner} · ${t.config.agent}`,
+              meta: t.config.dag
+                ? `DAG ${tr('dag.nodeCount', { count: t.config.dag.nodes.length })}`
+                : `${t.config.runner} · ${t.config.agent}`,
             })),
             tasks.data?.total,
             tasks.error,

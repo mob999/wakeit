@@ -531,5 +531,7 @@
   "dag.field.prompt": "指令",
   "dag.field.runner": "Runner",
   "dag.field.agent": "Agent",
-  "dag.field.cwd": "工作目录"
+  "dag.field.cwd": "工作目录",
+  "dag.nodeCount": "{{count}} 个节点",
+  "dag.latest": "执行最近一次"
 }

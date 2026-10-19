@@ -400,3 +400,11 @@
     grid-template-columns: 1fr;
   }
 }
+
+.dag-table-identity {
+  grid-column: span 2;
+  min-width: 0;
+}
+.dag-prompt-head .icon-button {
+  margin-left: auto;
+}

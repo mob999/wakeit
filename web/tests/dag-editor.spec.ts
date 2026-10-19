@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { selectChoice } from './choices'
 const workspace = '11111111-1111-4111-8111-111111111111'
 const agent = {
   id: 'pi',
@@ -39,7 +40,15 @@ async function mock(page: Page) {
                     ? { errors: [] }
                     : path.endsWith('/schedule/preview')
                       ? ['2026-10-20T09:00:00Z']
-                      : []
+                      : path.endsWith('/directories')
+                        ? {
+                            path: '/workspace',
+                            parent: null,
+                            breadcrumbs: [{ name: 'workspace', path: '/workspace' }],
+                            directories: [],
+                            next_cursor: null,
+                          }
+                        : []
     await route.fulfill({ json: value })
   })
 }
@@ -57,8 +66,8 @@ test('DAG prototype keeps node drafts, renders worker graph and protects referen
   await page.getByRole('combobox', { name: '前置节点', exact: true }).click()
   await page.getByRole('option', { name: 'Collect sources', exact: true }).click()
   await page.keyboard.press('Escape')
-  await page.getByRole('combobox', { name: '引用上游结果', exact: true }).click()
-  await page.getByRole('option', { name: 'Collect sources', exact: true }).click()
+  await page.getByRole('button', { name: '引用上游结果', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Collect sources', exact: true }).click()
   await expect(page.getByLabel('指令', { exact: true })).toHaveValue(/nodes\..+\.result/)
   await page.locator('.dag-graph-node').filter({ hasText: 'Collect sources' }).click()
   await expect(page.getByLabel('指令', { exact: true })).toHaveValue('Find primary sources\n中文')
@@ -81,4 +90,72 @@ test('DAG prototype keeps node drafts, renders worker graph and protects referen
       .toBe(true)
     await page.screenshot({ path: `test-results/dag-editor-${width}-${theme}.png`, fullPage: true })
   }
+})
+
+test('DAG Next only validates; failed saves and revision conflicts retain the complete draft', async ({
+  page,
+}) => {
+  await mock(page)
+  await page.goto(`/w/${workspace}/tasks/dag`)
+  await page.getByLabel('任务名称', { exact: true }).fill('Daily report')
+  await page.getByLabel('名称', { exact: true }).fill('Collect')
+  await page.getByLabel('指令', { exact: true }).fill('Keep this entire instruction')
+  await selectChoice(page, page, 'Runner', 'Preview Runner')
+  await selectChoice(page, page, 'Agent', 'Pi')
+  await page.getByRole('button', { name: '选择目录', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '选择文件夹', exact: true }).click()
+  const writes: any[] = []
+  await page.route('**/api/v1/workspaces/*/tasks/*', async (route) => {
+    if (route.request().method() !== 'PUT') return route.fallback()
+    writes.push(route.request().postDataJSON())
+    await route.fulfill({
+      status: writes.length === 1 ? 503 : 409,
+      json: { error: writes.length === 1 ? '保存失败' : '版本冲突' },
+    })
+  })
+  await page.getByRole('button', { name: '下一步', exact: true }).click()
+  await expect(page.getByRole('tab', { name: '时间', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  expect(writes).toHaveLength(0)
+  await selectChoice(page, page, '类型', 'manual')
+  await page.getByRole('button', { name: '保存任务', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('保存失败')
+  await page.getByRole('button', { name: '上一步', exact: true }).click()
+  await expect(page.getByLabel('指令', { exact: true })).toHaveValue('Keep this entire instruction')
+  await page.getByRole('button', { name: '下一步', exact: true }).click()
+  await page.getByRole('button', { name: '保存任务', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('版本冲突')
+  expect(writes[0].config.dag.nodes).toEqual(writes[1].config.dag.nodes)
+  expect(writes[0].config.id).toBe(writes[1].config.id)
+  expect(writes[1].config.schedule).toBeNull()
+})
+
+test('DAG output selection switches between automatic leaves and an explicit subset', async ({
+  page,
+}) => {
+  await mock(page)
+  await page.goto(`/w/${workspace}/tasks/dag`)
+  await page.getByLabel('名称', { exact: true }).fill('Output A')
+  await page.getByRole('button', { name: '新增节点', exact: true }).click()
+  await page.getByLabel('名称', { exact: true }).fill('Output B')
+  await page.getByRole('combobox', { name: '结果节点', exact: true }).click()
+  await expect(page.getByRole('option', { name: '末端节点（自动）', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await page.getByRole('option', { name: 'Output A', exact: true }).click()
+  await expect(page.getByRole('option', { name: 'Output A', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(page.getByRole('option', { name: '末端节点（自动）', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'false',
+  )
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('combobox', { name: '结果节点', exact: true })).toContainText(
+    'Output A',
+  )
 })

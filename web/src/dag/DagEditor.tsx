@@ -60,6 +60,15 @@ export function DagEditor({
   const [step, setStep] = useState<'task' | 'time'>('task')
   const [mobile, setMobile] = useState<'node' | 'list'>(task ? 'list' : 'node')
   const [width, setWidth] = useState(400)
+  const [focusNode, setFocusNode] = useState(false)
+  useEffect(() => {
+    if (focusNode) {
+      requestAnimationFrame(() =>
+        pane.current?.querySelector<HTMLInputElement>('.dag-config-body input')?.focus(),
+      )
+      setFocusNode(false)
+    }
+  }, [focusNode, selected])
   const [room, setRoom] = useState(0)
   const pane = useRef<HTMLDivElement>(null)
   const [errors, setErrors] = useState<DagIssue[]>([])
@@ -111,6 +120,10 @@ export function DagEditor({
     node = dag.nodes.find((n) => n.id === selected)
   const changeDag = (next: typeof dag) => setConfig((c) => ({ ...c, dag: next }))
   const locate = (issue: DagIssue) => {
+    if (issue.path.startsWith('execution.') || issue.path.startsWith('schedule')) {
+      setStep('time')
+      return
+    }
     setStep('task')
     if (issue.node_id) {
       setSelected(issue.node_id)
@@ -223,6 +236,7 @@ export function DagEditor({
             <Field label={t('任务名称')}>
               <input
                 disabled={busy}
+                autoFocus={!task}
                 value={config.name}
                 aria-invalid={errors.some((e) => e.path === 'name')}
                 onChange={(e) => setConfig((c) => ({ ...c, name: e.target.value }))}
@@ -232,14 +246,21 @@ export function DagEditor({
               <MultiPicker
                 label={t('dag.results')}
                 disabled={busy}
-                value={dag.results ?? []}
+                value={dag.results ?? [':auto']}
                 empty={t('dag.autoResults')}
                 options={[
-                  { id: '__auto', name: t('dag.autoResults') },
+                  { id: ':auto', name: t('dag.autoResults') },
                   ...dag.nodes.map((n) => ({ id: n.id, name: n.name || t('dag.unnamed') })),
                 ]}
                 onChange={(ids) =>
-                  changeDag({ ...dag, results: ids.includes('__auto') ? undefined : ids })
+                  changeDag({
+                    ...dag,
+                    results:
+                      (dag.results != null && ids.includes(':auto')) ||
+                      (dag.results == null && !ids.length)
+                        ? undefined
+                        : ids.filter((id) => id !== ':auto'),
+                  })
                 }
               />
             </Field>
@@ -267,6 +288,7 @@ export function DagEditor({
                     const next = newNode()
                     changeDag({ ...dag, nodes: [...dag.nodes, next] })
                     setSelected(next.id)
+                    setFocusNode(true)
                     setMobile('node')
                   }}
                 >
@@ -314,6 +336,7 @@ export function DagEditor({
                             }
                             changeDag({ ...dag, nodes: [...dag.nodes, copy] })
                             setSelected(copy.id)
+                            setFocusNode(true)
                           }}
                         >
                           {t('dag.duplicate')}

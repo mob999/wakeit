@@ -54,7 +54,7 @@ export function DagGraph({
             'elk.layered.spacing.nodeNodeBetweenLayers': '60',
             'elk.padding': '[top=28,left=28,bottom=28,right=28]',
           },
-          children: nodes.map((n) => ({ id: n.id, width: 208, height: 84 })),
+          children: nodes.map((n) => ({ id: n.id, width: 208, height: 'state' in n ? 108 : 84 })),
           edges: nodes.flatMap((n) =>
             n.pre
               .filter((id) => nodes.some((p) => p.id === id))
