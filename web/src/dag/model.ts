@@ -1,9 +1,14 @@
 import { type Dag, type DagNode, type DagIssue } from '../api'
 import { t } from '../i18n'
 
-export const newNode = (): DagNode => ({
+function nextNodeName(nodes: DagNode[]) {
+  let index = 1
+  while (nodes.some((n) => n.name === t('dag.defaultNode', { number: index }))) index++
+  return t('dag.defaultNode', { number: index })
+}
+export const newNode = (nodes: DagNode[] = []): DagNode => ({
   id: `node_${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`,
-  name: '',
+  name: nextNodeName(nodes),
   pre: [],
   runner: '',
   agent: '',
@@ -39,6 +44,15 @@ export function issues(dag: Dag): DagIssue[] {
         })
     if (ancestors(dag, node.id).has(node.id))
       result.push({ node_id: node.id, path: `dag.nodes.${node.id}.pre`, message: t('dag.cycle') })
+    if (
+      new Set(node.pre).size !== node.pre.length ||
+      node.pre.some((id) => !dag.nodes.some((n) => n.id === id))
+    )
+      result.push({
+        node_id: node.id,
+        path: `dag.nodes.${node.id}.pre`,
+        message: t('dag.connection.missing'),
+      })
     const upstream = ancestors(dag, node.id)
     for (const match of node.prompt.matchAll(/\{\{\s*nodes\.([a-zA-Z0-9_-]+)\.result\s*\}\}/g))
       if (!upstream.has(match[1]))
@@ -50,6 +64,8 @@ export function issues(dag: Dag): DagIssue[] {
   }
   if (!dag.nodes.length) result.push({ path: 'dag.nodes', message: t('dag.needNode') })
   if (!outputs(dag).length) result.push({ path: 'dag.results', message: t('dag.needResult') })
+  if (dag.results?.some((id) => !dag.nodes.some((n) => n.id === id)))
+    result.push({ path: 'dag.results', message: t('dag.missingOutput') })
   return result
 }
 export function referencesTo(dag: Dag, id: string) {
@@ -59,4 +75,21 @@ export function referencesTo(dag: Dag, id: string) {
       (n.pre.includes(id) ||
         new RegExp(`\\{\\{\\s*nodes\\.${id}\\.result\\s*\\}\\}`).test(n.prompt)),
   )
+}
+
+export function referenceLocations(dag: Dag, id: string) {
+  const rows: { node_id?: string; name: string; field: string; kind: string }[] = []
+  for (const node of dag.nodes) {
+    if (node.pre.includes(id))
+      rows.push({ node_id: node.id, name: node.name, field: 'pre', kind: t('dag.pre') })
+    if (
+      Array.from(node.prompt.matchAll(/\{\{\s*nodes\.([a-zA-Z0-9_-]+)\.result\s*\}\}/g)).some(
+        (m) => m[1] === id,
+      )
+    )
+      rows.push({ node_id: node.id, name: node.name, field: 'prompt', kind: t('dag.insertResult') })
+  }
+  if (dag.results?.includes(id))
+    rows.push({ name: t('dag.results'), field: 'results', kind: t('dag.outputNode') })
+  return rows
 }

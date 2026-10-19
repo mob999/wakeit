@@ -65,12 +65,20 @@ def main():
         assert result.returncode != 0 and 'check constraint' in result.stderr
         checks.append('database rejects cross-workspace references and workspace-bound browser sessions')
 
+        migrate('0003_dag.sql')
+        assert sql(f"SELECT count(*) FROM runs WHERE id='{run}' AND runner_id='{runner}' AND parent_run_id IS NULL AND node_id IS NULL").stdout.strip() == '1'
+        assert sql(f"SELECT token_hash||':'||public_key FROM runners WHERE id='{runner}'").stdout.strip() == 'fixture-device-hash:fixture-public-key'
+        assert sql(f"SELECT count(*) FROM events WHERE run_id='{run}'").stdout.strip() == '1'
+        assert sql("SELECT count(*) FROM credentials WHERE hash IN ('fixture-key','fixture-session')").stdout.strip() == '2'
+        checks.append('DAG migration preserves legacy Task/Run IDs, events, API/session credentials and device identity')
+
         sql('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
         migrate('0001_initial.sql')
         migrate('0002_workspaces.sql')
+        migrate('0003_dag.sql')
         assert sql('SELECT count(*) FROM workspaces WHERE is_default').stdout.strip() == '1'
         assert sql('SELECT count(*) FROM settings').stdout.strip() == '1'
-        checks.append('fresh installation with both migrations')
+        checks.append('fresh installation with workspace and DAG migrations')
         for item in checks:
             print('PASS ' + item)
         (root / 'summary.json').write_text(json.dumps({'checks': checks}, indent=2))

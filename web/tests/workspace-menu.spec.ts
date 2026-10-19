@@ -52,7 +52,9 @@ for (const [role, label, english] of [
     await expect(
       page.locator('.workspace-settings').getByRole('button', { name: '创建工作区', exact: true }),
     ).toBeVisible()
-    await expect(page.getByRole('button', { name: '创建工作区', exact: true })).toBeVisible()
+    await expect(
+      page.locator('.form-card-head').getByRole('button', { name: '创建工作区', exact: true }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: '退出工作区', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '更改工作区名称', exact: true })).toHaveCount(
       role === 'admin' ? 1 : 0,
@@ -86,7 +88,7 @@ for (const [role, label, english] of [
     await expect(leave).toContainText('Workspace Preview')
     expect(calls.some((call) => call.path.endsWith('/leave'))).toBe(false)
     await leave.getByRole('button', { name: '退出', exact: true }).click()
-    await expect(leave.getByRole('alert')).toHaveText('必须至少保留一名有效管理员')
+    await expect(page.getByRole('alert')).toHaveText('必须至少保留一名有效管理员')
     await expect(leave).toBeVisible()
     await leave.getByRole('button', { name: '取消', exact: true }).click()
     await page.getByRole('button', { name: '切换到英文', exact: true }).click()

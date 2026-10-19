@@ -325,7 +325,7 @@ test('full report errors retry in place and workspace timezone changes regroup o
   await page.getByRole('link', { name: '动态', exact: true }).click()
   const card = page.locator('.moment-card').first()
   await card.getByRole('button', { name: '阅读全文' }).click()
-  await expect(card.getByRole('alert')).toContainText('全文暂不可用')
+  await expect(page.getByRole('alert')).toContainText('全文暂不可用')
   await card.getByRole('button', { name: '重试', exact: true }).click()
   await expect(card.locator('.moment-report')).toContainText('全文结束')
   await page.route('**/api/v1/moments/days**', (route) =>

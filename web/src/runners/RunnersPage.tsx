@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { RunnerStatus } from './RunnerStatus'
@@ -73,10 +74,10 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
     onError: (e) => toast(e.message),
   })
   const listState = runners.error ? (
-    <div className="error padded">
+    <ErrorToast>
       {runners.error.message}
       <Button onClick={() => runners.refetch()}>{tr('重试')}</Button>
-    </div>
+    </ErrorToast>
   ) : runners.isPending ? (
     <p className="quiet padded">{tr('正在加载…')}</p>
   ) : !filtered.length ? (

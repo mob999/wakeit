@@ -218,7 +218,7 @@ def main():
         assert release_meta['install']['release'].endswith('/v'+package_version)
         assert release_meta['install']['manifest']==release_meta['install']['base_url']+'/wakeit-release.json'
         assert next(a for a in api('/agents') if a['id']=='mock-sync')['logo']=='/agent-logos/pi.svg'
-        assert sql('SELECT count(*) FROM _sqlx_migrations')=='2'
+        assert int(sql('SELECT count(*) FROM _sqlx_migrations'))==len(list((ROOT/'crates/wakeit/migrations').glob('*.sql')))
         roots=api(f'/runners/{runner_id}/directories'); assert roots['directories'][0]['path']==str(cwd)
         for name in ['child 中文','other child']: (cwd/name).mkdir()
         from urllib.parse import urlencode

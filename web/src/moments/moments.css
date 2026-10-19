@@ -213,3 +213,30 @@
     gap: 12px;
   }
 }
+
+.moment-dag-reports > section + section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.moment-dag-reports header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.moment-dag-reports header strong {
+  font-size: 13px;
+  font-weight: 500;
+  margin-right: auto;
+}
+.moment-report .dag-result-group > header {
+  padding: 0 0 10px;
+}
+.moment-report .dag-result-group + .dag-result-group {
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.moment-report .dag-result-group .detail-body {
+  padding: 0;
+}

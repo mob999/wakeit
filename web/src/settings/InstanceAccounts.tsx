@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -83,11 +84,7 @@ function AccountRow({
         }
       >
         <div className="modal-body">
-          {change.error && (
-            <p className="error" role="alert">
-              {change.error.message}
-            </p>
-          )}
+          {change.error && <ErrorToast>{change.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={change.isPending} onClick={() => setConfirm(false)}>
@@ -135,14 +132,14 @@ export function InstanceAccounts({ user }: { user: User }) {
       <main className="instance-accounts-body">
         {query.error ? (
           <div className="content-card card-body">
-            <p className="error">{query.error.message}</p>
+            <ErrorToast>{query.error.message}</ErrorToast>
             <Button onClick={() => void query.refetch()}>{tr('重试')}</Button>
           </div>
         ) : query.isPending ? (
           <div className="quiet">{tr('加载中…')}</div>
         ) : (
           <>
-            <div className="content-card settings-table">
+            <div className="content-card settings-table settings-table-members">
               <div className="settings-member-row settings-table-head table-head">
                 <span>{tr('账号')}</span>
                 <span>{tr('权限')}</span>

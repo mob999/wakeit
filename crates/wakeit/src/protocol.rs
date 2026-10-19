@@ -48,7 +48,7 @@ pub struct RunEvent {
 pub fn terminal(state: &str) -> bool {
     matches!(
         state,
-        "succeeded" | "failed" | "cancelled" | "timed_out" | "skipped" | "interrupted"
+        "succeeded" | "warning" | "failed" | "cancelled" | "timed_out" | "skipped" | "interrupted"
     )
 }
 pub fn active(state: &str) -> bool {

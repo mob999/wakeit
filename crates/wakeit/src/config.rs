@@ -325,6 +325,7 @@ impl Default for Execution {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+#[schemars(transform = task_schema)]
 pub struct TaskConfig {
     #[serde(default = "version")]
     pub version: u32,
@@ -350,6 +351,13 @@ pub struct TaskConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dag: Option<crate::dag::Dag>,
 }
+fn task_schema(schema: &mut schemars::Schema) {
+    schema.insert("oneOf".into(), serde_json::json!([
+        {"required":["runner","agent","cwd","prompt"],"properties":{"dag":{"type":"null"},"runner":{"minLength":1},"agent":{"minLength":1},"cwd":{"minLength":1},"prompt":{"minLength":1}}},
+        {"required":["dag"],"properties":{"dag":{"type":"object"},"runner":{"maxLength":0},"agent":{"maxLength":0},"cwd":{"maxLength":0},"prompt":{"maxLength":0},"parameters":{"maxProperties":0},"session":{"type":"null"}}}
+    ]));
+}
+
 impl TaskConfig {
     pub fn validate(&self) -> Result<()> {
         ensure!(self.version == 1, "unsupported task configuration version");

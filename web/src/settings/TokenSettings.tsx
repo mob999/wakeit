@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { PageActions } from '../PageHeader'
@@ -118,11 +119,7 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
               )}
             </>
           )}
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <ErrorToast>{error}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>
@@ -176,7 +173,7 @@ export function TokenSettings() {
         ) : !query.data.items.length ? (
           <div className="settings-request content-card">{tr('暂无 API Key')}</div>
         ) : (
-          <div className="settings-table content-card">
+          <div className="settings-table settings-table-keys content-card">
             <div className="settings-token-row settings-table-head table-head">
               <span>{tr('名称')}</span>
               <span>{tr('到期时间')}</span>
@@ -231,11 +228,7 @@ export function TokenSettings() {
         })}
       >
         <div className="modal-body">
-          {revoke.error && (
-            <p className="error" role="alert">
-              {revoke.error.message}
-            </p>
-          )}
+          {revoke.error && <ErrorToast>{revoke.error.message}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button disabled={revoke.isPending} onClick={() => setSelected(null)}>
