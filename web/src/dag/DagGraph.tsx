@@ -4,24 +4,14 @@ import { useTranslation } from 'react-i18next'
 import ELK, { type ElkNode } from 'elkjs/lib/elk-api'
 // @ts-expect-error Vite emits this worker as a separate local asset.
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url'
-import {
-  List,
-  GitBranch,
-  Maximize2,
-  Scan,
-  ZoomIn,
-  ZoomOut,
-  LocateFixed,
-  Flag,
-  CircleAlert,
-  ChevronRight,
-} from 'lucide-react'
+import { List, GitBranch, Flag, CircleAlert, ChevronRight } from 'lucide-react'
 import { t } from '../i18n'
 import { type DagNode, type DagRunNode, type Agent, type Runner } from '../api'
 import { IconButton } from '../ui'
 import { AgentLogo } from '../AgentLogo'
 import { Status } from '../Status'
 import { nodeName, runnerName } from './identity'
+import { CanvasControls } from './CanvasControls'
 import './dag.css'
 export type DagView = 'graph' | 'list'
 export function DagGraph({
@@ -70,6 +60,13 @@ export function DagGraph({
   useTranslation()
   const markerId = useId().replaceAll(':', '')
   const scroll = useRef({ left: 0, top: 0 })
+  const structure = useRef<HTMLElement>(null),
+    originalHeight = useRef(0)
+  const [fullscreen, setFullscreen] = useState(false)
+  function toggleFullscreen() {
+    if (!fullscreen) originalHeight.current = structure.current?.getBoundingClientRect().height ?? 0
+    setFullscreen((value) => !value)
+  }
   const [localView, setView] = useState<DagView>('graph'),
     [localSearch, setSearch] = useState('')
   const view = controlledView ?? localView,
@@ -78,6 +75,32 @@ export function DagGraph({
   const [layout, setLayout] = useState<ElkNode>(),
     [error, setError] = useState(false),
     [scale, setScale] = useState(1)
+  useEffect(() => {
+    if (view !== 'graph' || error) setFullscreen(false)
+  }, [view, error])
+  useEffect(() => {
+    if (!fullscreen) return
+    const navigation = document.getElementById('primary-navigation'),
+      previous = navigation?.inert
+    if (navigation) navigation.inert = true
+    function escape(event: KeyboardEvent) {
+      if (
+        event.key !== 'Escape' ||
+        event.defaultPrevented ||
+        document.querySelector(
+          '[data-radix-popper-content-wrapper], [role=dialog][data-state=open]',
+        )
+      )
+        return
+      event.preventDefault()
+      setFullscreen(false)
+    }
+    window.addEventListener('keydown', escape)
+    return () => {
+      if (navigation) navigation.inert = previous ?? false
+      window.removeEventListener('keydown', escape)
+    }
+  }, [fullscreen])
   const [size, setSize] = useState({ width: 0, height: 0 })
   const viewport = useRef<HTMLDivElement>(null),
     fitted = useRef(false),
@@ -211,245 +234,239 @@ export function DagGraph({
   return (
     <section
       className={'dag-structure ' + (compact ? 'dag-compact' : '')}
+      ref={structure}
+      style={fullscreen ? { height: originalHeight.current } : undefined}
       aria-label={t('dag.nodes')}
       data-view={actualView}
     >
-      {!hideHeader && (
-        <header className="dag-structure-head">
-          {!hideTitle && <strong>{t('dag.nodes')}</strong>}
-          <IconButton
-            label={t('dag.graph')}
-            aria-pressed={view === 'graph'}
-            onClick={() => changeView('graph')}
-          >
-            <GitBranch />
-          </IconButton>
-          <IconButton
-            label={t('dag.list')}
-            aria-pressed={view === 'list'}
-            onClick={() => changeView('list')}
-          >
-            <List />
-          </IconButton>
-          <input
-            aria-label={t('dag.search')}
-            placeholder={t('dag.search')}
-            value={search}
-            onChange={(e) =>
-              onSearchChange ? onSearchChange(e.target.value) : setSearch(e.target.value)
-            }
-          />
-          {actions}
-        </header>
-      )}
-      {error && <ErrorToast error={t('dag.layoutFailed')} />}
-      {actualView === 'list' ? (
-        <div className="dag-node-table" role="table" aria-label={t('dag.nodes')}>
-          <div className="dag-node-columns dag-table-head" role="row">
-            {[t('dag.nodes'), t('dag.pre'), t('Runner'), t('Agent'), t('操作')].map((label) => (
-              <span key={label} role="columnheader">
-                {label}
-              </span>
-            ))}
-          </div>
-          {visible.map((n) => (
-            <div className="dag-table-entry" key={n.id}>
-              <div
-                role="row"
-                tabIndex={disabled ? -1 : 0}
-                aria-selected={selected === n.id}
-                aria-label={nodeName(n)}
-                aria-invalid={invalid.includes(n.id) || undefined}
-                className={
-                  'dag-list-node dag-node-columns ' + (selected === n.id ? 'selected' : '')
-                }
-                onClick={() => !disabled && onSelect(n.id)}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    if (!disabled) onSelect(n.id)
-                  }
-                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                    e.preventDefault()
-                    const index = visible.indexOf(n),
-                      next =
-                        visible[
-                          (index + (e.key === 'ArrowDown' ? 1 : -1) + visible.length) %
-                            visible.length
-                        ]
-                    e.currentTarget
-                      .closest('[role=table]')
-                      ?.querySelector<HTMLElement>('[data-node="' + next.id + '"]')
-                      ?.focus()
-                  }
-                }}
-                data-node={n.id}
-              >
-                <span role="cell" className="dag-node-title">
-                  <strong>{nodeName(n)}</strong>
-                  {flags(n)}
-                  {'state' in n && <Status state={n.state} />}
+      <div className={'dag-structure-content' + (fullscreen ? ' dag-structure-fullscreen' : '')}>
+        {!hideHeader && (
+          <header className="dag-structure-head">
+            {!hideTitle && <strong>{t('dag.nodes')}</strong>}
+            <IconButton
+              label={t('dag.graph')}
+              aria-pressed={view === 'graph'}
+              onClick={() => changeView('graph')}
+            >
+              <GitBranch />
+            </IconButton>
+            <IconButton
+              label={t('dag.list')}
+              aria-pressed={view === 'list'}
+              onClick={() => changeView('list')}
+            >
+              <List />
+            </IconButton>
+            <input
+              aria-label={t('dag.search')}
+              placeholder={t('dag.search')}
+              value={search}
+              onChange={(e) =>
+                onSearchChange ? onSearchChange(e.target.value) : setSearch(e.target.value)
+              }
+            />
+            {actions}
+          </header>
+        )}
+        {error && <ErrorToast error={t('dag.layoutFailed')} />}
+        {actualView === 'list' ? (
+          <div className="dag-node-table" role="table" aria-label={t('dag.nodes')}>
+            <div className="dag-node-columns dag-table-head" role="row">
+              {[t('dag.nodes'), t('dag.pre'), t('Runner'), t('Agent'), t('操作')].map((label) => (
+                <span key={label} role="columnheader">
+                  {label}
                 </span>
-                <span
-                  role="cell"
-                  className="dag-pre-summary"
-                  title={n.pre
-                    .map((id) => nodeName(nodes.find((p) => p.id === id) ?? { name: id }))
-                    .join(', ')}
-                >
-                  {n.pre.length
-                    ? n.pre
-                        .map((id) => nodeName(nodes.find((p) => p.id === id) ?? { name: id }))
-                        .join(', ')
-                    : t('dag.root')}
-                </span>
-                {metadata(n, true)}
-                <span role="cell" className="dag-row-actions" onClick={(e) => e.stopPropagation()}>
-                  {rowActions ? rowActions(n) : <ChevronRight size={14} />}
-                </span>
-              </div>
-              {inlineNodeId === n.id && <div className="dag-inline-node">{inline}</div>}
+              ))}
             </div>
-          ))}
-          {!visible.length && <p className="card-state quiet">{t('dag.noMatches')}</p>}
-        </div>
-      ) : (
-        <>
-          <div
-            className="dag-graph-scroll"
-            ref={viewport}
-            onScroll={(e) => {
-              scroll.current = { left: e.currentTarget.scrollLeft, top: e.currentTarget.scrollTop }
-            }}
-          >
-            {!layout && <p className="quiet padded">{t('正在加载…')}</p>}
-            {layout && (
+            {visible.map((n) => (
+              <div className="dag-table-entry" key={n.id}>
+                <div
+                  role="row"
+                  tabIndex={disabled ? -1 : 0}
+                  aria-selected={selected === n.id}
+                  aria-label={nodeName(n)}
+                  aria-invalid={invalid.includes(n.id) || undefined}
+                  className={
+                    'dag-list-node dag-node-columns ' + (selected === n.id ? 'selected' : '')
+                  }
+                  onClick={() => !disabled && onSelect(n.id)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (!disabled) onSelect(n.id)
+                    }
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      const index = visible.indexOf(n),
+                        next =
+                          visible[
+                            (index + (e.key === 'ArrowDown' ? 1 : -1) + visible.length) %
+                              visible.length
+                          ]
+                      e.currentTarget
+                        .closest('[role=table]')
+                        ?.querySelector<HTMLElement>('[data-node="' + next.id + '"]')
+                        ?.focus()
+                    }
+                  }}
+                  data-node={n.id}
+                >
+                  <span role="cell" className="dag-node-title">
+                    <strong>{nodeName(n)}</strong>
+                    {flags(n)}
+                    {'state' in n && <Status state={n.state} />}
+                  </span>
+                  <span
+                    role="cell"
+                    className="dag-pre-summary"
+                    title={n.pre
+                      .map((id) => nodeName(nodes.find((p) => p.id === id) ?? { name: id }))
+                      .join(', ')}
+                  >
+                    {n.pre.length
+                      ? n.pre
+                          .map((id) => nodeName(nodes.find((p) => p.id === id) ?? { name: id }))
+                          .join(', ')
+                      : t('dag.root')}
+                  </span>
+                  {metadata(n, true)}
+                  <span
+                    role="cell"
+                    className="dag-row-actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {rowActions ? rowActions(n) : <ChevronRight size={14} />}
+                  </span>
+                </div>
+                {inlineNodeId === n.id && <div className="dag-inline-node">{inline}</div>}
+              </div>
+            ))}
+            {!visible.length && <p className="card-state quiet">{t('dag.noMatches')}</p>}
+          </div>
+        ) : (
+          <>
+            <div className="dag-graph-frame">
               <div
-                className="dag-graph-surface"
-                style={{
-                  width: Math.max(size.width, (layout.width ?? 0) * scale),
-                  height: Math.max(size.height, (layout.height ?? 0) * scale),
+                className="dag-graph-scroll"
+                ref={viewport}
+                onScroll={(e) => {
+                  scroll.current = {
+                    left: e.currentTarget.scrollLeft,
+                    top: e.currentTarget.scrollTop,
+                  }
                 }}
               >
-                <div
-                  className="dag-graph-plane"
-                  style={{
-                    left: offset.x,
-                    top: offset.y,
-                    width: layout.width,
-                    height: layout.height,
-                    transform: 'scale(' + scale + ')',
-                  }}
-                >
-                  <svg width={layout.width} height={layout.height} aria-hidden="true">
-                    <defs>
-                      <marker
-                        id={'dag-arrow-' + markerId}
-                        viewBox="0 0 10 10"
-                        refX="9"
-                        refY="5"
-                        markerWidth="5"
-                        markerHeight="5"
-                        orient="auto-start-reverse"
-                      >
-                        <path d="M 0 0 L 10 5 L 0 10 z" />
-                      </marker>
-                    </defs>
-                    {layout.edges?.map((edge) => (
-                      <g
-                        key={edge.id}
-                        className={
-                          'dag-edge ' +
-                          (edge.sources.includes(selected ?? '') ||
-                          edge.targets.includes(selected ?? '')
-                            ? 'selected'
-                            : '')
-                        }
-                      >
-                        {edge.sections?.map((section, i) => (
-                          <path
-                            key={i}
-                            markerEnd={'url(#dag-arrow-' + markerId + ')'}
-                            d={[section.startPoint, ...(section.bendPoints ?? []), section.endPoint]
-                              .map((p, i) => (i ? 'L ' : 'M ') + p.x + ' ' + p.y)
-                              .join(' ')}
-                          />
+                {!layout && <p className="quiet padded">{t('正在加载…')}</p>}
+                {layout && (
+                  <div
+                    className="dag-graph-surface"
+                    style={{
+                      width: Math.max(size.width, (layout.width ?? 0) * scale),
+                      height: Math.max(size.height, (layout.height ?? 0) * scale),
+                    }}
+                  >
+                    <div
+                      className="dag-graph-plane"
+                      style={{
+                        left: offset.x,
+                        top: offset.y,
+                        width: layout.width,
+                        height: layout.height,
+                        transform: 'scale(' + scale + ')',
+                      }}
+                    >
+                      <svg width={layout.width} height={layout.height} aria-hidden="true">
+                        <defs>
+                          <marker
+                            id={'dag-arrow-' + markerId}
+                            viewBox="0 0 10 10"
+                            refX="9"
+                            refY="5"
+                            markerWidth="5"
+                            markerHeight="5"
+                            orient="auto-start-reverse"
+                          >
+                            <path d="M 0 0 L 10 5 L 0 10 z" />
+                          </marker>
+                        </defs>
+                        {layout.edges?.map((edge) => (
+                          <g
+                            key={edge.id}
+                            className={
+                              'dag-edge ' +
+                              (edge.sources.includes(selected ?? '') ||
+                              edge.targets.includes(selected ?? '')
+                                ? 'selected'
+                                : '')
+                            }
+                          >
+                            {edge.sections?.map((section, i) => (
+                              <path
+                                key={i}
+                                markerEnd={'url(#dag-arrow-' + markerId + ')'}
+                                d={[
+                                  section.startPoint,
+                                  ...(section.bendPoints ?? []),
+                                  section.endPoint,
+                                ]
+                                  .map((p, i) => (i ? 'L ' : 'M ') + p.x + ' ' + p.y)
+                                  .join(' ')}
+                              />
+                            ))}
+                          </g>
                         ))}
-                      </g>
-                    ))}
-                  </svg>
-                  {layout.children?.map((position) => {
-                    const n = nodes.find((n) => n.id === position.id)
-                    if (!n) return null
-                    return (
-                      <button
-                        type="button"
-                        key={n.id}
-                        disabled={disabled}
-                        className={
-                          'dag-graph-node ' +
-                          (selected === n.id ? 'selected ' : '') +
-                          (search && matches(n) ? 'matched' : '')
-                        }
-                        style={{
-                          left: position.x,
-                          top: position.y,
-                          width: position.width,
-                          height: position.height,
-                        }}
-                        aria-pressed={selected === n.id}
-                        aria-invalid={invalid.includes(n.id) || undefined}
-                        aria-label={nodeName(n)}
-                        onClick={() => onSelect(n.id)}
-                      >
-                        <span className="dag-node-title">
-                          <strong title={nodeName(n)}>{nodeName(n)}</strong>
-                          {flags(n)}
-                        </span>
-                        <span className="dag-node-meta">{metadata(n)}</span>
-                        {'state' in n && <Status state={n.state} />}
-                      </button>
-                    )
-                  })}
-                </div>
+                      </svg>
+                      {layout.children?.map((position) => {
+                        const n = nodes.find((n) => n.id === position.id)
+                        if (!n) return null
+                        return (
+                          <button
+                            type="button"
+                            key={n.id}
+                            disabled={disabled}
+                            className={
+                              'dag-graph-node ' +
+                              (selected === n.id ? 'selected ' : '') +
+                              (search && matches(n) ? 'matched' : '')
+                            }
+                            style={{
+                              left: position.x,
+                              top: position.y,
+                              width: position.width,
+                              height: position.height,
+                            }}
+                            aria-pressed={selected === n.id}
+                            aria-invalid={invalid.includes(n.id) || undefined}
+                            aria-label={nodeName(n)}
+                            onClick={() => onSelect(n.id)}
+                          >
+                            <span className="dag-node-title">
+                              <strong title={nodeName(n)}>{nodeName(n)}</strong>
+                              {flags(n)}
+                            </span>
+                            <span className="dag-node-meta">{metadata(n)}</span>
+                            {'state' in n && <Status state={n.state} />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          <div className="dag-graph-tools">
-            <IconButton
-              label={t('dag.zoomOut')}
-              onClick={() => setScale((s) => Math.max(0.1, s - 0.1))}
-            >
-              <ZoomOut />
-            </IconButton>
-            <IconButton
-              label={t('dag.zoomIn')}
-              onClick={() => setScale((s) => Math.min(2, s + 0.1))}
-            >
-              <ZoomIn />
-            </IconButton>
-            <IconButton
-              label={t('dag.fit')}
-              onClick={() => {
-                if (layout?.width && layout.height) {
-                  setScale(Math.min(1, size.width / layout.width, size.height / layout.height))
-                  viewport.current?.scrollTo(0, 0)
+              <CanvasControls
+                fullscreen={fullscreen}
+                disabled={disabled}
+                onZoom={(direction) =>
+                  setScale((value) => Math.max(0.1, Math.min(2, value + direction * 0.1)))
                 }
-              }}
-            >
-              <Scan />
-            </IconButton>
-            <IconButton label={t('dag.actualSize')} onClick={() => setScale(1)}>
-              <Maximize2 />
-            </IconButton>
-            <IconButton label={t('dag.locate')} disabled={!selected} onClick={() => locate()}>
-              <LocateFixed />
-            </IconButton>
-          </div>
-          {inline}
-        </>
-      )}
+                onToggleFullscreen={toggleFullscreen}
+              />
+            </div>
+            {inline}
+          </>
+        )}
+      </div>
     </section>
   )
 }

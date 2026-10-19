@@ -1,0 +1,533 @@
+.dag-canvas-editor .dag-stepbar {
+  flex-wrap: wrap;
+  min-height: 44px;
+}
+.dag-toolbar {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 16px 6px 0;
+  justify-content: flex-end;
+}
+.dag-breadcrumb-title {
+  height: 28px;
+  width: clamp(136px, 24vw, 360px);
+  max-width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  text-overflow: ellipsis;
+}
+.dag-breadcrumb-title:hover,
+.dag-breadcrumb-title:focus {
+  border-color: var(--border);
+}
+.dag-breadcrumb-title[aria-invalid='true'] {
+  border-color: var(--failure);
+}
+.dag-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.dag-toolbar-actions [aria-pressed='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+.dag-canvas-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.dag-task-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+.dag-palette-dock {
+  width: 200px;
+  flex: 0 0 200px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+  min-height: 0;
+}
+.dag-palette-dock > header {
+  min-height: 44px;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 550;
+  border-bottom: 1px solid var(--border);
+}
+.dag-agent-palette {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  font-size: 12px;
+}
+.dag-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px;
+  padding: 0 6px;
+  height: 30px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+}
+.dag-palette-search input {
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  height: 28px;
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+.dag-palette-groups {
+  overflow: auto;
+  flex: 1;
+  padding: 0 8px 8px;
+}
+.dag-palette-runner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 36px;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.dag-palette-runner > span:first-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.dag-palette-runner svg.collapsed {
+  transform: rotate(-90deg);
+}
+.dag-device-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dag-device-dot.online {
+  background: var(--success);
+}
+.dag-agent-entry {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: grab;
+  touch-action: none;
+  font-size: 12px;
+}
+.dag-agent-entry:hover,
+.dag-agent-entry:focus-visible {
+  background: var(--hover);
+  border-color: var(--border);
+}
+.dag-agent-entry:active {
+  cursor: grabbing;
+}
+.dag-agent-entry .agent-logo {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.dag-agent-palette.compact {
+  min-height: 160px;
+  max-height: 60vh;
+  padding: 4px 8px 12px;
+}
+.dag-scene {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.dag-canvas-mount,
+.dag-interactive-canvas {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+}
+.dag-interactive-canvas {
+  background: var(--canvas);
+}
+.dag-interactive-canvas .react-flow {
+  --xy-node-color: var(--ink);
+  --xy-node-border: 1px solid var(--border);
+  --xy-node-background-color: var(--canvas);
+  --xy-edge-stroke: var(--muted);
+  --xy-edge-stroke-selected: var(--ink);
+  --xy-connectionline-stroke: var(--muted);
+  --xy-handle-background-color: var(--canvas);
+  --xy-handle-border-color: var(--muted);
+  --xy-selection-background-color: #80808014;
+  --xy-selection-border: 1px solid var(--muted);
+  --xy-background-color: var(--canvas);
+  font-family: inherit;
+  font-size: 12px;
+}
+.dag-canvas-node {
+  width: 240px;
+  height: 96px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  background: var(--canvas);
+  color: var(--ink);
+}
+.dag-canvas-node.selected {
+  background: var(--hover);
+  border-color: var(--muted);
+}
+.dag-canvas-node.matched {
+  border-color: var(--ink);
+}
+.dag-canvas-node.invalid {
+  border-color: var(--failure);
+}
+.dag-canvas-node-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.dag-canvas-node-title strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 550;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.dag-canvas-node-title > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.dag-canvas-node-title .lucide-circle-alert {
+  color: var(--failure);
+}
+.dag-canvas-node .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  background: var(--canvas);
+}
+.dag-canvas-node .react-flow__handle:hover,
+.dag-canvas-node .react-flow__handle.connectingto {
+  background: var(--ink);
+}
+.dag-canvas-node-add {
+  position: absolute;
+  right: -40px;
+  top: 33px;
+  opacity: 0;
+}
+.dag-canvas-node:hover .dag-canvas-node-add,
+.dag-canvas-node:focus-within .dag-canvas-node-add {
+  opacity: 1;
+}
+.dag-canvas-node-add .icon-button {
+  border: 1px solid var(--border);
+  background: var(--canvas);
+}
+.dag-canvas-node .agent-logo {
+  width: 12px;
+  height: 12px;
+}
+.dag-canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dag-agent-ghost {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 240px;
+  min-height: 96px;
+  padding: 16px;
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: 0 4px 16px #0002;
+  font-size: 12px;
+}
+.dag-agent-ghost > span:last-child {
+  width: 100%;
+  color: var(--muted);
+}
+.dag-floating-panel {
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  right: 16px;
+  z-index: 5;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  min-height: 0;
+  background: var(--canvas);
+  box-shadow: 0 5px 24px #0002;
+}
+.dag-floating-header {
+  min-height: 44px;
+  flex-shrink: 0;
+  border-radius: 6px 6px 0 0;
+  padding: 7px 12px;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.dag-floating-header > strong {
+  flex: 1;
+  min-width: 0;
+}
+.dag-floating-header > .choice-selector {
+  flex: 1;
+  max-width: none;
+  min-width: 0;
+}
+.dag-floating-header > .icon-button:last-child {
+  margin-left: 0;
+}
+.dag-floating-body {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  border-radius: 0 0 6px 6px;
+  overscroll-behavior: contain;
+}
+.dag-panel-resizer {
+  position: absolute;
+  left: -4px !important;
+  right: auto !important;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 6;
+}
+.dag-floating-panel .dag-config-body .field {
+  padding: 10px 12px;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 48px;
+}
+.dag-floating-panel .dag-config-body .field > label {
+  font-weight: 500;
+}
+.dag-floating-panel .dag-config-body .dag-instruction {
+  display: block;
+}
+.dag-floating-panel .dag-prompt-head {
+  padding: 0 0 6px;
+  min-height: 28px;
+  font-weight: 500;
+}
+.dag-prompt-actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.dag-floating-panel .dag-config-body textarea {
+  min-height: 180px;
+  font-size: 12px;
+}
+.dag-environment-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border);
+}
+.dag-floating-panel .dag-environment-fields .field {
+  display: block;
+  border-bottom: 0;
+}
+.dag-environment-fields .field > label {
+  display: block;
+  margin-bottom: 6px;
+  padding: 0;
+}
+.dag-environment-fields .field + .field {
+  border-left: 1px solid var(--border);
+}
+.dag-floating-panel .dag-advanced > summary {
+  min-height: 44px;
+  padding: 10px 12px;
+}
+.dag-output-settings > .field {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+}
+.dag-output-settings .field > label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.dag-output-settings .dag-output-rows {
+  padding: 0 12px;
+}
+.dag-table-stage {
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+}
+.dag-time-scroll {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.dag-prompt-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #0003;
+}
+.dag-prompt-focus {
+  position: absolute;
+  inset: 16px;
+  z-index: 11;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+  min-height: 0;
+}
+.dag-prompt-focus .card-header {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.dag-prompt-focus .card-header > h2 {
+  font-size: 12px;
+  flex: 1;
+  font-weight: 550;
+  margin: 0;
+}
+.dag-prompt-focus-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+}
+.dag-prompt-focus-body label {
+  font-size: 12px;
+}
+.dag-prompt-focus-body textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  font-size: 12px;
+  resize: none;
+}
+@container (max-width:959px) {
+  .dag-floating-panel {
+    inset: 0;
+    width: auto;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+.dag-canvas-body {
+  container-type: inline-size;
+}
+@media (max-width: 600px) {
+  .dag-toolbar {
+    flex-basis: 100%;
+    padding: 0 12px 6px;
+    gap: 4px;
+  }
+  .dag-toolbar-actions {
+    margin-left: auto;
+    gap: 0;
+  }
+  .dag-table-stage {
+    padding: 12px;
+  }
+  .dag-floating-panel .dag-config-body .field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .dag-floating-panel .dag-config-body .field > label {
+    padding: 0;
+  }
+  .dag-prompt-focus {
+    inset: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .dag-prompt-focus-body {
+    padding: 12px;
+  }
+  .dag-floating-panel .dag-environment-fields .field {
+    display: block;
+    min-width: 0;
+  }
+}
+
+.dag-canvas-editor.is-fullscreen {
+  position: fixed;
+  inset: 44px 0 0;
+  z-index: 35;
+  background: var(--canvas);
+  width: auto;
+  height: auto;
+}

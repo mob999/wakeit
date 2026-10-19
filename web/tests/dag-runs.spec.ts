@@ -385,3 +385,22 @@ test('an empty successful result is explicit and its fold choice survives tab ch
     'false',
   )
 })
+
+test('Run graph shares the overview canvas controls and fullscreen is read-only', async ({
+  page,
+}) => {
+  const f = fixture(),
+    writes = await mock(page, f, 'viewer')
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  const graph = page.locator('.dag-structure'),
+    controls = graph.getByRole('toolbar', { name: '画布操作', exact: true })
+  await expect(graph.locator('.dag-graph-node')).toHaveCount(1)
+  await expect(controls.getByRole('button')).toHaveCount(3)
+  await expect(graph.getByRole('button', { name: '适应视图', exact: true })).toHaveCount(0)
+  await controls.getByRole('button', { name: '全屏', exact: true }).click()
+  await expect(graph.locator('.dag-structure-fullscreen')).toBeVisible()
+  await page.mouse.move(600, 400)
+  await page.keyboard.press('Escape')
+  await expect(graph.locator('.dag-structure-fullscreen')).toHaveCount(0)
+  expect(writes).toEqual([])
+})

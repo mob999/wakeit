@@ -440,6 +440,27 @@
             ],
             "type": "object"
           },
+          "EditorLayout": {
+            "additionalProperties": false,
+            "properties": {
+              "positions": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/ApplyTask/$defs/Point"
+                },
+                "type": "object"
+              },
+              "version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "positions"
+            ],
+            "type": "object"
+          },
           "Execution": {
             "additionalProperties": false,
             "properties": {
@@ -535,6 +556,24 @@
               "allow"
             ],
             "type": "string"
+          },
+          "Point": {
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "format": "double",
+                "type": "number"
+              },
+              "y": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "type": "object"
           },
           "Schedule": {
             "additionalProperties": false,
@@ -721,6 +760,17 @@
         "properties": {
           "config": {
             "$ref": "#/components/schemas/ApplyTask/$defs/TaskConfig"
+          },
+          "editor_layout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplyTask/$defs/EditorLayout"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "expected_revision": {
             "format": "int64",
@@ -1002,6 +1052,49 @@
           "grant_type"
         ],
         "title": "TokenRequest",
+        "type": "object"
+      },
+      "EditorLayout": {
+        "$defs": {
+          "Point": {
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "format": "double",
+                "type": "number"
+              },
+              "y": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "positions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EditorLayout/$defs/Point"
+            },
+            "type": "object"
+          },
+          "version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "positions"
+        ],
+        "title": "EditorLayout",
         "type": "object"
       },
       "Enroll": {
@@ -2329,6 +2422,36 @@
           "name"
         ],
         "title": "TaskConfig",
+        "type": "object"
+      },
+      "TaskRecord": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/Task"
+          },
+          "editor_layout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditorLayout"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shared DAG canvas coordinates, outside TaskConfig and execution snapshots. Omitted or null on PUT preserves positions of remaining nodes."
+          },
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "config",
+          "revision"
+        ],
         "type": "object"
       },
       "Token": {

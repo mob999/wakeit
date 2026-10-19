@@ -44,6 +44,15 @@ export function issues(dag: Dag): DagIssue[] {
         })
     if (ancestors(dag, node.id).has(node.id))
       result.push({ node_id: node.id, path: `dag.nodes.${node.id}.pre`, message: t('dag.cycle') })
+    if (
+      new Set(node.pre).size !== node.pre.length ||
+      node.pre.some((id) => !dag.nodes.some((n) => n.id === id))
+    )
+      result.push({
+        node_id: node.id,
+        path: `dag.nodes.${node.id}.pre`,
+        message: t('dag.connection.missing'),
+      })
     const upstream = ancestors(dag, node.id)
     for (const match of node.prompt.matchAll(/\{\{\s*nodes\.([a-zA-Z0-9_-]+)\.result\s*\}\}/g))
       if (!upstream.has(match[1]))
@@ -55,6 +64,8 @@ export function issues(dag: Dag): DagIssue[] {
   }
   if (!dag.nodes.length) result.push({ path: 'dag.nodes', message: t('dag.needNode') })
   if (!outputs(dag).length) result.push({ path: 'dag.results', message: t('dag.needResult') })
+  if (dag.results?.some((id) => !dag.nodes.some((n) => n.id === id)))
+    result.push({ path: 'dag.results', message: t('dag.missingOutput') })
   return result
 }
 export function referencesTo(dag: Dag, id: string) {
