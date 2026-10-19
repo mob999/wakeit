@@ -69,7 +69,7 @@ def main():
             assert snapshot()==before
             sql(f"UPDATE _sqlx_migrations SET checksum=decode('{published}','hex') WHERE version=1")
             run(migrate,env)
-            assert sql("SELECT string_agg(version::text,',' ORDER BY version) FROM _sqlx_migrations WHERE success")=='1,2'
+            assert sql("SELECT string_agg(version::text,',' ORDER BY version) FROM _sqlx_migrations WHERE success")==','.join(str(int(p.name.split('_')[0])) for p in sorted((ROOT/'crates/wakeit/migrations').glob('*.sql')))
             assert snapshot()==before
             print('Device authorization upgrade: old checksum rejected by normal migrate; backup, data preservation, published baseline plus workspace migration, repeat and unknown-checksum refusal passed.')
         finally:run([pg/'pg_ctl','-D',folder/'pg','-m','immediate','stop'])
