@@ -1,4 +1,4 @@
-//! Gateway-scoped profiles. Tokens are separate private files, never part of listing output.
+//! Gateway/workspace/account-scoped profiles. Tokens remain in private files.
 use anyhow::{Context, Result, ensure};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,12 @@ use std::{
 };
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Profile {
+    #[serde(default)]
+    pub workspace_id: Option<uuid::Uuid>,
+    #[serde(default)]
+    pub workspace_name: Option<String>,
+    #[serde(default)]
+    pub user_id: Option<uuid::Uuid>,
     pub gateway: String,
     pub username: String,
     pub token_file: PathBuf,
@@ -87,12 +93,25 @@ pub fn update(f: impl FnOnce(&mut Profiles) -> Result<()>) -> Result<()> {
     )?;
     Ok(())
 }
-pub fn save(gateway: &str, username: &str, token: &str) -> Result<Profile> {
-    let key = name(gateway);
+pub fn scoped_name(gateway: &str, workspace: uuid::Uuid, user: uuid::Uuid) -> String {
+    format!("{}-{}-{}", name(gateway), workspace.simple(), user.simple())
+}
+pub fn save(
+    gateway: &str,
+    workspace: uuid::Uuid,
+    user: uuid::Uuid,
+    workspace_name: &str,
+    username: &str,
+    token: &str,
+) -> Result<Profile> {
+    let gateway = crate::device_auth::validate_url(gateway)?;
+    let key = scoped_name(&gateway, workspace, user);
     let path = directory()?.join(format!("{key}.token"));
-    atomic(&path, token)?;
     let mut profile = Profile {
-        gateway: gateway.into(),
+        gateway,
+        workspace_id: Some(workspace),
+        workspace_name: Some(workspace_name.into()),
+        user_id: Some(user),
         username: username.into(),
         token_file: path,
         runner_config: None,
@@ -101,19 +120,119 @@ pub fn save(gateway: &str, username: &str, token: &str) -> Result<Profile> {
         if let Some(old) = all.connections.get(&key) {
             profile.runner_config = old.runner_config.clone();
         }
+        atomic(&profile.token_file, token)?;
         all.connections.insert(key.clone(), profile.clone());
         all.current = Some(key);
         Ok(())
     })?;
     Ok(profile)
 }
-pub fn resolve(gateway: Option<&str>) -> Result<Option<Profile>> {
-    let all = load()?;
-    Ok(match gateway {
-        Some(g) => all.connections.values().find(|p| p.gateway == g),
-        None => all.current.as_ref().and_then(|k| all.connections.get(k)),
+fn select(
+    all: &Profiles,
+    gateway: Option<&str>,
+    workspace: Option<uuid::Uuid>,
+) -> Result<Option<Profile>> {
+    if gateway.is_none() && workspace.is_none() {
+        return Ok(all
+            .current
+            .as_ref()
+            .and_then(|k| all.connections.get(k))
+            .cloned());
     }
-    .cloned())
+    let matches: Vec<_> = all
+        .connections
+        .values()
+        .filter(|p| {
+            gateway.is_none_or(|g| p.gateway == g)
+                && workspace.is_none_or(|w| p.workspace_id.is_none_or(|own| own == w))
+        })
+        .collect();
+    ensure!(
+        matches.len() <= 1,
+        "multiple connections match; use connection list and connection use to choose one"
+    );
+    Ok(matches.first().map(|p| (*p).clone()))
+}
+pub fn resolve(gateway: Option<&str>, workspace: Option<uuid::Uuid>) -> Result<Option<Profile>> {
+    select(&load()?, gateway, workspace)
+}
+/// Upgrade only after authenticating with the profile's own Gateway. Never rotate
+/// the token, move device files, or infer a scope from another connection.
+pub async fn upgrade_legacy(profile: Profile, expected: Option<uuid::Uuid>) -> Result<Profile> {
+    if profile.workspace_id.is_some() && profile.user_id.is_some() {
+        return Ok(profile);
+    }
+    let token = std::fs::read_to_string(&profile.token_file)
+        .context("legacy connection token is unavailable; login again")?;
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let response = http
+        .get(format!("{}/api/v1/session", profile.gateway))
+        .bearer_auth(token.trim())
+        .send()
+        .await?;
+    ensure!(
+        response.status().is_success(),
+        "legacy connection authentication failed; existing files were preserved"
+    );
+    let identity: serde_json::Value = response.json().await?;
+    let workspace: uuid::Uuid = identity["workspace_id"]
+        .as_str()
+        .context("Gateway has no workspace metadata; update it before migrating this connection")?
+        .parse()?;
+    ensure!(
+        expected.is_none_or(|w| w == workspace),
+        "legacy connection belongs to another workspace; login to the requested workspace"
+    );
+    let user: uuid::Uuid = identity["id"]
+        .as_str()
+        .context("account ID missing")?
+        .parse()?;
+    let response = http
+        .get(format!("{}/api/v1/workspaces/{workspace}", profile.gateway))
+        .bearer_auth(token.trim())
+        .send()
+        .await?;
+    ensure!(
+        response.status().is_success(),
+        "legacy workspace is unavailable; existing files were preserved"
+    );
+    let metadata: serde_json::Value = response.json().await?;
+    let mut upgraded = profile.clone();
+    upgraded.workspace_id = Some(workspace);
+    upgraded.user_id = Some(user);
+    upgraded.workspace_name = metadata["name"].as_str().map(str::to_owned);
+    let key = scoped_name(&profile.gateway, workspace, user);
+    update(|all| {
+        ensure!(
+            !all.connections.contains_key(&key),
+            "a scoped connection already exists; select it explicitly"
+        );
+        let legacy: Vec<_> = all
+            .connections
+            .iter()
+            .filter(|(_, p)| {
+                p.gateway == profile.gateway
+                    && p.token_file == profile.token_file
+                    && p.workspace_id.is_none()
+            })
+            .map(|(k, _)| k.clone())
+            .collect();
+        ensure!(
+            legacy.len() == 1,
+            "legacy connection changed; retry without overwriting it"
+        );
+        let old = &legacy[0];
+        all.connections.remove(old);
+        if all.current.as_ref() == Some(old) {
+            all.current = Some(key.clone());
+        }
+        all.connections.insert(key.clone(), upgraded.clone());
+        Ok(())
+    })?;
+    Ok(upgraded)
 }
 pub fn use_profile(name: &str) -> Result<()> {
     update(|all| {
@@ -143,5 +262,55 @@ mod tests {
         assert!(crate::device_auth::validate_url("http://127.0.0.1:8").is_ok());
         assert!(crate::device_auth::validate_url("https://x.com/a").is_err());
         assert!(crate::device_auth::validate_url("https://u:p@x.com").is_err());
+    }
+    #[test]
+    fn selection_never_guesses_between_accounts_or_workspaces() {
+        let a = uuid::Uuid::new_v4();
+        let b = uuid::Uuid::new_v4();
+        let user = uuid::Uuid::new_v4();
+        let other = uuid::Uuid::new_v4();
+        let gateway = "https://a.example";
+        let profile = |workspace, account| Profile {
+            workspace_id: Some(workspace),
+            workspace_name: None,
+            user_id: Some(account),
+            gateway: gateway.into(),
+            username: "fixture".into(),
+            token_file: PathBuf::from(format!("{workspace}-{account}.token")),
+            runner_config: None,
+        };
+        let key = scoped_name(gateway, a, user);
+        let mut all = Profiles {
+            current: Some(key.clone()),
+            ..Default::default()
+        };
+        all.connections.insert(key, profile(a, user));
+        all.connections
+            .insert(scoped_name(gateway, b, user), profile(b, user));
+        assert_eq!(
+            select(&all, None, None).unwrap().unwrap().workspace_id,
+            Some(a)
+        );
+        assert!(select(&all, Some(gateway), None).is_err());
+        assert_eq!(
+            select(&all, Some(gateway), Some(b))
+                .unwrap()
+                .unwrap()
+                .workspace_id,
+            Some(b)
+        );
+        assert!(
+            select(&all, Some("https://b.example"), Some(a))
+                .unwrap()
+                .is_none()
+        );
+        all.connections
+            .insert(scoped_name(gateway, a, other), profile(a, other));
+        assert!(select(&all, Some(gateway), Some(a)).is_err());
+        assert_ne!(
+            scoped_name(gateway, a, user),
+            scoped_name(gateway, a, other)
+        );
+        assert_ne!(scoped_name(gateway, a, user), scoped_name(gateway, b, user));
     }
 }

@@ -11,6 +11,7 @@ import { Globe, Users, KeyRound, Archive } from 'lucide-react'
 import { RequestState } from './shared'
 import { WorkspaceSettingsView, draftErrors, type WorkspaceDraft } from './WorkspaceSettings'
 import { MembersSettings } from './MembersSettings'
+import { WorkspaceManagement } from '../Workspaces'
 import { ArchivedTasks } from './ArchivedTasks'
 import { TokenSettings } from './TokenSettings'
 const toDraft = (s: WorkspaceSettings): WorkspaceDraft => ({
@@ -24,15 +25,15 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
   const route = useSearch({ from: '/settings' })
   const controls = useSearchControls()
   const client = useQueryClient()
-  const admin = user.role === 'admin'
-  const sections = settingSections(user.role)
+  const admin = user.role === 'admin' && !user.workspace?.is_demo
+  const sections = settingSections(user.role, !!user.workspace?.is_demo)
   const section = sections.some((s) => s.id === route.section) ? route.section! : sections[0].id
   const q = controls.filters.settings?.q ?? ''
   const noMatches = !!q && !sections.some((s) => matches(`${s.name} ${s.terms}`, q))
   const settings = useQuery<WorkspaceSettings>({
     queryKey: ['settings'],
     queryFn: () => api('/settings'),
-    enabled: admin && section === 'workspace',
+    enabled: section === 'workspace',
   })
   const [baseline, setBaseline] = useState<WorkspaceSettings | null>(null)
   const [draft, setDraft] = useState<WorkspaceDraft | null>(null)
@@ -79,16 +80,10 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
   useEffect(() => {
     if (settings.data) {
       setBaseline(settings.data)
-      if (!dirtyRef.current) setDraft(toDraft(settings.data))
+      if (!dirtyRef.current || !admin) setDraft(toDraft(settings.data))
     }
-  }, [settings.data])
-  useEffect(() => {
-    if (!admin) {
-      setBaseline(null)
-      setDraft(null)
-      setSaveError('')
-    }
-  }, [admin])
+    if (!admin) setSaveError('')
+  }, [settings.data, admin])
   useEffect(() => {
     if (route.section !== undefined && route.section !== section)
       navigate({ to: '/settings', search: { section }, replace: true })
@@ -117,7 +112,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
     onError: (e: Error) => setSaveError(e.message),
   })
   const save = async () => {
-    if (!draft || Object.keys(draftErrors(draft)).length) return false
+    if (!admin || !draft || Object.keys(draftErrors(draft)).length) return false
     setSaveError('')
     try {
       await saveMutation.mutateAsync({
@@ -199,6 +194,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         ) : section === 'workspace' ? (
           <>
             <DetailBody limited>
+              <WorkspaceManagement user={user} />
               {!draft ? (
                 <RequestState
                   pending={settings.isPending}
@@ -215,6 +211,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
                     />
                   )}
                   <WorkspaceSettingsView
+                    readOnly={!admin}
                     draft={draft}
                     dirty={dirty}
                     pending={saveMutation.isPending}

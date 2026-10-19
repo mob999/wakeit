@@ -8,6 +8,9 @@ import { LanguageSwitch } from '../LanguageSwitch'
 type Request = {
   gateway: string
   state: string
+  workspace: string
+  workspace_id: string
+  role: User['role']
   intent: { name: string; os: string; register_runner: boolean; allowed_roots: string[] }
 }
 export function DeviceAuthorization({ user }: { user: User }) {
@@ -25,7 +28,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
     refetchOnWindowFocus: false,
   })
   const request = query.data
-  const denied = request?.intent.register_runner && user.role === 'viewer'
+  const denied = request?.intent.register_runner && request.role === 'viewer'
   const decide = async (allow: boolean) => {
     if (busy) return
     setBusy(true)
@@ -89,13 +92,17 @@ export function DeviceAuthorization({ user }: { user: User }) {
                 <>
                   <dl className="authorization-fields">
                     <div>
+                      <dt>{tr('工作区')}</dt>
+                      <dd>{request.workspace}</dd>
+                    </div>
+                    <div>
                       <dt>Gateway</dt>
                       <dd>{request.gateway}</dd>
                     </div>
                     <div>
                       <dt>{tr('账号')}</dt>
                       <dd>
-                        {user.username} <small>{roleName(user.role)}</small>
+                        {user.username} <small>{roleName(request.role)}</small>
                       </dd>
                     </div>
                     <div>

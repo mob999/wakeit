@@ -7,6 +7,9 @@ import { CopyValue } from './runs/CopyValue'
 import { PageActions } from './PageHeader'
 import { LanguageSwitch } from './LanguageSwitch'
 import { Layout } from './Layout'
+import { WorkspaceHome } from './Workspaces'
+import { InvitationPage } from './InvitationPage'
+import { InstanceAccounts } from './settings/InstanceAccounts'
 import { DeviceAuthorization } from './onboarding/DeviceAuthorization'
 import { TaskEditor } from './TaskEditor'
 import { SettingsPage } from './settings/SettingsPage'
@@ -47,12 +50,24 @@ import {
   Archive,
 } from 'lucide-react'
 import YAML from 'yaml'
-import { api, ApiError, type User, type Task, type Agent, type Run, time } from './api'
+import {
+  api,
+  ApiError,
+  workspaceId,
+  workspaceBase,
+  type Workspace,
+  type User,
+  type Task,
+  type Agent,
+  type Run,
+  time,
+} from './api'
 import './style.css'
 
 const client = new QueryClient({
   defaultOptions: {
     queries: {
+      queryKeyHashFn: (key) => JSON.stringify([workspaceId ?? 'account', key]),
       retry: (n, e) => !(e instanceof ApiError && [401, 403].includes(e.status)) && n < 2,
       refetchOnWindowFocus: true,
     },
@@ -93,7 +108,12 @@ function App() {
   useTranslation()
   const me = useQuery<User>({
     queryKey: ['me'],
-    queryFn: () => api('/session'),
+    queryFn: async () => {
+      const account = await api<User>('/session')
+      if (!workspaceId) return account
+      const workspace = await api<Workspace>(`/workspaces/${workspaceId}`)
+      return { ...account, workspace, role: workspace.role }
+    },
     retry: false,
     refetchInterval: 10000,
   })
@@ -131,12 +151,17 @@ function App() {
   return (
     <ToastContext.Provider value={setToast}>
       {path === '/invite' ? (
-        <Login invite />
+        <InvitationPage user={me.data} />
       ) : me.isPending ? (
         <Empty title={tr('连接 Wakeit…')} />
       ) : me.error ? (
         me.error instanceof ApiError && me.error.status === 401 ? (
           <Login />
+        ) : me.error instanceof ApiError && [403, 404].includes(me.error.status) && workspaceId ? (
+          <WorkspaceHome
+            user={me.data ?? { id: '', username: '', role: 'viewer' }}
+            error={tr('无法访问此工作区')}
+          />
         ) : (
           <Empty title={tr('无法连接 Gateway')} detail={me.error.message}>
             <Button onClick={() => me.refetch()}>
@@ -150,6 +175,12 @@ function App() {
           <SearchProvider user={me.data!}>
             {path === '/authorize/device' ? (
               <DeviceAuthorization user={me.data!} />
+            ) : !workspaceId ? (
+              path === '/instance' && me.data?.instance_admin ? (
+                <InstanceAccounts user={me.data!} />
+              ) : (
+                <WorkspaceHome user={me.data!} />
+              )
             ) : (
               <Layout
                 user={me.data!}
@@ -184,27 +215,32 @@ function App() {
     </ToastContext.Provider>
   )
 }
-function Login({ invite = false }: { invite?: boolean }) {
+function Login() {
   useTranslation()
+  const meta = useQuery<{ auth?: { mode: string; allow_registration: boolean } }>({
+    queryKey: ['meta'],
+    queryFn: () => api('/meta'),
+  })
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const toast = useToast()
+  const [confirm, setConfirm] = useState('')
+  const [signup, setSignup] = useState(false)
+  const returnTo = new URLSearchParams(location.search).get('return_to')
+  const next = returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : undefined
   const login = useMutation({
-    mutationFn: () =>
-      invite
-        ? api('/invites/accept', 'POST', { username, password, token: location.hash.slice(1) })
-        : api('/session', 'POST', { username, password }),
-    onSuccess: () => {
-      if (invite) {
-        history.replaceState(null, '', '/')
-        toast(tr('账号已创建，请登录'))
-        location.assign('/')
-      } else {
-        client.invalidateQueries({ queryKey: ['me'] })
+    mutationFn: async () => {
+      if (signup) {
+        if (password !== confirm) throw new Error(tr('两次输入的密码不一致'))
+        await api('/register', 'POST', { username: username.trim(), password })
       }
+      await api('/session', 'POST', { username: username.trim(), password })
     },
-    onError: (e) => setError(e.message),
+    onSuccess: () => {
+      setPassword('')
+      setConfirm('')
+      if (next) location.assign(next)
+      else client.invalidateQueries({ queryKey: ['me'] })
+    },
   })
   return (
     <div className="login-wrap">
@@ -214,48 +250,109 @@ function Login({ invite = false }: { invite?: boolean }) {
       </div>
       <form
         className="login-card content-card"
-        onSubmit={(e) => {
-          e.preventDefault()
-          setError('')
-          login.mutate()
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!login.isPending) login.mutate()
         }}
       >
-        <h1 className="card-header">{invite ? tr('加入工作区') : tr('欢迎回来')}</h1>
+        <h1 className="card-header">{signup ? tr('创建账号') : tr('欢迎回来')}</h1>
         <div className="card-body">
-          <Field label={tr('用户名')}>
-            <input
-              aria-label={tr('用户名')}
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </Field>
-          <Field label={tr('密码')} hint={invite ? tr('至少 12 个字符') : undefined}>
-            <input
-              aria-label={tr('密码')}
-              type="password"
-              autoComplete={invite ? 'new-password' : 'current-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={invite ? 12 : undefined}
-            />
-          </Field>
-          {error && (
-            <div className="error" role="alert">
-              {error}
-            </div>
+          {new URLSearchParams(location.search).get('auth_error') === 'github_denied' && <p className="error" role="alert">{tr('GitHub 授权已取消')}</p>}
+          {meta.isPending ? (
+            <span className="quiet">{tr('加载中…')}</span>
+          ) : meta.error ? (
+            <>
+              <p className="error">{meta.error.message}</p>
+              <Button type="button" onClick={() => void meta.refetch()}>
+                {tr('重试')}
+              </Button>
+            </>
+          ) : meta.data?.auth?.mode === 'github' ? (
+            <Button
+              variant="solid"
+              type="button"
+              onClick={() =>
+                location.assign(
+                  `/api/v1/auth/github/start?return_to=${encodeURIComponent(next ?? location.pathname + location.search)}`,
+                )
+              }
+            >
+              {tr('使用 GitHub 登录')}
+            </Button>
+          ) : (
+            <>
+              <Field label={tr('用户名')}>
+                <input
+                  aria-label={tr('用户名')}
+                  autoComplete="username"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  required
+                  disabled={login.isPending}
+                />
+              </Field>
+              <Field label={tr('密码')} hint={signup ? tr('至少 12 个字符') : undefined}>
+                <input
+                  aria-label={tr('密码')}
+                  type="password"
+                  autoComplete={signup ? 'new-password' : 'current-password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  minLength={signup ? 12 : undefined}
+                  disabled={login.isPending}
+                />
+              </Field>
+              {signup && (
+                <Field label={tr('确认密码')}>
+                  <input
+                    aria-label={tr('确认密码')}
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirm}
+                    onChange={(event) => setConfirm(event.target.value)}
+                    required
+                    minLength={12}
+                    disabled={login.isPending}
+                  />
+                </Field>
+              )}
+              {login.error && (
+                <div className="error" role="alert">
+                  {login.error.message}
+                </div>
+              )}
+              <Button variant="solid" type="submit" disabled={login.isPending}>
+                {login.isPending ? tr('正在连接…') : signup ? tr('创建账号') : tr('登录工作区')}
+                <ArrowUpRight size={14} />
+              </Button>
+              {meta.data?.auth?.allow_registration && (
+                <Button
+                  type="button"
+                  disabled={login.isPending}
+                  onClick={() => {
+                    setSignup(!signup)
+                    setPassword('')
+                    setConfirm('')
+                    login.reset()
+                  }}
+                >
+                  {signup ? tr('登录已有账号') : tr('创建账号')}
+                </Button>
+              )}
+            </>
           )}
-          <Button variant="solid" type="submit" disabled={login.isPending}>
-            {login.isPending ? tr('正在连接…') : invite ? tr('创建账号') : tr('登录工作区')}
-            <ArrowUpRight size={14} />
-          </Button>
+          {new URLSearchParams(location.search).has('login_error') && (
+            <p className="error" role="alert">
+              {tr('GitHub 登录失败，请重试')}
+            </p>
+          )}
         </div>
       </form>
     </div>
   )
 }
+
 function TasksPage() {
   useTranslation()
   const agents = useList<Agent>('agents', '/agents')
@@ -754,7 +851,23 @@ const authorizationRoute = createRoute({
   path: '/authorize/device',
   component: () => null,
 })
+const instanceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/instance',
+  component: () => null,
+})
+const workspaceHomeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/workspaces',
+  component: () => null,
+})
+const demoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/demo',
+  component: () => null,
+})
 const router = createRouter({
+  basepath: workspaceBase || '/',
   routeTree: rootRoute.addChildren([
     momentsRoute,
     tasksRoute,
@@ -763,6 +876,9 @@ const router = createRouter({
     settingsRoute,
     inviteRoute,
     authorizationRoute,
+    instanceRoute,
+    workspaceHomeRoute,
+    demoRoute,
   ]),
 })
 declare module '@tanstack/react-router' {

@@ -41,7 +41,7 @@ def main():
     def spawn(name, arguments):
         log = open(root / (name + '.log'), 'ab', buffering=0)
         files.append(log)
-        process = subprocess.Popen([str(a) for a in arguments], cwd=ROOT, env=env, stdout=log, stderr=log)
+        process = subprocess.Popen([str(a) for a in arguments], cwd=ROOT, env=env, stdout=log, stderr=log, start_new_session=True)
         processes.append(process)
         return process
 
@@ -144,6 +144,22 @@ def main():
         expect_status(lambda: api('/tasks', workspace=workspace_b, token=key_a), 404)
         assert api('/tasks', token=key_a)[0]['config']['name'] == 'Workspace a'
         check('resource IDs, events, streams, device queries, counts, Moments and workspace API Keys cannot cross scope')
+
+        cli_env = dict(env)
+        for name in ['WAKEIT_GATEWAY', 'WAKEIT_WORKSPACE', 'WAKEIT_TOKEN', 'WAKEIT_TOKEN_FILE']:
+            cli_env.pop(name, None)
+        for workspace in [workspace_a, workspace_b]:
+            command([binary, '--gateway', base, '--workspace', workspace, 'login', '--username', 'admin'], cli_env)
+        connections = json.loads(command([binary, 'connection', 'list'], cli_env))
+        assert len(connections['connections']) == 2
+        by_workspace = {c['workspace_id']: c['name'] for c in connections['connections']}
+        command([binary, 'connection', 'use', by_workspace[workspace_a]], cli_env)
+        assert json.loads(command([binary, '--json', 'task', 'get', 'same-task'], cli_env))['config']['name'] == 'Workspace a'
+        report = [json.loads(line) for line in command([binary, '--json', 'run', 'watch', a['run'], '--timeout', '10s'], cli_env).splitlines()]
+        assert report[-1]['type'] == 'summary' and report[-1]['data']['result'] == '# Report a'
+        command([binary, 'connection', 'use', by_workspace[workspace_b]], cli_env)
+        assert json.loads(command([binary, '--json', 'task', 'get', 'same-task'], cli_env))['config']['name'] == 'Workspace b'
+        check('isolated CLI profiles select the correct workspace, preserve same Task IDs and stream scoped Run Watch')
 
         expect_status(lambda: global_api('/workspaces/' + workspace_a + '/leave', 'POST', {}), 409)
         user_b = global_api('/session', token=secondary)['id']

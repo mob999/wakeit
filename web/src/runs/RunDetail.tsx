@@ -1,3 +1,4 @@
+import { apiUrl } from '../api'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useRef } from 'react'
@@ -83,7 +84,7 @@ export function RunDetail({
   const navigate = useNavigate()
   const editable = user.role !== 'viewer'
   useEffect(() => {
-    const source = new EventSource(`/api/v1/runs/${id}/stream`)
+    const source = new EventSource(apiUrl(`/runs/${id}/stream`))
     source.onopen = () => setLogError(false)
     source.onerror = () => setLogError(true)
     source.addEventListener('run_event', (e) => {

@@ -39,7 +39,13 @@ def main():
               INSERT INTO runs(id,task_id,task_revision,runner_id,config,state,source,scheduled_at,deadline) SELECT '00000000-0000-0000-0000-000000000003',id,revision,runner_id,config,'succeeded','manual',now(),now() FROM tasks;
               INSERT INTO events(run_id,seq,kind,data) SELECT id,1,'log','{"text":"preserved"}' FROM runs;""")
             def snapshot():
-                return {table:sql(f"SELECT jsonb_agg(to_jsonb(t)-'archived_at'-'session'-'session_seq') FROM {table} t") for table in ['users','credentials','runners','tasks','runs','events','settings']}
+                result = {}
+                for table in ['users','credentials','runners','tasks','runs','events','settings']:
+                    # Compare legacy payloads while allowing the additive workspace schema.
+                    expression = "to_jsonb(t)-'archived_at'-'session'-'session_seq'-'workspace_id'-'instance_admin'"
+                    if table == 'settings': expression += "-'id'"
+                    result[table] = sql(f"SELECT jsonb_agg({expression}) FROM {table} t")
+                return result
             before=snapshot()
             binary=ROOT/'target/debug/wakeit'
             migrate=[binary,'gateway','migrate','--config',folder/'gateway.yaml']
@@ -53,13 +59,18 @@ def main():
             assert sql("SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='runs_session_active'")=='1'
             assert (folder/'backup.dump').stat().st_size>0
             if os.name=='posix':assert (folder/'backup.dump').stat().st_mode & 0o777 == 0o600
-            run(migrate,env)
-            assert sql('SELECT count(*) FROM _sqlx_migrations')=='1'
+            # Legacy repair remains idempotent before later published migrations.
             run(upgrade,env)
-            sql("UPDATE _sqlx_migrations SET checksum=decode('deadbeef','hex')")
+            published=hashlib.sha384((ROOT/'crates/wakeit/migrations/0001_initial.sql').read_bytes()).hexdigest()
+            assert sql("SELECT encode(checksum,'hex') FROM _sqlx_migrations WHERE version=1")==published
+            sql("UPDATE _sqlx_migrations SET checksum=decode('deadbeef','hex') WHERE version=1")
             bad=run(upgrade,env,ok=False)
             assert bad.returncode != 0 and 'Unknown migration baseline' in bad.stderr
             assert snapshot()==before
-            print('Archive upgrade: old checksum rejected by normal migrate; backup, data preservation, single baseline, repeat and unknown-checksum refusal passed.')
+            sql(f"UPDATE _sqlx_migrations SET checksum=decode('{published}','hex') WHERE version=1")
+            run(migrate,env)
+            assert sql("SELECT string_agg(version::text,',' ORDER BY version) FROM _sqlx_migrations WHERE success")=='1,2'
+            assert snapshot()==before
+            print('Archive upgrade: old checksum rejected by normal migrate; backup, data preservation, published baseline plus workspace migration, repeat and unknown-checksum refusal passed.')
         finally:run([pg/'pg_ctl','-D',folder/'pg','-m','immediate','stop'])
 if __name__=='__main__':main()

@@ -344,6 +344,7 @@ impl<W: Write> Reporter<W> {
 struct Observer<W> {
     http: reqwest::Client,
     gateway: String,
+    workspace: Option<Uuid>,
     token: String,
     reporter: Reporter<W>,
     last: Option<RunView>,
@@ -363,7 +364,12 @@ impl<W: Write> Observer<W> {
             }
             let response = self
                 .http
-                .get(format!("{}/api/v1{path}", self.gateway))
+                .get(match self.workspace {
+                    Some(workspace) => {
+                        format!("{}/api/v1/workspaces/{workspace}{path}", self.gateway)
+                    }
+                    None => format!("{}/api/v1{path}", self.gateway),
+                })
                 .bearer_auth(self.token.trim())
                 .timeout(self.timing.request.min(remaining))
                 .send()
@@ -498,22 +504,42 @@ pub async fn run(
     gateway: &str,
     token: &str,
     id: Uuid,
-    limit: Option<Duration>,
+    timeout: Option<Duration>,
     json: bool,
 ) -> Result<i32> {
-    let output = io::stdout();
+    run_with_workspace(gateway, None, token, id, timeout, json).await
+}
+pub async fn run_scoped(
+    gateway: &str,
+    workspace: Uuid,
+    token: &str,
+    id: Uuid,
+    timeout: Option<Duration>,
+    json: bool,
+) -> Result<i32> {
+    run_with_workspace(gateway, Some(workspace), token, id, timeout, json).await
+}
+async fn run_with_workspace(
+    gateway: &str,
+    workspace: Option<Uuid>,
+    token: &str,
+    id: Uuid,
+    timeout: Option<Duration>,
+    json: bool,
+) -> Result<i32> {
     let mut observer = Observer {
         http: reqwest::Client::builder().build()?,
         gateway: gateway.trim_end_matches('/').into(),
+        workspace,
         token: token.into(),
-        reporter: Reporter::new(output, id, json),
+        reporter: Reporter::new(io::stdout(), id, json),
         last: None,
         cursor: 0,
         timing: Timing::default(),
     };
     let outcome = tokio::select! {
         result = observer.observe() => result,
-        _ = async { match limit { Some(d) => tokio::time::sleep(d).await, None => std::future::pending().await } } => Err(Failure { code:124, message:"observation timed out".into() }),
+        _ = async { match timeout { Some(d) => tokio::time::sleep(d).await, None => std::future::pending().await } } => Err(Failure { code:124, message:"observation timed out".into() }),
         signal = tokio::signal::ctrl_c() => Err(match signal { Ok(()) => Failure { code:130, message:"observation interrupted".into() }, Err(_) => Failure::query("could not listen for Ctrl+C") }),
     };
     observer
@@ -615,6 +641,7 @@ mod tests {
             Observer {
                 http: reqwest::Client::new(),
                 gateway: self.url.clone(),
+                workspace: None,
                 token: "fixture-key".into(),
                 reporter: Reporter::new(vec![], id, json),
                 last: None,
