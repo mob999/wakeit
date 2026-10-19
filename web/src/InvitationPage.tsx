@@ -1,3 +1,4 @@
+import { ErrorToast } from './Toast'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -10,14 +11,21 @@ import { BrandMark } from './BrandMark'
 export function InvitationPage({ user }: { user?: User }) {
   useTranslation()
   const token = useSyncExternalStore(
-    (update) => { window.addEventListener('hashchange', update); return () => window.removeEventListener('hashchange', update) },
+    (update) => {
+      window.addEventListener('hashchange', update)
+      return () => window.removeEventListener('hashchange', update)
+    },
     () => location.hash.slice(1),
   )
   const [signup, setSignup] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  useEffect(() => { setPassword(''); setConfirm(''); setSignup(false) }, [token])
+  useEffect(() => {
+    setPassword('')
+    setConfirm('')
+    setSignup(false)
+  }, [token])
   const invitation = useQuery<{ workspace_id: string; workspace: string; role: string }>({
     queryKey: ['invitation', token],
     queryFn: () => api('/invites/inspect', 'POST', { token }),
@@ -69,9 +77,7 @@ export function InvitationPage({ user }: { user?: User }) {
           {invitation.isPending ? (
             <p className="quiet">{tr('加载中…')}</p>
           ) : invitation.error ? (
-            <p className="error" role="alert">
-              {invitation.error.message}
-            </p>
+            <ErrorToast>{invitation.error.message}</ErrorToast>
           ) : (
             <>
               <div className="invite-target">
@@ -148,11 +154,7 @@ export function InvitationPage({ user }: { user?: User }) {
               )}
             </>
           )}
-          {accept.error && (
-            <p className="error" role="alert">
-              {accept.error.message}
-            </p>
-          )}
+          {accept.error && <ErrorToast>{accept.error.message}</ErrorToast>}
         </div>
       </form>
     </div>

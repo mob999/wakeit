@@ -42,6 +42,7 @@ pub mod kimi_live;
 
 pub mod copilot_adapter;
 
+pub mod editor_layout;
 pub mod watch;
 pub mod workspace_api;
 pub mod workspaces;

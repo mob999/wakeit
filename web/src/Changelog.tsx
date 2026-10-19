@@ -1,3 +1,4 @@
+import { ErrorToast } from './Toast'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -57,13 +58,13 @@ export function Changelog({ version }: { version?: string }) {
           {document.isPending ? (
             <p role="status">{t('正在加载…')}</p>
           ) : document.isError ? (
-            <div className="changelog-error" role="alert">
+            <ErrorToast>
               <span>{t('无法加载更新日志')}</span>
               <Button loading={document.isFetching} onClick={() => void document.refetch()}>
                 <RefreshCw size={14} />
                 {t('重试')}
               </Button>
-            </div>
+            </ErrorToast>
           ) : (
             <div className="markdown-result">
               <MarkdownContent text={document.data.content} />

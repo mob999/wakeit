@@ -99,7 +99,7 @@ wakeit --json run watch <run-id> --timeout 10m
 
 | 退出码 | 含义 |
 |---|---|
-| `0` | Run 成功，或 DAG 完成但有警告（warning） |
+| `0` | Run 成功，或 DAG 警告（warning） |
 | `1` | 失败、取消、执行超时、跳过或中断 |
 | `2` | 参数、认证、查询或持续连接错误 |
 | `124` | 观察等待超时 |

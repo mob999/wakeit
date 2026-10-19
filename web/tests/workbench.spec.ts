@@ -241,7 +241,7 @@ test('models failure and empty response never reuse the old list', async ({ page
   await dialog.getByRole('button', { name: '刷新模型', exact: true }).click()
   await expect(dialog.getByRole('combobox', { name: '模型', exact: true })).toHaveCount(0)
   await expect(dialog.getByRole('textbox', { name: '模型', exact: true })).toBeVisible()
-  await expect(dialog.getByRole('alert')).toContainText('discovery failed')
+  await expect(page.getByRole('alert')).toContainText('discovery failed')
   await page.unroute('**/models/query')
   await page.route('**/models/query', (route) =>
     route.fulfill({

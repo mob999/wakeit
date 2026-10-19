@@ -37,6 +37,15 @@ pub fn document() -> Value {
     }
     add!("DagValidationIssue", crate::dag::ValidationIssue);
     add!("Task", crate::config::TaskConfig);
+    add!("EditorLayout", crate::editor_layout::EditorLayout);
+    schemas.insert("TaskRecord".into(), json!({
+        "type":"object", "required":["id","config","revision"],
+        "properties":{
+            "id":{"type":"string"}, "config":{"$ref":"#/components/schemas/Task"},
+            "revision":{"type":"integer"},
+            "editor_layout":{"anyOf":[{"$ref":"#/components/schemas/EditorLayout"},{"type":"null"}],"description":"Shared DAG canvas coordinates, outside TaskConfig and execution snapshots. Omitted or null on PUT preserves positions of remaining nodes."}
+        }
+    }));
     add!("Agent", crate::config::AgentConfig);
     add!("Schedule", crate::config::Schedule);
     add!("Login", crate::api::Login);
@@ -219,6 +228,9 @@ pub fn document() -> Value {
                 ("/device/claim", "post") => Some("Claim"),
                 _ => None,
             };
+            if path == "/tasks/{id}" && matches!(method, "get" | "put") {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"$ref":"#/components/schemas/TaskRecord"}}});
+            }
             if let Some(name) = body {
                 op["requestBody"] = json!({"required":true,"content":{"application/json":{"schema":{"$ref":format!("#/components/schemas/{name}")}}}});
             }

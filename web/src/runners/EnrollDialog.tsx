@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
@@ -64,7 +65,7 @@ export function EnrollDialog({
             {tr('生成注册命令')}
           </Button>
         )}
-        {error && <p className="error">{error}</p>}
+        {error && <ErrorToast>{error}</ErrorToast>}
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>{tr('完成')}</Button>

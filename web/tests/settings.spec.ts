@@ -311,7 +311,7 @@ test('API Key expiry options, custom validation and settings headings', async ({
     if (choice === '自定义时间') {
       await dialog.getByLabel('到期时间', { exact: true }).fill('2000-01-01T12:00')
       await dialog.getByRole('button', { name: '创建', exact: true }).click()
-      await expect(dialog.getByRole('alert')).toHaveText('请选择未来的过期时间')
+      await expect(page.getByRole('alert')).toHaveText('请选择未来的过期时间')
       const local = new Date(custom.getTime() - custom.getTimezoneOffset() * 60000)
         .toISOString()
         .slice(0, 16)
@@ -326,7 +326,7 @@ test('API Key expiry options, custom validation and settings headings', async ({
           : route.continue(),
       )
       await dialog.getByRole('button', { name: '创建', exact: true }).click()
-      await expect(dialog.getByRole('alert')).toHaveText('创建失败')
+      await expect(page.getByRole('alert')).toHaveText('创建失败')
       await expect(dialog.getByLabel('到期时间', { exact: true })).toHaveValue(local)
       await page.unroute('**/api/v1/tokens')
     }

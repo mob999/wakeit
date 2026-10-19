@@ -54,6 +54,7 @@ pub async fn apply_task(
     c: &TaskConfig,
     expected: Option<i64>,
     user: Uuid,
+    editor_layout: Option<&crate::editor_layout::EditorLayout>,
 ) -> Result<Option<Value>> {
     let mut normalized = c.clone();
     if let Some(schedule) = &mut normalized.schedule
@@ -70,6 +71,9 @@ pub async fn apply_task(
     }
     let c = &normalized;
     c.validate()?;
+    if let Some(layout) = editor_layout {
+        layout.validate(c)?;
+    }
     let mut tx = pool.begin().await?;
     crate::workspaces::lock(&mut tx, workspace).await?;
     crate::workspaces::check_member(&mut tx, credential, workspace, "operator").await?;
@@ -79,7 +83,7 @@ pub async fn apply_task(
         .execute(&mut *tx)
         .await?;
     let old = sqlx::query(
-        "SELECT revision,config,next_at,enabled,archived_at FROM tasks WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
+        "SELECT revision,config,next_at,enabled,archived_at,editor_layout FROM tasks WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
     )
     .bind(&c.id)
     .bind(workspace).fetch_optional(&mut *tx)
@@ -129,8 +133,19 @@ pub async fn apply_task(
     } else {
         None
     };
-    let row:Value=sqlx::query_scalar("INSERT INTO tasks(workspace_id,id,runner_id,config,enabled,next_at,created_by,updated_by) VALUES($7,$1,$2,$3,$4,$5,$6,$6) ON CONFLICT(workspace_id,id) DO UPDATE SET runner_id=excluded.runner_id,config=excluded.config,enabled=excluded.enabled,next_at=excluded.next_at,revision=tasks.revision+1,updated_by=excluded.updated_by,updated_at=now() RETURNING to_jsonb(tasks.*)")
-        .bind(&c.id).bind(runner).bind(config).bind(c.enabled).bind(next_at).bind(user).bind(workspace).fetch_one(&mut *tx).await?;
+    let layout = if let Some(layout) = editor_layout {
+        Some(layout.clone())
+    } else {
+        old.as_ref()
+            .and_then(|row| row.get::<Option<Value>, _>("editor_layout"))
+            .map(serde_json::from_value::<crate::editor_layout::EditorLayout>)
+            .transpose()?
+    }
+    .and_then(|layout| layout.retain_nodes(c))
+    .map(serde_json::to_value)
+    .transpose()?;
+    let row:Value=sqlx::query_scalar("INSERT INTO tasks(workspace_id,id,runner_id,config,enabled,next_at,created_by,updated_by,editor_layout) VALUES($7,$1,$2,$3,$4,$5,$6,$6,$8) ON CONFLICT(workspace_id,id) DO UPDATE SET runner_id=excluded.runner_id,config=excluded.config,enabled=excluded.enabled,next_at=excluded.next_at,editor_layout=excluded.editor_layout,revision=tasks.revision+1,updated_by=excluded.updated_by,updated_at=now() RETURNING to_jsonb(tasks.*)")
+        .bind(&c.id).bind(runner).bind(config).bind(c.enabled).bind(next_at).bind(user).bind(workspace).bind(layout).fetch_one(&mut *tx).await?;
     crate::dag_store::save_nodes(&mut tx, workspace, c).await?;
     if !c.enabled {
         sqlx::query("UPDATE runs SET state='cancelled',reason='task paused',finished_at=now() WHERE workspace_id=$2 AND task_id=$1 AND parent_run_id IS NULL AND state='queued' AND source='schedule'").bind(&c.id).bind(workspace).execute(&mut *tx).await?;

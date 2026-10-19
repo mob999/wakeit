@@ -11,7 +11,7 @@ export default defineConfig({
   workers: 1,
   timeout: 30000,
   use: {
-    baseURL: stack.base_url,
+    baseURL: process.env.WAKEIT_TEST_URL ?? stack.base_url,
     locale: 'zh-CN',
     viewport: { width: 1440, height: 900 },
     trace: 'retain-on-failure',

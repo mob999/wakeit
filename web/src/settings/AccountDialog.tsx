@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
@@ -116,11 +117,7 @@ export function AccountDialog({
               onChange={(e) => setConfirm(e.target.value)}
             />
           </Field>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <ErrorToast>{error}</ErrorToast>}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>

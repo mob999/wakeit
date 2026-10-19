@@ -26,7 +26,7 @@ async function fill(page: Page, dialog: any) {
   await dialog.getByRole('combobox', { name: '模型', exact: true }).click()
   await page.getByRole('option', { name: /Model B/ }).click()
 }
-test('Task validates before Time, never writes on Next, and preserves models and schedule drafts', async ({
+test('Task switches freely before Save, never writes on Next, and preserves models and schedule drafts', async ({
   page,
 }) => {
   const dialog = await open(page)
@@ -37,11 +37,12 @@ test('Task validates before Time, never writes on Next, and preserves models and
   await expect(dialog.getByRole('button', { name: '保存任务', exact: true })).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: 'YAML', exact: true })).toHaveCount(0)
   await dialog.getByRole('tab', { name: '时间', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toHaveText('请填写任务名称')
+  await expect(page.getByRole('alert')).toHaveCount(0)
   await expect(dialog.getByRole('tab', { name: '任务', exact: true })).toHaveAttribute(
     'aria-selected',
-    'true',
+    'false',
   )
+  await dialog.getByRole('tab', { name: '任务', exact: true }).click()
   await fill(page, dialog)
   await dialog.getByRole('button', { name: '下一步', exact: true }).click()
   expect(puts).toBe(0)
@@ -100,13 +101,13 @@ test('save errors and revision conflict retain the complete draft and fixed suff
     })
   })
   await dialog.getByRole('button', { name: '保存任务', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toHaveText('保存失败')
+  await expect(page.getByRole('alert')).toHaveText('保存失败')
   await dialog.getByRole('button', { name: '上一步', exact: true }).click()
   await expect(dialog.getByRole('combobox', { name: '模型', exact: true })).toContainText('Model B')
   await dialog.getByLabel('任务名称', { exact: true }).fill('Daily check')
   await dialog.getByRole('button', { name: '下一步', exact: true }).click()
   await dialog.getByRole('button', { name: '保存任务', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toHaveText('版本冲突')
+  await expect(page.getByRole('alert')).toHaveText('版本冲突')
   expect(writes[0].config.id).toMatch(/^mei-ri-jian-cha-[a-f0-9]{10}$/)
   expect(writes[1].config.id).toBe(`Daily-check-${writes[0].config.id.slice(-10)}`)
   expect(writes[1].config.parameters.model).toBe('model-b')
@@ -143,6 +144,6 @@ test('saving disables duplicate submit, tab switching and closing until the resp
   await expect(dialog).toBeVisible()
   expect(writes).toBe(1)
   release()
-  await expect(dialog.getByRole('alert')).toHaveText('稍后重试')
+  await expect(page.getByRole('alert')).toHaveText('稍后重试')
   await expect(dialog.getByRole('button', { name: '保存任务', exact: true })).toBeEnabled()
 })

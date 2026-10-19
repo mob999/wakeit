@@ -1,3 +1,4 @@
+import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { PageBreadcrumbs, PageActions } from '../PageHeader'
@@ -179,13 +180,13 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
 function RequestError({ error, retry }: { error: Error; retry: () => unknown }) {
   useTranslation()
   return (
-    <div className="error moments-state" role="alert">
+    <ErrorToast>
       {error.message}
       <Button onClick={() => retry()}>
         <RefreshCw size={14} />
         {tr('重试')}
       </Button>
-    </div>
+    </ErrorToast>
   )
 }
 function DayEntries({
