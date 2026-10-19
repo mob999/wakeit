@@ -58,6 +58,8 @@ class Packaging(unittest.TestCase):
             self.assertIn('wakeit/SKILL.md', names)
             self.assertIn('wakeit/references/deploy-windows.md', names)
             self.assertIn('wakeit/assets/events-adapter.py', names)
+            self.assertIn('wakeit/assets/task-dag.yaml', names)
+            self.assertIn('wakeit/references/dag.md', names)
             self.assertTrue(all(name.startswith('wakeit') and '..' not in Path(name).parts for name in names))
 
     def test_missing_and_duplicate_targets_fail(self):

@@ -9,15 +9,16 @@
 - **接入已有 Agent**：内置 Codex、Claude Code、Pi、OpenCode、Kimi Code、Antigravity CLI、Gemini CLI、Cursor、GitHub Copilot CLI、Cline、Goose、Qwen Code；[能力与配置](docs/agents.md)按原生接口提供，自定义适配只需配置命令。
 - **在自己的设备执行**：Runner 主动连接 Gateway，支持 Linux、macOS、Windows，无需设备开放入站端口。
 - **按时运行，查看结果**：Cron、固定间隔、一次性时间和手动执行；支持实时过程及 Markdown 报告，包含代码高亮、公式与 Mermaid 图表；Moments 按完成时间汇总结果。
+- **编排 Agent DAG。** 在画布拖入 Agent，或导入一份 YAML，连接 AND 依赖并引用上游结果；整图执行并按所选节点展示报告。见 [DAG 任务](docs/dag.md)。
 - **保留执行上下文**：支持会话的 Agent 可绑定原生会话，在 WebUI 复制 Agent 原生续聊命令，或在原 Runner 设备用 `wakeit run resume <run-id>` 继续交互；见[会话续聊](docs/cli.md#绑定会话与本机续聊)。
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
 - **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
 
-最新已发布版本为 **0.2.0**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
+最新已发布版本为 **0.3.0**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
 
 ## 安装
 
-从 [v0.2.0 Release](https://github.com/mob999/wakeit/releases/tag/v0.2.0) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
+从 [v0.3.0 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.0) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
 
 从源码构建需要 Rust 1.89+、Node.js 22.12+：
 

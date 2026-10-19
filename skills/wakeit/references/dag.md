@@ -2,6 +2,8 @@
 
 Use one Task for an entire inline graph. Keep its ID, revision and paused state when editing. Obtain actual Runner names/IDs, installed Agents and allowed working directories before writing nodes. Use `wakeit schema task` for the current schema. The CLI uses the same `task apply`, `task trigger`, `run watch`, `run cancel` and `run retry` commands as ordinary Tasks.
 
+Start from the independently packaged [DAG template](../assets/task-dag.yaml), replacing its Runner names, Agent IDs and directories with actual allowed values. Apply with `wakeit --json task apply --file task-dag.yaml`; use `--expect <revision>` for edits. Creating or updating a scheduled graph does not imply permission to trigger it.
+
 A DAG config has common `version: 1`, `id`, `name`, `schedule`, `enabled`, `execution`, plus `dag.nodes` and optional `dag.results`. It must not define top-level Runner, Agent, cwd, prompt, parameters or Session. Each node contains a stable ID, name, `pre` list and its own execution fields. Give copied nodes new IDs. Names may change without changing references.
 
 All roots start together, subject to Runner capacity and Session locks. Only AND is supported: every predecessor must succeed. Failure skips impossible descendants while independent branches continue. Never trigger, retry or cancel an internal execution independently; a retry starts a new whole round from the current Task definition. Do not add node automatic retries or bypass unsuccessful predecessors.

@@ -1,3 +1,24 @@
+## 0.3.0
+
+### Added
+
+- Define an entire AND DAG in one Task, with multiple roots, parallel branches, explicit upstream-result references and selectable output nodes. Trigger, retry and cancel operate on the whole graph.
+- Build DAGs by dragging detected Agents onto a canvas, connecting dependencies and editing nodes in a floating inspector. Search, table view, undo/redo, layout organization and shared saved coordinates support larger graphs.
+- Inspect per-node activity, logs, results and sessions from a DAG Run. Moments and CLI Watch show the whole round and its selected reports; warning rounds retain successful output when an independent branch fails.
+
+### Improved
+
+- Settings, node tables and Run details use consistent typography, aligned columns and table-card layouts. Errors appear as top-right Toasts, and Task/Time tabs switch freely while drafts are incomplete.
+- Task overview, Run graphs and the editor share upper-right zoom and fullscreen controls.
+
+### Fixed
+
+- Agent-guided setup configures and verifies PATH in the user's actual login shell before reporting completion.
+
+### Upgrade
+
+- Back up the database and stop all Gateway writers before applying the appended DAG and editor-layout migrations. Existing ordinary tasks, run history and Runner identities are preserved; configuration and message protocols remain version 1. See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.0/docs/operations.md#upgrading-from-020).
+
 ## 0.2.0
 
 ### Added

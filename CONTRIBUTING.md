@@ -1,6 +1,6 @@
 # 开发 Wakeit
 
-Wakeit 当前版本为 0.2.0。产品与包版本随发布同步，配置和消息协议保持 version: 1；已发布的数据库迁移基线不可改写，后续结构变更通过新增迁移交付。开发约定见 [AGENTS.md](AGENTS.md)。
+Wakeit 当前版本为 0.3.0。产品与包版本随发布同步，配置和消息协议保持 version: 1；已发布的数据库迁移基线不可改写，后续结构变更通过新增迁移交付。开发约定见 [AGENTS.md](AGENTS.md)。
 
 ## 提交流程
 
@@ -46,7 +46,7 @@ npm test
 
 本地双语回归：`WAKEIT_TEST_URL=http://127.0.0.1:55426 WAKEIT_TEST_STACK=/tmp/wakeit-no-stack.json npm --prefix web test -- tests/languages.spec.ts tests/onboarding.spec.ts`。这些场景模拟 API，不使用真实账号、报告或设备；浏览器回归仍不进入 CI。
 
-发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。`v0.2.0` 为正式 Release，`v0.1.0` 保留为历史预览版；普通更新检查忽略预览版。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
+发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。`v0.3.0` 为正式 Release，`v0.1.0` 保留为历史预览版；普通更新检查忽略预览版。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
 
 [README Crafter skill](.agents/skills/readme-crafter-skill/SKILL.md) 是维护 README 的仓库内技能；写完核对命令、配置、链接和真实发布状态。
 
