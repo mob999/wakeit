@@ -1,9 +1,14 @@
 import { type Dag, type DagNode, type DagIssue } from '../api'
 import { t } from '../i18n'
 
-export const newNode = (): DagNode => ({
+function nextNodeName(nodes: DagNode[]) {
+  let index = 1
+  while (nodes.some((n) => n.name === t('dag.defaultNode', { number: index }))) index++
+  return t('dag.defaultNode', { number: index })
+}
+export const newNode = (nodes: DagNode[] = []): DagNode => ({
   id: `node_${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`,
-  name: '',
+  name: nextNodeName(nodes),
   pre: [],
   runner: '',
   agent: '',
@@ -59,4 +64,21 @@ export function referencesTo(dag: Dag, id: string) {
       (n.pre.includes(id) ||
         new RegExp(`\\{\\{\\s*nodes\\.${id}\\.result\\s*\\}\\}`).test(n.prompt)),
   )
+}
+
+export function referenceLocations(dag: Dag, id: string) {
+  const rows: { node_id?: string; name: string; field: string; kind: string }[] = []
+  for (const node of dag.nodes) {
+    if (node.pre.includes(id))
+      rows.push({ node_id: node.id, name: node.name, field: 'pre', kind: t('dag.pre') })
+    if (
+      Array.from(node.prompt.matchAll(/\{\{\s*nodes\.([a-zA-Z0-9_-]+)\.result\s*\}\}/g)).some(
+        (m) => m[1] === id,
+      )
+    )
+      rows.push({ node_id: node.id, name: node.name, field: 'prompt', kind: t('dag.insertResult') })
+  }
+  if (dag.results?.includes(id))
+    rows.push({ name: t('dag.results'), field: 'results', kind: t('dag.outputNode') })
+  return rows
 }

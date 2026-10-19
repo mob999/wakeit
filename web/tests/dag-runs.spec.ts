@@ -83,20 +83,19 @@ function fixture() {
   ]
   return { run, execution, events }
 }
-async function mock(page: Page, f: ReturnType<typeof fixture>) {
+async function mock(page: Page, f: ReturnType<typeof fixture>, role = 'admin') {
   const writes: string[] = []
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url()),
       path = url.pathname
     if (route.request().method() !== 'GET') writes.push(path)
     let value: any = []
-    if (path === '/api/v1/session')
-      value = { id: 'preview-user', username: 'preview', role: 'admin' }
+    if (path === '/api/v1/session') value = { id: 'preview-user', username: 'preview', role }
     else if (path === '/api/v1/meta') value = { version: '0.2.0' }
     else if (path === `/api/v1/workspaces/${workspace}`)
-      value = { id: workspace, name: 'Preview', role: 'admin' }
+      value = { id: workspace, name: 'Preview', role }
     else if (path.endsWith('/workspaces'))
-      value = { items: [{ id: workspace, name: 'Preview', role: 'admin' }], demo: null }
+      value = { items: [{ id: workspace, name: 'Preview', role }], demo: null }
     else if (path.endsWith('/settings')) value = { timezone: 'UTC' }
     else if (path.endsWith('/runs')) value = { items: [f.run], total: 1, page: 1, page_size: 20 }
     else if (path.endsWith(`/runs/${id}`)) value = f.run
@@ -244,4 +243,145 @@ test('DAG completion does not leave details; Moments previews reports and resume
   await page.getByRole('button', { name: '续聊', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('pi --resume native-session')
   await expect(page.getByRole('dialog')).toContainText('/workspace')
+})
+
+test('DAG node details has one card header, embedded folds and preserved follow/selection state', async ({
+  page,
+}) => {
+  const f = fixture()
+  await mock(page, f)
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  const details = page.locator('.dag-node-details:visible')
+  await expect(details).toHaveCount(1)
+  await expect(details.locator('.content-card')).toHaveCount(0)
+  await expect(details.getByRole('combobox', { name: '选择节点', exact: true })).toHaveCount(0)
+  await expect(details.locator('.dag-node-context strong')).toHaveText('Collect sources')
+  await expect(details.getByRole('button', { name: '日志', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+  await expect(details.getByRole('button', { name: '执行信息', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  await details.getByLabel('跟随输出', { exact: true }).uncheck()
+  await details.getByRole('button', { name: '执行信息', exact: true }).click()
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(details.getByLabel('跟随输出', { exact: true })).not.toBeChecked()
+  await expect(details.getByRole('button', { name: '执行信息', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+  for (const [width, language, theme] of [
+    [1440, 'zh', 'light'],
+    [390, 'zh', 'dark'],
+    [2200, 'en', 'light'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.evaluate(
+      async ({ language, theme }) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+        document.documentElement.dataset.theme = theme
+      },
+      { language, theme },
+    )
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({
+      path: `test-results/dag-details-${width}-${language}-${theme}.png`,
+      fullPage: true,
+    })
+  }
+})
+test('DAG multi-node details switches context without duplicate titles and keeps reconciliation on the actual node', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = 'unknown'
+  f.run.nodes.push({
+    ...f.run.nodes[0],
+    id: 'uncertain',
+    name: 'Uncertain branch',
+    state: 'unknown',
+    execution_id: '00000000-0000-4000-8000-000000000003',
+    continuation_available: false,
+  })
+  await mock(page, f)
+  await page.route('**/nodes/uncertain', (route) =>
+    route.fulfill({
+      json: {
+        node: f.run.nodes[1],
+        execution: {
+          ...f.execution,
+          id: f.run.nodes[1].execution_id,
+          state: 'unknown',
+          session: null,
+        },
+      },
+    }),
+  )
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  const details = page.locator('.dag-node-details:visible')
+  await details.getByRole('combobox', { name: '选择节点', exact: true }).click()
+  await page.getByRole('option', { name: /^Uncertain branch/ }).click()
+  await expect(details).toHaveCount(1)
+  await expect(details.locator('.dag-node-context .status')).toHaveText('状态待核对')
+  await details.getByRole('button', { name: '核对状态', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await expect(
+    page
+      .locator('.dag-node-process:visible')
+      .getByRole('combobox', { name: '选择节点', exact: true }),
+  ).toContainText('Uncertain branch')
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(details.getByRole('combobox', { name: '选择节点', exact: true })).toContainText(
+    'Uncertain branch',
+  )
+})
+test('DAG skipped nodes retain their real reason and Viewer cannot reconcile, retry or cancel', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = 'failed'
+  f.run.reason = 'Required output was skipped'
+  f.run.finished_at = at
+  f.run.nodes[0].state = 'skipped'
+  f.run.nodes[0].execution_id = null
+  f.run.nodes[0].reason = 'Predecessor did not succeed'
+  await mock(page, f, 'viewer')
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(page.locator('.dag-node-details:visible')).toContainText(
+    'Predecessor did not succeed',
+  )
+  await expect(page.getByRole('button', { name: '核对状态', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '取消执行', exact: true })).toHaveCount(0)
+})
+
+test('an empty successful result is explicit and its fold choice survives tab changes', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = 'succeeded'
+  f.run.finished_at = at
+  f.run.nodes[0].state = 'succeeded'
+  await mock(page, f)
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  const result = page
+    .locator('.run-section')
+    .filter({ has: page.getByRole('button', { name: '结果', exact: true }) })
+  await expect(result).toContainText('未返回结果')
+  await result.getByRole('button', { name: '结果', exact: true }).click()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await expect(result.getByRole('button', { name: '结果', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
 })

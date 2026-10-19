@@ -64,14 +64,17 @@ test('DAG prototype keeps node drafts, renders worker graph and protects referen
   await page.getByRole('button', { name: '新增节点', exact: true }).click()
   await page.getByLabel('名称', { exact: true }).fill('Write report')
   await page.getByRole('combobox', { name: '前置节点', exact: true }).click()
-  await page.getByRole('option', { name: 'Collect sources', exact: true }).click()
+  await page.getByRole('option', { name: /^Collect sources/ }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: '引用上游结果', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Collect sources', exact: true }).click()
+  await page.getByRole('menuitem', { name: /^Collect sources/ }).click()
   await expect(page.getByLabel('指令', { exact: true })).toHaveValue(/nodes\..+\.result/)
   await page.locator('.dag-graph-node').filter({ hasText: 'Collect sources' }).click()
   await expect(page.getByLabel('指令', { exact: true })).toHaveValue('Find primary sources\n中文')
-  await page.getByRole('button', { name: '节点操作', exact: true }).click()
+  await page
+    .locator('.dag-node-context')
+    .getByRole('button', { name: '节点操作', exact: true })
+    .click()
   await page.getByRole('menuitem', { name: '删除节点', exact: true }).click()
   await expect(
     page.getByRole('dialog').getByRole('button', { name: '删除节点', exact: true }),
@@ -140,24 +143,23 @@ test('DAG output selection switches between automatic leaves and an explicit sub
   await page.getByLabel('名称', { exact: true }).fill('Output A')
   await page.getByRole('button', { name: '新增节点', exact: true }).click()
   await page.getByLabel('名称', { exact: true }).fill('Output B')
+  await selectChoice(page, page, '结果选择', '指定节点')
   await page.getByRole('combobox', { name: '结果节点', exact: true }).click()
-  await expect(page.getByRole('option', { name: '末端节点（自动）', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('option', { name: /^Output A/ })).toHaveAttribute(
     'aria-selected',
     'true',
   )
-  await page.getByRole('option', { name: 'Output A', exact: true }).click()
-  await expect(page.getByRole('option', { name: 'Output A', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  )
-  await expect(page.getByRole('option', { name: '末端节点（自动）', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'false',
-  )
+  await page.getByRole('option', { name: /^Output B/ }).click()
+  await expect(page.getByRole('option', { name: /^Output A/ })).toBeDisabled()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('combobox', { name: '结果节点', exact: true })).toContainText(
     'Output A',
   )
+  await expect(
+    page.locator('.dag-graph-node').filter({ hasText: 'Output A' }).getByLabel('结果节点'),
+  ).toHaveCount(1)
+  await selectChoice(page, page, '结果选择', '末端节点（自动）')
+  await expect(page.locator('.dag-graph-node').getByLabel('结果节点')).toHaveCount(2)
 })
 
 for (const count of [20, 100])
@@ -188,16 +190,19 @@ for (const count of [20, 100])
     )
     await page.goto(`/w/${workspace}/tasks/dag?task=layout-fixture`)
     await expect(page.locator('.dag-graph-node')).toHaveCount(count)
-    await page.getByRole('button', { name: '列表', exact: true }).click()
-    const list = page.getByRole('listbox', { name: '节点', exact: true })
-    await expect(list.getByRole('option')).toHaveCount(count)
-    const first = list.getByRole('option').first()
+    await page.getByRole('button', { name: '表格', exact: true }).click()
+    const list = page.getByRole('table', { name: '节点', exact: true })
+    await expect(list.locator('.dag-list-node')).toHaveCount(count)
+    const first = list.locator('.dag-list-node').first()
     await first.focus()
     await page.keyboard.press('ArrowDown')
-    await expect(list.getByRole('option').nth(1)).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(list.locator('.dag-list-node').nth(1)).toBeFocused()
     await expect(page.getByLabel('名称', { exact: true })).toHaveValue(nodes[1].name)
+    await page.getByRole('button', { name: '搜索节点', exact: true }).click()
     await page.getByRole('textbox', { name: '搜索节点', exact: true }).fill(`step ${count - 1} `)
-    await expect(list.getByRole('option')).toHaveCount(1)
+    await expect(list.locator('.dag-list-node')).toHaveCount(1)
+    await page.keyboard.press('Escape')
     for (const width of [390, 1440, 2200]) {
       await page.setViewportSize({ width, height: 900 })
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

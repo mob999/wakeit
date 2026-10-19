@@ -7,6 +7,7 @@ export function RunSection({
   children,
   hidden = false,
   actions,
+  embedded = false,
 }: {
   title: string
   open: boolean
@@ -14,11 +15,15 @@ export function RunSection({
   children: ReactNode
   hidden?: boolean
   actions?: ReactNode
+  embedded?: boolean
 }) {
   const id = useId()
   return (
-    <section className="run-section content-card" hidden={hidden}>
-      <div className="run-section-header card-header">
+    <section
+      className={'run-section ' + (embedded ? 'dag-internal-section' : 'content-card')}
+      hidden={hidden}
+    >
+      <div className={embedded ? 'dag-fold-row' : 'run-section-header card-header'}>
         <button
           type="button"
           className="run-section-heading"

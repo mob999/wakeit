@@ -12,6 +12,8 @@ export type Choice = {
   description?: string
   wrapDescription?: boolean
   status?: string
+  disabled?: boolean
+  reason?: string
 }
 export function ChoicePicker({
   id,
@@ -35,6 +37,9 @@ export function ChoicePicker({
   content,
   indicator,
   'aria-describedby': describedBy,
+  multiple,
+  onToggle,
+  minimum = 0,
 }: {
   id?: string
   label: string
@@ -57,6 +62,9 @@ export function ChoicePicker({
   onOpenChange?: (open: boolean) => void
   onSearchChange?: (search: string) => void
   'aria-describedby'?: string
+  multiple?: string[]
+  onToggle?: (value: string) => void
+  minimum?: number
 }) {
   useTranslation()
   const generated = useId()
@@ -97,6 +105,12 @@ export function ChoicePicker({
   }, [open, !!content])
   function choose(next: string) {
     if (disabled) return
+    const option = filtered.find((o) => o.value === next)
+    if (option?.disabled || (multiple?.includes(next) && multiple.length <= minimum)) return
+    if (multiple) {
+      onToggle?.(next)
+      return
+    }
     onChange(next)
     changeOpen(false)
   }
@@ -115,13 +129,23 @@ export function ChoicePicker({
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
       event.preventDefault()
       if (!filtered.length) return
+      const enabled = filtered
+        .map((option, index) => ({ option, index }))
+        .filter(
+          ({ option }) =>
+            !option.disabled && !(multiple?.includes(option.value) && multiple.length <= minimum),
+        )
+        .map(({ index }) => index)
+      if (!enabled.length) return
+      const position = enabled.indexOf(activeIndex)
       const next =
         event.key === 'Home'
-          ? 0
+          ? enabled[0]
           : event.key === 'End'
-            ? filtered.length - 1
-            : (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + filtered.length) %
-              filtered.length
+            ? enabled.at(-1)!
+            : enabled[
+                (position + (event.key === 'ArrowDown' ? 1 : -1) + enabled.length) % enabled.length
+              ]
       setActive(filtered[next].value)
     } else if (event.key === 'Enter' || (!searchable && event.key === ' ')) {
       event.preventDefault()
@@ -197,6 +221,7 @@ export function ChoicePicker({
               )}
               <div
                 role="listbox"
+                aria-multiselectable={multiple ? true : undefined}
                 id={listId}
                 aria-label={tr('可选{{v0}}', { v0: label })}
                 className="model-options"
@@ -219,9 +244,15 @@ export function ChoicePicker({
                     type="button"
                     role="option"
                     id={`${listId}-${index}`}
-                    aria-selected={value === option.value}
+                    aria-selected={
+                      multiple ? multiple.includes(option.value) : value === option.value
+                    }
                     tabIndex={-1}
-                    disabled={disabled}
+                    disabled={
+                      disabled ||
+                      option.disabled ||
+                      (!!multiple?.includes(option.value) && multiple.length <= minimum)
+                    }
                     ref={(el) => {
                       if (el) rows.current.set(option.value, el)
                       else rows.current.delete(option.value)
@@ -240,7 +271,9 @@ export function ChoicePicker({
                     </span>
                     <span className="choice-option-meta">
                       {option.status && <span className="quiet">{option.status}</span>}
-                      {value === option.value && <Check size={13} />}
+                      {(multiple ? multiple.includes(option.value) : value === option.value) && (
+                        <Check size={13} />
+                      )}
                     </span>
                   </button>
                 ))}
