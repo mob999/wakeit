@@ -54,7 +54,7 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 
 ## 即时能力 API
 
-- `GET /api/v1/meta`：公开返回 `{version:"0.1.1"}`。
+- `GET /api/v1/meta`：公开返回 `{version:"0.2.0"}`。
 - `GET /api/v1/workspaces/{workspace-id}/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
 - `POST /api/v1/workspaces/{workspace-id}/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
 
@@ -66,13 +66,13 @@ WebUI 使用 `GET /tasks?page=1&page_size=20` 与 `GET /runs?page=1&page_size=20
 
 q 在名称、ID、指令、工作目录、Runner、Agent 字段上进行不区分大小写的部分匹配；空格分隔的词按顺序匹配，百分号与下划线作为字面字符处理。runner 和 agent 按名称/ID 精确筛选；任务可用 enabled 筛选启用/暂停，运行可用 state 筛选状态。所有读取均保留 Viewer 权限要求。未传 page 的调用返回数组，运行最多 100 条；CLI 与脚本可显式请求分页。
 
-全局搜索的 Runner、Agent 使用公开目录进行匹配；Settings 搜索可见设置项，Viewer/Operator 不提供成员或工作区管理入口。搜索不读取个人 Token 的值。
+全局搜索的 Runner、Agent 使用公开目录进行匹配；Settings 搜索只显示当前权限可见的设置项；所有角色可查看工作区设置，仅 Admin 可修改配置或管理成员。搜索不读取个人 Token 的值。
 
 ## 设置页接口
 
 `GET /timezones` 需 Viewer 身份，返回 Gateway 内置时区库实际支持的名称数组，按名称排序并去重。设置页通过该目录搜索选择时区，目录请求失败显示重试，保留现有选值。
 
-`GET /users?page=1&page_size=20` 返回 `{items,total,page,page_size,active_admins}`，成员包含 id、username、role、active、created_at，按 created_at 和 id 升序排列。active_admins 是整个工作区有效管理员总数。角色修改仍由 Gateway 原子保护最后一名管理员；前端提交时保留成员已有 active 值。
+`GET /members?page=1&page_size=20` 返回 `{items,total,page,page_size,active_admins}`，成员包含 id、username、role、active、created_at，按 created_at 和 id 升序排列。active_admins 是整个工作区有效管理员总数。角色修改仍由 Gateway 原子保护最后一名管理员；前端提交时保留成员已有 active 值。
 
 `GET /tokens?page=1&page_size=20` 返回 `{items,total,page,page_size}`，仅包含当前用户的 API Key 元数据：id、name、created_at、expires_at，按创建时间和 id 倒序排列。查询不返回密钥。上述接口不传 page 时返回数组；分页规则与 Tasks/Runs 相同。创建 API Key 名称去除首尾空白且不能为空。
 
