@@ -86,7 +86,8 @@ impl Runtime {
             .await?;
         for row in old {
             let pid: Option<i64> = row.get("pid");
-            let absent = pid.is_some_and(|pid| process_absent(pid as u32))
+            let terminal: Uuid = row.get::<String, _>("id").parse()?;
+            let absent = pid.is_some_and(|pid| process_absent(terminal, pid as u32))
                 || (pid.is_none() && row.get::<Option<String>, _>("marker").is_none());
             if absent && let Some(path) = row.get::<Option<String>, _>("marker") {
                 let _ = std::fs::remove_file(path);
@@ -117,7 +118,9 @@ impl Runtime {
         for row in rows {
             let id: String = row.get("id");
             let pid: Option<i64> = row.get("pid");
-            if pid.is_some_and(|p| process_absent(p as u32)) {
+            if pid.is_some_and(|p| {
+                process_absent(id.parse().expect("journal terminal UUID"), p as u32)
+            }) {
                 if let Some(path) = row.get::<Option<String>, _>("marker") {
                     let _ = std::fs::remove_file(path);
                 }
@@ -448,6 +451,7 @@ impl Runtime {
     ) {
         let mut marker: Option<PathBuf> = None;
         let mut spawned_pid = None;
+        let mut group_bound = false;
         let result:Result<(bool,Option<u32>)>=async {
             let prepared=tokio::select!{_=entry.stop.cancelled()=>anyhow::bail!("terminal closed before start"),_=shutdown.cancelled()=>anyhow::bail!("Runner stopping"),p=sessions::prepare_local(&self.config,&self.journal,entry.run)=>p?};
             ensure!(prepared.session.id==request.data["session_id"].as_str().unwrap_or_default()
@@ -474,7 +478,8 @@ impl Runtime {
             drop(pair.slave);
             let pid=child.process_id().context("terminal process has no identity")?;
             spawned_pid=Some(pid);
-            let group=match ProcessGroup::for_pty(child.as_ref()){Ok(group)=>group,Err(error)=>{let _=child.kill();let _=child.wait();return Err(error)}};
+            let group=match ProcessGroup::for_pty(child.as_ref(),entry.id){Ok(group)=>group,Err(error)=>{let _=child.kill();let _=child.wait();return Err(error)}};
+            group_bound=true;
             // Persist process identity before accepting keyboard input.
             if let Err(error)=sqlx::query("UPDATE local_terminals SET pid=?,state='running',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(pid as i64).bind(entry.id.to_string()).execute(&self.journal.pool).await {
                 group.finish_confirmed().await; return Err(error.into())
@@ -536,7 +541,7 @@ impl Runtime {
             Err(error) => {
                 let pid = spawned_pid;
                 (
-                    if pid.is_some_and(|pid| !process_absent(pid)) {
+                    if pid.is_some_and(|pid| !group_bound || !process_absent(entry.id, pid)) {
                         "unknown"
                     } else {
                         "closed"
@@ -566,16 +571,37 @@ impl Runtime {
     }
 }
 #[cfg(unix)]
-fn process_absent(pid: u32) -> bool {
+fn process_absent(_terminal: Uuid, pid: u32) -> bool {
     unsafe {
         libc::kill(-(pid as i32), 0) == -1
             && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
     }
 }
 #[cfg(windows)]
-fn process_absent(pid: u32) -> bool {
-    use windows_sys::Win32::{Foundation::*, System::Threading::*};
+fn process_absent(terminal: Uuid, pid: u32) -> bool {
+    use windows_sys::Win32::{
+        Foundation::*,
+        System::{JobObjects::*, Threading::*},
+    };
     unsafe {
+        // A PID alone cannot confirm that descendants have exited on Windows.
+        let name = crate::process::terminal_job_name(terminal);
+        let job = OpenJobObjectW(JOB_OBJECT_QUERY, 0, name.as_ptr());
+        if !job.is_null() {
+            let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = std::mem::zeroed();
+            let ok = QueryInformationJobObject(
+                job,
+                JobObjectBasicAccountingInformation,
+                &mut info as *mut _ as *mut _,
+                std::mem::size_of_val(&info) as u32,
+                std::ptr::null_mut(),
+            ) != 0;
+            CloseHandle(job);
+            return ok && info.ActiveProcesses == 0;
+        }
+        if GetLastError() != ERROR_FILE_NOT_FOUND {
+            return false;
+        }
         let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
         if h.is_null() {
             return GetLastError() == ERROR_INVALID_PARAMETER;

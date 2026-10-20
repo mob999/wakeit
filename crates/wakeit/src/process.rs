@@ -438,17 +438,23 @@ impl ProcessGroup {
 }
 impl ProcessGroup {
     #[cfg(unix)]
-    pub(crate) fn for_pty(child: &dyn portable_pty::Child) -> Result<Self> {
+    pub(crate) fn for_pty(child: &dyn portable_pty::Child, _terminal: uuid::Uuid) -> Result<Self> {
         Ok(Self(
             child.process_id().context("terminal process id")? as i32
         ))
     }
     #[cfg(windows)]
-    pub(crate) fn for_pty(child: &dyn portable_pty::Child) -> Result<Self> {
+    pub(crate) fn for_pty(child: &dyn portable_pty::Child, terminal: uuid::Uuid) -> Result<Self> {
         use windows_sys::Win32::System::JobObjects::*;
+        let name = terminal_job_name(terminal);
         unsafe {
-            let h = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError};
+            let h = CreateJobObjectW(std::ptr::null(), name.as_ptr());
             ensure!(!h.is_null(), "CreateJobObject failed");
+            if GetLastError() == ERROR_ALREADY_EXISTS {
+                CloseHandle(h);
+                anyhow::bail!("terminal process job already exists");
+            }
             let group = Self(h);
             let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
             info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
@@ -563,4 +569,12 @@ impl Drop for ProcessGroup {
             windows_sys::Win32::Foundation::CloseHandle(self.0);
         }
     }
+}
+
+#[cfg(windows)]
+pub(crate) fn terminal_job_name(id: uuid::Uuid) -> Vec<u16> {
+    format!("Local\\wakeit-terminal-{}", id.simple())
+        .encode_utf16()
+        .chain(Some(0))
+        .collect()
 }
