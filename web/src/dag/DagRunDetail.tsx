@@ -369,6 +369,9 @@ function NodeExecution({
     }
   }, [active, executionId, mode, attempt, trace.receive, client, parent, node])
   const run = execution.data?.execution
+  const displayedReason = chosen ? run?.reason : (run?.reason ?? reason)
+  const startedAt = chosen ? run?.started_at : current?.started_at
+  const finishedAt = chosen ? run?.finished_at : current?.finished_at
   const logs = events
     .filter((e) => ['log', 'truncated', 'progress'].includes(e.kind))
     .map((e) => e.data.text ?? e.data.message ?? '')
@@ -443,18 +446,11 @@ function NodeExecution({
             <Redo2 />
           </IconButton>
         )}
-        {nodes.find((n) => n.id === node)?.started_at &&
-          nodes.find((n) => n.id === node)?.finished_at && (
-            <span className="quiet mono">
-              {Math.max(
-                0,
-                (Date.parse(nodes.find((n) => n.id === node)!.finished_at!) -
-                  Date.parse(nodes.find((n) => n.id === node)!.started_at!)) /
-                  1000,
-              ).toFixed(1)}
-              s
-            </span>
-          )}
+        {startedAt && finishedAt && (
+          <span className="quiet mono">
+            {Math.max(0, (Date.parse(finishedAt) - Date.parse(startedAt)) / 1000).toFixed(1)}s
+          </span>
+        )}
         {run && (
           <ResumeRun
             run={run}
@@ -469,7 +465,7 @@ function NodeExecution({
           </IconButton>
         )}
       </div>
-      {reason && executionId && <p className="dag-node-reason">{reason}</p>}
+      {displayedReason && executionId && <p className="dag-node-reason">{displayedReason}</p>}
       {!executionId ? (
         <p className="quiet dag-node-empty">
           {reason || stateNames[state] || t('dag.noExecution')}
