@@ -248,11 +248,45 @@ pub async fn serve(
                 let _ = client
                     .publish(
                         reply,
-                        serde_json::to_vec(&response).unwrap_or_default().into(),
+                        bounded_response(response, client.server_info().max_payload).into(),
                     )
                     .await;
             }
         });
     }
     Ok(())
+}
+
+fn bounded_response(mut response: QueryReply, max_payload: usize) -> Vec<u8> {
+    let encoded = serde_json::to_vec(&response).unwrap_or_default();
+    if encoded.len() <= max_payload {
+        return encoded;
+    }
+    response.data = None;
+    response.error = Some(QueryError {
+        code: "query_result_too_large".into(),
+        message: "query response exceeds the transport limit".into(),
+    });
+    serde_json::to_vec(&response).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escaped_text_cannot_exceed_the_query_transport_limit() {
+        let reply = QueryReply {
+            version: 1,
+            id: Uuid::new_v4(),
+            runtime_id: Uuid::new_v4(),
+            data: Some(json!({"content": "\u{1}".repeat(500)})),
+            error: None,
+        };
+        let encoded = bounded_response(reply, 2048);
+        assert!(encoded.len() < 2048);
+        let reply: QueryReply = serde_json::from_slice(&encoded).unwrap();
+        assert!(reply.data.is_none());
+        assert_eq!(reply.error.unwrap().code, "query_result_too_large");
+    }
 }
