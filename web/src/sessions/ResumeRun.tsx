@@ -125,7 +125,6 @@ export function ResumeRun({
                     toast={toast}
                   />
                 </div>
-                <p className="quiet">{tr('在 {{v0}} 上执行。', { v0: device })}</p>
               </>
             )}
           </div>

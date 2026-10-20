@@ -425,7 +425,6 @@
   "role.viewer": "只读",
   "Provider": "Provider",
   "推理强度": "推理强度",
-  "在 {{v0}} 上执行。": "在 {{v0}} 上执行。",
   "pagination.total_one": "共 {{count}} 条",
   "pagination.total_other": "共 {{count}} 条",
   "moments.runCount_one": "{{count}} 次执行",

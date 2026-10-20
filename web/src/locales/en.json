@@ -425,7 +425,6 @@
   "role.viewer": "Read-only",
   "Provider": "Provider",
   "推理强度": "Reasoning effort",
-  "在 {{v0}} 上执行。": "Run on {{v0}}.",
   "pagination.total_one": "{{count}} entry",
   "pagination.total_other": "{{count}} entries",
   "moments.runCount_one": "{{count}} run",
