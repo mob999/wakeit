@@ -537,6 +537,7 @@
   "dag.waitingDependencies": "等待前置节点",
   "dag.problemNodes": "查看问题节点",
   "dag.selectNode": "选择节点",
+  "dag.searchNodes": "搜索节点",
   "dag.noExecution": "此节点尚未开始执行",
   "dag.outputs": "结果节点",
   "dag.nodeExecution": "节点执行",

@@ -537,6 +537,7 @@
   "dag.waitingDependencies": "Waiting for predecessors",
   "dag.problemNodes": "View problem nodes",
   "dag.selectNode": "Select a node",
+  "dag.searchNodes": "Search nodes",
   "dag.noExecution": "This node has not started",
   "dag.outputs": "Output nodes",
   "dag.nodeExecution": "Node execution",

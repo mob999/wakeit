@@ -342,6 +342,8 @@ function NodeExecution({
     return () => source.close()
   }, [active, executionId, mode, attempt, trace.receive, client, parent, node])
   const run = execution.data?.execution
+  const currentNode = nodes.find((n) => n.id === node)
+  const pickerId = (id: string) => `dag-node-picker-${parent}-${mode}-${id}`
   const logs = events
     .filter((e) => ['log', 'truncated', 'progress'].includes(e.kind))
     .map((e) => e.data.text ?? e.data.message ?? '')
@@ -369,47 +371,53 @@ function NodeExecution({
       <div className="dag-node-context">
         {nodes.length > 1 ? (
           <ChoicePicker
+            id={pickerId(node)}
             label={t('dag.selectNode')}
             searchable
+            searchLabel={t('dag.searchNodes')}
+            popoverClassName="dag-node-picker"
             value={node}
             options={nodes.map((n) => ({
               value: n.id,
               label: n.name,
+              title: n.name,
               description: shortId(n.id),
               keywords: n.id,
-              status: stateNames[n.state] ?? n.state,
+              status: <Status state={n.state} />,
             }))}
-            onChange={onSelect}
+            onChange={(next) => {
+              onSelect(next)
+              requestAnimationFrame(() => document.getElementById(pickerId(next))?.focus())
+            }}
           />
         ) : (
           <strong>{name}</strong>
         )}
         <Status state={state} />
-        {nodes.find((n) => n.id === node)?.started_at &&
-          nodes.find((n) => n.id === node)?.finished_at && (
-            <span className="quiet mono">
-              {Math.max(
-                0,
-                (Date.parse(nodes.find((n) => n.id === node)!.finished_at!) -
-                  Date.parse(nodes.find((n) => n.id === node)!.started_at!)) /
-                  1000,
-              ).toFixed(1)}
-              s
-            </span>
+        {currentNode?.started_at && currentNode.finished_at && (
+          <span className="dag-node-duration quiet mono">
+            {Math.max(
+              0,
+              (Date.parse(currentNode.finished_at) - Date.parse(currentNode.started_at)) / 1000,
+            ).toFixed(1)}
+            s
+          </span>
+        )}
+        <div className="dag-node-context-actions">
+          {run && (
+            <ResumeRun
+              run={run}
+              id={run.id}
+              available={terminal(run.state) && !!run.session?.ready}
+              toast={toast}
+            />
           )}
-        {run && (
-          <ResumeRun
-            run={run}
-            id={run.id}
-            available={terminal(run.state) && !!run.session?.ready}
-            toast={toast}
-          />
-        )}
-        {state === 'unknown' && user.role !== 'viewer' && (
-          <IconButton label={t('核对状态')} onClick={() => setResolve(true)}>
-            <ClipboardCheck />
-          </IconButton>
-        )}
+          {state === 'unknown' && user.role !== 'viewer' && (
+            <IconButton label={t('核对状态')} onClick={() => setResolve(true)}>
+              <ClipboardCheck />
+            </IconButton>
+          )}
+        </div>
       </div>
       {reason && executionId && <p className="dag-node-reason">{reason}</p>}
       {!executionId ? (
