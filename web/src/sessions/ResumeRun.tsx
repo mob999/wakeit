@@ -121,9 +121,9 @@ export function ResumeRun({
         <Modal
           open
           title={tr('续聊')}
+          hideTitle
           terminal
           className="terminal-modal"
-          titleHint={`${device ?? ''} / ${selected?.session?.agent ?? ''}`}
           onOpenChange={(open) => {
             if (!open) void close()
           }}

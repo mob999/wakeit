@@ -106,7 +106,7 @@ export function Modal({
   onCloseAutoFocus,
   className,
   terminal = false,
-  titleHint,
+  hideTitle = false,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -117,7 +117,7 @@ export function Modal({
   wide?: boolean
   className?: string
   terminal?: boolean
-  titleHint?: string
+  hideTitle?: boolean
   onOpenAutoFocus?: (event: Event) => void
   onCloseAutoFocus?: (event: Event) => void
 }) {
@@ -157,10 +157,8 @@ export function Modal({
           {...(!description ? { 'aria-describedby': undefined } : {})}
         >
           <div className="modal-heading">
-            <div>
-              <TooltipTarget label={titleHint ?? title} enabled={!!titleHint}>
-                <Dialog.Title tabIndex={titleHint ? 0 : undefined}>{title}</Dialog.Title>
-              </TooltipTarget>
+            <div className={hideTitle ? 'sr-only' : undefined}>
+              <Dialog.Title>{title}</Dialog.Title>
               {description && <Dialog.Description>{description}</Dialog.Description>}
             </div>
             <div className="modal-heading-actions">
