@@ -10,7 +10,16 @@ export default defineConfig({
         {
           target: process.env.WAKEIT_DEV_GATEWAY ?? 'http://127.0.0.1:8080',
           changeOrigin: true,
+          ws: true,
           configure(proxy: any) {
+            proxy.on('proxyReqWs', (request: any) =>
+              request.setHeader(
+                'Origin',
+                process.env.WAKEIT_DEV_PUBLIC_URL ??
+                  process.env.WAKEIT_DEV_GATEWAY ??
+                  'http://127.0.0.1:8080',
+              ),
+            )
             proxy.on('proxyReq', (request: any) =>
               request.setHeader(
                 'Origin',

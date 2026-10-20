@@ -104,6 +104,9 @@ export function Modal({
   wide = false,
   onOpenAutoFocus,
   onCloseAutoFocus,
+  className,
+  terminal = false,
+  titleHint,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -112,6 +115,9 @@ export function Modal({
   actions?: ReactNode
   children: ReactNode
   wide?: boolean
+  className?: string
+  terminal?: boolean
+  titleHint?: string
   onOpenAutoFocus?: (event: Event) => void
   onCloseAutoFocus?: (event: Event) => void
 }) {
@@ -121,18 +127,40 @@ export function Modal({
       <Dialog.Portal>
         <Dialog.Overlay className="overlay" />
         <Dialog.Content
-          className={`modal ${wide ? 'wide' : ''}`}
+          className={`modal ${wide ? 'wide' : ''} ${className ?? ''}`}
+          onEscapeKeyDown={terminal ? (event) => event.preventDefault() : undefined}
+          aria-keyshortcuts={terminal ? 'Control+Shift+F6' : undefined}
+          aria-description={terminal ? tr('terminal.focusControls') : undefined}
+          onKeyDownCapture={
+            terminal
+              ? (event) => {
+                  if (event.key === 'F6' && event.ctrlKey && event.shiftKey) {
+                    event.preventDefault()
+                    const root = event.currentTarget
+                    const inHeader = (event.target as Element).closest('.modal-heading')
+                    root
+                      .querySelector<HTMLElement>(
+                        inHeader ? '.xterm-helper-textarea' : '.modal-heading button',
+                      )
+                      ?.focus()
+                  }
+                }
+              : undefined
+          }
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={onCloseAutoFocus}
           onInteractOutside={(event) => {
             const target = event.detail.originalEvent.target
-            if (target instanceof Element && target.closest('.toast')) event.preventDefault()
+            if (terminal || (target instanceof Element && target.closest('.toast')))
+              event.preventDefault()
           }}
           {...(!description ? { 'aria-describedby': undefined } : {})}
         >
           <div className="modal-heading">
             <div>
-              <Dialog.Title>{title}</Dialog.Title>
+              <TooltipTarget label={titleHint ?? title} enabled={!!titleHint}>
+                <Dialog.Title tabIndex={titleHint ? 0 : undefined}>{title}</Dialog.Title>
+              </TooltipTarget>
               {description && <Dialog.Description>{description}</Dialog.Description>}
             </div>
             <div className="modal-heading-actions">

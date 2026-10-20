@@ -93,7 +93,7 @@ impl User {
 }
 // Nested routes contain workspace plus the resource parameters. Keep resource extraction
 // independent of the workspace, whose canonical value is set by server middleware.
-struct Path<T>(T);
+pub(crate) struct Path<T>(pub(crate) T);
 impl<S: Send + Sync, T: serde::de::DeserializeOwned> axum::extract::FromRequestParts<S>
     for Path<T>
 {
@@ -298,6 +298,11 @@ async fn legacy_business() -> Response {
 }
 pub fn router(app: App) -> Router {
     let business = Router::new()
+        .route("/runs/{id}/terminals", post(crate::terminal_api::create))
+        .route("/terminals/{id}", get(crate::terminal_api::get))
+        .route("/terminals/{id}/attach", post(crate::terminal_api::attach))
+        .route("/terminals/{id}/stream", get(crate::terminal_api::stream))
+        .route("/terminals/{id}/close", post(crate::terminal_api::close))
         .route("/runners/{id}/directories", get(directories))
         .route(
             "/runners/{id}/agents/{agent}/models/query",
@@ -1557,7 +1562,8 @@ async fn claim(
             .bind(key)
             .execute(&mut *tx)
             .await?;
-        let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE runner_id=$1 AND config->>'agent'=$2 AND COALESCE(session->>'id',config->'session'->>'id')=$3 AND id<>$4 AND state IN ('starting','running','unknown'))")
+        crate::terminal_api::refresh_session(&s, &mut tx, runner, &task.agent, &session.id).await?;
+        let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE runner_id=$1 AND config->>'agent'=$2 AND COALESCE(session->>'id',config->'session'->>'id')=$3 AND id<>$4 AND state IN ('starting','running','unknown')) OR EXISTS(SELECT 1 FROM terminals WHERE runner_id=$1 AND agent=$2 AND session_id=$3 AND state<>'closed')")
             .bind(runner).bind(&task.agent).bind(&session.id).bind(b.run_id).fetch_one(&mut *tx).await?;
         if busy {
             sqlx::query("UPDATE runs SET state='skipped',reason='会话正在使用',finished_at=now() WHERE id=$1").bind(b.run_id).execute(&mut *tx).await?;

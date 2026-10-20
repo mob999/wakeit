@@ -11,7 +11,7 @@ anyhow = "1"
 argon2 = "0.5"
 async-nats = "0.50"
 async-stream = "0.3"
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = { version = "0.10", features = ["serde"] }
@@ -44,6 +44,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 yaml_serde = "0.10"
 which = "8"
+portable-pty = "0.9"
+vt100 = "0.18"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -34,6 +34,7 @@ struct Runner {
     active: Arc<Mutex<HashMap<Uuid, Active>>>,
     shutdown: CancellationToken,
     run_locks: Arc<Mutex<HashMap<Uuid, Arc<Mutex<()>>>>>,
+    slots: Arc<Semaphore>,
 }
 impl Runner {
     async fn post(&self, path: &str, body: Value) -> Result<Value> {
@@ -131,8 +132,8 @@ impl Runner {
                 claim["monitoring"] = json!(id.is_some_and(|id| active.contains_key(&id)));
             }
         }
-        let active = self.active.lock().await.len();
-        let response=self.post("heartbeat",json!({"runtime_id":self.runtime,"claims":claims,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":self.config.concurrency,"active":active,"unknown":self.journal.unknown_count().await?}})).await?;
+        let active = self.config.concurrency - self.slots.available_permits();
+        let response=self.post("heartbeat",json!({"runtime_id":self.runtime,"claims":claims,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":self.config.concurrency,"active":active,"web_terminal":1,"unknown":self.journal.unknown_count().await?}})).await?;
         for id in response["closed"]
             .as_array()
             .into_iter()
@@ -828,7 +829,9 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         info.push(inspect(a, &std::env::current_dir()?).await);
     }
     let journal = Journal::open(&config.data_dir, config.id).await?;
+    let slots = Arc::new(Semaphore::new(config.concurrency));
     let runner = Runner {
+        slots: slots.clone(),
         runtime: Uuid::new_v4(),
         client: reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
@@ -842,7 +845,7 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         run_locks: Arc::new(Mutex::new(HashMap::new())),
     };
     loop {
-        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::query::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0}})).await {Ok(_)=>break,Err(e)=>{tracing::warn!(error=%e,"waiting for device lease");tokio::time::sleep(Duration::from_secs(5)).await;}}
+        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::query::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0,"web_terminal":1}})).await {Ok(_)=>break,Err(e)=>{tracing::warn!(error=%e,"waiting for device lease");tokio::time::sleep(Duration::from_secs(5)).await;}}
     }
     runner.recover().await?;
     let client = bus::connect(
@@ -858,6 +861,14 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         runner.runtime,
         runner.shutdown.clone(),
     ));
+    let terminal_runtime = crate::terminal_runtime::Runtime::new(
+        runner.config.clone(),
+        runner.journal.clone(),
+        runner.runtime,
+        slots,
+    )
+    .await?;
+    let terminals = tokio::spawn(terminal_runtime.serve(client.clone(), runner.shutdown.clone()));
     let js = async_nats::jetstream::new(client);
     let flush = tokio::spawn({
         let r = runner.clone();
@@ -924,7 +935,15 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
     for a in runner.active.lock().await.values() {
         a.cancel.cancel();
     }
-    let _ = tokio::join!(flush, heartbeats, controls, work, maintenance, queries);
+    let _ = tokio::join!(
+        flush,
+        heartbeats,
+        controls,
+        work,
+        maintenance,
+        queries,
+        terminals
+    );
     drop(lock);
     Ok(())
 }
@@ -954,7 +973,7 @@ async fn work_loop(r: &Runner, js: &async_nats::jetstream::Context) -> Result<()
         ))
         .await
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-    let slots = Arc::new(Semaphore::new(r.config.concurrency));
+    let slots = r.slots.clone();
     let mut jobs = tokio::task::JoinSet::new();
     loop {
         if r.shutdown.is_cancelled() {
@@ -965,12 +984,12 @@ async fn work_loop(r: &Runner, js: &async_nats::jetstream::Context) -> Result<()
                 tracing::error!(error=%e,"execution worker panicked");
             }
         }
-        if r.journal.unknown_count().await? + r.active.lock().await.len() >= r.config.concurrency {
+        if r.journal.unknown_count().await? + (r.config.concurrency - slots.available_permits())
+            >= r.config.concurrency
+        {
             tokio::time::sleep(Duration::from_millis(500)).await;
             continue;
         }
-        let permit =
-            tokio::select! {_=r.shutdown.cancelled()=>break,p=slots.clone().acquire_owned()=>p?};
         let mut messages = match consumer
             .fetch()
             .max_messages(1)
@@ -993,6 +1012,7 @@ async fn work_loop(r: &Runner, js: &async_nats::jetstream::Context) -> Result<()
                     continue;
                 }
             };
+            let permit = tokio::select! {_=r.shutdown.cancelled()=>break,p=slots.clone().acquire_owned()=>p?};
             let r = r.clone();
             jobs.spawn(async move {
                 let _permit = permit;

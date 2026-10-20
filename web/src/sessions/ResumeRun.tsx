@@ -3,18 +3,23 @@ import { useTranslation } from 'react-i18next'
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessagesSquare } from 'lucide-react'
-import { api, terminal, type Run, type Runner } from '../api'
-import { Button, IconButton, Modal } from '../ui'
+import { api, terminal, type Run, type Runner, type User } from '../api'
+import { IconButton, Modal } from '../ui'
 import { CopyValue } from '../runs/CopyValue'
 import { ChoicePicker } from '../ChoicePicker'
+import { TerminalSession, type TerminalHandle } from './TerminalSession'
 
 export function ResumeRun({
   run,
   id,
   available,
   toast,
+  parentId,
+  initialNode,
 }: {
   run?: Run
+  parentId?: string
+  initialNode?: string
   id: string
   available: boolean
   toast: (message: string) => void
@@ -26,6 +31,11 @@ export function ResumeRun({
   const [node, setNode] = useState('')
   const [loading, setLoading] = useState(false)
   const generation = useRef(0)
+  const terminalRef = useRef<TerminalHandle>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const [closing, setClosing] = useState(false)
+  const [status, setStatus] = useState('connecting')
+  const me = useQuery<User>({ queryKey: ['me'], enabled: false })
   const runners = useQuery<Runner[]>({
     queryKey: ['runners'],
     queryFn: () => api('/runners'),
@@ -35,20 +45,29 @@ export function ResumeRun({
     runners.data?.find((r) => r.id === selected?.session?.runner_id)?.name ??
     selected?.config.runner
   if (!available || (run && !run.config.dag && !run.session?.command?.trim())) return null
-  function close() {
+  async function close() {
+    if (closing) return
+    setClosing(true)
+    await terminalRef.current?.close()
+    setClosing(false)
     generation.current++
     setSelected(null)
     setGraph(null)
     setLoading(false)
   }
-  async function choose(current: Run, nodeId: string) {
+  async function choose(nodeId: string) {
+    if (closing) return
+    setClosing(true)
+    const stopped = await terminalRef.current?.close()
+    setClosing(false)
+    if (stopped === false) return
     const request = ++generation.current
     setNode(nodeId)
     setSelected(null)
     setLoading(true)
     try {
       const response = await api<{ execution: Run | null }>(
-        `/runs/${id}/nodes/${encodeURIComponent(nodeId)}`,
+        `/runs/${parentId ?? id}/nodes/${encodeURIComponent(nodeId)}`,
       )
       if (request !== generation.current) return
       if (!response.execution?.session?.ready || !response.execution.session.command?.trim())
@@ -65,21 +84,24 @@ export function ResumeRun({
     const request = ++generation.current
     setLoading(true)
     try {
+      const source = parentId ?? id
       const current =
-        run ??
+        (!parentId && run) ||
         (await client.fetchQuery<Run>({
-          queryKey: ['run', id],
-          queryFn: () => api(`/runs/${id}`),
+          queryKey: ['run', source],
+          queryFn: () => api(`/runs/${source}`),
           staleTime: 2000,
         }))
       if (request !== generation.current) return
-      if (!terminal(current.state)) throw new Error(tr('该会话暂不可续聊'))
       if (current.config.dag) {
-        const first = current.nodes?.find((n) => n.continuation_available)
+        const first =
+          current.nodes?.find((n) => n.id === initialNode && n.continuation_available) ??
+          current.nodes?.find((n) => n.continuation_available)
         if (!first) throw new Error(tr('该会话暂不可续聊'))
         setGraph(current)
-        await choose(current, first.id)
+        await choose(first.id)
       } else {
+        if (!terminal(current.state)) throw new Error(tr('该会话暂不可续聊'))
         if (!current.session?.ready || !current.session.command?.trim())
           throw new Error(current.session?.reason || tr('该会话暂不可续聊'))
         setSelected(current)
@@ -92,46 +114,72 @@ export function ResumeRun({
   }
   return (
     <>
-      <IconButton label={tr('续聊')} loading={loading && !graph} onClick={open}>
+      <IconButton ref={trigger} label={tr('续聊')} loading={loading && !graph} onClick={open}>
         <MessagesSquare />
       </IconButton>
       {(selected || graph) && (
-        <Modal open title={tr('续聊')} onOpenChange={(open) => !open && close()}>
-          <div className="modal-body">
-            {graph && (
-              <ChoicePicker
-                label={tr('dag.selectNode')}
-                value={node}
-                options={(graph.nodes ?? [])
-                  .filter((n) => n.continuation_available)
-                  .map((n) => ({ value: n.id, label: n.name }))}
-                onChange={(id) => choose(graph, id)}
-              />
-            )}
-            {loading && <p className="quiet">{tr('正在加载…')}</p>}
-            {selected?.session && (
-              <>
-                <dl className="properties">
-                  <dt>{tr('执行设备')}</dt>
-                  <dd>{device}</dd>
-                  <dt>{tr('工作目录')}</dt>
-                  <dd className="mono wrap">{selected.session.cwd}</dd>
-                </dl>
-                <div className="session-resume-command">
-                  <code>{selected.session.command}</code>
-                  <CopyValue
-                    label={tr('复制续聊命令')}
-                    value={selected.session.command!}
-                    toast={toast}
-                  />
-                </div>
-                <p className="quiet">{tr('在 {{v0}} 上执行。', { v0: device })}</p>
-              </>
-            )}
-          </div>
-          <div className="modal-footer">
-            <Button onClick={close}>{tr('关闭')}</Button>
-          </div>
+        <Modal
+          open
+          title={tr('续聊')}
+          terminal
+          className="terminal-modal"
+          titleHint={`${device ?? ''} / ${selected?.session?.agent ?? ''}`}
+          onOpenChange={(open) => {
+            if (!open) void close()
+          }}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            trigger.current?.focus()
+          }}
+          actions={
+            <>
+              <div className="terminal-context">
+                {graph &&
+                  (graph.nodes?.filter((n) => n.continuation_available).length ?? 0) > 1 && (
+                    <ChoicePicker
+                      label={tr('dag.selectNode')}
+                      value={node}
+                      searchable
+                      disabled={closing || loading}
+                      options={(graph.nodes ?? [])
+                        .filter((n) => n.continuation_available)
+                        .map((n) => ({ value: n.id, label: n.name, description: n.id }))}
+                      onChange={(id) => void choose(id)}
+                    />
+                  )}
+                <span
+                  className="terminal-device"
+                  title={`${device ?? ''} / ${selected?.session?.agent ?? ''}`}
+                >
+                  {device} / {selected?.session?.agent}
+                </span>
+                <span className="terminal-connection" role="status">
+                  {tr(`terminal.${closing ? 'closing' : loading ? 'connecting' : status}`)}
+                </span>
+              </div>
+              {selected?.session?.command && (
+                <CopyValue
+                  label={tr('复制续聊命令')}
+                  value={selected.session.command}
+                  toast={toast}
+                />
+              )}
+            </>
+          }
+        >
+          {selected?.session?.command && (
+            <TerminalSession
+              key={selected.id}
+              ref={terminalRef}
+              runId={selected.id}
+              command={selected.session.command}
+              device={device ?? selected.config.runner}
+              writable={!!me.data && me.data.role !== 'viewer' && !me.data.workspace?.is_demo}
+              toast={toast}
+              onState={setStatus}
+            />
+          )}
         </Modal>
       )}
     </>

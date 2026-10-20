@@ -147,3 +147,9 @@ DAG 编辑器使用占满剩余高度的可交互画布，取消第二侧栏和�
 首次无坐标图和主动整理使用 ELK，其他编辑保留节点位置与视口。移动、连线、改接、输出选择、删除和整理可撤销；文本使用原生撤销。共享坐标与 Task 一同手动保存，独立于 YAML 和执行快照。时间页保留整宽时间、执行策略卡片；切页和下一步不校验、不写入，保存时统一校验，错误使用 Toast 和字段/节点定位。
 
 任务概览、运行图与编辑器复用同一套右上角缩小、放大、全屏控件；只读图全屏时保留选中节点和缩放，切回表格或 Escape 退出。DAG 运行执行页保留过程→结果两张卡片。过程内部图表不再叠加灰色节点表头，选中节点的名称、状态、耗时和操作合并为白底上下文行。结果按输出节点以白底分隔行展示，不套子卡片。详情只有一张节点详情卡片，唯一表头放节点选择、状态、续聊及核对；单节点不显示选择器。日志和执行信息采用卡片内部的白底折叠行，日志操作在折叠行右侧；执行属性沿用标签/值表格，不重复节点标题。
+
+## Session continuation terminal
+
+Run, DAG-node and Moments continuation entries open the same terminal modal. Use a compact 44px header and terminal body, without a property table, command card, footer or extra explanation. The header contains continuation title, concise device/Agent context, optional shared DAG-node selector, connection state, native-command copy and close. Keep 1px borders, 6px corners, transparent icon actions, 12px controls and 11px metadata. Desktop bounds are 1100px and 85dvh; narrow screens retain 8px margins and never create page-level horizontal scrolling.
+
+Show device and complete native command inside the terminal before connecting; do not submit this text as input. Header copy always retains that command after native clear-screen operations. xterm owns Escape, Tab, arrows and Ctrl+C; Escape/backdrop never closes the modal. Ctrl+Shift+F6 moves focus between the terminal and header controls; closing returns focus to the source entry. All Wakeit errors use the top-right Toast, while Agent output remains terminal content. Explicit close awaits process cleanup; unexpected disconnect disables input while reconnecting for up to 30 seconds. No screen or input is persisted in browser storage.
