@@ -581,7 +581,7 @@ fn process_absent(_terminal: Uuid, pid: u32) -> bool {
 fn process_absent(terminal: Uuid, pid: u32) -> bool {
     use windows_sys::Win32::{
         Foundation::*,
-        System::{JobObjects::*, Threading::*},
+        System::{JobObjects::*, SystemServices::JOB_OBJECT_QUERY, Threading::*},
     };
     unsafe {
         // A PID alone cannot confirm that descendants have exited on Windows.
