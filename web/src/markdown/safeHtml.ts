@@ -38,6 +38,8 @@ export const markdownSchema: Options = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
+    a: [...(defaultSchema.attributes?.a ?? []), 'dataWakeitLocal'],
+    img: [...(defaultSchema.attributes?.img ?? []), 'dataWakeitLocal'],
     span: [...(defaultSchema.attributes?.span ?? []), 'style'],
     code: [
       ...(defaultSchema.attributes?.code ?? []),

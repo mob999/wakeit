@@ -50,3 +50,6 @@ pub mod terminal_runtime;
 pub mod watch;
 pub mod workspace_api;
 pub mod workspaces;
+
+pub mod file_api;
+pub mod result_files;

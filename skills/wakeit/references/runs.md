@@ -29,3 +29,9 @@ wakeit run resolve <run-id> --state interrupted --reason '实际核对说明'
 用户要继续对话时，读取实际 Run 的 session.command，按 [会话](sessions.md) 提供原生 Agent 续聊命令。需要本地验证和互斥时，可选用 `wakeit run resume <run-id>`。二者均与 `run retry` 不同：续聊在本机打开已有会话，retry 重新提交一次任务；不要相互替代。
 
 DAG Run 代表整图。日志和 Trace 的子事件带 node_id、execution_id、original_seq；按 DAG 节点和原生 Trace ID 组合聚合，不混用不同节点的工具事件。输出 result.outputs 保留所选节点的独立报告。触发、取消和重试只能作用于整图，重试读取当前任务定义并从全部根开始。unknown 须通过父 Run 的 nodes/{node}/resolve 接口逐节点核对，不强制标记父 Run。续聊必须读取具体节点的真实 Session；不得把父 Run ID 当原生会话 ID。
+
+## Result file previews
+
+Admin and Read/write members can click explicit local links in a saved Run/DAG report or Moments to preview a current Runner file. Viewer can copy paths; demo workspaces never query real files. No separate preview_roots is configured: the exact saved link and current Runner allowed_roots bound access. Relative targets use the execution snapshot's task directory, which may differ from an adapter's overridden process directory; adapters should return absolute links in that case. Current files are not archived historical artifacts.
+
+`POST /runs/{execution-id}/files/preview` accepts `{href}`. DAG uses the actual child execution ID. Gateway parses the persisted Markdown/HTML anchors and reauthorizes before delivery; arbitrary, code-block and nested preview links do not grant access. Runner uses the existing version-1 query channel with `read_result_file`, no shell/listener or database fields. At most 512 KiB raw content (further limited by NATS) is returned once: UTF-8 text/code, Markdown/JSON or complete PNG/JPEG/WebP. HTML/SVG stay escaped source; PDF, downloads, directories and special files are unsupported. Local image references do not automatically load. Preview body is memory-only and no-store; closing cancels delivery. Existing Runner identities and allowed_roots remain unchanged.

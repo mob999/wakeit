@@ -46,6 +46,10 @@ yaml_serde = "0.10"
 which = "8"
 portable-pty = "0.9"
 vt100 = "0.18"
+pulldown-cmark = "0.13"
+scraper = "0.24"
+cap-std = "3"
+percent-encoding = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

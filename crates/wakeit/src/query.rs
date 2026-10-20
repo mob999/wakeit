@@ -184,6 +184,13 @@ pub async fn serve(
                     "runner runtime changed"
                 );
                 match request.action.as_str() {
+                    "read_result_file" => {
+                        let roots=config.allowed_roots.clone();
+                        let href=request.payload["href"].as_str().context("file link is required")?.to_owned();
+                        let cwd=request.payload["cwd"].as_str().map(str::to_owned);
+                        let limit=(client.server_info().max_payload / 2).min(crate::result_files::MAX_BYTES);
+                        tokio::time::timeout(Duration::from_secs(8),tokio::task::spawn_blocking(move || { let _held=_permit; crate::result_files::read(&roots,&href,cwd.as_deref(),limit) })).await.context("file preview timed out")??
+                    }
                     "list_directories" => {
                         let roots = config.allowed_roots.clone();
                         let path = request.payload["path"].as_str().map(str::to_owned);

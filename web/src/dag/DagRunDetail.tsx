@@ -232,7 +232,7 @@ export function DagRunDetail({
             )}
 
             {hasResult ? (
-              <RunResult result={r.result} raw={raw} toast={toast} />
+              <RunResult result={r.result} raw={raw} toast={toast} source={{ runId: id }} />
             ) : (
               <p className="quiet dag-node-empty">{t('未返回结果')}</p>
             )}
@@ -523,7 +523,7 @@ function NodeExecution({
           </RunSection>
           {chosen && terminal(run.state) && run.result != null && (
             <RunSection embedded title={t('结果')} open onChange={() => {}}>
-              <RunResult result={run.result} raw={false} toast={toast} />
+              <RunResult result={run.result} raw={false} toast={toast} source={{ runId: run.id }} />
             </RunSection>
           )}
           <RunSection embedded title={t('执行信息')} open={infoOpen} onChange={setInfoOpen}>

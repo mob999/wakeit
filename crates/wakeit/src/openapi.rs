@@ -36,6 +36,8 @@ pub fn document() -> Value {
         };
     }
     add!("RetryNode", crate::api::RetryNode);
+
+    add!("FilePreviewRequest", crate::file_api::Preview);
     add!("DagValidationIssue", crate::dag::ValidationIssue);
     add!("Task", crate::config::TaskConfig);
     add!("EditorLayout", crate::editor_layout::EditorLayout);
@@ -170,6 +172,7 @@ pub fn document() -> Value {
         ("/moments", vec!["get"]),
         ("/runs", vec!["get"]),
         ("/runs/{id}", vec!["get"]),
+        ("/runs/{id}/files/preview", vec!["post"]),
         ("/runs/{id}/terminals", vec!["post"]),
         ("/terminals/{id}", vec!["get"]),
         ("/terminals/{id}/attach", vec!["post"]),
@@ -216,6 +219,8 @@ pub fn document() -> Value {
             }
             let body = match (path, method) {
                 ("/runs/{id}/nodes/{node}/retry", "post") => Some("RetryNode"),
+
+                ("/runs/{id}/files/preview", "post") => Some("FilePreviewRequest"),
                 ("/runs/{id}/terminals", "post") => Some("CreateTerminal"),
                 ("/users", "post") => Some("CreateUser"),
                 ("/users/{id}/password", "post") => Some("Password"),
@@ -432,6 +437,12 @@ pub fn document() -> Value {
                 op["description"] = json!(
                     "Reconcile an unknown concrete node after checking the actual process. The parent is derived from all nodes; it cannot be independently marked successful."
                 );
+            }
+            if path == "/runs/{id}/files/preview" {
+                op["description"] = json!(
+                    "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization, stream or persistent content. Maximum raw content 512 KiB, also bounded by NATS payload. UTF-8 text may be truncated; oversized images are rejected. Response is no-store and nosniff."
+                );
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["path","name","format","content","size","truncated","runner_id"],"properties":{"path":{"type":"string"},"name":{"type":"string"},"format":{"enum":["text","markdown","json","image"]},"mime":{"type":"string"},"content":{"type":"string","description":"UTF-8 text or base64 PNG/JPEG/WebP"},"size":{"type":"integer"},"truncated":{"type":"boolean"},"modified_at":{"type":["string","null"],"format":"date-time"},"runner_id":{"type":"string","format":"uuid"}}}}});
             }
             if path == "/runs/{id}" {
                 op["responses"]["200"]["content"] =

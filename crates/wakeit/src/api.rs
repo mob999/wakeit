@@ -330,6 +330,7 @@ pub fn router(app: App) -> Router {
         .route("/moments", get(crate::moments::entries))
         .route("/runs", get(runs))
         .route("/runs/{id}", get(run))
+        .route("/runs/{id}/files/preview", post(crate::file_api::preview))
         .route("/runs/{id}/nodes/{node}", get(run_node))
         .route("/runs/{id}/nodes/{node}/events", get(node_events))
         .route("/runs/{id}/nodes/{node}/resolve", post(resolve_node))
@@ -1959,7 +1960,7 @@ async fn query_models(
         .await?,
     ))
 }
-async fn device_query(
+pub(crate) async fn device_query(
     s: &App,
     headers: &HeaderMap,
     workspace: Uuid,

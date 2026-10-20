@@ -261,7 +261,7 @@ function SingleRunDetail({
           hidden={!hasResult}
           actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
         >
-          <RunResult result={r.result} raw={raw} />
+          <RunResult result={r.result} raw={raw} source={{ runId: r.id }} />
         </RunSection>
       </div>
       <div className="run-page run-diagnostic-page" hidden={tab !== 'details'}>
