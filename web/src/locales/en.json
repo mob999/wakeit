@@ -615,5 +615,8 @@
   "retry.attempts": "Execution attempts",
   "retry.attempt": "Attempt {{number}}",
   "retry.waiting": "Retry scheduled",
-  "retry.now": "Retry now"
+  "retry.now": "Retry now",
+  "graph is no longer running": "graph is no longer running",
+  "retry is no longer current": "retry is no longer current",
+  "retry is no longer waiting": "retry is no longer waiting"
 }

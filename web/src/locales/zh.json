@@ -615,5 +615,8 @@
   "retry.attempts": "执行尝试",
   "retry.attempt": "第 {{number}} 次",
   "retry.waiting": "等待重试",
-  "retry.now": "立即重试"
+  "retry.now": "立即重试",
+  "graph is no longer running": "整图已结束或正在停止",
+  "retry is no longer current": "重试尝试已更新，请刷新",
+  "retry is no longer waiting": "该尝试已不再等待重试"
 }

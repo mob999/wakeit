@@ -33,6 +33,7 @@ pub struct Node {
     #[serde(default = "node_timeout")]
     pub timeout: String,
     #[serde(default, skip_serializing_if = "is_zero")]
+    #[schemars(range(max = 10))]
     pub max_retries: u32,
 }
 fn is_zero(value: &u32) -> bool {
