@@ -66,6 +66,11 @@
         "id": {
           "type": "string"
         },
+        "max_retries": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "name": {
           "type": "string"
         },

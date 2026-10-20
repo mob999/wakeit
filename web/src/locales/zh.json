@@ -608,5 +608,12 @@
   "terminal lease expired or closed": "终端已过期或结束",
   "terminal has ended": "终端已结束",
   "terminal ticket expired or already used": "终端连接凭证已过期或已使用",
-  "terminal.focusControls": "按 Ctrl+Shift+F6 在终端和标题栏操作之间切换焦点。"
+  "terminal.focusControls": "按 Ctrl+Shift+F6 在终端和标题栏操作之间切换焦点。",
+  "retry.maximum": "最大重试次数",
+  "retry.consequence": "重试可能重复外部操作；0 表示不自动重试。",
+  "retry.invalid": "最大重试次数必须是 0 到 10 的整数。",
+  "retry.attempts": "执行尝试",
+  "retry.attempt": "第 {{number}} 次",
+  "retry.waiting": "等待重试",
+  "retry.now": "立即重试"
 }

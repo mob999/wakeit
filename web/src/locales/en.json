@@ -608,5 +608,12 @@
   "terminal lease expired or closed": "terminal lease expired or closed",
   "terminal has ended": "terminal has ended",
   "terminal ticket expired or already used": "terminal ticket expired or already used",
-  "terminal.focusControls": "Use Ctrl+Shift+F6 to move focus between the terminal and its controls."
+  "terminal.focusControls": "Use Ctrl+Shift+F6 to move focus between the terminal and its controls.",
+  "retry.maximum": "Maximum retries",
+  "retry.consequence": "Retries may repeat external effects. 0 disables automatic retries.",
+  "retry.invalid": "Maximum retries must be an integer from 0 to 10.",
+  "retry.attempts": "Execution attempts",
+  "retry.attempt": "Attempt {{number}}",
+  "retry.waiting": "Retry scheduled",
+  "retry.now": "Retry now"
 }

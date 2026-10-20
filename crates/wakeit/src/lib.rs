@@ -7,6 +7,7 @@ pub mod changelog;
 pub mod cline_adapter;
 pub mod config;
 pub mod dag;
+pub mod dag_retry;
 pub mod dag_store;
 pub mod demo;
 pub mod gateway;

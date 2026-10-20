@@ -284,7 +284,7 @@ function NodeExecution({
   name,
   state,
   reason,
-  executionId,
+  executionId: currentExecutionId,
   active,
   hidden,
   mode,
@@ -308,27 +308,51 @@ function NodeExecution({
   toast: (s: string) => void
 }) {
   const client = useQueryClient()
-  const execution = useQuery<{ execution: Run | null }>({
-    queryKey: ['dag-node', parent, node],
-    queryFn: () => api(`/runs/${parent}/nodes/${encodeURIComponent(node)}`),
-    enabled: active && !!executionId,
-    refetchInterval: active ? 2000 : false,
+  const [chosen, setChosen] = useEditorValue<string | null>('attempt', null)
+  const executionId = chosen ?? currentExecutionId
+  const current = nodes.find((n) => n.id === node)
+  const retry = useMutation({
+    mutationFn: () =>
+      api(`/runs/${parent}/nodes/${encodeURIComponent(node)}/retry`, 'POST', {
+        execution_id: currentExecutionId,
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['run', parent] })
+      client.invalidateQueries({ queryKey: ['dag-node', parent, node] })
+    },
+    onError: (error) => toast(error.message),
   })
+  const execution = useQuery<{ execution: Run | null; attempts?: { id: string; state: string }[] }>(
+    {
+      queryKey: ['dag-node', parent, node, executionId],
+      queryFn: () =>
+        api(`/runs/${parent}/nodes/${encodeURIComponent(node)}?execution=${executionId}`),
+      enabled: active && !!executionId,
+      refetchInterval: active ? 2000 : false,
+    },
+  )
   const trace = useRunTrace(executionId ?? '', active && !!executionId && mode === 'trace')
   const [events, setEvents] = useState<RunEvent[]>([])
   const [logError, setLogError] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const cursor = useRef(0)
-  const [follow, setFollow] = useEditorValue('follow', true)
-  const [logsOpen, setLogsOpen] = useEditorValue('logsOpen', true)
-  const [infoOpen, setInfoOpen] = useEditorValue('infoOpen', false)
+  const [follow, setFollow] = useEditorValue(`follow:${executionId}`, true)
+  const [logsOpen, setLogsOpen] = useEditorValue(`logsOpen:${executionId}`, true)
+  const [infoOpen, setInfoOpen] = useEditorValue(`infoOpen:${executionId}`, false)
   const [resolve, setResolve] = useState(false)
   useEffect(() => {
+    cursor.current = 0
+    setEvents([])
+    setLogError(false)
+  }, [executionId])
+  useEffect(() => {
     if (!active || !executionId) return
+    let live = true
     const source = new EventSource(apiUrl(`/runs/${executionId}/stream?after=${cursor.current}`))
     source.onopen = () => setLogError(false)
     source.onerror = () => setLogError(true)
     source.addEventListener('run_event', (e) => {
+      if (!live) return
       const item = JSON.parse((e as MessageEvent).data) as RunEvent
       cursor.current = Math.max(cursor.current, item.id)
       if (mode === 'trace') trace.receive([item])
@@ -339,7 +363,10 @@ function NodeExecution({
         client.invalidateQueries({ queryKey: ['run', parent] })
       }
     })
-    return () => source.close()
+    return () => {
+      live = false
+      source.close()
+    }
   }, [active, executionId, mode, attempt, trace.receive, client, parent, node])
   const run = execution.data?.execution
   const logs = events
@@ -384,7 +411,38 @@ function NodeExecution({
         ) : (
           <strong>{name}</strong>
         )}
-        <Status state={state} />
+        <Status state={execution.data?.execution?.state ?? state} />
+        {(execution.data?.attempts?.length ?? 0) > 1 && (
+          <div className="dag-attempt-picker">
+            <ChoicePicker
+              label={t('retry.attempts')}
+              value={executionId ?? ''}
+              options={execution.data!.attempts!.map((a, index) => ({
+                value: a.id,
+                label: t('retry.attempt', { number: index + 1 }),
+                status: stateNames[a.state] ?? a.state,
+              }))}
+              onChange={(id) => setChosen(id === currentExecutionId ? null : id)}
+            />
+          </div>
+        )}
+        {!chosen && current?.retry_at && (
+          <span className="quiet dag-retry-time">
+            {t('retry.waiting')}{' '}
+            <time dateTime={current.retry_at}>
+              {new Date(current.retry_at).toLocaleTimeString()}
+            </time>
+          </span>
+        )}
+        {!chosen && current?.retry_at && user.role !== 'viewer' && (
+          <IconButton
+            label={t('retry.now')}
+            loading={retry.isPending}
+            onClick={() => retry.mutate()}
+          >
+            <Redo2 />
+          </IconButton>
+        )}
         {nodes.find((n) => n.id === node)?.started_at &&
           nodes.find((n) => n.id === node)?.finished_at && (
             <span className="quiet mono">
@@ -399,15 +457,13 @@ function NodeExecution({
           )}
         {run && (
           <ResumeRun
-            parentId={parent}
-            initialNode={node}
             run={run}
             id={run.id}
             available={terminal(run.state) && !!run.session?.ready}
             toast={toast}
           />
         )}
-        {state === 'unknown' && user.role !== 'viewer' && (
+        {!chosen && state === 'unknown' && user.role !== 'viewer' && (
           <IconButton label={t('核对状态')} onClick={() => setResolve(true)}>
             <ClipboardCheck />
           </IconButton>
@@ -465,6 +521,11 @@ function NodeExecution({
               retry={() => setAttempt((v) => v + 1)}
             />
           </RunSection>
+          {chosen && terminal(run.state) && run.result != null && (
+            <RunSection embedded title={t('结果')} open onChange={() => {}}>
+              <RunResult result={run.result} raw={false} toast={toast} />
+            </RunSection>
+          )}
           <RunSection embedded title={t('执行信息')} open={infoOpen} onChange={setInfoOpen}>
             <RunDetails run={run} agents={agents} events={events} />
           </RunSection>

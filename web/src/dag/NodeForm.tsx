@@ -158,6 +158,18 @@ export function NodeForm({
               onChange={(e) => patch({ timeout: e.target.value })}
             />
           </Field>
+          <Field label={t('retry.maximum')} fieldKey="max_retries">
+            <input
+              type="number"
+              min={0}
+              max={10}
+              step={1}
+              aria-label={t('retry.maximum')}
+              value={node.max_retries ?? 0}
+              title={t('retry.consequence')}
+              onChange={(e) => patch({ max_retries: Number(e.target.value) })}
+            />
+          </Field>
           {(agent?.session_supported || node.session) && (
             <SessionBinding
               runner={runner}

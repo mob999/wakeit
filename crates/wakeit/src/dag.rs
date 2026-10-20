@@ -32,6 +32,11 @@ pub struct Node {
     pub session: Option<SessionBinding>,
     #[serde(default = "node_timeout")]
     pub timeout: String,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub max_retries: u32,
+}
+fn is_zero(value: &u32) -> bool {
+    *value == 0
 }
 fn node_timeout() -> String {
     "1h".into()
@@ -157,6 +162,14 @@ impl Dag {
             }
             if let Err(e) = duration(&node.timeout) {
                 push(Some(node), "timeout", e.to_string(), vec![]);
+            }
+            if node.max_retries > 10 {
+                push(
+                    Some(node),
+                    "max_retries",
+                    "Maximum retries must be between 0 and 10".into(),
+                    vec![],
+                );
             }
             if node.prompt.len() > 1024 * 1024 {
                 push(Some(node), "prompt", "Prompt exceeds 1 MiB".into(), vec![]);

@@ -116,7 +116,19 @@ fn main() -> Result<()> {
     ) {
         let mut text = String::new();
         std::io::stdin().read_to_string(&mut text)?;
-        let options = serde_json::from_str::<Value>(&text).unwrap_or_else(|_| json!({"text":text}));
+        let mut options =
+            serde_json::from_str::<Value>(&text).unwrap_or_else(|_| json!({"text":text}));
+        if let Some(key) = options["retry_fixture"].as_str() {
+            wakeit::config::validate_id(key)?;
+            let counter = std::env::current_dir()?.join(format!(".retry-{key}"));
+            let count = std::fs::read_to_string(&counter)
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0)
+                + 1;
+            std::fs::write(counter, count.to_string())?;
+            options["fail"] = json!(count <= options["fail_first"].as_u64().unwrap_or(1));
+        }
         let delay = options["sleep"].as_f64().unwrap_or(0.1);
         let result = options
             .get("text")

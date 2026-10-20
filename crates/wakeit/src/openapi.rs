@@ -35,6 +35,7 @@ pub fn document() -> Value {
             schemas.insert($name.into(), schema::<$ty>($name));
         };
     }
+    add!("RetryNode", crate::api::RetryNode);
     add!("DagValidationIssue", crate::dag::ValidationIssue);
     add!("Task", crate::config::TaskConfig);
     add!("EditorLayout", crate::editor_layout::EditorLayout);
@@ -98,6 +99,11 @@ pub fn document() -> Value {
             json!({"type":["string","null"],"format":"uuid"}),
         ),
         ("continuation_available", json!({"type":"boolean"})),
+        ("attempt_count", json!({"type":"integer"})),
+        (
+            "retry_at",
+            json!({"type":["string","null"],"format":"date-time"}),
+        ),
         (
             "started_at",
             json!({"type":["string","null"],"format":"date-time"}),
@@ -173,6 +179,7 @@ pub fn document() -> Value {
         ("/runs/{id}/nodes/{node}", vec!["get"]),
         ("/runs/{id}/nodes/{node}/events", vec!["get"]),
         ("/runs/{id}/nodes/{node}/resolve", vec!["post"]),
+        ("/runs/{id}/nodes/{node}/retry", vec!["post"]),
         ("/runs/{id}/stream", vec!["get"]),
         ("/runs/{id}/cancel", vec!["post"]),
         ("/runs/{id}/retry", vec!["post"]),
@@ -208,6 +215,7 @@ pub fn document() -> Value {
                     json!([{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]);
             }
             let body = match (path, method) {
+                ("/runs/{id}/nodes/{node}/retry", "post") => Some("RetryNode"),
                 ("/runs/{id}/terminals", "post") => Some("CreateTerminal"),
                 ("/users", "post") => Some("CreateUser"),
                 ("/users/{id}/password", "post") => Some("Password"),
@@ -318,6 +326,9 @@ pub fn document() -> Value {
                     parameters.push(json!({"name":name,"in":"query","schema":{"type":"string"}}));
                 }
             }
+            if path == "/runs/{id}/nodes/{node}" {
+                parameters.push(json!({"name":"execution","in":"query","schema":{"type":"string","format":"uuid"},"description":"An existing attempt owned by this parent and node. Omit to follow the current execution."}));
+            }
             if path == "/schema/{kind}" {
                 parameters.push(json!({"name":"kind","in":"path","required":true,"schema":{"type":"string","enum":["task","agent"]}}));
             }
@@ -400,7 +411,7 @@ pub fn document() -> Value {
             if path.ends_with("/events") {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"array","maxItems":500,"items":{"$ref":"#/components/schemas/RunEvent"}}}});
                 op["description"] = json!(
-                    "Parent DAG events merge child events in durable event-ID order and include node_id, execution_id and original_seq. Child state events have kind node_state. Trace snapshots are keyed by node_id plus native Trace ID."
+                    "Parent DAG events merge child events in durable event-ID order and include node_id, execution_id and original_seq. Child state events have kind node_state. Trace snapshots are keyed by execution_id, node_id and native Trace ID."
                 );
             }
             if path == "/tasks/validate" {
@@ -409,8 +420,13 @@ pub fn document() -> Value {
                     "Read-only whole-definition validation for Operator. Does not create or update a task. PUT validates again transactionally."
                 );
             }
+            if path == "/runs/{id}/nodes/{node}/retry" {
+                op["description"] = json!(
+                    "Operator only. Advances the exact queued retry execution_id without consuming additional budget or changing ended graphs. Concurrent/stale attempts cannot start a second execution."
+                );
+            }
             if path == "/runs/{id}/nodes/{node}" {
-                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["node","execution"],"properties":{"node":{"$ref":"#/components/schemas/DagRunNode"},"execution":{"anyOf":[{"$ref":"#/components/schemas/Run"},{"type":"null"}]}}}}});
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["node","execution"],"properties":{"node":{"$ref":"#/components/schemas/DagRunNode"},"execution":{"anyOf":[{"$ref":"#/components/schemas/Run"},{"type":"null"}]},"attempts":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"state":{"type":"string"},"scheduled_at":{"type":"string","format":"date-time"},"reason":{"type":["string","null"]}}}}}}}});
             }
             if path == "/runs/{id}/nodes/{node}/resolve" {
                 op["description"] = json!(
