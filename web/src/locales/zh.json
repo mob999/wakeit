@@ -633,5 +633,8 @@
   "alternate file streams are not supported": "不支持文件备用数据流",
   "invalid file link": "文件链接无效",
   "not a local file link": "该链接不是本地文件",
-  "unsupported query action": "设备暂不支持此查询，请更新 Runner"
+  "unsupported query action": "设备暂不支持此查询，请更新 Runner",
+  "graph is no longer running": "整图已结束或正在停止",
+  "retry is no longer current": "重试尝试已更新，请刷新",
+  "retry is no longer waiting": "该尝试已不再等待重试"
 }

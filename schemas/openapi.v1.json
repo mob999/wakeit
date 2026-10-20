@@ -504,6 +504,7 @@
               },
               "max_retries": {
                 "format": "uint32",
+                "maximum": 10,
                 "minimum": 0,
                 "type": "integer"
               },
@@ -938,6 +939,7 @@
           },
           "max_retries": {
             "format": "uint32",
+            "maximum": 10,
             "minimum": 0,
             "type": "integer"
           },
@@ -2260,6 +2262,7 @@
               },
               "max_retries": {
                 "format": "uint32",
+                "maximum": 10,
                 "minimum": 0,
                 "type": "integer"
               },

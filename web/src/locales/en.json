@@ -633,5 +633,8 @@
   "alternate file streams are not supported": "alternate file streams are not supported",
   "invalid file link": "invalid file link",
   "not a local file link": "not a local file link",
-  "unsupported query action": "unsupported query action"
+  "unsupported query action": "unsupported query action",
+  "graph is no longer running": "graph is no longer running",
+  "retry is no longer current": "retry is no longer current",
+  "retry is no longer waiting": "retry is no longer waiting"
 }
