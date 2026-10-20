@@ -405,32 +405,71 @@ test('Run graph shares the overview canvas controls and fullscreen is read-only'
   expect(writes).toEqual([])
 })
 
-test('retry acceleration targets the reserved execution and historical attempts retain their own result and session', async ({ page }) => {
-  const f=fixture(), old='00000000-0000-4000-8000-000000000003'
-  f.run.nodes[0]={...f.run.nodes[0],state:'queued',attempt_count:2,retry_at:'2099-01-01T00:00:00Z'}
-  f.execution.state='queued'
-  await mock(page,f)
-  const writes:any[]=[]
-  const selected:string[]=[]
-  await page.route('**/nodes/collect?**', route=>{
-    const execution=new URL(route.request().url()).searchParams.get('execution')!
+test('retry acceleration targets the reserved execution and historical attempts retain their own result and session', async ({
+  page,
+}) => {
+  const f = fixture(),
+    old = '00000000-0000-4000-8000-000000000003'
+  f.run.nodes[0] = {
+    ...f.run.nodes[0],
+    state: 'queued',
+    reason: 'Current attempt reason',
+    started_at: '2026-10-20T10:00:00Z',
+    finished_at: '2026-10-20T10:01:00Z',
+    attempt_count: 2,
+    retry_at: '2099-01-01T00:00:00Z',
+  }
+  f.execution.state = 'queued'
+  await mock(page, f)
+  const writes: any[] = []
+  const selected: string[] = []
+  await page.route('**/nodes/collect?**', (route) => {
+    const execution = new URL(route.request().url()).searchParams.get('execution')!
     selected.push(execution)
-    return route.fulfill({json:{node:f.run.nodes[0],attempts:[{id:old,state:'failed'},{id:child,state:'queued'}],execution:execution===old?{...f.execution,id:old,state:'failed',result:'# First attempt',session:{...f.execution.session,id:'old-session',command:'cd -- /workspace && pi --resume old-session'}}:f.execution}})
+    return route.fulfill({
+      json: {
+        node: f.run.nodes[0],
+        attempts: [
+          { id: old, state: 'failed' },
+          { id: child, state: 'queued' },
+        ],
+        execution:
+          execution === old
+            ? {
+                ...f.execution,
+                id: old,
+                state: 'failed',
+                reason: 'First attempt reason',
+                started_at: '2026-10-20T10:00:00Z',
+                finished_at: '2026-10-20T10:00:07Z',
+                result: '# First attempt',
+                session: {
+                  ...f.execution.session,
+                  id: 'old-session',
+                  command: 'cd -- /workspace && pi --resume old-session',
+                },
+              }
+            : f.execution,
+      },
+    })
   })
-  await page.route('**/nodes/collect/retry',route=>{
+  await page.route('**/nodes/collect/retry', (route) => {
     writes.push(route.request().postDataJSON())
-    f.run.nodes[0].retry_at=null
-    return route.fulfill({json:{id:child}})
+    f.run.nodes[0].retry_at = null
+    return route.fulfill({ json: { id: child } })
   })
   await page.goto(`/w/${workspace}/runs?run=${id}`)
-  await page.getByRole('button',{name:'立即重试',exact:true}).click()
-  expect(writes).toEqual([{execution_id:child}])
-  await page.getByRole('tab',{name:'详情',exact:true}).click()
-  const details=page.locator('.dag-node-details:visible')
-  await details.getByRole('combobox',{name:'执行尝试',exact:true}).click()
-  await page.getByRole('option').filter({hasText:'第 1 次'}).click()
-  await expect(details.getByRole('heading',{name:'First attempt',exact:true})).toBeVisible()
+  await page.getByRole('button', { name: '立即重试', exact: true }).click()
+  expect(writes).toEqual([{ execution_id: child }])
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  const details = page.locator('.dag-node-details:visible')
+  await details.getByRole('combobox', { name: '执行尝试', exact: true }).click()
+  await page.getByRole('option').filter({ hasText: '第 1 次' }).click()
+  await expect(details.getByRole('heading', { name: 'First attempt', exact: true })).toBeVisible()
+  await expect(details.locator('.dag-node-reason')).toHaveText('First attempt reason')
+  await expect(details.locator('.dag-node-context')).toContainText('7.0s')
+  await expect(details).not.toContainText('Current attempt reason')
   expect(selected).toContain(old)
-  await details.getByRole('button',{name:'续聊',exact:true}).click()
+  await details.getByRole('button', { name: '续聊', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('pi --resume old-session')
 })
