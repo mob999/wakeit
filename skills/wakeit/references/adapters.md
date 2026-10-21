@@ -35,7 +35,7 @@ submit:
 
 parameters 必须与适配声明对应。没接口只手填，空列表或失败不使用旧目录和静态别名兜底。若提供 logo，使用小尺寸清晰的官方矢量资源，不把 PNG 照片或网站缩略图当 Logo。
 
-同步输出 text、json、jsonl 或 events。events 为统一 JSONL：
+同步输出 text、json、jsonl 或 events。普通 stdout 保留最多 1 MiB，JSON/JSONL 会持续排空并完整校验语法；有效的大型结果返回带 `truncated: true` 的 64 KiB 预览，不因预览容量改变实际进程成功状态。截断预览不应用 `result_pointer`，不能作为必需的 DAG 上游结果；应将大型产物写入工作目录并在完整报告中引用文件。原生 stream 辅助入口先在独立的 64 MiB 单帧解析预算内提取 Session 和终态，再限制规范化 Trace/结果正文；传输事件仍限 1000 KiB。events 为统一 JSONL：
 
 ```json
 {"version":1,"type":"trace","data":{"id":"step-1","kind":"command","status":"running","title":"检查仓库","input":"git status","occurred_at":"2026-10-14T01:00:00Z"}}
