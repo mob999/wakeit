@@ -58,7 +58,7 @@ function fixture() {
       agent: 'pi',
       cwd: '/workspace',
       ready: true,
-      command: 'pi --resume native-session',
+      command: 'cd -- /workspace && pi --resume native-session',
     },
   }
   const events = [

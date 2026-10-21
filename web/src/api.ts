@@ -24,9 +24,11 @@ export async function api<T = any>(
   method = 'GET',
   body?: unknown,
   key?: string,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(apiUrl(path), {
     method,
+    signal,
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
@@ -110,6 +112,7 @@ export type Runner = {
   info: {
     os?: string
     arch?: string
+    web_terminal?: number
     concurrency?: number
     active?: number
     unknown?: number

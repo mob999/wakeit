@@ -71,6 +71,7 @@ pub fn document() -> Value {
     add!("StreamRecord", crate::trace::StreamRecord);
     add!("AgentInfo", crate::protocol::AgentInfo);
     add!("SessionInfo", crate::sessions::SessionInfo);
+    add!("CreateTerminal", crate::terminal_api::Create);
     add!("RunSession", crate::sessions::RunSession);
     schemas.insert("SessionInspect".into(), json!({
         "type":"object", "additionalProperties":false, "required":["cwd","id"],
@@ -163,6 +164,11 @@ pub fn document() -> Value {
         ("/moments", vec!["get"]),
         ("/runs", vec!["get"]),
         ("/runs/{id}", vec!["get"]),
+        ("/runs/{id}/terminals", vec!["post"]),
+        ("/terminals/{id}", vec!["get"]),
+        ("/terminals/{id}/attach", vec!["post"]),
+        ("/terminals/{id}/stream", vec!["get"]),
+        ("/terminals/{id}/close", vec!["post"]),
         ("/runs/{id}/events", vec!["get"]),
         ("/runs/{id}/nodes/{node}", vec!["get"]),
         ("/runs/{id}/nodes/{node}/events", vec!["get"]),
@@ -202,6 +208,7 @@ pub fn document() -> Value {
                     json!([{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]);
             }
             let body = match (path, method) {
+                ("/runs/{id}/terminals", "post") => Some("CreateTerminal"),
                 ("/users", "post") => Some("CreateUser"),
                 ("/users/{id}/password", "post") => Some("Password"),
                 ("/tasks/{id}/archive" | "/tasks/{id}/restore", "post") => Some("ArchiveTask"),
@@ -233,6 +240,27 @@ pub fn document() -> Value {
             }
             if let Some(name) = body {
                 op["requestBody"] = json!({"required":true,"content":{"application/json":{"schema":{"$ref":format!("#/components/schemas/{name}")}}}});
+            }
+            if path == "/terminals/{id}/stream" {
+                op["description"] = json!(
+                    "Same-origin WebSocket. Send {ticket,cols,rows} in the first text frame within 5 seconds. Ticket is single-use and expires after 30 seconds; never place it in the URL. Client frames: heartbeat, input {seq,data:base64}, resize {cols,rows}, snapshot. Server frames: snapshot, output (base64), state, ack, error. Input is never replayed or persisted. One writer; 5-second heartbeat, 30-second disconnect lease."
+                );
+                op["responses"]["101"] = json!({"description":"WebSocket upgraded; first-frame authorization is still required."});
+            }
+            if path == "/terminals/{id}/attach" {
+                op["description"] = json!(
+                    "Returns {ticket,expires_in:30}. Bound to the same account credential, workspace and terminal. Does not start a process."
+                );
+            }
+            if path == "/runs/{id}/terminals" {
+                op["description"] = json!(
+                    "Operator only. Creates lifecycle metadata; starts only after authenticated WebSocket attachment with dimensions. Optional node_id selects the actual DAG execution. request_id is idempotent. A disconnected terminal may be reattached within 30 seconds; competing writers return 409."
+                );
+            }
+            if path.starts_with("/terminals/") && path != "/terminals/{id}/stream" {
+                op["responses"]["200"]["description"] = json!(
+                    "Terminal lifecycle metadata (id,state,generation,reason,exit_code), or a short-lived attachment ticket. No terminal input or screen content is persisted."
+                );
             }
             if path.contains("{user_code}") {
                 op["parameters"] = json!([{"name":"user_code","in":"path","required":true,"schema":{"type":"string","minLength":8,"maxLength":8}}]);

@@ -208,3 +208,5 @@ setup 自启名称包含 Runner ID，支持多 Gateway。Linux 使用 systemd us
 内置 Agent 的命令、模型发现、过程与会话能力见[适配指南](agents.md)。模板使用 `wakeit agent init <id> --file <id>.yaml` 导出；安装能力检测使用 `wakeit adapter detect <id>`，不发起推理。新增 ID 包括 `kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。
 
 工作区连接不能跨区复用。多项连接匹配时，先用 `connection use NAME` 明确选择；`--workspace`（或 `WAKEIT_WORKSPACE`）指定作用域。旧连接仅在原 Gateway 认证成功并返回其固定 Default 工作区后补全元数据，不替换凭据或 Runner 配置；失败保留原文件。新 Runner 实例固定一个工作区，同机多工作区使用分别隔离的配置、Journal 和服务。
+
+WebUI 的“续聊”现在直接连接 Runner 上的原生交互终端（管理员/读写），同时保留标题栏复制完整原生命令。只读成员、演示区及旧版 Runner 仍可复制。关闭弹窗结束进程，不删除会话；意外断线最多保留 30 秒用于重连。网页终端与 `wakeit run resume`、Task 共用 Session 互斥和 Runner 容量，不生成新的 Run。直接运行复制出的原生命令仍不受 Wakeit 锁控制。

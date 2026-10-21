@@ -182,6 +182,7 @@ async function fixture(
       return route.fulfill({ json: { ...task, config: request.postDataJSON().config } })
     }
     if (path === '/runs') return route.fulfill({ json: list([run]) })
+    if (path.endsWith('/terminals')) return route.fulfill({ status: 409, json: { error: 'Runner does not support web terminals' } })
     if (path === `/runs/${runId}`) {
       resumed.push(path)
       return route.fulfill({ json: run })
@@ -361,7 +362,7 @@ test('a completed Run exposes its actual session and pre-fills a new task withou
   await page.getByRole('button', { name: '续聊', exact: true }).click()
   const resume = page.getByRole('dialog', { name: '续聊', exact: true })
   await expect(resume).toContainText('dev-mac')
-  await expect(resume).toContainText('/workspace')
+  await expect(resume.locator('.session-terminal')).toBeVisible()
   await resume.getByRole('button', { name: '复制续聊命令', exact: true }).click()
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(nativeCommand)
   await expect(resume).not.toContainText('wakeit run resume')

@@ -399,6 +399,8 @@ function NodeExecution({
           )}
         {run && (
           <ResumeRun
+            parentId={parent}
+            initialNode={node}
             run={run}
             id={run.id}
             available={terminal(run.state) && !!run.session?.ready}

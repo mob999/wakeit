@@ -141,3 +141,19 @@ Admin/Operator may register; Viewer may authorize CLI-only. Revocation remains A
 Task、Run、搜索、历史与 Moments 只计入整图，不把子执行列为普通 Run。结果预览 format 可为 dag，outputs 按节点分段且共用 2048 Unicode 字符预算。runner、agent 在整图摘要中可空，不代表任意单个节点。父事件以 ID 为连续游标，子事件含 node_id、execution_id、original_seq。触发、重试、取消仅作用于整图；子执行的独立写入口由服务端拒绝。
 
 Task GET 返回独立的 `editor_layout`；PUT 接受可选 `{version:1,positions:{node_id:{x,y}}}`，与配置和 revision 原子保存。省略或 null 保留仍存在节点的坐标，删除节点时清理；普通 Task 不接受 DAG 布局。布局不进入 YAML、Run 快照或 Runner 消息。`POST /tasks/validate` 只读校验完整配置和可选布局，最终 PUT 再次校验。
+
+## Interactive session terminals
+
+Workspace Admin and Operator may create a browser terminal for an ended Run with an actual, resumable session. Viewer and demo access remains command-copy only. These endpoints never modify the source Run, result, or Moments.
+
+| Endpoint (workspace base) | Behavior |
+| --- | --- |
+| `POST /runs/{id}/terminals` | `{request_id,node_id?}`; idempotent lifecycle reservation. A DAG node resolves to its actual execution. No process starts yet. |
+| `GET /terminals/{id}` | Owner credential's lifecycle metadata: `id,state,generation,reason,exit_code`. |
+| `POST /terminals/{id}/attach` | Returns `{ticket,expires_in:30}`; single-use, credential/workspace-bound. |
+| `GET /terminals/{id}/stream` | Same-origin WebSocket. First text frame within 5 seconds: `{ticket,cols,rows}`. Never put the ticket in the URL. Starts only after this authenticated frame. |
+| `POST /terminals/{id}/close` | Idempotent process-tree stop; waits for confirmation. Unconfirmed cleanup retains Session occupancy. |
+
+Client frames are `{kind,data}`: `input` with `{seq,data:base64}`, `resize` with `{cols,rows}`, `snapshot`, and `heartbeat` every 5 seconds. Input sequence starts at 1 per attachment and is never replayed. Server frames are `snapshot`, `output`, `state`, `ack`, and `error`. A snapshot carries bounded ANSI screen/input-mode state and output sequence; live frames additionally identify workspace, Runner runtime, terminal, generation, and sequence. Output gaps cause a new snapshot rather than replaying input.
+
+Only one writer is admitted. Unexpected disconnection retains the PTY for at most 30 seconds; reconnect uses the existing process. Explicit close, node switch, logout/revocation or workspace departure stops it. A changed Runner runtime never restarts an old terminal. The Runner loads its local execution snapshot, validates the exact native Session and real directory, and invokes the frozen interactive adapter. Browsers cannot provide command strings. Terminal bytes are not stored in Run events, PostgreSQL, SQLite, or browser storage; lifecycle metadata and private local process identity are persisted separately.

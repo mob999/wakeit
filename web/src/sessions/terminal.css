@@ -1,0 +1,91 @@
+.modal.terminal-modal {
+  width: min(1100px, calc(100vw - 48px));
+  max-width: none;
+  height: 85dvh;
+  max-height: 85dvh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 6px;
+}
+.terminal-modal .modal-heading {
+  min-height: 44px;
+  align-items: center;
+  padding: 6px 12px;
+  flex: 0 0 auto;
+}
+.terminal-modal .modal-heading-actions {
+  min-width: 0;
+  flex: 1;
+  align-self: stretch;
+}
+.terminal-context {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.terminal-context .choice-selector {
+  max-width: 260px;
+  width: auto;
+  min-width: 0;
+  height: 28px;
+  font-size: 12px;
+}
+.terminal-device {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ui-text);
+  line-height: 20px;
+  color: var(--ink);
+}
+.terminal-connection {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--ui-meta);
+  line-height: 20px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.session-terminal {
+  background: var(--canvas);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 10px 8px 8px 12px;
+}
+.session-terminal .xterm {
+  height: 100%;
+}
+.session-terminal .xterm-viewport {
+  scrollbar-width: thin;
+}
+@media (max-width: 720px) {
+  .modal.terminal-modal {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .terminal-modal .modal-heading {
+    gap: 8px;
+    padding: 6px 8px;
+  }
+  .terminal-context {
+    gap: 8px;
+  }
+  .terminal-context .choice-selector + .terminal-device {
+    display: none;
+  }
+  .terminal-context .choice-selector {
+    max-width: 120px;
+  }
+  .session-terminal {
+    padding-left: 8px;
+  }
+}

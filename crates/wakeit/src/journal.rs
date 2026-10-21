@@ -48,6 +48,7 @@ impl Journal {
             .connect_with(options)
             .await?;
         sqlx::raw_sql("CREATE TABLE IF NOT EXISTS local_runs (id TEXT PRIMARY KEY,assignment TEXT NOT NULL,agent TEXT NOT NULL,claim TEXT NOT NULL,phase TEXT NOT NULL,job TEXT,started TEXT NOT NULL,seq INTEGER NOT NULL DEFAULT 0,log_bytes INTEGER NOT NULL DEFAULT 0,truncated INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS pending_events(run_id TEXT NOT NULL,seq INTEGER NOT NULL,payload TEXT NOT NULL,published INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(run_id,seq)); CREATE TABLE IF NOT EXISTS cancellations(run_id TEXT PRIMARY KEY);").execute(&pool).await?;
+        sqlx::raw_sql("CREATE TABLE IF NOT EXISTS local_terminals(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,runtime_id TEXT NOT NULL,state TEXT NOT NULL,pid INTEGER,marker TEXT,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);").execute(&pool).await?;
         let columns = sqlx::query("PRAGMA table_info(local_runs)")
             .fetch_all(&pool)
             .await?;
@@ -418,7 +419,7 @@ impl Journal {
         }
         sqlx::query("DELETE FROM cancellations WHERE run_id IN (SELECT id FROM local_runs WHERE phase='done' AND started<? AND NOT EXISTS(SELECT 1 FROM pending_events WHERE run_id=local_runs.id AND published=0))")
             .bind(&run_cutoff).execute(&mut *tx).await?;
-        sqlx::query("DELETE FROM local_runs WHERE phase='done' AND started<? AND NOT EXISTS(SELECT 1 FROM pending_events WHERE run_id=local_runs.id AND published=0)")
+        sqlx::query("DELETE FROM local_runs WHERE phase='done' AND started<? AND NOT EXISTS(SELECT 1 FROM pending_events WHERE run_id=local_runs.id AND published=0) AND NOT EXISTS(SELECT 1 FROM local_terminals WHERE run_id=local_runs.id AND state<>'closed')")
             .bind(run_cutoff).execute(&mut *tx).await?;
         tx.commit().await?;
         for id in ids {

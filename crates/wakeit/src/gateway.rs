@@ -86,6 +86,7 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
             loop {
                 tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{
                     if let Err(e)=s.authority.sync_revocations(&s.config.nats_url,&s.pool).await{tracing::warn!(error=%e,"NATS revocation sync deferred")}
+                    if let Err(e)=crate::terminal_api::maintain(&s).await{tracing::warn!(error=%e.1,"terminal lifecycle reconciliation deferred")}
                     if let Err(e)=cleanup(&s).await{tracing::warn!(error=%e,"retention cleanup failed")}
                 }}
             }
@@ -151,7 +152,7 @@ async fn cleanup(s: &App) -> Result<()> {
         let runs = data["run_retention_days"].as_i64().unwrap_or(90) as i32;
         sqlx::query("WITH expired AS (DELETE FROM events WHERE workspace_id=$2 AND kind IN ('log','truncated','trace') AND created_at<now()-make_interval(days=>$1) RETURNING run_id,workspace_id) INSERT INTO events(run_id,workspace_id,seq,kind,data) SELECT DISTINCT run_id,workspace_id,-1,'trace_status','{\"status\":\"expired\"}'::jsonb FROM expired ON CONFLICT(run_id,seq) DO NOTHING").bind(logs).bind(workspace).execute(&s.pool).await?;
         sqlx::query(
-            "DELETE FROM runs WHERE workspace_id=$2 AND parent_run_id IS NULL AND finished_at<now()-make_interval(days=>$1)",
+            "DELETE FROM runs r WHERE workspace_id=$2 AND parent_run_id IS NULL AND finished_at<now()-make_interval(days=>$1) AND NOT EXISTS(SELECT 1 FROM terminals t LEFT JOIN runs child ON child.id=t.run_id WHERE t.state<>'closed' AND (t.run_id=r.id OR child.parent_run_id=r.id))",
         )
         .bind(runs)
         .bind(workspace)

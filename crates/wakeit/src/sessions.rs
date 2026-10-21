@@ -431,7 +431,11 @@ fn continuation_marker(config: &RunnerConfig, agent: &str, id: &str) -> Result<P
         .join("session-continuations")
         .join(format!("{key}.json")))
 }
-fn mark_continuation(config: &RunnerConfig, run: Uuid, session: &RunSession) -> Result<PathBuf> {
+pub(crate) fn mark_continuation(
+    config: &RunnerConfig,
+    run: Uuid,
+    session: &RunSession,
+) -> Result<PathBuf> {
     use std::io::Write;
     let path = continuation_marker(config, &session.agent, &session.id)?;
     private_directory(path.parent().context("continuation directory")?)?;
@@ -448,6 +452,61 @@ fn mark_continuation(config: &RunnerConfig, run: Uuid, session: &RunSession) -> 
     file.write_all(serde_json::to_vec(&serde_json::json!({"version":1,"run_id":run,"session_id":session.id,"agent":session.agent,"pid":std::process::id()}))?.as_slice())?;
     file.sync_all()?;
     Ok(path)
+}
+pub(crate) struct PreparedContinuation {
+    pub task: TaskConfig,
+    pub command: CommandSpec,
+    pub session: RunSession,
+    pub _lock: File,
+}
+pub(crate) async fn prepare_local(
+    config: &RunnerConfig,
+    journal: &crate::journal::Journal,
+    run: Uuid,
+) -> Result<PreparedContinuation> {
+    let saved = journal
+        .get(run)
+        .await?
+        .context("run is not available on this device")?;
+    let session = saved.session.context("this run has no saved session")?;
+    ensure!(
+        saved.phase == "done" && session.ready,
+        "session is not ready for continuation"
+    );
+    ensure!(
+        config.id == session.runner_id
+            && saved.assignment.runner_id == config.id
+            && saved.agent.id == session.agent
+            && saved.assignment.task.agent == session.agent,
+        "saved session does not belong to this Runner and Agent"
+    );
+    process::validate_cwd(&session.cwd, &config.allowed_roots)?;
+    ensure!(
+        Path::new(&saved.assignment.task.cwd).canonicalize()?
+            == Path::new(&session.cwd).canonicalize()?,
+        "saved working directory does not match session"
+    );
+    let guard = lock(config, &session.agent, &session.id)?;
+    ensure_idle(config, &session, Some(run)).await?;
+    let mut agent = saved.agent;
+    config::normalize_commands(&mut agent)?;
+    agent.validate()?;
+    let mut task = saved.assignment.task;
+    task.cwd = session.cwd.clone();
+    task.prompt.clear();
+    task.session = Some(config::SessionBinding {
+        id: session.id.clone(),
+    });
+    inspect(&agent, &task, run, &session.id).await?;
+    Ok(PreparedContinuation {
+        task,
+        command: agent
+            .session
+            .context("adapter has no interactive session command")?
+            .interactive,
+        session,
+        _lock: guard,
+    })
 }
 pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
     let paths = if let Some(path) = explicit {
