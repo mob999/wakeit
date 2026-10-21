@@ -142,6 +142,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
   return (
     <>
       <Split
+        widthProfile="settings"
         label={tr('Settings')}
         crumbs={[
           {

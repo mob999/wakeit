@@ -18,6 +18,9 @@
   --card-row-height: 48px;
   --canvas: #fff;
   --surface: #f5f5f5;
+  --list-surface: #fafafa;
+  --list-hover: #f5f5f5;
+  --list-selected: #ffffff;
   --raised: #ffffff;
   --border: #e5e5e5;
   --ink: #0a0a0a;
@@ -36,6 +39,9 @@
 :root[data-theme='dark'] {
   --canvas: #0a0a0a;
   --surface: #171717;
+  --list-surface: #121212;
+  --list-hover: #191919;
+  --list-selected: #1f1f1f;
   --raised: #1f1f1f;
   --border: #262626;
   --ink: #fafafa;
@@ -392,7 +398,7 @@ pre {
 .list-pane {
   min-height: 0;
   overflow: hidden;
-  background: var(--surface);
+  background: var(--list-surface);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -427,7 +433,7 @@ pre {
   outline: 0;
 }
 .pane-heading {
-  height: 48px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -438,6 +444,9 @@ pre {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 0;
+  font-size: var(--ui-text);
+  font-weight: var(--ui-title-weight);
 }
 .count {
   background: var(--surface);
@@ -482,30 +491,111 @@ pre {
   min-height: 0;
   overflow: auto;
   border-top: 1px solid var(--border);
+  scrollbar-gutter: stable;
 }
 .task-row {
-  display: block;
+  display: grid;
+  gap: 2px;
+  align-content: center;
   width: 100%;
-  padding: 9px 8px;
+  min-height: 64px;
+  padding: 5px 8px;
   margin-bottom: 2px;
   background: transparent;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
   text-align: left;
 }
 .task-row:hover {
-  background: var(--raised);
+  background: var(--list-hover);
 }
 .task-row.active {
-  background: var(--raised);
+  background: var(--list-selected);
+  border-color: var(--border);
+}
+.task-row:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: -3px;
+}
+.task-row > * {
+  min-width: 0;
+}
+.list-pane .status {
+  font-size: var(--ui-meta);
+  flex-shrink: 0;
+}
+.list-pane .row-meta {
+  min-height: 16px;
+  line-height: 16px;
+}
+.list-pane .row-meta > svg {
+  flex-shrink: 0;
+}
+.list-pane .runner-capacity {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.list-pane .run-identity {
+  gap: 10px;
+}
+.list-pane .row-meta .run-device,
+.list-pane .row-meta .run-agent {
+  max-width: none;
+  flex: 1 1 0;
+}
+.list-pane .run-identity > .quiet {
+  flex-shrink: 0;
+}
+.list-pane .run-identity > .run-device:only-child {
+  flex: initial;
+}
+.list-pane .run-identity > .run-device:has(+ .quiet) {
+  flex: 0 0 auto;
+}
+.list-pane .runner-row .row-meta > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.runner-row {
+  min-height: 48px;
+}
+.list-pane .pagination {
+  font-size: var(--ui-meta);
+}
+.list-pane .pagination > div {
+  white-space: nowrap;
+}
+.list-pane .row-title > .status {
+  grid-column: 2;
+}
+.list-pane .row-title {
+  line-height: 16px;
+}
+.list-pane .row-title > span:first-child {
+  min-width: 0;
+}
+.list-pane .row-meta.next {
+  white-space: nowrap;
+}
+.list-pane .settings-category > svg {
+  flex-shrink: 0;
+}
+.list-pane .settings-category > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .row-title {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   font-weight: 550;
-  font-size: 13px;
+  font-size: var(--ui-text);
 }
 .row-title > span:first-child {
   overflow: hidden;
@@ -518,11 +608,11 @@ pre {
   align-items: center;
   font-size: 11px;
   color: var(--muted);
-  margin-top: 4px;
+  margin-top: 0;
 }
 .row-meta.next {
-  font-size: 10px;
-  margin-top: 6px;
+  font-size: var(--ui-meta);
+  margin-top: 0;
 }
 .row-meta.next > svg:last-child {
   margin-left: auto;
@@ -1064,9 +1154,6 @@ input:disabled {
   }
   .detail-scroll {
     padding: 20px;
-  }
-  .row-title {
-    font-size: 12px;
   }
   .summary-grid strong {
     font-size: 13px;
@@ -1739,7 +1826,8 @@ input:disabled {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 40px;
+  height: 36px;
+  min-height: 36px;
   font-size: 12px;
   color: var(--muted);
 }
