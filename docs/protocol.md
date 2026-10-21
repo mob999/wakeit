@@ -40,11 +40,11 @@ allowed_roots:
 
 时长支持 1 秒至 366 天。同步命令默认使用 Task 超时；异步 submit 默认 60 秒、status 10 秒、cancel 30 秒。
 
-`output.format` 支持 `text`、`json`、`jsonl`、`events`。JSONL 结果作为 JSON 数组；`output.result_pointer` 可从 JSON 结果中提取字段。同步命令成功由零退出码及有效的结果格式共同决定。
+`output.format` 支持 `text`、`json`、`jsonl`、`events`。JSONL 结果作为 JSON 数组；`output.result_pointer` 可从 JSON 结果中提取字段。同步命令成功由零退出码及有效的结果格式共同决定。普通 stdout 仅保留最多 1 MiB；JSON/JSONL 在持续排空输出管道时对完整内容做有界流式语法校验，不将截断前缀误判为无效 JSON。有效的大型输出保留真实退出状态，结果改为带 `truncated: true` 的 64 KiB 预览；文本超限也明确标记。截断结果不应用 `result_pointer`，也不能作为完整的 DAG 上游输入。真正损坏的 JSON/JSONL 仍报告结果格式错误。
 
 ## 同步 Agent 事件流
 
-`output.format: events` 在执行期间解析 stdout JSONL，每条记录仅使用 LF 分帧，支持 CRLF 和跨读取块的 UTF-8。一个事件最多 1000 KiB，为 NATS 的 1 MiB 上限预留封装空间。事件版本为 1：
+`output.format: events` 在执行期间解析 stdout JSONL，每条记录仅使用 LF 分帧，支持 CRLF 和跨读取块的 UTF-8。原生 CLI 的输入记录与传输记录分别限流：原生 JSONL 单条最多 64 MiB，先解析 Session、执行终态及结果，再把过大的 Trace 或结果正文转成明确标记的预览。不会仅因工具输出超过传输容量就丢弃整个原生终态。规范化后一个传输事件最多 1000 KiB，为 NATS 的 1 MiB 上限预留封装空间。事件版本为 1：
 
 ```json
 {"version":1,"type":"trace","data":{"id":"command-1","kind":"command","status":"running","title":"检查仓库","input":{"command":"git status"},"output":null,"occurred_at":"2026-10-14T01:00:00Z","started_at":"2026-10-14T01:00:00Z"}}

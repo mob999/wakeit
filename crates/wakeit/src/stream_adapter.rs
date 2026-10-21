@@ -14,6 +14,10 @@ use tokio::{
     process::Command,
 };
 
+// Native SDK events may contain a large tool result or a whole assistant turn.
+// This parsing safety budget is independent of the much smaller wire record cap.
+const NATIVE_RECORD_LIMIT: usize = 64 * 1024 * 1024;
+
 pub struct Normalizer {
     protocol: String,
     agy: Option<crate::agy_adapter::Normalizer>,
@@ -179,6 +183,9 @@ impl Normalizer {
                 previous.and_then(|n| n.finished_at)
             },
         };
+        let mut node = node;
+        node.input = crate::output_capture::bounded_value(node.input, RECORD_LIMIT / 4);
+        node.output = crate::output_capture::bounded_value(node.output, RECORD_LIMIT / 4);
         self.nodes.insert(id.into(), node.clone());
         StreamRecord::new(RecordData::Trace(node))
     }
@@ -796,8 +803,46 @@ async fn write_records(
     writer: &mut (impl AsyncWriteExt + Unpin),
     records: Vec<StreamRecord>,
 ) -> Result<()> {
-    for record in records {
-        let bytes = serde_json::to_vec(&record)?;
+    for mut record in records {
+        let mut bytes = serde_json::to_vec(&record)?;
+        if bytes.len() > RECORD_LIMIT {
+            match &mut record.record {
+                RecordData::Result(value) => {
+                    *value = crate::output_capture::bounded_value(
+                        std::mem::take(value),
+                        RECORD_LIMIT / 2,
+                    );
+                }
+                RecordData::Trace(node) => {
+                    node.input = crate::output_capture::bounded_value(
+                        std::mem::take(&mut node.input),
+                        RECORD_LIMIT / 4,
+                    );
+                    node.output = crate::output_capture::bounded_value(
+                        std::mem::take(&mut node.output),
+                        RECORD_LIMIT / 4,
+                    );
+                }
+                RecordData::Log(log) => {
+                    let text = crate::output_capture::preview(&log.text);
+                    log.text = text["preview"].as_str().unwrap_or("").to_owned();
+                    log.text
+                        .push_str("\n[Native Agent output preview truncated.]\n");
+                    log.diagnostic = true;
+                }
+                RecordData::Session(_) => {}
+            }
+            bytes = serde_json::to_vec(&record)?;
+            if bytes.len() > RECORD_LIMIT {
+                // Malformed or enormous observation metadata must not prevent
+                // the native command's later Session/final status from arriving.
+                bytes = serde_json::to_vec(&StreamRecord::new(RecordData::Log(LogRecord {
+                    text: "Oversized native Agent observation omitted.\n".into(),
+                    stream: "stderr".into(),
+                    diagnostic: true,
+                })))?;
+            }
+        }
         writer.write_all(&bytes).await?;
         writer.write_all(b"\n").await?;
     }
@@ -927,12 +972,12 @@ pub async fn stream_checked(
                 bytes.clear();
                 dropping = false;
             } else if !dropping {
-                if bytes.len() == RECORD_LIMIT {
+                if bytes.len() == NATIVE_RECORD_LIMIT {
                     bytes.clear();
                     dropping = true;
                     write_records(
                         &mut writer,
-                        normalizer.diagnostic("record exceeds 1000 KiB"),
+                        normalizer.diagnostic("native record exceeds 64 MiB"),
                     )
                     .await?;
                 } else {
