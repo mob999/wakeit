@@ -1,8 +1,16 @@
 import { test, expect, type Page } from '@playwright/test'
-import { workspacePage, mockWorkspace, apiPath } from './workspace'
+import { workspacePage, mockWorkspace, apiPath, fixtureWorkspace } from './workspace'
 const id = '00000000-0000-4000-8000-000000000001'
-async function fixture(page: Page, role = 'admin') {
+const child = '00000000-0000-4000-8000-000000000002'
+type Options = {
+  surface?: 'run' | 'dag' | 'moments'
+  href?: string
+  preview?: { format: string; content: string; mime?: string }
+  pending?: Promise<void>
+}
+async function fixture(page: Page, role = 'admin', options: Options = {}) {
   const reads: any[] = []
+  const href = options.href ?? '/workspace/report.md'
   const config = {
     version: 1,
     id: 'files',
@@ -16,7 +24,7 @@ async function fixture(page: Page, role = 'admin') {
     schedule: null,
     execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
   }
-  const run = {
+  const run: any = {
     id,
     task_id: 'files',
     config,
@@ -24,9 +32,25 @@ async function fixture(page: Page, role = 'admin') {
     source: 'manual',
     created_at: '2026-10-20T01:00:00Z',
     finished_at: '2026-10-20T01:00:01Z',
-    result:
-      '[Report](/workspace/report.md)\n\n<a href="file:///workspace/html.md">HTML report</a>\n\n[Windows](C:/data/report.md)\n\n![Local image](/workspace/picture.png)',
+    result: `[Report](${href})\n\n<a href="file:///workspace/html.md">HTML report</a>\n\n[Windows](C:/data/report.md)\n\n![Local image](/workspace/picture.png)`,
     execution_snapshot: { trace_supported: false, cwd: '/workspace' },
+  }
+  const execution = { ...run, id: child, parent_run_id: id, node_id: 'report' }
+  const node = {
+    ...config,
+    id: 'report',
+    name: 'Report node',
+    pre: [],
+    state: 'succeeded',
+    execution_id: child,
+  }
+  if (options.surface === 'dag') {
+    run.config = { ...config, dag: { nodes: [node] } }
+    run.nodes = [node]
+    run.result = {
+      type: 'dag',
+      outputs: [{ node_id: node.id, name: node.name, state: node.state, result: execution.result }],
+    }
   }
   await page.route('**/api/v1/**', async (route) => {
     if (await mockWorkspace(route, role)) return
@@ -42,12 +66,46 @@ async function fixture(page: Page, role = 'admin') {
     if (path === '/runs')
       return route.fulfill({ json: { items: [run], total: 1, page: 1, page_size: 20 } })
     if (path === `/runs/${id}`) return route.fulfill({ json: run })
-    if (path.endsWith('/files/preview')) {
-      reads.push(route.request().postDataJSON())
+    if (path === `/runs/${id}/nodes/report`) return route.fulfill({ json: { node, execution } })
+    if (path === `/runs/${child}`) return route.fulfill({ json: execution })
+    if (path === '/moments/days')
       return route.fulfill({
         json: {
-          path: '/workspace/report.md',
-          name: 'report.md',
+          timezone: 'UTC',
+          today: '2026-10-20',
+          total_runs: 1,
+          days: [{ date: '2026-10-20', count: 1 }],
+          next_before: null,
+        },
+      })
+    if (path === '/moments')
+      return route.fulfill({
+        json: {
+          timezone: 'UTC',
+          date: '2026-10-20',
+          items: [
+            {
+              ...run,
+              name: config.name,
+              runner: config.runner,
+              agent: 'Pi',
+              logo: '/agent-logos/pi.svg',
+              preview: run.result,
+              format: 'markdown',
+              has_more: false,
+              truncated: false,
+            },
+          ],
+          next_cursor: null,
+        },
+      })
+    if (path.endsWith('/files/preview')) {
+      reads.push(route.request().postDataJSON())
+      await options.pending
+      return route.fulfill({
+        json: {
+          path: href,
+          name: href.split('/').at(-1),
           runner_id: 'device',
           format: 'markdown',
           mime: 'text/plain',
@@ -55,6 +113,7 @@ async function fixture(page: Page, role = 'admin') {
           size: 33,
           modified_at: null,
           truncated: false,
+          ...options.preview,
         },
       })
     }
@@ -62,7 +121,9 @@ async function fixture(page: Page, role = 'admin') {
       return route.fulfill({ contentType: 'text/event-stream', body: ':fixture\n\n' })
     return route.fulfill({ json: [] })
   })
-  await page.goto(workspacePage(`/runs?run=${id}`))
+  await page.goto(
+    options.surface === 'moments' ? `/w/${fixtureWorkspace}/` : workspacePage(`/runs?run=${id}`),
+  )
   return reads
 }
 test('local result links preview only on click and preview links do not expand file authorization', async ({
@@ -117,4 +178,152 @@ test('Viewer can copy result paths without file IO', async ({ page, context }) =
     .toBe('/workspace/report.md')
   expect(reads).toEqual([])
   await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('file preview stays mounted through Run polling and SSE reconnects', async ({ page }) => {
+  let polls = 0,
+    streams = 0
+  page.on('request', (request) => {
+    const path = apiPath(new URL(request.url()).pathname)
+    if (path === `/runs/${id}`) polls++
+    if (path === `/runs/${id}/stream`) streams++
+  })
+  const reads = await fixture(page)
+  await page.getByRole('button', { name: 'Report', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
+  await expect(dialog.getByRole('heading', { name: 'Preview', exact: true })).toBeVisible()
+  const original = await dialog.elementHandle()
+  const before = polls
+  await expect.poll(() => polls, { timeout: 10000 }).toBeGreaterThanOrEqual(before + 3)
+  expect(streams).toBeGreaterThan(1)
+  await expect(dialog).toBeVisible()
+  expect(await original!.evaluate((element) => element.isConnected)).toBe(true)
+  expect(reads).toEqual([{ href: '/workspace/report.md' }])
+})
+
+test('an in-flight preview survives background updates and retains loaded scroll position', async ({
+  page,
+}) => {
+  let complete!: () => void
+  const pending = new Promise<void>((resolve) => {
+    complete = resolve
+  })
+  const content =
+    '# Preview\n\n' + Array.from({ length: 100 }, (_, n) => `Paragraph ${n}.`).join('\n\n')
+  let polls = 0
+  page.on('request', (request) => {
+    if (apiPath(new URL(request.url()).pathname) === `/runs/${id}`) polls++
+  })
+  const reads = await fixture(page, 'admin', { pending, preview: { format: 'markdown', content } })
+  try {
+    await page.getByRole('button', { name: 'Report', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
+    await expect(dialog.getByText('正在加载…', { exact: true })).toBeVisible()
+    const before = polls
+    await expect.poll(() => polls, { timeout: 10000 }).toBeGreaterThanOrEqual(before + 2)
+    await expect(dialog).toBeVisible()
+    complete()
+    await expect(dialog.getByRole('heading', { name: 'Preview', exact: true })).toBeVisible()
+    const body = dialog.locator('.file-preview-content')
+    await body.evaluate((element) => {
+      element.scrollTop = 200
+    })
+    const scroll = await body.evaluate((element) => element.scrollTop)
+    expect(scroll).toBeGreaterThan(0)
+    await expect.poll(() => polls, { timeout: 5000 }).toBeGreaterThanOrEqual(before + 3)
+    expect(await body.evaluate((element) => element.scrollTop)).toBe(scroll)
+    expect(reads).toHaveLength(1)
+  } finally {
+    complete()
+  }
+})
+
+test('closing a pending preview prevents late output from reopening it', async ({ page }) => {
+  let complete!: () => void
+  const pending = new Promise<void>((resolve) => {
+    complete = resolve
+  })
+  await fixture(page, 'admin', { pending })
+  try {
+    await page.getByRole('button', { name: 'Report', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
+    await expect(dialog.getByText('正在加载…', { exact: true })).toBeVisible()
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+    complete()
+    await page.waitForTimeout(2500)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  } finally {
+    complete()
+  }
+})
+
+for (const item of [
+  { surface: 'dag', href: '/workspace/report.json', format: 'json', content: '{"ok":true}' },
+  { surface: 'moments', href: '/workspace/notes.txt', format: 'text', content: 'Preview text' },
+  {
+    surface: 'run',
+    href: '/workspace/picture.png',
+    format: 'image',
+    mime: 'image/png',
+    content:
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6XzQAAAAASUVORK5CYII=',
+  },
+] as const) {
+  test(`${item.surface} preserves ${item.format} preview and its execution source`, async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    const reads = await fixture(page, 'admin', {
+      surface: item.surface,
+      href: item.href,
+      preview: item,
+    })
+    const requests: string[] = []
+    page.on('request', (request) => {
+      if (request.url().endsWith('/files/preview'))
+        requests.push(apiPath(new URL(request.url()).pathname))
+    })
+    await page.getByRole('button', { name: 'Report', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: item.href.split('/').at(-1), exact: true })
+    if (item.format === 'image') {
+      await expect(dialog.getByRole('img')).toBeVisible()
+      expect(
+        await dialog.getByRole('img').evaluate((image: HTMLImageElement) => image.naturalWidth),
+      ).toBe(1)
+    } else
+      await expect(dialog.locator('pre')).toContainText(
+        item.format === 'json' ? '"ok": true' : item.content,
+      )
+    const original = await dialog.elementHandle()
+    await page.waitForTimeout(3500)
+    await expect(dialog).toBeVisible()
+    expect(await original!.evaluate((element) => element.isConnected)).toBe(true)
+    expect(requests).toEqual([`/runs/${item.surface === 'dag' ? child : id}/files/preview`])
+    expect(reads).toEqual([{ href: item.href }])
+    await dialog.getByRole('button', { name: '复制路径', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(item.href)
+  })
+}
+
+test('workspace permission revocation still closes an open preview', async ({ page }) => {
+  await fixture(page)
+  await page.getByRole('button', { name: 'Report', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
+  await expect(dialog.getByRole('heading', { name: 'Preview', exact: true })).toBeVisible()
+  let checked = false
+  await page.route(`**/api/v1/workspaces/${fixtureWorkspace}`, (route) => {
+    checked = true
+    return route.fulfill({
+      json: {
+        id: fixtureWorkspace,
+        name: 'Default',
+        role: 'viewer',
+        is_default: true,
+        is_demo: false,
+      },
+    })
+  })
+  await expect.poll(() => checked, { timeout: 15000 }).toBe(true)
+  await expect(dialog).toHaveCount(0)
 })
