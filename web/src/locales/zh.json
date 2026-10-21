@@ -636,5 +636,16 @@
   "unsupported query action": "设备暂不支持此查询，请更新 Runner",
   "graph is no longer running": "整图已结束或正在停止",
   "retry is no longer current": "重试尝试已更新，请刷新",
-  "retry is no longer waiting": "该尝试已不再等待重试"
+  "retry is no longer waiting": "该尝试已不再等待重试",
+  "reading.collapseAll": "全部收起",
+  "reading.latest": "回到最新",
+  "reading.updates": "{{count}} 条更新",
+  "reading.full": "展开全文",
+  "reading.less": "收起全文",
+  "reading.failureReason": "失败原因",
+  "reading.reason": "原因",
+  "reading.resultReady": "结果已就绪",
+  "reading.hideStructure": "收起结构",
+  "reading.showStructure": "展开结构",
+  "reading.graphReason": "整图原因"
 }

@@ -2432,98 +2432,6 @@ input:disabled {
 .editor-fields [hidden] {
   display: none !important;
 }
-.run-trace {
-  width: 100%;
-}
-.trace-row {
-  border-bottom: 1px solid var(--border);
-  padding: 12px 0;
-}
-.trace-heading,
-.trace-operation > summary {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-.trace-operation > summary {
-  cursor: pointer;
-  list-style: none;
-}
-.trace-operation > summary::-webkit-details-marker {
-  display: none;
-}
-.trace-operation[open] > summary > svg:first-child {
-  transform: rotate(90deg);
-}
-.trace-heading > svg,
-.trace-operation > summary > svg {
-  flex: 0 0 auto;
-  color: var(--muted);
-}
-.trace-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.trace-parent {
-  color: var(--muted);
-  font-size: 11px;
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.trace-state {
-  margin-left: auto;
-  font-size: 11px;
-  white-space: nowrap;
-  color: var(--muted);
-}
-.trace-state.succeeded {
-  color: var(--success);
-}
-.trace-state.failed {
-  color: var(--failure);
-}
-.trace-duration {
-  font-size: 11px;
-  color: var(--muted);
-}
-.trace-message {
-  margin: 10px 0 0 22px;
-  font-size: 13px;
-}
-.trace-payload {
-  margin: 12px 0 0 44px;
-  display: grid;
-  gap: 12px;
-}
-.trace-payload h4 {
-  margin: 0 0 6px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 500;
-}
-.trace-payload pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.trace-notice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-@media (max-width: 600px) {
-  .trace-parent {
-    display: none;
-  }
-  .trace-payload {
-    margin-left: 22px;
-  }
-}
 
 .choice-selector:focus-visible {
   outline: none;
@@ -2680,22 +2588,6 @@ input:disabled {
   font-size: 12px;
   line-height: 1.7;
 }
-.run-page .trace-row {
-  padding: 10px 16px;
-}
-.run-page .trace-heading,
-.run-page .trace-operation > summary {
-  min-height: 28px;
-  font-size: 12px;
-}
-.run-page .trace-message,
-.run-page .trace-payload {
-  margin: 10px 0 0 44px;
-}
-.run-page .trace-payload > div + div {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-}
 .run-page .run-details-fold > summary {
   min-height: 36px;
   padding-block: 8px;
@@ -2711,10 +2603,6 @@ input:disabled {
   }
   .run-section-actions {
     gap: 4px;
-  }
-  .run-page .trace-message,
-  .run-page .trace-payload {
-    margin-left: 44px;
   }
 }
 
@@ -2863,40 +2751,6 @@ input:disabled {
   border: 1px solid var(--border);
   padding: 14px 16px;
 }
-.run-trace > p,
-.run-trace > .trace-notice {
-  padding: 12px 16px;
-  margin: 0;
-  border-bottom: 1px solid var(--border);
-}
-.trace-operation > summary {
-  display: grid !important;
-  grid-template-columns: 14px 14px minmax(0, 1fr) 72px 58px;
-  gap: 8px;
-  min-height: 28px;
-}
-.trace-label {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.trace-column-labels {
-  display: grid;
-  grid-template-columns: 72px 58px;
-  gap: 8px;
-  text-align: right;
-}
-.trace-state {
-  margin-left: 0;
-  text-align: right;
-}
-.trace-duration {
-  text-align: right;
-}
-.trace-row:last-child {
-  border-bottom: 0;
-}
 .run-page .run-details-fold {
   margin: 0;
   padding: 0;
@@ -2996,23 +2850,8 @@ input:disabled {
   .content-card .properties > dd {
     padding-inline: 12px;
   }
-  .trace-operation > summary {
-    grid-template-columns: 14px 14px minmax(0, 1fr) 58px 44px;
-    gap: 6px;
-  }
-  .trace-column-labels {
-    grid-template-columns: 58px 44px;
-    gap: 6px;
-  }
   .run-section-heading {
     padding-inline: 12px;
-  }
-  .run-page .trace-row {
-    padding-inline: 12px;
-  }
-  .run-page .trace-message,
-  .run-page .trace-payload {
-    margin-left: 40px;
   }
   .run-table-head {
     display: flex;
@@ -3020,12 +2859,6 @@ input:disabled {
   .run-table-head > span {
     display: none;
   }
-}
-
-.trace-duration-empty {
-  text-align: right;
-  font-size: 11px;
-  color: var(--muted);
 }
 
 .run-table-head {

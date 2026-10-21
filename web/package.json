@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:unit": "node --experimental-strip-types --test tests/unit/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

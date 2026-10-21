@@ -2,10 +2,19 @@ import { ErrorToast } from '../Toast'
 import { EditorMemoryContext, useEditorValue, type EditorMemory } from '../EditorMemory'
 import { shortId } from './identity'
 import { outputs } from './model'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback, type RefObject, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Square, Redo2, ClipboardCheck, RefreshCw } from 'lucide-react'
+import {
+  Square,
+  Redo2,
+  ClipboardCheck,
+  RefreshCw,
+  GitBranch,
+  List,
+  PanelTopClose,
+  PanelTopOpen,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { t } from '../i18n'
 import {
@@ -32,7 +41,9 @@ import { RunLogs, RunLogActions } from '../runs/RunLogs'
 import { RunDetails } from '../runs/RunDetails'
 import { ResolveDialog } from '../runs/RunDetail'
 import { ResumeRun } from '../sessions/ResumeRun'
-import { DagGraph } from './DagGraph'
+import { DagGraph, type DagView } from './DagGraph'
+import { useRunReading, TraceActions } from '../runs/RunReading'
+import { RunReason } from '../runs/RunReason'
 
 export function DagRunDetail({
   id,
@@ -48,15 +59,18 @@ export function DagRunDetail({
   useTranslation()
   const nodes: DagRunNode[] =
     r.nodes ?? r.config.dag!.nodes.map((n) => ({ ...n, state: 'waiting' }))
+  const [reading, updateReading] = useRunReading(`dag:${id}`)
+  const [structureOpen, setStructureOpen] = useState(true)
+  const [view, setView] = useState<DagView>('graph')
+  const [search, setSearch] = useState('')
   const [selected, setSelected] = useState(nodes[0]?.id)
   const [memory, setMemory] = useState<Record<string, EditorMemory>>({})
   const runners = useQuery<Runner[]>({ queryKey: ['runners'], queryFn: () => api('/runners') })
   const [visited, setVisited] = useState(new Set([nodes[0]?.id]))
   const [tab, setTab] = useState<'execute' | 'details'>('execute')
-  const [processOpen, setProcessOpen] = useState(true)
-  const [resultOpen, setResultOpen] = useState(false)
+  const [processOpen, setProcessOpen] = useState(!reading.highlighted || reading.resultReady)
+  const [resultOpen, setResultOpen] = useState(reading.highlighted && !reading.resultReady)
   const [raw, setRaw] = useState(false)
-  const highlighted = useRef(false)
   const emptyShown = useRef(false)
   const resultTop = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
@@ -66,7 +80,32 @@ export function DagRunDetail({
   function select(id: string) {
     setSelected(id)
     setVisited((old) => new Set([...old, id]))
+    requestAnimationFrame(() => {
+      const context = viewport.current?.querySelector<HTMLElement>(
+        '.dag-node-process:not([hidden]) > .dag-node-context',
+      )
+      if (!context || !viewport.current) return
+      const rect = context.getBoundingClientRect(),
+        pane = viewport.current.getBoundingClientRect()
+      if (rect.top < pane.top || rect.bottom > pane.bottom)
+        context.scrollIntoView({ block: 'nearest' })
+    })
   }
+  const setFollowing = useCallback(
+    (follow: boolean) => updateReading((old) => (old.follow === follow ? old : { ...old, follow })),
+    [updateReading],
+  )
+  const showResult = useCallback(() => {
+    updateReading({ resultReady: false })
+    setProcessOpen(false)
+    setResultOpen(true)
+    requestAnimationFrame(() => resultTop.current?.scrollIntoView({ block: 'start' }))
+  }, [updateReading])
+  const resultAction = reading.resultReady ? (
+    <button type="button" className="result-ready-inline" onClick={showResult}>
+      {t('reading.resultReady')}
+    </button>
+  ) : null
   const hasResult = r.result != null && r.result !== ''
   useEffect(() => {
     if (['succeeded', 'warning'].includes(r.state) && !hasResult && !emptyShown.current) {
@@ -74,8 +113,9 @@ export function DagRunDetail({
       setResultOpen(true)
       return
     }
-    if (['succeeded', 'warning'].includes(r.state) && hasResult && !highlighted.current) {
-      highlighted.current = true
+    if (['succeeded', 'warning'].includes(r.state) && hasResult && !reading.highlighted) {
+      updateReading({ highlighted: true, resultReady: !reading.follow })
+      if (!reading.follow) return
       setProcessOpen(false)
       setResultOpen(true)
       if (tab === 'execute')
@@ -85,7 +125,7 @@ export function DagRunDetail({
           if (pane && target) pane.scrollTo({ top: target.offsetTop - pane.offsetTop })
         })
     }
-  }, [r.state, hasResult, tab])
+  }, [r.state, hasResult, tab, reading.highlighted, reading.follow, updateReading])
   const action = useMutation({
     mutationFn: (type: string) => api<{ id?: string }>(`/runs/${id}/${type}`, 'POST', {}),
     onSuccess: (v) => {
@@ -134,10 +174,58 @@ export function DagRunDetail({
       </div>
       <div className="run-page dag-run-page" ref={viewport}>
         <div hidden={tab !== 'execute'}>
-          <RunSection title={t('过程')} open={processOpen} onChange={setProcessOpen}>
+          <RunSection
+            title={t('过程')}
+            open={processOpen}
+            onChange={setProcessOpen}
+            actions={
+              <div className="dag-reading-tools">
+                <IconButton
+                  label={t('dag.graph')}
+                  aria-pressed={view === 'graph'}
+                  onClick={() => {
+                    setView('graph')
+                    setStructureOpen(true)
+                  }}
+                >
+                  <GitBranch />
+                </IconButton>
+                <IconButton
+                  label={t('dag.list')}
+                  aria-pressed={view === 'list'}
+                  onClick={() => {
+                    setView('list')
+                    setStructureOpen(true)
+                  }}
+                >
+                  <List />
+                </IconButton>
+                {structureOpen && (
+                  <input
+                    aria-label={t('dag.search')}
+                    placeholder={t('dag.search')}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                )}
+                <IconButton
+                  label={t(structureOpen ? 'reading.hideStructure' : 'reading.showStructure')}
+                  aria-expanded={structureOpen}
+                  onClick={() => setStructureOpen((v) => !v)}
+                >
+                  {structureOpen ? <PanelTopClose /> : <PanelTopOpen />}
+                </IconButton>
+              </div>
+            }
+          >
             {!hasResult && r.reason && (
               <div className="dag-outcome" role="status">
-                <span>{r.reason}</span>
+                <RunReason
+                  key={r.id}
+                  state={r.state}
+                  reason={r.reason}
+                  label={t('reading.graphReason')}
+                />
                 {['warning', 'failed', 'unknown'].includes(r.state) && (
                   <Button
                     onClick={() => {
@@ -157,16 +245,22 @@ export function DagRunDetail({
               </div>
             )}
 
-            <DagGraph
-              compact
-              hideTitle
-              runners={runners.data}
-              outputIds={outputs(r.config.dag!)}
-              nodes={nodes}
-              agents={agents.data}
-              selected={selected}
-              onSelect={select}
-            />
+            <div className="dag-run-structure" hidden={!structureOpen}>
+              <DagGraph
+                compact
+                hideHeader
+                view={view}
+                onViewChange={setView}
+                search={search}
+                onSearchChange={setSearch}
+                runners={runners.data}
+                outputIds={outputs(r.config.dag!)}
+                nodes={nodes}
+                agents={agents.data}
+                selected={selected}
+                onSelect={select}
+              />
+            </div>
             {nodes
               .filter((n) => visited.has(n.id))
               .map((n) => (
@@ -194,6 +288,9 @@ export function DagRunDetail({
                     active={selected === n.id && processOpen && tab === 'execute'}
                     hidden={selected !== n.id}
                     mode="trace"
+                    viewport={viewport}
+                    onFollowChange={setFollowing}
+                    resultAction={resultAction}
                     user={user}
                     toast={toast}
                     agents={agents.data}
@@ -211,7 +308,12 @@ export function DagRunDetail({
           >
             {hasResult && r.reason && (
               <div className="dag-outcome" role="status">
-                <span>{r.reason}</span>
+                <RunReason
+                  key={r.id}
+                  state={r.state}
+                  reason={r.reason}
+                  label={t('reading.graphReason')}
+                />
                 {['warning', 'failed', 'unknown'].includes(r.state) && (
                   <Button
                     onClick={() => {
@@ -291,7 +393,13 @@ function NodeExecution({
   user,
   agents,
   toast,
+  viewport,
+  onFollowChange,
+  resultAction,
 }: {
+  resultAction?: ReactNode
+  viewport?: RefObject<HTMLDivElement | null>
+  onFollowChange?: (follow: boolean) => void
   nodes: DagRunNode[]
   onSelect: (id: string) => void
   parent: string
@@ -370,9 +478,13 @@ function NodeExecution({
   }, [active, executionId, mode, attempt, trace.receive, client, parent, node])
   const run = execution.data?.execution
   const pickerId = (id: string) => `dag-node-picker-${parent}-${mode}-${id}`
-  const displayedReason = chosen ? run?.reason : (run?.reason ?? reason)
-  const startedAt = chosen ? run?.started_at : current?.started_at
-  const finishedAt = chosen ? run?.finished_at : current?.finished_at
+  const displayedReason = run?.reason ?? (!executionId ? reason : undefined)
+  const startedAt = run?.started_at
+  const finishedAt = run?.finished_at
+  useEffect(() => {
+    if (active && mode === 'trace' && run?.execution_snapshot?.trace_supported === false)
+      onFollowChange?.(follow)
+  }, [active, mode, run?.execution_snapshot?.trace_supported, follow, onFollowChange])
   const logs = events
     .filter((e) => ['log', 'truncated', 'progress'].includes(e.kind))
     .map((e) => e.data.text ?? e.data.message ?? '')
@@ -422,7 +534,12 @@ function NodeExecution({
         ) : (
           <strong>{name}</strong>
         )}
-        <Status state={execution.data?.execution?.state ?? state} />
+        {chosen && !run ? (
+          <span className="dag-node-state-placeholder quiet">{t('正在加载…')}</span>
+        ) : (
+          <Status state={run?.state ?? state} />
+        )}
+        <RunReason key={executionId ?? node} state={run?.state ?? state} reason={displayedReason} />
         {(execution.data?.attempts?.length ?? 0) > 1 && (
           <div className="dag-attempt-picker">
             <ChoicePicker
@@ -460,22 +577,23 @@ function NodeExecution({
           </span>
         )}
         <div className="dag-node-context-actions">
-        {run && (
-          <ResumeRun
-            run={run}
-            id={run.id}
-            available={terminal(run.state) && !!run.session?.ready}
-            toast={toast}
-          />
-        )}
-        {!chosen && state === 'unknown' && user.role !== 'viewer' && (
-          <IconButton label={t('核对状态')} onClick={() => setResolve(true)}>
-            <ClipboardCheck />
-          </IconButton>
-        )}
+          {resultAction}
+          {mode === 'trace' && executionId && <TraceActions id={executionId} />}
+          {run && (
+            <ResumeRun
+              run={run}
+              id={run.id}
+              available={terminal(run.state) && !!run.session?.ready}
+              toast={toast}
+            />
+          )}
+          {!chosen && state === 'unknown' && user.role !== 'viewer' && (
+            <IconButton label={t('核对状态')} onClick={() => setResolve(true)}>
+              <ClipboardCheck />
+            </IconButton>
+          )}
         </div>
       </div>
-      {displayedReason && executionId && <p className="dag-node-reason">{displayedReason}</p>}
       {!executionId ? (
         <p className="quiet dag-node-empty">
           {reason || stateNames[state] || t('dag.noExecution')}
@@ -507,7 +625,14 @@ function NodeExecution({
             />
           </>
         ) : (
-          <RunTrace run={run} trace={trace} />
+          <RunTrace
+            key={run.id}
+            run={run}
+            trace={trace}
+            viewport={viewport}
+            active={active}
+            onFollowChange={onFollowChange}
+          />
         )
       ) : (
         <>

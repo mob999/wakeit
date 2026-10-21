@@ -636,5 +636,16 @@
   "unsupported query action": "unsupported query action",
   "graph is no longer running": "graph is no longer running",
   "retry is no longer current": "retry is no longer current",
-  "retry is no longer waiting": "retry is no longer waiting"
+  "retry is no longer waiting": "retry is no longer waiting",
+  "reading.collapseAll": "Collapse all",
+  "reading.latest": "Go to latest",
+  "reading.updates": "{{count}} updates",
+  "reading.full": "Show full content",
+  "reading.less": "Show less",
+  "reading.failureReason": "Failure reason",
+  "reading.reason": "Reason",
+  "reading.resultReady": "Result ready",
+  "reading.hideStructure": "Hide structure",
+  "reading.showStructure": "Show structure",
+  "reading.graphReason": "Graph reason"
 }
