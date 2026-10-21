@@ -186,3 +186,18 @@ test('new DAG total limit is off, toggling preserves its duration draft without 
     0,
   )
 })
+
+test('DAG total time limit and enable control are localized in English', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('wakeit-language', 'en'))
+  await fixture(page)
+  await page.goto(base)
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  const row = page.locator('[data-field="execution.timeout"]')
+  await expect(row).toContainText('Graph total time limit')
+  const enable = row.getByRole('checkbox', { name: 'Enable', exact: true })
+  await expect(enable).not.toBeChecked()
+  await enable.check()
+  await expect(
+    row.getByRole('textbox', { name: 'Graph total time limit', exact: true }),
+  ).toHaveValue('1h')
+})

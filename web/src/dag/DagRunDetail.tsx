@@ -16,7 +16,8 @@ import {
   PanelTopOpen,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { t } from '../i18n'
+import { t, locale } from '../i18n'
+import { apiErrorText } from '../apiErrorText'
 import {
   api,
   apiUrl,
@@ -536,7 +537,7 @@ function NodeExecution({
           <span className="quiet dag-retry-time">
             {t('retry.waiting')}{' '}
             <time dateTime={current.retry_at}>
-              {new Date(current.retry_at).toLocaleTimeString()}
+              {new Date(current.retry_at).toLocaleTimeString(locale(), { hour12: false })}
             </time>
           </span>
         )}
@@ -551,14 +552,19 @@ function NodeExecution({
           {!chosen && user.role !== 'viewer' && execution.data?.retry && (
             <IconButton
               label={
-                execution.data.retry.reason ||
-                t(
-                  execution.data.retry.action === 'accelerate'
-                    ? 'retry.now'
-                    : execution.data.retry.action === 'resume'
-                      ? 'retry.resume'
-                      : 'retry.node',
-                )
+                execution.data.retry.reason
+                  ? apiErrorText(
+                      execution.data.retry.reason,
+                      t,
+                      (state) => stateNames[state] ?? state,
+                    )
+                  : t(
+                      execution.data.retry.action === 'accelerate'
+                        ? 'retry.now'
+                        : execution.data.retry.action === 'resume'
+                          ? 'retry.resume'
+                          : 'retry.node',
+                    )
               }
               disabled={!execution.data.retry.action}
               loading={retry.isPending}

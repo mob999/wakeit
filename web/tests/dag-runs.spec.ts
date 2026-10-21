@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+const zh = JSON.parse(readFileSync(new URL('../src/locales/zh.json', import.meta.url), 'utf8'))
+const en = JSON.parse(readFileSync(new URL('../src/locales/en.json', import.meta.url), 'utf8'))
 const workspace = '11111111-1111-4111-8111-111111111111'
 const id = '00000000-0000-4000-8000-000000000001'
 const child = '00000000-0000-4000-8000-000000000002'
@@ -723,7 +726,7 @@ test('manual retry uses the current guard, preserves selection and requires expl
   }
   await page.getByRole('tab', { name: '执行', exact: true }).click()
   await page.getByRole('button', { name: '重试节点', exact: true }).first().click()
-  await expect(page.getByRole('alert')).toContainText('Execution changed')
+  await expect(page.getByRole('alert')).toContainText('当前执行已变更，请刷新后重试。')
   expect(requests[0]).toEqual({ execution_id: child, resume_stopped: false })
   f.run.state = f.execution.state = f.run.nodes[0].state = 'cancelled'
   ;(f as any).retry = {
@@ -766,3 +769,88 @@ test('uncreated failed execution supports retry and historical attempts do not e
   await expect.poll(() => bodies.length).toBe(1)
   expect(bodies[0].execution_id).toBeNull()
 })
+
+for (const language of ['zh', 'en'] as const) {
+  test(`node retry controls, confirmation, blockers and Toast follow ${language} and live language changes`, async ({
+    page,
+  }) => {
+    const messages = language === 'zh' ? zh : en
+    const other = language === 'zh' ? en : zh
+    await page.addInitScript(
+      (language) => localStorage.setItem('wakeit-language', language),
+      language,
+    )
+    const f = fixture()
+    f.run.state = f.execution.state = f.run.nodes[0].state = 'failed'
+    f.run.finished_at = f.execution.finished_at = at
+    ;(f as any).retry = { action: 'retry', affected: [] }
+    ;(f as any).attempts = [
+      { id: child, state: 'failed' },
+      { id: 'older', state: 'failed' },
+    ]
+    await mock(page, f)
+    await page.route('**/nodes/collect/retry', (route) =>
+      route.fulfill({ status: 409, json: { error: 'Execution changed; refresh before retrying' } }),
+    )
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    const retry = page.getByRole('button', { name: messages['retry.node'], exact: true }).first()
+    await retry.hover()
+    await expect(page.getByRole('tooltip')).toHaveText(messages['retry.node'])
+    await expect(
+      page.getByRole('combobox', { name: messages['retry.attempts'], exact: true }).first(),
+    ).toBeVisible()
+    await retry.click()
+    await expect(page.getByRole('alert')).toContainText(
+      messages['Execution changed; refresh before retrying'],
+    )
+    ;(f as any).retry = { action: 'accelerate', affected: [] }
+    f.run.nodes[0].retry_at = '2099-01-01T00:00:00Z'
+    await expect(
+      page.getByRole('button', { name: messages['retry.now'], exact: true }).first(),
+    ).toBeVisible()
+    await expect(page.locator('.dag-retry-time:visible')).toContainText(messages['retry.waiting'])
+    ;(f as any).retry = {
+      action: 'resume',
+      affected: [{ id: 'after', name: 'Downstream report', state: 'cancelled' }],
+    }
+    await page.getByRole('button', { name: messages['retry.resume'], exact: true }).first().click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(messages['retry.preserve'])
+    await expect(
+      dialog.getByRole('columnheader').filter({ hasText: messages['操作'] }),
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole('cell', { name: messages['retry.continue'], exact: true }),
+    ).toBeVisible()
+    await page.evaluate(
+      async (language) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+      },
+      language === 'zh' ? 'en' : 'zh',
+    )
+    await expect(dialog.getByRole('heading')).toHaveText(other['retry.resume'])
+    await expect(dialog).toContainText(other['retry.preserve'])
+    await dialog.getByRole('button', { name: other['取消'], exact: true }).click()
+    ;(f as any).retry = {
+      action: null,
+      reason: 'Node in state succeeded cannot be retried',
+      affected: [],
+    }
+    const blocked = other['retry.error.state'].replace('{{state}}', other['成功'])
+    await expect(page.getByRole('button', { name: blocked, exact: true }).first()).toBeDisabled()
+    await page.evaluate(async (language) => {
+      const module = await import('/src/i18n.ts')
+      await module.setLanguage(language)
+    }, language)
+    await expect(
+      page
+        .getByRole('button', {
+          name: messages['retry.error.state'].replace('{{state}}', messages['成功']),
+          exact: true,
+        })
+        .first(),
+    ).toBeDisabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}
