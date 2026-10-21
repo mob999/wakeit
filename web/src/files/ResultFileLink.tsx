@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useContext, useId, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, type User, type Runner, type Run } from '../api'
 import { t } from '../i18n'
@@ -8,6 +8,7 @@ import { CopyValue } from '../runs/CopyValue'
 import { MarkdownContent } from '../runs/MarkdownContent'
 import type { FileSource } from './links'
 import './files.css'
+import { PreviewActivity } from './PreviewActivity'
 type Preview = {
   path: string
   name: string
@@ -36,6 +37,12 @@ export function ResultFileLink({
     [value, setValue] = useState<Preview | null>(null),
     [pending, setPending] = useState(false),
     [failed, setFailed] = useState(false)
+  const previewActivity = useContext(PreviewActivity),
+    previewId = useId()
+  useEffect(() => {
+    previewActivity(previewId, open)
+    return () => previewActivity(previewId, false)
+  }, [open, previewActivity, previewId])
   const request = useRef<AbortController | null>(null)
   const writable = useRef(allowed)
   writable.current = allowed
@@ -116,6 +123,7 @@ export function ResultFileLink({
       <button
         type="button"
         className="result-file-link"
+        data-result-file-href={href}
         title={allowed ? href : `${t('filePreview.copyPath')}: ${href}`}
         onClick={allowed ? () => void load() : copy}
       >

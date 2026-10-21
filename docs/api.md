@@ -106,7 +106,7 @@ WebUI 的 `/` 为 Moments，任务工作台为 `/tasks`。Moments 仅手动刷�
 
 - `GET /moments/days?before=YYYY-MM-DD&limit=14`：返回 `{timezone,today,total_runs,days:[{date,count}],next_before}`。默认 14 个有记录的日期，日期倒序，before 为排他的本地日期游标。总数覆盖所有符合条件的记录，不受分页影响。
 - `GET /moments?date=YYYY-MM-DD&cursor=...&limit=20&timezone=...`：返回 `{timezone,date,items,next_cursor}`，按 finished_at、id 倒序分页。timezone 可携带日期目录返回值；工作区时区变化时返回 409，需刷新目录重新分组。两个接口 limit 范围 1–100，权限为 Viewer。
-- 条目包含 id、task_id、name、state、reason、finished_at、runner、agent、logo、preview、format、has_more、truncated，不返回指令或整份配置。preview 最多 2048 个 Unicode 字符；format 为 markdown 或 json，has_more 表示仍有正文，truncated 表示原始结果已被保留策略截断。全文通过既有 `/runs/{id}` 读取，不从日志生成。
+- 条目包含 id、task_id、name、state、reason、finished_at、runner、agent、logo、preview、format、has_more、truncated，不返回指令或整份配置。preview 最多 2048 个 Unicode 字符；format 为 markdown 或 json，has_more 表示仍有正文，truncated 表示原始结果已被保留策略截断。全文通过既有 `/runs/{id}` 读取，不从日志生成。动态页对可见/主动展开的卡片懒取详情，用于真实历时及节点尝试事实；报告目录和文件入口从清理后的原文提取，不新增接口或文件扫描。DAG 在一张父 Run 卡片内切换实际输出。
 
 日期只做分组，所有条目统一展示最高 240px 的预览，长内容提供“阅读全文”和“收起”。日期和条目均支持继续加载；手动刷新保留阅读位置及全文展开状态，返回页面保留本次访问状态，刷新浏览器后重置。报告不写入浏览器持久化存储。
 

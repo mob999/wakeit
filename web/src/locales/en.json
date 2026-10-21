@@ -648,5 +648,19 @@
   "dag.nodeIssues": "Node issues · {{count}}",
   "dag.noNodeIssues": "No node issues",
   "reading.runStatus": "Run status",
-  "reading.runStatusReason": "Run status: {{state}}. Reason: {{reason}}"
+  "reading.runStatusReason": "Run status: {{state}}. Reason: {{reason}}",
+  "moments.elapsed": "Elapsed time",
+  "moments.outputs": "{{count}} outputs",
+  "moments.retried": "{{count}} nodes retried",
+  "moments.loadOutput": "Load the full result to read this output.",
+  "moments.related": "Report context",
+  "moments.outputTitle": "Outputs",
+  "moments.outline": "Outline",
+  "moments.links": "Files and links",
+  "moments.excerpt": "Excerpt",
+  "moments.more": "{{count}} more",
+  "moments.outputs_one": "{{count}} output",
+  "moments.outputs_other": "{{count}} outputs",
+  "moments.retried_one": "{{count}} node retried",
+  "moments.retried_other": "{{count}} nodes retried"
 }

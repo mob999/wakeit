@@ -8,7 +8,7 @@
 
 - **接入已有 Agent**：内置 Codex、Claude Code、Pi、OpenCode、Kimi Code、Antigravity CLI、Gemini CLI、Cursor、GitHub Copilot CLI、Cline、Goose、Qwen Code；[能力与配置](docs/agents.md)按原生接口提供，自定义适配只需配置命令。
 - **在自己的设备执行**：Runner 主动连接 Gateway，支持 Linux、macOS、Windows，无需设备开放入站端口。
-- **按时运行，查看结果**：Cron、固定间隔、一次性时间和手动执行；支持实时过程及 Markdown 报告，包含代码高亮、公式与 Mermaid 图表；Moments 按完成时间汇总结果；可通过原 Runner 预览报告链接中的受支持本地文件，访问受设备目录范围限制。
+- **按时运行，查看结果**：Cron、固定间隔、一次性时间和手动执行；支持实时过程及 Markdown 报告，包含代码高亮、公式与 Mermaid 图表；动态以紧凑时间线汇总结果，提供原文目录、报告中的文件链接和 DAG 输出切换；可通过原 Runner 预览报告链接中的受支持本地文件，访问受设备目录范围限制。
 - **编排 Agent DAG。** 在画布拖入 Agent，或导入一份 YAML，连接 AND 依赖并引用上游结果；整图执行并按所选节点展示报告，节点可配置指数退避重试。见 [DAG 任务](docs/dag.md)。
 - **保留执行上下文**：支持会话的 Agent 可绑定原生会话，直接通过网页终端续聊、复制原生命令，或在原 Runner 设备用 `wakeit run resume <run-id>` 继续交互；见[会话续聊](docs/cli.md#绑定会话与本机续聊)。
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。

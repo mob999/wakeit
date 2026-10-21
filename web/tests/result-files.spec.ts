@@ -132,10 +132,17 @@ test('local result links preview only on click and preview links do not expand f
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const reads = await fixture(page)
-  await expect(page.getByRole('button', { name: 'Report', exact: true })).toBeVisible()
+  await expect(
+    page
+      .locator('.moment-report, .run-result-panel')
+      .getByRole('button', { name: 'Report', exact: true }),
+  ).toBeVisible()
   expect(reads).toEqual([])
   expect(await page.locator('img[src="/workspace/picture.png"]').count()).toBe(0)
-  await page.getByRole('button', { name: 'Report', exact: true }).click()
+  await page
+    .locator('.moment-report, .run-result-panel')
+    .getByRole('button', { name: 'Report', exact: true })
+    .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
   await expect(dialog.getByRole('heading', { name: 'Preview', exact: true })).toBeVisible()
   expect(reads).toEqual([{ href: '/workspace/report.md' }])
@@ -172,7 +179,10 @@ test('file and Windows targets survive sanitization without becoming Gateway pat
 test('Viewer can copy result paths without file IO', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const reads = await fixture(page, 'viewer')
-  await page.getByRole('button', { name: 'Report', exact: true }).click()
+  await page
+    .locator('.moment-report, .run-result-panel')
+    .getByRole('button', { name: 'Report', exact: true })
+    .click()
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe('/workspace/report.md')
@@ -189,7 +199,10 @@ test('file preview stays mounted through Run polling and SSE reconnects', async 
     if (path === `/runs/${id}/stream`) streams++
   })
   const reads = await fixture(page)
-  await page.getByRole('button', { name: 'Report', exact: true }).click()
+  await page
+    .locator('.moment-report, .run-result-panel')
+    .getByRole('button', { name: 'Report', exact: true })
+    .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
   await expect(dialog.getByRole('heading', { name: 'Preview', exact: true })).toBeVisible()
   const original = await dialog.elementHandle()
@@ -216,7 +229,10 @@ test('an in-flight preview survives background updates and retains loaded scroll
   })
   const reads = await fixture(page, 'admin', { pending, preview: { format: 'markdown', content } })
   try {
-    await page.getByRole('button', { name: 'Report', exact: true }).click()
+    await page
+      .locator('.moment-report, .run-result-panel')
+      .getByRole('button', { name: 'Report', exact: true })
+      .click()
     const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
     await expect(dialog.getByText('正在加载…', { exact: true })).toBeVisible()
     const before = polls
@@ -245,7 +261,10 @@ test('closing a pending preview prevents late output from reopening it', async (
   })
   await fixture(page, 'admin', { pending })
   try {
-    await page.getByRole('button', { name: 'Report', exact: true }).click()
+    await page
+      .locator('.moment-report, .run-result-panel')
+      .getByRole('button', { name: 'Report', exact: true })
+      .click()
     const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
     await expect(dialog.getByText('正在加载…', { exact: true })).toBeVisible()
     await dialog.getByRole('button', { name: '关闭', exact: true }).click()
@@ -284,7 +303,10 @@ for (const item of [
       if (request.url().endsWith('/files/preview'))
         requests.push(apiPath(new URL(request.url()).pathname))
     })
-    await page.getByRole('button', { name: 'Report', exact: true }).click()
+    await page
+      .locator('.moment-report, .run-result-panel')
+      .getByRole('button', { name: 'Report', exact: true })
+      .click()
     const dialog = page.getByRole('dialog', { name: item.href.split('/').at(-1), exact: true })
     if (item.format === 'image') {
       await expect(dialog.getByRole('img')).toBeVisible()
@@ -308,7 +330,10 @@ for (const item of [
 
 test('workspace permission revocation still closes an open preview', async ({ page }) => {
   await fixture(page)
-  await page.getByRole('button', { name: 'Report', exact: true }).click()
+  await page
+    .locator('.moment-report, .run-result-panel')
+    .getByRole('button', { name: 'Report', exact: true })
+    .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
   await expect(dialog.getByRole('heading', { name: 'Preview', exact: true })).toBeVisible()
   let checked = false

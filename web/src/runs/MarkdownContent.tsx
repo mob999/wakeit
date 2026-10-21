@@ -48,7 +48,12 @@ const components: NonNullable<ComponentProps<typeof Markdown>['components']> = {
   ),
   img: ({ src, alt, node }) =>
     typeof node?.properties.dataWakeitLocal === 'string' ? (
-      <span title={node.properties.dataWakeitLocal}>{alt || node.properties.dataWakeitLocal}</span>
+      <span
+        title={node.properties.dataWakeitLocal}
+        data-result-image-href={node.properties.dataWakeitLocal}
+      >
+        {alt || node.properties.dataWakeitLocal}
+      </span>
     ) : src ? (
       <img src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />
     ) : (
