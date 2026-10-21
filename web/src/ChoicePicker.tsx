@@ -7,11 +7,12 @@ import { Check, ChevronDown, Search } from 'lucide-react'
 export type Choice = {
   value: string
   label: string
+  title?: string
   keywords?: string
   icon?: ReactNode
   description?: string
   wrapDescription?: boolean
-  status?: string
+  status?: ReactNode
   disabled?: boolean
   reason?: string
 }
@@ -23,6 +24,8 @@ export function ChoicePicker({
   onChange,
   placeholder = tr('请选择'),
   searchable = false,
+  searchLabel,
+  popoverClassName,
   disabled = false,
   filterOptions = true,
   pending = false,
@@ -48,6 +51,8 @@ export function ChoicePicker({
   onChange: (value: string) => void
   placeholder?: string
   searchable?: boolean
+  searchLabel?: string
+  popoverClassName?: string
   disabled?: boolean
   filterOptions?: boolean
   pending?: boolean
@@ -161,6 +166,7 @@ export function ChoicePicker({
           type="button"
           id={controlId}
           aria-label={label}
+          title={selected?.title}
           aria-describedby={describedBy}
           role="combobox"
           aria-expanded={open && !disabled}
@@ -186,7 +192,9 @@ export function ChoicePicker({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className="model-popover choice-popover"
+          className={['model-popover', 'choice-popover', popoverClassName]
+            .filter(Boolean)
+            .join(' ')}
           align="start"
           sideOffset={4}
           collisionPadding={12}
@@ -203,8 +211,8 @@ export function ChoicePicker({
                   <input
                     ref={searchRef}
                     role="combobox"
-                    aria-label={tr('搜索{{v0}}', { v0: label })}
-                    placeholder={tr('搜索{{v0}}…', { v0: label })}
+                    aria-label={searchLabel ?? tr('搜索{{v0}}', { v0: label })}
+                    placeholder={searchLabel ? `${searchLabel}…` : tr('搜索{{v0}}…', { v0: label })}
                     aria-controls={listId}
                     aria-expanded={open}
                     aria-autocomplete="list"
@@ -262,7 +270,7 @@ export function ChoicePicker({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => choose(option.value)}
                   >
-                    <span className="choice-option-label">
+                    <span className="choice-option-label" title={option.title}>
                       {option.icon}
                       <span>
                         {option.label}

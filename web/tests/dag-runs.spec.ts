@@ -473,3 +473,247 @@ test('retry acceleration targets the reserved execution and historical attempts 
   await details.getByRole('button', { name: '续聊', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('pi --resume old-session')
 })
+
+for (const [width, language, theme] of [
+    [1440, 'zh', 'light'],
+    [390, 'zh', 'dark'],
+    [2200, 'en', 'light'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.evaluate(
+      async ({ language, theme }) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+        document.documentElement.dataset.theme = theme
+      },
+      { language, theme },
+    )
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({
+      path: `test-results/dag-details-${width}-${language}-${theme}.png`,
+      fullPage: true,
+    })
+  }
+})
+test('DAG multi-node details switches context without duplicate titles and keeps reconciliation on the actual node', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = 'unknown'
+  f.run.nodes.push({
+    ...f.run.nodes[0],
+    id: 'uncertain',
+    name: 'Uncertain branch',
+    state: 'unknown',
+    execution_id: '00000000-0000-4000-8000-000000000003',
+    continuation_available: false,
+  })
+  await mock(page, f)
+  await page.route('**/nodes/uncertain', (route) =>
+    route.fulfill({
+      json: {
+        node: f.run.nodes[1],
+        execution: {
+          ...f.execution,
+          id: f.run.nodes[1].execution_id,
+          state: 'unknown',
+          session: null,
+        },
+      },
+    }),
+  )
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  const details = page.locator('.dag-node-details:visible')
+  await details.getByRole('combobox', { name: '选择节点', exact: true }).click()
+  await page.getByRole('option', { name: /^Uncertain branch/ }).click()
+  await expect(details).toHaveCount(1)
+  await expect(details.locator('.dag-node-context .status')).toHaveText('状态待核对')
+  await details.getByRole('button', { name: '核对状态', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await expect(
+    page
+      .locator('.dag-node-process:visible')
+      .getByRole('combobox', { name: '选择节点', exact: true }),
+  ).toContainText('Uncertain branch')
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(details.getByRole('combobox', { name: '选择节点', exact: true })).toContainText(
+    'Uncertain branch',
+  )
+})
+test('DAG skipped nodes retain their real reason and Viewer cannot reconcile, retry or cancel', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = 'failed'
+  f.run.reason = 'Required output was skipped'
+  f.run.finished_at = at
+  f.run.nodes[0].state = 'skipped'
+  f.run.nodes[0].execution_id = null
+  f.run.nodes[0].reason = 'Predecessor did not succeed'
+  await mock(page, f, 'viewer')
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(page.locator('.dag-node-details:visible')).toContainText(
+    'Predecessor did not succeed',
+  )
+  await expect(page.getByRole('button', { name: '核对状态', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '取消执行', exact: true })).toHaveCount(0)
+})
+
+test('an empty successful result is explicit and its fold choice survives tab changes', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = 'succeeded'
+  f.run.finished_at = at
+  f.run.nodes[0].state = 'succeeded'
+  await mock(page, f)
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  const result = page
+    .locator('.run-section')
+    .filter({ has: page.getByRole('button', { name: '结果', exact: true }) })
+  await expect(result).toContainText('未返回结果')
+  await result.getByRole('button', { name: '结果', exact: true }).click()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await expect(result.getByRole('button', { name: '结果', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+})
+
+test('Run graph shares the overview canvas controls and fullscreen is read-only', async ({
+  page,
+}) => {
+  const f = fixture(),
+    writes = await mock(page, f, 'viewer')
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  const graph = page.locator('.dag-structure'),
+    controls = graph.getByRole('toolbar', { name: '画布操作', exact: true })
+  await expect(graph.locator('.dag-graph-node')).toHaveCount(1)
+  await expect(controls.getByRole('button')).toHaveCount(3)
+  await expect(graph.getByRole('button', { name: '适应视图', exact: true })).toHaveCount(0)
+  await controls.getByRole('button', { name: '全屏', exact: true }).click()
+  await expect(graph.locator('.dag-structure-fullscreen')).toBeVisible()
+  await page.mouse.move(600, 400)
+  await page.keyboard.press('Escape')
+  await expect(graph.locator('.dag-structure-fullscreen')).toHaveCount(0)
+  expect(writes).toEqual([])
+})
+
+for (const [width, language, theme] of [
+  [1440, 'en', 'light'],
+  [1440, 'zh', 'dark'],
+  [390, 'en', 'dark'],
+  [390, 'zh', 'light'],
+] as const) {
+  test(`DAG node menu keeps aligned columns and compact timing at ${width}px in ${language}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 })
+    const f = fixture()
+    const states = ['succeeded', 'running', 'unknown', 'failed', 'skipped']
+    f.run.nodes = Array.from({ length: 100 }, (_, index) => ({
+      ...f.run.nodes[0],
+      id: index === 0 ? 'collect' : `research-node-${String(index).padStart(3, '0')}-full-id`,
+      name: `Synthetic research ${index + 1} — 多语言节点名称与较长的研究主题`,
+      state: states[index % states.length],
+      started_at: at,
+      finished_at: '2026-10-20T10:06:41.800Z',
+    }))
+    const writes = await mock(page, f)
+    await page.route('**/nodes/*', async (route) => {
+      const node = f.run.nodes.find((n: any) => route.request().url().endsWith(`/nodes/${n.id}`))
+      return route.fulfill({
+        json: { node, execution: { ...f.execution, node_id: node.id, state: node.state } },
+      })
+    })
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    await page.evaluate(
+      async ({ language, theme }) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+        document.documentElement.dataset.theme = theme
+      },
+      { language, theme },
+    )
+    await page
+      .getByRole('tab', { name: language === 'en' ? 'Details' : '详情', exact: true })
+      .click()
+    const details = page.locator('.dag-node-details:visible')
+    const trigger = details.locator('.dag-node-context > .choice-selector')
+    await expect(trigger).toHaveAttribute('title', f.run.nodes[0].name)
+    await expect(details.locator('.dag-node-duration')).toHaveText('401.8s')
+    expect(await trigger.evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px')
+    for (const selector of ['.dag-node-context > .status', '.dag-node-duration']) {
+      expect(await details.locator(selector).evaluate((el) => getComputedStyle(el).fontSize)).toBe(
+        '11px',
+      )
+    }
+    await trigger.click()
+    const menu = page.locator('.dag-node-picker')
+    const search = menu.getByRole('combobox')
+    await expect(search).toHaveAttribute(
+      'placeholder',
+      language === 'en' ? 'Search nodes…' : '搜索节点…',
+    )
+    await expect(menu.getByRole('option')).toHaveCount(100)
+    const geometry = await menu.evaluate((el) => {
+      const list = el.querySelector('.model-options')!
+      const rows = [...list.querySelectorAll('button')]
+      return {
+        width: el.getBoundingClientRect().width,
+        left: el.getBoundingClientRect().left,
+        right: el.getBoundingClientRect().right,
+        fits: [el, list, ...rows].every((item) => item.scrollWidth <= item.clientWidth),
+        height: Math.max(...rows.map((row) => row.getBoundingClientRect().height)),
+        statusX: rows.map((row) => row.querySelector('.status')!.getBoundingClientRect().x),
+        labelWidths: rows.map(
+          (row) => row.querySelector('.choice-option-label')!.getBoundingClientRect().width,
+        ),
+        checkX: rows[0].querySelector('.choice-option-meta > svg')!.getBoundingClientRect().x,
+      }
+    })
+    expect(geometry.width).toBe(width === 390 ? 366 : 420)
+    expect(geometry.left).toBeGreaterThanOrEqual(12)
+    expect(geometry.right).toBeLessThanOrEqual(width - 12)
+    expect(geometry.fits).toBe(true)
+    expect(geometry.height).toBeLessThanOrEqual(54)
+    expect(Math.max(...geometry.statusX) - Math.min(...geometry.statusX)).toBeLessThan(1)
+    expect(Math.max(...geometry.labelWidths) - Math.min(...geometry.labelWidths)).toBeLessThan(1)
+    await expect(menu.locator('.choice-option-label').first()).toHaveAttribute(
+      'title',
+      f.run.nodes[0].name,
+    )
+    await page.screenshot({ path: `test-results/dag-node-menu-${width}-${language}-${theme}.png` })
+    await search.press('End')
+    await expect(menu.getByRole('option').last()).toHaveAttribute('data-active', '')
+    await expect(menu.getByRole('option').last()).toBeInViewport()
+    await search.press('Home')
+    await search.press('ArrowDown')
+    await search.press('Enter')
+    await expect(trigger).toContainText(f.run.nodes[1].name)
+    await expect(trigger).toBeFocused()
+    await trigger.press('ArrowDown')
+    const checkX = await menu
+      .locator('.choice-option-meta > svg')
+      .evaluate((el) => el.getBoundingClientRect().x)
+    expect(Math.abs(checkX - geometry.checkX)).toBeLessThan(1)
+    await search.fill(f.run.nodes[99].id)
+    await expect(menu.getByRole('option')).toHaveCount(1)
+    await search.press('Enter')
+    await expect(trigger).toContainText(f.run.nodes[99].name)
+    await trigger.click()
+    await search.fill('no matching fixture node')
+    await expect(menu.getByRole('option')).toHaveCount(0)
+    await search.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(trigger).toBeFocused()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    expect(writes).toEqual([])
+  })
+}

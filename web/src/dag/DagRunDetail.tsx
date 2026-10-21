@@ -369,6 +369,7 @@ function NodeExecution({
     }
   }, [active, executionId, mode, attempt, trace.receive, client, parent, node])
   const run = execution.data?.execution
+  const pickerId = (id: string) => `dag-node-picker-${parent}-${mode}-${id}`
   const displayedReason = chosen ? run?.reason : (run?.reason ?? reason)
   const startedAt = chosen ? run?.started_at : current?.started_at
   const finishedAt = chosen ? run?.finished_at : current?.finished_at
@@ -399,17 +400,24 @@ function NodeExecution({
       <div className="dag-node-context">
         {nodes.length > 1 ? (
           <ChoicePicker
+            id={pickerId(node)}
             label={t('dag.selectNode')}
+            searchLabel={t('dag.searchNodes')}
+            popoverClassName="dag-node-picker"
             searchable
             value={node}
             options={nodes.map((n) => ({
               value: n.id,
               label: n.name,
+              title: n.name,
               description: shortId(n.id),
               keywords: n.id,
-              status: stateNames[n.state] ?? n.state,
+              status: <Status state={n.state} />,
             }))}
-            onChange={onSelect}
+            onChange={(next) => {
+              onSelect(next)
+              requestAnimationFrame(() => document.getElementById(pickerId(next))?.focus())
+            }}
           />
         ) : (
           <strong>{name}</strong>
@@ -447,10 +455,11 @@ function NodeExecution({
           </IconButton>
         )}
         {startedAt && finishedAt && (
-          <span className="quiet mono">
+          <span className="dag-node-duration quiet mono">
             {Math.max(0, (Date.parse(finishedAt) - Date.parse(startedAt)) / 1000).toFixed(1)}s
           </span>
         )}
+        <div className="dag-node-context-actions">
         {run && (
           <ResumeRun
             run={run}
@@ -464,6 +473,7 @@ function NodeExecution({
             <ClipboardCheck />
           </IconButton>
         )}
+        </div>
       </div>
       {displayedReason && executionId && <p className="dag-node-reason">{displayedReason}</p>}
       {!executionId ? (
