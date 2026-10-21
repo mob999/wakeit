@@ -418,7 +418,7 @@
   font-size: 11px;
 }
 
-.dag-attempt-menu {
+.model-popover.dag-attempt-menu {
   width: 220px;
 }
 .dag-attempt-menu .model-options {
