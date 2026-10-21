@@ -16,6 +16,8 @@
 
 最新已发布版本为 **0.3.1**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
 
+报告和 Markdown 文件预览支持内嵌本地 PNG/JPEG/WebP 图片，由原 Runner 读取；相对路径按执行目录或 Markdown 所在目录解析，沿用工作区权限及目录范围。
+
 ## 安装
 
 从 [v0.3.1 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.1) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。

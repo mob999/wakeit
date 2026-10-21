@@ -27,6 +27,12 @@ fn link_key(href: &str) -> std::borrow::Cow<'_, str> {
         .decode_utf8_lossy()
 }
 pub fn linked(text: &str, href: &str) -> bool {
+    authored_target(text, href, "a[href]", "href")
+}
+pub fn image_linked(text: &str, href: &str) -> bool {
+    authored_target(text, href, "img[src]", "src")
+}
+fn authored_target(text: &str, href: &str, selector: &str, attribute: &str) -> bool {
     let mut rendered = String::new();
     // Parsing to HTML preserves CommonMark's link/code distinction; HTML parsing
     // keeps comments, raw script text and escaped anchors out of the link set.
@@ -35,10 +41,10 @@ pub fn linked(text: &str, href: &str) -> bool {
         Parser::new_ext(text, Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH),
     );
     Html::parse_fragment(&rendered)
-        .select(&Selector::parse("a[href]").expect("static selector"))
+        .select(&Selector::parse(selector).expect("static selector"))
         .any(|a| {
             a.value()
-                .attr("href")
+                .attr(attribute)
                 .is_some_and(|value| link_key(value) == link_key(href))
                 && !a
                     .ancestors()
@@ -50,6 +56,12 @@ pub fn linked(text: &str, href: &str) -> bool {
                         )
                     })
         })
+}
+
+/// The canonical path comes from the Runner, whose OS can differ from Gateway.
+/// Keep the final separator so POSIX and Windows drive roots remain absolute.
+pub fn document_directory(path: &str) -> Option<&str> {
+    path.rfind(['/', '\\']).map(|end| &path[..=end])
 }
 
 pub fn local_link(href: &str) -> bool {
@@ -247,6 +259,33 @@ mod tests {
         for path in ["/private", "/hidden", "/script", "report.md"] {
             assert!(!linked(text, path), "{path}");
         }
+    }
+    #[test]
+    fn images_require_real_authored_references() {
+        let text = "![Chart](./图%20表.png)\n\n<img src='/workspace/photo.webp'>\n\n`![no](/inline.png)`\n\n```md\n![no](/code.png)\n```\n\n<!-- <img src='/comment.png'> -->\n<script>\"<img src='/script.png'>\"</script>";
+        assert!(image_linked(text, "./图 表.png"));
+        assert!(image_linked(text, "/workspace/photo.webp"));
+        for href in [
+            "/inline.png",
+            "/code.png",
+            "/comment.png",
+            "/script.png",
+            "/forged.png",
+        ] {
+            assert!(!image_linked(text, href), "{href}");
+        }
+        assert!(!image_linked("[file](/report.md)", "/report.md"));
+        assert!(!linked("![picture](/image.png)", "/image.png"));
+        assert_eq!(
+            document_directory("/workspace/reports/report.md"),
+            Some("/workspace/reports/")
+        );
+        assert_eq!(document_directory("/report.md"), Some("/"));
+        assert_eq!(
+            document_directory(r"C:\reports\report.md"),
+            Some(r"C:\reports\")
+        );
+        assert_eq!(document_directory(r"C:\report.md"), Some(r"C:\"));
     }
     #[test]
     fn uri_and_route_boundaries() {

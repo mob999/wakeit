@@ -52,7 +52,16 @@ export function reportIndex(root: ParentNode) {
         ) ?? ''
       if (!href || seen.has(href) || (!local && !/^https?:\/\//i.test(href))) return
       seen.add(href)
-      links.push({ href, local, image, label: linkName(href, node.textContent ?? ''), index })
+      links.push({
+        href,
+        local,
+        image,
+        label: linkName(
+          href,
+          node.getAttribute('data-result-image-label') ?? node.textContent ?? '',
+        ),
+        index,
+      })
     })
   return { headings, links }
 }

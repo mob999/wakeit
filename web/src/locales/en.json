@@ -662,5 +662,10 @@
   "moments.outputs_one": "{{count}} output",
   "moments.outputs_other": "{{count}} outputs",
   "moments.retried_one": "{{count}} node retried",
-  "moments.retried_other": "{{count}} nodes retried"
+  "moments.retried_other": "{{count}} nodes retried",
+  "filePreview.unsupportedImage": "The referenced file could not be displayed as an image.",
+  "filePreview.enlargeImage": "Enlarge image: {{name}}",
+  "image is not present in the complete Markdown document": "image is not present in the complete Markdown document",
+  "Markdown document directory is unavailable": "Markdown document directory is unavailable",
+  "referenced file is not a supported image": "referenced file is not a supported image"
 }

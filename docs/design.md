@@ -103,7 +103,7 @@ Settings 新增归档任务分类，Admin、Operator 可见；保持原默认分
 
 报告预览最高138px、按内容自然收缩，阅读全文展开原文。宽屏卡片内部使用正文和260px相关信息列；相关信息只展示真实章节目录、报告中的明确文件/外链及DAG输出。没有这些内容时自动单列，不为填空重复执行配置。主区域不足900px时相关信息移至正文下方，390px保留时间轴，无页面横向滚动。
 
-目录与链接从清理后的已渲染正文提取，代码样例和被拒绝的URL不进入索引。目录点击展开并定位原章节；文件入口复用所属Run/节点的原始链接和预览权限；图片引用沿用当前授权边界，只提供复制路径，不扫描目录，不自动读取文件，不把链接描述为已生成产物。节选或截断报告的目录/链接标明节选。右列分区使用白底与细分隔，不套嵌额外卡片。“引用 / References”列表省去右侧打开箭头，依据正文实际高度、其他分区和引用行高计算可见行数，预留展开入口；正文展开、缩放及窄屏列数变化后重新计算。
+目录与链接从清理后的已渲染正文提取，代码样例和被拒绝的URL不进入索引。目录点击展开并定位原章节；文件入口复用所属Run/节点的原始链接和预览权限；本地图片按现有权限及allowed_roots按需内嵌，引用列表仍可复制路径；不扫描目录，不把引用描述为已生成产物。节选或截断报告的目录/链接标明节选。右列分区使用白底与细分隔，不套嵌额外卡片。“引用 / References”列表省去右侧打开箭头，依据正文实际高度、其他分区和引用行高计算可见行数，预留展开入口；正文展开、缩放及窄屏列数变化后重新计算。
 
 DAG保持一轮一条动态，卡内输出选择同步报告、目录、链接、复制与实际节点Session。预览预算耗尽时提示加载完整结果，不能误报空结果。节点追加尝试只呈现已记录事实，不推测恢复原因。普通报告和DAG均保留失败、空结果、截断提示。
 
@@ -165,7 +165,7 @@ Show device and complete native command inside the terminal before connecting; d
 
 Admin and Read/write members can click explicit local links in a saved Run/DAG report or Moments to preview a current Runner file. Viewer can copy paths; demo workspaces never query real files. No separate preview_roots is configured: the exact saved link and current Runner allowed_roots bound access. Relative targets use the execution snapshot's task directory, which may differ from an adapter's overridden process directory; adapters should return absolute links in that case. Current files are not archived historical artifacts.
 
-`POST /runs/{execution-id}/files/preview` accepts `{href}`. DAG uses the actual child execution ID. Gateway parses the persisted Markdown/HTML anchors and reauthorizes before delivery; arbitrary, code-block and nested preview links do not grant access. Runner uses the existing version-1 query channel with `read_result_file`, no shell/listener or database fields. At most 512 KiB raw content (further limited by NATS) is returned once: UTF-8 text/code, Markdown/JSON or complete PNG/JPEG/WebP. HTML/SVG stay escaped source; PDF, downloads, directories and special files are unsupported. Local image references do not automatically load. Preview body is memory-only and no-store; closing cancels delivery. Existing Runner identities and allowed_roots remain unchanged.
+`POST /runs/{execution-id}/files/preview` accepts `{href, document?}`. DAG uses the actual child execution ID. Gateway verifies authored Markdown/HTML anchors or image sources in the persisted result. For images in a Markdown-file preview, `document` must be an original result link; Gateway rereads that complete Markdown file, verifies its image reference and resolves the image relative to the Runner-validated document directory. Ordinary nested file links, code examples and forged references do not grant access. Direct result-relative paths use the frozen execution cwd. Runner keeps the existing version-1 `read_result_file` query, identities and allowed_roots; no new roots, protocol fields or database schema are required. The existing 512 KiB raw limit (further bounded by NATS) applies to each read. UTF-8 text/code, Markdown/JSON and complete PNG/JPEG/WebP are supported; HTML/SVG remain escaped source. PDF, downloads, directories and special files are unsupported. Admin/Operator reports, Moments and Markdown-file previews load visible local images with at most four concurrent reads, memory-only scoped caching, retry and click-to-enlarge. Viewer/demo performs no local file IO. Closing cancels unneeded reads; permissions are rechecked before delivery. Responses are no-store and image bytes never become Gateway filesystem URLs or browser-persisted content.
 
 DAG 运行的节点上下文行使用 12px 名称、11px 状态和耗时，耗时保持弱化等宽字体；窄屏将名称与状态信息分为两行。节点菜单独立于触发器宽度，桌面宽 420px，窄屏保留 12px 页边距；名称与小字 ID 占同一身份列，状态和勾号各自对齐，仅纵向滚动。长名称单行省略并保留完整名称提示，支持按名称和完整 ID 搜索。
 
@@ -184,3 +184,5 @@ Trace 内部行最小 36px，正文 12px、状态和耗时 11px，采用细分�
 Tasks、Runs、Runners、Settings 共用独立的第二侧栏语义底色与细边界。工具头高 44px，名称和分类 12px，元信息、状态、时间及分页 11px，不随窗口改变字号。Tasks/Runs 三行对象最小 64px，Runners 两行 48px，Settings 分类 36px；名称可省略，状态和操作不压缩。默认、悬停、选中与键盘焦点分别可辨，选中边框不改变尺寸，当前项具有 aria-current。列表和详情独立滚动，工具头和分页固定，滚动条保留稳定空间。
 
 对象列表保持 350px 默认、270–560px 范围和原有宽度偏好；Settings 默认 240px、200–320px 范围并独立保存。拖拽、键盘调整和双击恢复沿用同一控件，窄屏继续通过列表/详情和面包屑切换。
+
+Trace 工具名称完整显示，不压缩为省略号；只有后面的命令、路径等摘要单行省略。极长工具名在窄屏允许换行，状态及耗时保持原列对齐。

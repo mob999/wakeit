@@ -157,6 +157,7 @@ function MomentContent({
   const outputs = actualOutputs ?? entry.outputs ?? []
   const chosen = outputs.find((o) => o.node_id === output) ?? outputs[0]
   const nodeId = chosen?.node_id
+  const execution = full.data?.nodes?.find((node) => node.id === nodeId)?.execution_id
   useEffect(() => {
     if (nodeId) visit.outputs.current.set(entry.id, nodeId)
   }, [entry.id, nodeId, visit.outputs])
@@ -351,7 +352,11 @@ function MomentContent({
                 <article className="markdown-result">
                   <MarkdownContent
                     text={text}
-                    source={{ runId: entry.id, ...(nodeId ? { nodeId } : {}) }}
+                    source={
+                      execution
+                        ? { runId: execution }
+                        : { runId: entry.id, ...(nodeId ? { nodeId } : {}) }
+                    }
                   />
                 </article>
               )

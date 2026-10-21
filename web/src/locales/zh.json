@@ -662,5 +662,10 @@
   "moments.outputs_one": "{{count}} 份输出",
   "moments.outputs_other": "{{count}} 份输出",
   "moments.retried_one": "{{count}} 个节点经过重试",
-  "moments.retried_other": "{{count}} 个节点经过重试"
+  "moments.retried_other": "{{count}} 个节点经过重试",
+  "filePreview.unsupportedImage": "引用的文件无法显示为图片。",
+  "filePreview.enlargeImage": "放大图片：{{name}}",
+  "image is not present in the complete Markdown document": "完整的 Markdown 文件中没有此图片引用",
+  "Markdown document directory is unavailable": "无法确定 Markdown 文件所在目录",
+  "referenced file is not a supported image": "引用的文件不是受支持的图片"
 }

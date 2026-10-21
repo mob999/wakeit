@@ -1176,6 +1176,15 @@
       "FilePreviewRequest": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
+          "document": {
+            "description": "An original result link to a Markdown file containing this image.",
+            "maxLength": 8192,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "href": {
             "maxLength": 8192,
             "minLength": 1,

@@ -93,6 +93,19 @@ export async function momentsFixture(
       return route.fulfill({
         json: { items: runs.slice(0, 20), total: runs.length, page: 1, page_size: 20 },
       })
+    if (path.endsWith('/files/preview') && route.request().postDataJSON().href.endsWith('.png'))
+      return route.fulfill({
+        json: {
+          path: '/workspace/render.png',
+          name: 'render.png',
+          format: 'image',
+          mime: 'image/png',
+          size: 68,
+          truncated: false,
+          content:
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6XzQAAAAASUVORK5CYII=',
+        },
+      })
     if (path.endsWith('/files/preview'))
       return route.fulfill({
         json: {
@@ -341,7 +354,7 @@ test('empty state, request retry, JSON and truncated reports remain distinct', a
   await page.getByRole('button', { name: '刷新动态', exact: true }).click()
   await expect(page.locator('.moment-report code')).toContainText('\"ok\": true')
 })
-test('image references are indexed as copy-only, and open previews pin their source card', async ({
+test('inline images preserve copyable references, and open previews pin their source card', async ({
   page,
   context,
 }) => {
@@ -351,6 +364,7 @@ test('image references are indexed as copy-only, and open previews pin their sou
     '# Images\n\n![Rendered picture](/workspace/render.png)\n\n[Report](/workspace/report.md)'
   await page.goto(workspacePage('/'))
   const card = page.locator(`[data-moment-id="${id(1)}"]`)
+  await expect(card.getByRole('img', { name: 'Rendered picture', exact: true })).toBeVisible()
   await card
     .locator('.moment-link-list')
     .getByRole('button', { name: 'Rendered picture', exact: true })
@@ -358,7 +372,7 @@ test('image references are indexed as copy-only, and open previews pin their sou
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe('/workspace/render.png')
-  expect(calls.filter((p) => p.endsWith('/files/preview'))).toHaveLength(0)
+  expect(calls.filter((p) => p.endsWith('/files/preview'))).toHaveLength(1)
   await card
     .locator('.moment-link-list')
     .getByRole('button', { name: 'Report', exact: true })

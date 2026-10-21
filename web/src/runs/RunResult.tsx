@@ -6,6 +6,7 @@ import { CopyValue } from './CopyValue'
 import type { FileSource } from '../files/links'
 import { Status } from '../Status'
 import { CodeContent, isJsonCode } from './CodeContent'
+import type { DagRunNode } from '../api'
 export function resultData(result: unknown) {
   const truncated =
     result !== null &&
@@ -55,11 +56,13 @@ export function RunResult({
   raw,
   toast,
   source,
+  executions,
 }: {
   result: unknown
   raw: boolean
   toast?: (s: string) => void
   source?: FileSource
+  executions?: DagRunNode[]
 }) {
   useTranslation()
   const { truncated, text, source: rawSource, empty } = resultData(result)
@@ -90,7 +93,14 @@ export function RunResult({
               <RunResult
                 result={output.result}
                 raw={false}
-                source={source && { runId: source.runId, nodeId: output.node_id }}
+                source={
+                  source &&
+                  (executions?.find((node) => node.id === output.node_id)?.execution_id
+                    ? {
+                        runId: executions.find((node) => node.id === output.node_id)!.execution_id!,
+                      }
+                    : { runId: source.runId, nodeId: output.node_id })
+                }
               />
             )}
           </section>

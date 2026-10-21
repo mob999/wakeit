@@ -8,6 +8,7 @@ type Options = {
   result?: string
   preview?: { format: string; content: string; mime?: string }
   pending?: Promise<void>
+  images?: boolean
 }
 async function fixture(page: Page, role = 'admin', options: Options = {}) {
   const reads: any[] = []
@@ -35,7 +36,7 @@ async function fixture(page: Page, role = 'admin', options: Options = {}) {
     finished_at: '2026-10-20T01:00:01Z',
     result:
       options.result ??
-      `[Report](${href})\n\n<a href="file:///workspace/html.md">HTML report</a>\n\n[Windows](C:/data/report.md)\n\n![Local image](/workspace/picture.png)`,
+      `[Report](${href})\n\n<a href="file:///workspace/html.md">HTML report</a>\n\n[Windows](C:/data/report.md)`,
     execution_snapshot: { trace_supported: false, cwd: '/workspace' },
   }
   const execution = { ...run, id: child, parent_run_id: id, node_id: 'report' }
@@ -105,6 +106,21 @@ async function fixture(page: Page, role = 'admin', options: Options = {}) {
     if (path.endsWith('/files/preview')) {
       reads.push(route.request().postDataJSON())
       await options.pending
+      const requested = route.request().postDataJSON().href
+      if (options.images && /\.png$/.test(requested))
+        return route.fulfill({
+          json: {
+            path: requested,
+            name: requested.split('/').at(-1),
+            runner_id: 'device',
+            format: 'image',
+            mime: 'image/png',
+            size: 68,
+            truncated: false,
+            content:
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6XzQAAAAASUVORK5CYII=',
+          },
+        })
       return route.fulfill({
         json: {
           path: href,
@@ -131,7 +147,7 @@ async function fixture(page: Page, role = 'admin', options: Options = {}) {
 }
 
 for (const surface of ['report', 'markdown file'] as const) {
-  test(`${surface} renders remote Markdown images but does not request local or relative images`, async ({
+  test(`${surface} renders remote, absolute and relative Markdown images through their correct source`, async ({
     page,
   }) => {
     const imageUrl = 'https://images.example.test/fixture.png'
@@ -153,7 +169,9 @@ for (const surface of ['report', 'markdown file'] as const) {
     const reads = await fixture(
       page,
       'admin',
-      surface === 'report' ? { result: content } : { preview: { format: 'markdown', content } },
+      surface === 'report'
+        ? { result: content, images: true }
+        : { preview: { format: 'markdown', content }, images: true },
     )
     if (surface === 'markdown file')
       await page
@@ -170,11 +188,33 @@ for (const surface of ['report', 'markdown file'] as const) {
       ['Absolute image', '/workspace/absolute.png'],
       ['Relative image', './relative.png'],
     ]) {
-      await expect(root.locator(`[data-result-image-href="${path}"]`)).toHaveText(name)
-      await expect(root.getByRole('img', { name, exact: true })).toHaveCount(0)
+      const local = root.getByRole('img', { name, exact: true })
+      await expect(local).toBeVisible()
+      await expect
+        .poll(() => local.evaluate((element: HTMLImageElement) => element.naturalWidth))
+        .toBe(1)
     }
     expect(localRequests).toEqual([])
-    expect(reads).toEqual(surface === 'report' ? [] : [{ href: '/workspace/report.md' }])
+    expect(reads).toEqual(
+      expect.arrayContaining([
+        {
+          href: '/workspace/absolute.png',
+          ...(surface === 'markdown file' ? { document: '/workspace/report.md' } : {}),
+        },
+        {
+          href: './relative.png',
+          ...(surface === 'markdown file' ? { document: '/workspace/report.md' } : {}),
+        },
+      ]),
+    )
+    expect(reads).toHaveLength(surface === 'report' ? 2 : 3)
+    const before = reads.length
+    await root.getByRole('button', { name: '放大图片：Absolute image', exact: true }).click()
+    const enlarged = page.getByRole('dialog', { name: 'Absolute image', exact: true })
+    await expect(enlarged.getByRole('img', { name: 'Absolute image', exact: true })).toBeVisible()
+    await enlarged.getByRole('button', { name: '关闭', exact: true }).click()
+    await expect(root.getByRole('img', { name: 'Relative image', exact: true })).toBeVisible()
+    expect(reads).toHaveLength(before)
   })
 }
 
@@ -403,4 +443,171 @@ test('workspace permission revocation still closes an open preview', async ({ pa
   })
   await expect.poll(() => checked, { timeout: 15000 }).toBe(true)
   await expect(dialog).toHaveCount(0)
+})
+
+test('duplicate image references share a read, code examples never read files, and Viewer performs no IO', async ({
+  page,
+}) => {
+  const content =
+    '![First](./图%20表.png)\n\n![Second](./图%20表.png)\n\n```md\n![Code](./secret.png)\n```'
+  const reads = await fixture(page, 'admin', { result: content, images: true })
+  await expect(page.getByRole('img', { name: 'First', exact: true })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Second', exact: true })).toBeVisible()
+  expect(reads).toEqual([{ href: './%E5%9B%BE%20%E8%A1%A8.png' }])
+  await page.reload()
+  await expect(page.getByRole('img', { name: 'Second', exact: true })).toBeVisible()
+  const count = reads.length
+  await page.waitForTimeout(2200)
+  expect(reads).toHaveLength(count)
+  await page.unroute('**/api/v1/**')
+  const readonlyReads = await fixture(page, 'viewer', { result: content, images: true })
+  await expect(page.locator('[data-result-image-href]').first()).toContainText('First')
+  await expect(page.getByRole('img', { name: 'First', exact: true })).toHaveCount(0)
+  expect(readonlyReads).toEqual([])
+})
+
+test('image errors use Toast and retry, while revoked access removes inline and enlarged content', async ({
+  page,
+}) => {
+  const reads = await fixture(page, 'admin', {
+    result: '![Retry image](./retry.png)',
+    images: true,
+  })
+  let fail = true
+  await page.route('**/files/preview', async (route) => {
+    if (fail)
+      return route.fulfill({ status: 400, json: { error: 'Synthetic image is unavailable' } })
+    await route.fallback()
+  })
+  await page.reload()
+  const holder = page.locator('[data-result-image-href="./retry.png"]')
+  await expect(page.getByRole('alert')).toContainText('Synthetic image is unavailable')
+  await expect(holder.getByRole('button', { name: '重试', exact: true })).toBeVisible()
+  fail = false
+  await holder.getByRole('button', { name: '重试', exact: true }).click()
+  await expect(holder.getByRole('img')).toBeVisible()
+  await holder.getByRole('button', { name: '放大图片：Retry image', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Retry image', exact: true })).toBeVisible()
+  await page.route(`**/api/v1/workspaces/${fixtureWorkspace}`, (route) =>
+    route.fulfill({
+      json: {
+        id: fixtureWorkspace,
+        name: 'Fixture',
+        role: 'viewer',
+        is_default: true,
+        is_demo: false,
+      },
+    }),
+  )
+  await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 15000 })
+  await expect(holder.getByRole('img')).toHaveCount(0)
+  expect(reads.length).toBeGreaterThan(0)
+})
+
+test('automatic image reads are bounded and closing a Markdown preview cancels queued work', async ({
+  page,
+}) => {
+  const content = Array.from({ length: 12 }, (_, n) => `![Image ${n}](./image-${n}.png)`).join(
+    '\n\n',
+  )
+  await fixture(page, 'admin', { preview: { format: 'markdown', content }, images: true })
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let active = 0,
+    peak = 0,
+    reads = 0
+  await page.route('**/files/preview', async (route) => {
+    if (!route.request().postDataJSON().document) return route.fallback()
+    reads++
+    active++
+    peak = Math.max(peak, active)
+    await pending
+    active--
+    await route.fallback().catch(() => {})
+  })
+  try {
+    await page
+      .locator('.run-result-panel')
+      .getByRole('button', { name: 'Report', exact: true })
+      .click()
+    const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
+    await expect.poll(() => reads).toBe(4)
+    await dialog.locator('.file-preview-content').evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    await page.waitForTimeout(150)
+    expect(peak).toBe(4)
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+    release()
+    await page.waitForTimeout(200)
+    expect(reads).toBe(4)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+  } finally {
+    release()
+  }
+})
+
+test('DAG inline images use actual child execution and remain mounted during polling', async ({
+  page,
+}) => {
+  const reads = await fixture(page, 'admin', {
+    surface: 'dag',
+    result: '![Node image](./node.png)',
+    images: true,
+  })
+  const endpoints: string[] = []
+  page.on('request', (request) => {
+    if (request.url().endsWith('/files/preview'))
+      endpoints.push(apiPath(new URL(request.url()).pathname))
+  })
+  await page.reload()
+  const image = page.getByRole('img', { name: 'Node image', exact: true })
+  await expect(image).toBeVisible()
+  const element = await image.elementHandle()
+  await page.waitForTimeout(2500)
+  expect(await element!.evaluate((node) => node.isConnected)).toBe(true)
+  expect(endpoints).toEqual([`/runs/${child}/files/preview`])
+  expect(reads.every((read) => read.href === './node.png')).toBe(true)
+})
+
+test('linked image keeps its authored link action without nesting buttons', async ({ page }) => {
+  await fixture(page, 'admin', {
+    result: '[![Thumbnail](./thumb.png)](/workspace/report.md)',
+    images: true,
+  })
+  const report = page.locator('.run-result-panel')
+  await expect(report.getByRole('img', { name: 'Thumbnail', exact: true })).toBeVisible()
+  await expect(report.locator('button button')).toHaveCount(0)
+  await report
+    .getByRole('button')
+    .filter({ has: page.getByRole('img', { name: 'Thumbnail', exact: true }) })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'report.md', exact: true })).toContainText(
+    'Preview',
+  )
+})
+
+test('Markdown image cache reuses an unchanged document and refreshes when the document changes', async ({
+  page,
+}) => {
+  const preview = { format: 'markdown', content: '# First document\n\n![Sketch](./sketch.png)' }
+  const reads = await fixture(page, 'admin', { preview, images: true })
+  const open = () =>
+    page.locator('.run-result-panel').getByRole('button', { name: 'Report', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
+  await open()
+  await expect(dialog.getByRole('img', { name: 'Sketch', exact: true })).toBeVisible()
+  expect(reads.filter((read) => read.document)).toHaveLength(1)
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  await open()
+  await expect(dialog.getByRole('img', { name: 'Sketch', exact: true })).toBeVisible()
+  expect(reads.filter((read) => read.document)).toHaveLength(1)
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  preview.content = '# Changed document\n\n![Sketch](./sketch.png)'
+  await open()
+  await expect(dialog.getByRole('img', { name: 'Sketch', exact: true })).toBeVisible()
+  expect(reads.filter((read) => read.document)).toHaveLength(2)
 })

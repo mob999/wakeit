@@ -291,7 +291,13 @@ export function DagRunDetail({
             actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
           >
             {hasResult ? (
-              <RunResult result={r.result} raw={raw} toast={toast} source={{ runId: id }} />
+              <RunResult
+                result={r.result}
+                raw={raw}
+                toast={toast}
+                source={{ runId: id }}
+                executions={r.nodes}
+              />
             ) : (
               <p className="quiet dag-node-empty">{t('未返回结果')}</p>
             )}
