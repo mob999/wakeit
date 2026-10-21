@@ -51,6 +51,8 @@ wakeit adapter detect gemini-cli
 
 辅助命令为每次执行启动一个仅监听 `127.0.0.1` 的 `kimi web --no-open` 子进程，通过[官方本地 Server API](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/server-api.html)订阅真实 `assistant.delta`、`tool.call.started`、`tool.result` 和 `turn.ended`。先确认订阅成功再提交一次指令，并处理原生心跳；绑定已有会话先通过空的会话级配置调用加载原生上下文，不覆盖已有配置。消息以完整快照更新，工具输出不混入最终报告；只有原生 `completed` 及正常进程退出才发布报告。子进程与 Runner 共用进程树，取消或失败时结束本次执行及其本地服务，不连接用户自行启动的 Kimi 服务，也不打开浏览器。
 
+大型工具参数、工具输出及消息只截断 Wakeit 保留的过程预览，不中止原生执行；工具状态和原生结束状态保持真实。最终报告超出保留容量时使用 `truncated: true` 标记，下游 DAG 不会将不完整报告当作完整输入。Trace 缓存和重复事件记录保持有界；超过明细保留容量后仍读取原生完成事件。
+
 新建会话使用原生 API 的 `title` 字段保存“任务名-wakeit-时间戳”；绑定已有会话保持原标题。标题与上下文由 Kimi 自己持久化，不直接改写其状态文件。服务地址来自与子进程 PID 匹配的本地登记，认证使用其私密 `server.token`，不会写入 Wakeit 事件、日志、命令行或 URL。API 密钥和 Agent 登录凭据不读取、不复制、不修改。
 
 会话发现仍只读 `KIMI_CODE_HOME`（默认 `.kimi-code`）中的原生索引及匹配工作目录的 `state.json`，精确校验完整 ID、真实目录和持久化状态。模型沿用本地默认值或任务显式参数；绑定时未覆盖模型则保留原生绑定，不增加静态模型目录。协议来源与真实验收范围见 [Kimi 验证记录](../crates/wakeit/tests/fixtures/kimi-code/README.md)。

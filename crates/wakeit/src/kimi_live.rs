@@ -9,6 +9,7 @@ use futures::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    io::Write,
     path::Path,
     process::Stdio,
     time::Duration,
@@ -20,6 +21,69 @@ use tokio::{
 use tokio_websockets::{ClientBuilder, Message};
 
 const TEXT_LIMIT: usize = 256 * 1024;
+const RETAINED_INPUT_LIMIT: usize = 8 * 1024 * 1024;
+
+// These are presentation budgets, not native Agent execution limits. Serialize
+// through a bounded writer so a large nested tool payload is not copied in full.
+fn bounded(value: &Value, limit: usize) -> Value {
+    struct Preview {
+        bytes: Vec<u8>,
+        limit: usize,
+    }
+    impl Write for Preview {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            let keep = bytes.len().min(self.limit.saturating_sub(self.bytes.len()));
+            self.bytes.extend_from_slice(&bytes[..keep]);
+            if keep != bytes.len() {
+                return Err(std::io::Error::other("preview complete"));
+            }
+            Ok(keep)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut preview = Preview {
+        bytes: Vec::new(),
+        limit,
+    };
+    if serde_json::to_writer(&mut preview, value).is_ok() {
+        return value.clone();
+    }
+    let text = if let Some(text) = value.as_str() {
+        text
+    } else {
+        std::str::from_utf8(&preview.bytes).unwrap_or_else(|error| {
+            std::str::from_utf8(&preview.bytes[..error.valid_up_to()]).unwrap()
+        })
+    };
+    let mut end = text.len().min(limit / 4);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    json!({"truncated":true,"preview":&text[..end]})
+}
+
+fn append_message(before: &Value, delta: &str, limit: usize) -> Value {
+    if before["truncated"] == true {
+        return before.clone();
+    }
+    let before = before.as_str().unwrap_or_default();
+    let mut end = delta.len().min(limit.saturating_sub(before.len()));
+    while !delta.is_char_boundary(end) {
+        end -= 1;
+    }
+    let text = format!("{before}{}", &delta[..end]);
+    if end < delta.len() {
+        let mut end = text.len().min(limit / 4);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        json!({"truncated":true,"preview":&text[..end]})
+    } else {
+        bounded(&json!(text), limit)
+    }
+}
 
 struct Server {
     child: Child,
@@ -252,7 +316,9 @@ pub async fn run(
                 message = ws.next(), if !normalizer.ended => {
                     let message = message.context("Kimi event stream closed during execution")??;
                     let Some(text) = message.as_text() else { continue };
-                    ensure!(text.len() <= RECORD_LIMIT, "Kimi event exceeded limit");
+                    // The local native WebSocket has its own bounded frame
+                    // budget. Wakeit's smaller record limit applies only after
+                    // normalizing public content, never to native execution.
                     let event: Value = serde_json::from_str(text).context("invalid Kimi event JSON")?;
                     if event["type"] == "ping" {
                         ws.send(Message::text(json!({"type":"pong","payload":event["payload"]}).to_string())).await?;
@@ -290,8 +356,11 @@ pub struct LiveNormalizer {
     next_message: u64,
     retained_input: usize,
     turn: Option<u64>,
-    final_text: Option<String>,
+    final_text: Option<Value>,
     seen: BTreeSet<(u64, String)>,
+    seen_floor: u64,
+    trace_saturated: bool,
+    diagnosed_truncation: bool,
     pub ended: bool,
     pub failed: bool,
 }
@@ -305,9 +374,17 @@ impl LiveNormalizer {
         if event["volatile"] != true
             && let Some(seq) = event["seq"].as_u64().filter(|v| *v > 0)
         {
-            ensure!(self.seen.len() < 100_000, "Kimi event count exceeded limit");
+            if seq <= self.seen_floor {
+                return Ok(vec![]);
+            }
             if !self.seen.insert((seq, kind.into())) {
                 return Ok(vec![]);
+            }
+            if self.seen.len() > 100_000 {
+                // Keep recent out-of-order delivery and discard older replay,
+                // instead of turning dedup bookkeeping into an Agent failure.
+                let (floor, _) = self.seen.pop_first().unwrap();
+                self.seen_floor = floor;
             }
         }
         let source_time = event["timestamp"]
@@ -327,10 +404,7 @@ impl LiveNormalizer {
             "assistant.delta" => {
                 let delta = p["delta"].as_str().context("Kimi message delta missing")?;
                 if self.message.is_none() {
-                    ensure!(
-                        self.nodes.len() < 10_000,
-                        "Kimi trace node count exceeded limit"
-                    );
+                    self.reclaim_finished();
                     self.next_message += 1;
                     self.message = Some(format!(
                         "kimi-message:{}:{}",
@@ -350,40 +424,36 @@ impl LiveNormalizer {
                     started_at: source_time,
                     finished_at: None,
                 });
-                let text = node.output.as_str().unwrap_or_default();
-                ensure!(
-                    text.len() + delta.len() <= TEXT_LIMIT,
-                    "Kimi message exceeded limit"
-                );
-                node.output = json!(format!("{text}{delta}"));
+                node.output = append_message(&node.output, delta, TEXT_LIMIT);
                 node.occurred_at = at;
-                self.final_text = node.output.as_str().map(Into::into);
+                // Trace and report retention are separate: a display preview
+                // must not truncate a report that still fits the transport.
+                self.final_text = Some(append_message(
+                    self.final_text.as_ref().unwrap_or(&Value::Null),
+                    delta,
+                    RECORD_LIMIT - 4096,
+                ));
                 output.push(StreamRecord::new(RecordData::Trace(node.clone())));
             }
             "tool.call.started" => {
-                self.finish_message(TraceState::Succeeded, source_time, &mut output);
-                self.final_text = None;
                 let id = tool_id(p)?;
-                if self
-                    .nodes
-                    .get(&id)
-                    .is_some_and(|n| n.status != TraceState::Running)
-                {
-                    return Ok(output);
-                }
-                let name = p["name"].as_str().context("Kimi tool name missing")?;
-                ensure!(
-                    self.nodes.len() < 10_000 && serde_json::to_vec(&p["args"])?.len() < TEXT_LIMIT,
-                    "Kimi tool input exceeded limit"
-                );
                 if self.nodes.contains_key(&id) {
                     return Ok(output);
                 }
-                let retained = serde_json::to_vec(&p["args"])?.len();
-                ensure!(
-                    self.retained_input + retained <= 8 * 1024 * 1024,
-                    "Kimi active tool input exceeded limit"
+                let name = p["name"].as_str().context("Kimi tool name missing")?;
+                self.finish_message(TraceState::Succeeded, source_time, &mut output);
+                self.final_text = None;
+                self.reclaim_finished();
+                if self.nodes.len() >= 10_000 {
+                    self.trace_saturated = true;
+                    self.truncation_notice(&mut output);
+                    return Ok(output);
+                }
+                let input = bounded(
+                    &p["args"],
+                    TEXT_LIMIT.min(RETAINED_INPUT_LIMIT.saturating_sub(self.retained_input)),
                 );
+                let retained = serde_json::to_vec(&input)?.len();
                 self.retained_input += retained;
                 let node = TraceNode {
                     id: id.clone(),
@@ -395,7 +465,7 @@ impl LiveNormalizer {
                     },
                     status: TraceState::Running,
                     title: name.chars().take(512).collect(),
-                    input: p["args"].clone(),
+                    input,
                     output: Value::Null,
                     occurred_at: at,
                     started_at: source_time,
@@ -406,18 +476,16 @@ impl LiveNormalizer {
             }
             "tool.result" => {
                 let id = tool_id(p)?;
-                let node = self
-                    .nodes
-                    .get_mut(&id)
-                    .context("Kimi tool result without start")?;
+                let Some(node) = self.nodes.get_mut(&id) else {
+                    if self.trace_saturated {
+                        return Ok(output);
+                    }
+                    bail!("Kimi tool result without start");
+                };
                 if node.status != TraceState::Running {
                     return Ok(output);
                 }
-                ensure!(
-                    serde_json::to_vec(&p["output"])?.len() < TEXT_LIMIT,
-                    "Kimi tool output exceeded limit"
-                );
-                node.output = p["output"].clone();
+                node.output = bounded(&p["output"], TEXT_LIMIT);
                 node.status = if p["isError"] == true {
                     TraceState::Failed
                 } else {
@@ -471,7 +539,30 @@ impl LiveNormalizer {
             // are not user-visible Agent messages or fabricated tool steps.
             _ => {}
         }
+        if output.iter().any(|record| matches!(&record.record, RecordData::Trace(node) if node.input["truncated"] == true || node.output["truncated"] == true)) {
+            self.truncation_notice(&mut output);
+        }
         Ok(output)
+    }
+    fn reclaim_finished(&mut self) {
+        if self.nodes.len() >= 10_000 {
+            // Published completed nodes need no retained payload. At extreme
+            // concurrency, omit new detail but continue tracked completions and
+            // the native turn; final reports are retained separately.
+            self.nodes
+                .retain(|_, node| node.status == TraceState::Running);
+            self.trace_saturated = true;
+        }
+    }
+    fn truncation_notice(&mut self, output: &mut Vec<StreamRecord>) {
+        if !self.diagnosed_truncation {
+            self.diagnosed_truncation = true;
+            output.push(StreamRecord::new(RecordData::Log(LogRecord {
+                text: "Kimi trace content was truncated; native execution continues.\n".into(),
+                stream: "stderr".into(),
+                diagnostic: true,
+            })));
+        }
     }
     fn finish_message(
         &mut self,
@@ -497,8 +588,8 @@ impl LiveNormalizer {
         }
         self.final_text
             .as_ref()
-            .filter(|v| !v.trim().is_empty())
-            .map(|v| vec![StreamRecord::new(RecordData::Result(json!(v)))])
+            .filter(|v| v.as_str().is_none_or(|text| !text.trim().is_empty()))
+            .map(|v| vec![StreamRecord::new(RecordData::Result(v.clone()))])
             .unwrap_or_default()
     }
 }
