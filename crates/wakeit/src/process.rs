@@ -1,5 +1,5 @@
 use crate::{
-    config::{CommandArg, CommandSpec, TaskConfig, duration},
+    config::{CommandArg, CommandSpec, OutputFormat, OutputSpec, TaskConfig, duration},
     journal::Journal,
 };
 use anyhow::{Context, Result, ensure};
@@ -17,6 +17,42 @@ pub struct Output {
     pub result: Option<serde_json::Value>,
     pub stopped: Option<&'static str>,
     pub confirmed: bool,
+    pub stdout_truncated: bool,
+    output_error: Option<String>,
+}
+impl Output {
+    /// Decode only a complete result. A display-sized prefix is never treated as
+    /// valid JSON, nor exposed to downstream DAG nodes as complete text.
+    pub fn result_value(&self, spec: &OutputSpec) -> Result<serde_json::Value> {
+        if let Some(error) = &self.output_error {
+            anyhow::bail!("{error}");
+        }
+        if self.stdout_truncated && !matches!(spec.format, OutputFormat::Events) {
+            return Ok(crate::output_capture::preview(&self.stdout));
+        }
+        let mut value = match spec.format {
+            OutputFormat::Text => serde_json::json!(self.stdout),
+            OutputFormat::Json => serde_json::from_str(&self.stdout)?,
+            OutputFormat::Jsonl => serde_json::Value::Array(
+                self.stdout
+                    .lines()
+                    .map(serde_json::from_str)
+                    .collect::<std::result::Result<_, _>>()?,
+            ),
+            OutputFormat::Events => self.result.clone().unwrap_or(serde_json::Value::Null),
+        };
+        // Bounded event results already carry an explicit incomplete marker.
+        // Never report a missing pointer just because only a preview was retained.
+        if value.get("truncated") != Some(&serde_json::Value::Bool(true))
+            && let Some(pointer) = &spec.result_pointer
+        {
+            value = value
+                .pointer(pointer)
+                .cloned()
+                .context("output result_pointer not found")?;
+        }
+        Ok(value)
+    }
 }
 #[derive(Debug)]
 pub struct CommandStartedError(pub anyhow::Error);
@@ -94,6 +130,36 @@ pub async fn execute_output_named(
     cancel: CancellationToken,
     sink: Option<LogSink>,
     events: bool,
+    title: Option<&str>,
+) -> Result<Output> {
+    execute_output_named_format(
+        spec,
+        task,
+        id,
+        job,
+        timeout,
+        cancel,
+        sink,
+        if events {
+            OutputFormat::Events
+        } else {
+            OutputFormat::Text
+        },
+        title,
+    )
+    .await
+}
+/// Runner execution knows the configured result format, unlike read-only probes.
+#[allow(clippy::too_many_arguments)]
+pub async fn execute_output_named_format(
+    spec: &CommandSpec,
+    task: &TaskConfig,
+    id: Uuid,
+    job: Option<&str>,
+    timeout: Duration,
+    cancel: CancellationToken,
+    sink: Option<LogSink>,
+    format: OutputFormat,
     title: Option<&str>,
 ) -> Result<Output> {
     let render = |value: &str, task: &TaskConfig, id: Uuid, job: Option<&str>| {
@@ -174,8 +240,8 @@ pub async fn execute_output_named(
     let stderr = child.stderr.take().context("stderr")?;
     let out_sink = sink.clone().filter(|s| s.stdout);
     let err_sink = sink;
-    let mut stdout = tokio::spawn(read_output(stdout, out_sink, "stdout", events));
-    let mut stderr = tokio::spawn(read_output(stderr, err_sink, "stderr", false));
+    let mut stdout = tokio::spawn(read_output(stdout, out_sink, "stdout", format));
+    let mut stderr = tokio::spawn(read_output(stderr, err_sink, "stderr", OutputFormat::Text));
     let input = spec
         .stdin
         .as_ref()
@@ -228,6 +294,8 @@ pub async fn execute_output_named(
         result: out.result,
         stopped,
         confirmed,
+        stdout_truncated: out.truncated,
+        output_error: out.output_error,
     })
     }.await;
     result.map_err(|error| CommandStartedError(error).into())
@@ -236,6 +304,8 @@ pub async fn execute_output_named(
 struct ReadOutput {
     bytes: Vec<u8>,
     result: Option<serde_json::Value>,
+    truncated: bool,
+    output_error: Option<String>,
 }
 async fn stream_record(
     record: anyhow::Result<crate::trace::StreamRecord>,
@@ -322,8 +392,11 @@ async fn read_output(
     mut reader: impl AsyncRead + Unpin,
     sink: Option<LogSink>,
     stream: &str,
-    events: bool,
+    format: OutputFormat,
 ) -> Result<ReadOutput> {
+    let events = matches!(format, OutputFormat::Events);
+    let mut validation = crate::output_capture::Validation::new(&format);
+    let mut truncated = false;
     let mut all = Vec::new();
     let mut buffer = [0u8; 8192];
     let mut carry = Vec::new();
@@ -341,9 +414,12 @@ async fn read_output(
             }
             continue;
         }
-        if all.len() < 1024 * 1024 {
-            all.extend_from_slice(&buffer[..n.min(1024 * 1024 - all.len())]);
+        if let Some(validation) = &mut validation {
+            validation.push(&buffer[..n]).await;
         }
+        let retained = n.min(crate::output_capture::RETAIN_BYTES - all.len());
+        all.extend_from_slice(&buffer[..retained]);
+        truncated |= retained < n;
         if let Some(s) = &sink {
             carry.extend_from_slice(&buffer[..n]);
             let ready = match std::str::from_utf8(&carry) {
@@ -371,7 +447,16 @@ async fn read_output(
             stream_record(record, &sink, &mut result, &mut diagnosed).await?;
         }
     }
-    Ok(ReadOutput { bytes: all, result })
+    let output_error = match validation {
+        Some(validation) => validation.finish().await,
+        None => None,
+    };
+    Ok(ReadOutput {
+        bytes: all,
+        result,
+        truncated,
+        output_error,
+    })
 }
 pub fn validate_cwd(cwd: &str, roots: &[std::path::PathBuf]) -> Result<()> {
     let cwd = Path::new(cwd)

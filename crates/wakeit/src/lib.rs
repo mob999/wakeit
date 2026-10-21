@@ -21,6 +21,7 @@ pub mod moments;
 pub mod native_sessions;
 pub mod nats_auth;
 pub mod openapi;
+mod output_capture;
 pub mod process;
 pub mod protocol;
 pub mod query;
