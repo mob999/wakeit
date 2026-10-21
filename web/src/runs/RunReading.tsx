@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import { ArrowDownToLine, ChevronsUp } from 'lucide-react'
+import { ArrowDown, ChevronsUp } from 'lucide-react'
 import { workspaceId } from '../api'
 import { t } from '../i18n'
 import { IconButton } from '../ui'
@@ -82,7 +82,7 @@ export function TraceActions({ id }: { id: string }) {
           }))
         }
       >
-        <ArrowDownToLine />
+        <ArrowDown />
       </IconButton>
     </>
   )
