@@ -6,6 +6,7 @@
 .run-page .run-trace .trace-operation > summary {
   display: grid;
   grid-template-columns: 14px 14px minmax(0, 1fr) 72px 48px;
+  align-items: center;
   gap: 8px;
   min-height: 35px;
   padding: 6px 12px;

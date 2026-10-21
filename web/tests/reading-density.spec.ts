@@ -137,6 +137,31 @@ test('compact history, empty messages, independent payload folds and full copy',
   await expect(trace.locator('.trace-row')).toHaveCount(101)
   await expect(trace.locator('details[open]')).toHaveCount(1)
   await expect(trace.locator('[data-trace-id="message-0"] .trace-message')).toHaveCount(0)
+  async function expectAlignedIcons() {
+    const headings = await trace
+      .locator('.trace-operation > summary, .trace-heading')
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const label = element.querySelector('.trace-label')!.getBoundingClientRect()
+          return [...element.querySelectorAll(':scope > svg')].map((icon) => {
+            const rect = icon.getBoundingClientRect()
+            return {
+              x: rect.x,
+              offset: Math.abs(rect.y + rect.height / 2 - label.y - label.height / 2),
+            }
+          })
+        }),
+      )
+    expect(headings).toHaveLength(101)
+    for (const icons of headings) {
+      for (const icon of icons) expect(icon.offset).toBeLessThan(0.5)
+      expect(icons[1].x).toBeCloseTo(headings[0][1].x, 1)
+    }
+  }
+  await expectAlignedIcons()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expectAlignedIcons()
+  await page.setViewportSize({ width: 1440, height: 900 })
   expect(
     await trace
       .locator('[data-trace-id="message-1"]')
@@ -146,6 +171,7 @@ test('compact history, empty messages, independent payload folds and full copy',
   await expect(trace.locator('details[open]')).toHaveCount(0)
   const tool = trace.locator('[data-trace-id="tool"]')
   await tool.locator('summary').click()
+  await expectAlignedIcons()
   await expect(tool.locator('.trace-payload-section')).toHaveCount(2)
   const output = tool.locator('.trace-payload-section').last()
   await expect(output.locator('pre')).toContainText('output line 12')
