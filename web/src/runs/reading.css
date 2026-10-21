@@ -404,13 +404,6 @@
     display: none;
   }
 }
-.dag-run-page .dag-outcome {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px 12px;
-  align-items: center;
-}
 .dag-node-state-placeholder {
   grid-column: 2;
   grid-row: 1;

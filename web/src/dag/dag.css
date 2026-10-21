@@ -663,15 +663,6 @@
   font-size: 12px;
   font-weight: 550;
 }
-.dag-outcome {
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--border);
-  overflow-wrap: anywhere;
-}
 .dag-selected-caption {
   display: flex;
   align-items: center;

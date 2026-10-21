@@ -477,6 +477,76 @@ test('retry acceleration targets the reserved execution and historical attempts 
   await expect(page.getByRole('dialog')).toContainText('pi --resume old-session')
 })
 
+test('issue navigation restores the current attempt without resetting reading or structure state', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.EventSource = class extends EventTarget {
+      close() {}
+    } as unknown as typeof EventSource
+  })
+  const f = fixture(),
+    old = '00000000-0000-4000-8000-000000000003'
+  f.run.state = 'failed'
+  f.run.reason = null
+  f.run.nodes[0].state = 'failed'
+  f.execution.state = 'failed'
+  f.execution.reason = 'Current attempt failure'
+  const writes = await mock(page, f, 'viewer')
+  await page.route('**/nodes/collect?**', (route) => {
+    const execution = new URL(route.request().url()).searchParams.get('execution')
+    return route.fulfill({
+      json: {
+        node: f.run.nodes[0],
+        attempts: [
+          { id: old, state: 'failed' },
+          { id: child, state: 'failed' },
+        ],
+        execution:
+          execution === old
+            ? { ...f.execution, id: old, reason: 'Old attempt failure', result: '# Old attempt' }
+            : f.execution,
+      },
+    })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('button', { name: '收起结构', exact: true }).click()
+  await page.getByText('Read sources', { exact: true }).click()
+  await expect(page.getByText('Primary sources', { exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  const details = page.locator('.dag-node-details:visible')
+  await details.getByRole('combobox', { name: '执行尝试', exact: true }).click()
+  await page.getByRole('option').filter({ hasText: '第 1 次' }).click()
+  await expect(details.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: Old attempt failure',
+  )
+  await page.getByRole('button', { name: '异常节点 1', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Collect sources 失败 collect', exact: true }).click()
+  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  const process = page.locator('.dag-node-process:visible')
+  await expect(process.locator('.run-trace')).toHaveAttribute('data-execution', child)
+  await expect(process.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: Current attempt failure',
+  )
+  await expect(process.getByText('Primary sources', { exact: true })).toBeVisible()
+  await expect(page.locator('.dag-run-structure')).toBeHidden()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(details.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: Current attempt failure',
+  )
+  await expect(details.getByRole('combobox', { name: '执行尝试', exact: true })).toContainText(
+    '第 2 次',
+  )
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0)
+  expect(writes).toEqual([])
+})
+
 for (const [width, language, theme] of [
   [1440, 'en', 'light'],
   [1440, 'zh', 'dark'],

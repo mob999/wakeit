@@ -522,7 +522,6 @@
   "dag.task": "DAG task",
   "dag.resultMissing": "No result returned",
   "dag.warning": "Warning",
-  "dag.problems": "View problem nodes",
   "dag.selectedNode": "Selected node",
   "dag.waiting": "Waiting for predecessors",
   "dag.report": "Run results",
@@ -534,7 +533,6 @@
   "dag.nodeCount": "{{count}} nodes",
   "dag.latest": "Run latest",
   "dag.waitingDependencies": "Waiting for predecessors",
-  "dag.problemNodes": "View problem nodes",
   "dag.selectNode": "Select a node",
   "dag.searchNodes": "Search nodes",
   "dag.noExecution": "This node has not started",
@@ -647,5 +645,8 @@
   "reading.resultReady": "Result ready",
   "reading.hideStructure": "Hide structure",
   "reading.showStructure": "Show structure",
-  "reading.graphReason": "Graph reason"
+  "dag.nodeIssues": "Node issues · {{count}}",
+  "dag.noNodeIssues": "No node issues",
+  "reading.runStatus": "Run status",
+  "reading.runStatusReason": "Run status: {{state}}. Reason: {{reason}}"
 }

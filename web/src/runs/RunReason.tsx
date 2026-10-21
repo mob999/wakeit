@@ -7,11 +7,13 @@ export function RunReason({
   state,
   label: suppliedLabel,
   children,
+  accessibleLabel,
 }: {
   reason?: string | null
   state: string
   label?: string
   children?: ReactNode
+  accessibleLabel?: string
 }) {
   if (!reason) return children ?? null
   const label =
@@ -24,7 +26,11 @@ export function RunReason({
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <button type="button" className="run-reason" aria-label={`${label}: ${reason}`}>
+        <button
+          type="button"
+          className="run-reason"
+          aria-label={accessibleLabel ?? `${label}: ${reason}`}
+        >
           {children ?? label}
         </button>
       </Tooltip.Trigger>

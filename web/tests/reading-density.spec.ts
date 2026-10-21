@@ -366,14 +366,19 @@ test('paged history and duplicated/late terminal snapshots retain order and real
 test('failure reasons remain persistent context while successful tools retain their actual status', async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    window.EventSource = class extends EventTarget {
+      close() {}
+    } as unknown as typeof EventSource
+  })
   const f = await fixture(page, 1, 4)
   f.run.nodes[0].state = 'failed'
   f.run.nodes[0].reason = 'Synthetic child failure'
   f.run.reason = 'Synthetic graph failure'
   f.run.state = 'failed'
-  await expect(page.locator('.dag-outcome .run-reason')).toHaveAttribute(
+  await expect(page.locator('.dag-run-meta .run-reason')).toHaveAttribute(
     'aria-label',
-    '整图原因: Synthetic graph failure',
+    '运行状态：失败。原因：Synthetic graph failure',
   )
   await expect(page.locator('.dag-node-process:not([hidden]) .trace-state.succeeded')).toHaveCount(
     5,
@@ -403,7 +408,150 @@ test('failure reasons remain persistent context while successful tools retain th
   await childReason.focus()
   await expect(page.getByRole('tooltip')).toContainText('Synthetic child failure')
   await childReason.press('Escape')
-  await page.locator('.dag-outcome .run-reason').hover()
+  await page.locator('.dag-run-meta .run-reason').hover()
   await expect(page.getByRole('tooltip')).toContainText('Synthetic graph failure')
   await expect(page.locator('.run-reason-full')).toHaveCount(0)
+  await expect(page.locator('.dag-outcome')).toHaveCount(0)
 })
+
+test('run-level issues stay outside reports and prioritize current failures over skipped descendants', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.EventSource = class extends EventTarget {
+      close() {}
+    } as unknown as typeof EventSource
+  })
+  const f = await fixture(page, 4, 4)
+  await page.getByRole('button', { name: '收起结构', exact: true }).click()
+  Object.assign(f.run.nodes[0], { state: 'skipped', execution_id: null })
+  Object.assign(f.run.nodes[1], { state: 'unknown', name: 'Repeated name' })
+  Object.assign(f.run.nodes[2], {
+    state: 'failed',
+    name: 'Repeated name',
+    reason: 'Current failure',
+  })
+  f.run.nodes[3].state = 'succeeded'
+  f.run.reason = null
+  f.run.state = 'failed'
+  const trigger = page.getByRole('button', { name: '异常节点 2', exact: true })
+  await expect(trigger).toBeVisible()
+  await expect(page.locator('.dag-run-meta')).toContainText('失败')
+  f.run.state = 'warning'
+  f.run.config.dag.results = [f.run.nodes[3].id]
+  f.run.reason = 'Synthetic run warning'
+  f.run.result = {
+    type: 'dag',
+    outputs: [
+      {
+        node_id: f.run.nodes[3].id,
+        name: f.run.nodes[3].name,
+        state: 'succeeded',
+        result: '# Synthetic report',
+      },
+    ],
+  }
+  await expect(page.getByRole('heading', { name: 'Synthetic report', exact: true })).toBeVisible()
+  await expect(page.locator('.dag-outcome')).toHaveCount(0)
+  await expect(page.locator('.dag-run-meta')).toHaveCount(1)
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(trigger).toBeVisible()
+  await trigger.press('ArrowDown')
+  const menu = page.getByRole('menu')
+  const items = menu.getByRole('menuitem')
+  await expect(items).toHaveCount(3)
+  await expect(items.nth(0)).toHaveAttribute('aria-label', /失败 node-2$/)
+  await expect(items.nth(1)).toHaveAttribute('aria-label', /状态待核对 node-1$/)
+  await expect(items.nth(2)).toHaveAttribute('aria-label', /已跳过 node-0$/)
+  await expect(menu.locator('small')).toHaveCount(2)
+  await items.first().press('Escape')
+  await expect(trigger).toBeFocused()
+  await trigger.click()
+  await menu.getByRole('menuitem').first().click()
+  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  const context = page.locator('.dag-node-process:not([hidden]) > .dag-node-context')
+  await expect(context).toHaveText(/Repeated name/)
+  await expect(context).toBeFocused()
+  await expect(page.locator('.dag-run-structure')).toBeHidden()
+  await expect(context.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: Current failure',
+  )
+  await trigger.click()
+  f.run.nodes[1].state = 'succeeded'
+  Object.assign(f.run.nodes[2], { state: 'queued', retry_at: '2099-01-01T00:00:00Z' })
+  await expect(menu.getByText('无异常节点', { exact: true })).toBeVisible()
+  await menu.press('Escape')
+  await expect(page.locator('.dag-run-meta')).toBeFocused()
+  await expect(page.locator('.dag-node-issues-trigger')).toHaveCount(0)
+  expect(f.writes).toEqual([])
+})
+
+for (const [width, language, theme] of [
+  [1440, 'en', 'light'],
+  [390, 'zh', 'dark'],
+] as const)
+  test(`run status and issue menu layout ${width}px ${language} ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.addInitScript((language) => {
+      localStorage.setItem('wakeit-language', language)
+      window.EventSource = class extends EventTarget {
+        close() {}
+      } as unknown as typeof EventSource
+    }, language)
+    const f = await fixture(page, 4, 4)
+    f.run.nodes[0].state = 'failed'
+    f.run.nodes[1].state = 'unknown'
+    f.run.nodes[2].state = 'skipped'
+    f.run.nodes[3].state = 'succeeded'
+    f.run.config.dag.results = [f.run.nodes[3].id]
+    f.run.state = 'warning'
+    f.run.reason = 'Synthetic independent branch failure'
+    f.run.result = {
+      type: 'dag',
+      outputs: [
+        {
+          node_id: f.run.nodes[3].id,
+          name: f.run.nodes[3].name,
+          state: 'succeeded',
+          result: '# Synthetic report',
+        },
+      ],
+    }
+    await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme)
+    const trigger = page.locator('.dag-node-issues-trigger')
+    await expect(trigger).toContainText('2')
+    await expect(page.getByRole('heading', { name: 'Synthetic report', exact: true })).toBeVisible()
+    await expect(page.locator('.dag-outcome')).toHaveCount(0)
+    await expect(page.locator('.dag-run-tabs > .dag-run-meta .status')).toContainText(
+      language === 'en' ? 'Warning' : '警告',
+    )
+    await trigger.click()
+    const menu = page.getByRole('menu')
+    await expect(menu.getByRole('menuitem')).toHaveCount(3)
+    const bounds = await menu.boundingBox()
+    expect(bounds!.x).toBeGreaterThanOrEqual(11)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width - 11)
+    const edges = await menu
+      .locator('.dag-issue-head > :last-child, [role="menuitem"] > .status')
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().right))
+    for (const edge of edges) expect(Math.abs(edge - edges[0])).toBeLessThan(1)
+    const gaps = await menu.getByRole('menuitem').evaluateAll((items) =>
+      items.map((item) => {
+        const name = item.querySelector('.dag-issue-identity')!.getBoundingClientRect()
+        const status = item.querySelector('.status')!.getBoundingClientRect()
+        return status.left - name.right
+      }),
+    )
+    for (const gap of gaps) expect(gap).toBeGreaterThanOrEqual(8)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    )
+    await page.screenshot({ path: `test-results/run-status-${width}-${theme}.png` })
+    await menu.press('Escape')
+    await expect(trigger).toBeFocused()
+    expect(f.writes).toEqual([])
+  })

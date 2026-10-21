@@ -522,7 +522,6 @@
   "dag.task": "DAG 任务",
   "dag.resultMissing": "未返回结果",
   "dag.warning": "警告",
-  "dag.problems": "查看问题节点",
   "dag.selectedNode": "当前节点",
   "dag.waiting": "等待前置节点",
   "dag.report": "运行结果",
@@ -534,7 +533,6 @@
   "dag.nodeCount": "{{count}} 个节点",
   "dag.latest": "执行最近一次",
   "dag.waitingDependencies": "等待前置节点",
-  "dag.problemNodes": "查看问题节点",
   "dag.selectNode": "选择节点",
   "dag.searchNodes": "搜索节点",
   "dag.noExecution": "此节点尚未开始执行",
@@ -647,5 +645,8 @@
   "reading.resultReady": "结果已就绪",
   "reading.hideStructure": "收起结构",
   "reading.showStructure": "展开结构",
-  "reading.graphReason": "整图原因"
+  "dag.nodeIssues": "异常节点 {{count}}",
+  "dag.noNodeIssues": "无异常节点",
+  "reading.runStatus": "运行状态",
+  "reading.runStatusReason": "运行状态：{{state}}。原因：{{reason}}"
 }

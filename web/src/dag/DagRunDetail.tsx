@@ -44,6 +44,7 @@ import { ResumeRun } from '../sessions/ResumeRun'
 import { DagGraph, type DagView } from './DagGraph'
 import { useRunReading, TraceActions } from '../runs/RunReading'
 import { RunReason } from '../runs/RunReason'
+import { DagRunStatus } from './DagRunStatus'
 
 export function DagRunDetail({
   id,
@@ -77,7 +78,7 @@ export function DagRunDetail({
   const client = useQueryClient()
   const navigate = useNavigate()
   const agents = useQuery<Agent[]>({ queryKey: ['agents'], queryFn: () => api('/agents') })
-  function select(id: string) {
+  function select(id: string, focus = false) {
     setSelected(id)
     setVisited((old) => new Set([...old, id]))
     requestAnimationFrame(() => {
@@ -89,7 +90,14 @@ export function DagRunDetail({
         pane = viewport.current.getBoundingClientRect()
       if (rect.top < pane.top || rect.bottom > pane.bottom)
         context.scrollIntoView({ block: 'nearest' })
+      if (focus) context.focus({ preventScroll: true })
     })
+  }
+  function selectIssue(id: string) {
+    setMemory((previous) => ({ ...previous, [id]: { ...previous[id], attempt: null } }))
+    setTab('execute')
+    setProcessOpen(true)
+    select(id, true)
   }
   const setFollowing = useCallback(
     (follow: boolean) => updateReading((old) => (old.follow === follow ? old : { ...old, follow })),
@@ -159,18 +167,21 @@ export function DagRunDetail({
           </IconButton>
         )}
       </PageActions>
-      <div className="tabs" role="tablist" aria-label={t('运行内容')}>
-        {(['execute', 'details'] as const).map((key) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? 'active' : ''}
-            onClick={() => setTab(key)}
-          >
-            {t(key === 'execute' ? '执行' : '详情')}
-          </button>
-        ))}
+      <div className="dag-run-tabs">
+        <div className="tabs" role="tablist" aria-label={t('运行内容')}>
+          {(['execute', 'details'] as const).map((key) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              className={tab === key ? 'active' : ''}
+              onClick={() => setTab(key)}
+            >
+              {t(key === 'execute' ? '执行' : '详情')}
+            </button>
+          ))}
+        </div>
+        <DagRunStatus run={r} nodes={nodes} onSelect={selectIssue} />
       </div>
       <div className="run-page dag-run-page" ref={viewport}>
         <div hidden={tab !== 'execute'}>
@@ -218,33 +229,6 @@ export function DagRunDetail({
               </div>
             }
           >
-            {!hasResult && r.reason && (
-              <div className="dag-outcome" role="status">
-                <RunReason
-                  key={r.id}
-                  state={r.state}
-                  reason={r.reason}
-                  label={t('reading.graphReason')}
-                />
-                {['warning', 'failed', 'unknown'].includes(r.state) && (
-                  <Button
-                    onClick={() => {
-                      const problem = nodes.find((n) =>
-                        ['failed', 'timed_out', 'interrupted', 'skipped', 'unknown'].includes(
-                          n.state,
-                        ),
-                      )
-                      if (problem) select(problem.id)
-                      setTab('execute')
-                      setProcessOpen(true)
-                    }}
-                  >
-                    {t('dag.problemNodes')}
-                  </Button>
-                )}
-              </div>
-            )}
-
             <div className="dag-run-structure" hidden={!structureOpen}>
               <DagGraph
                 compact
@@ -306,33 +290,6 @@ export function DagRunDetail({
             hidden={!hasResult && !['succeeded', 'warning'].includes(r.state)}
             actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
           >
-            {hasResult && r.reason && (
-              <div className="dag-outcome" role="status">
-                <RunReason
-                  key={r.id}
-                  state={r.state}
-                  reason={r.reason}
-                  label={t('reading.graphReason')}
-                />
-                {['warning', 'failed', 'unknown'].includes(r.state) && (
-                  <Button
-                    onClick={() => {
-                      const problem = nodes.find((n) =>
-                        ['failed', 'timed_out', 'interrupted', 'skipped', 'unknown'].includes(
-                          n.state,
-                        ),
-                      )
-                      if (problem) select(problem.id)
-                      setTab('execute')
-                      setProcessOpen(true)
-                    }}
-                  >
-                    {t('dag.problemNodes')}
-                  </Button>
-                )}
-              </div>
-            )}
-
             {hasResult ? (
               <RunResult result={r.result} raw={raw} toast={toast} source={{ runId: id }} />
             ) : (
@@ -509,7 +466,7 @@ function NodeExecution({
       aria-label={mode === 'details' ? t('dag.nodeDetails') : undefined}
       className={mode === 'details' ? 'content-card dag-node-details' : 'dag-node-process'}
     >
-      <div className="dag-node-context">
+      <div className="dag-node-context" tabIndex={-1}>
         {nodes.length > 1 ? (
           <ChoicePicker
             id={pickerId(node)}
