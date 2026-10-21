@@ -8,17 +8,17 @@ Define the instructions and timing, and Wakeit sends the task to a Runner on you
 
 - **Use your existing Agents.** Built-in adapters cover Codex, Claude Code, Pi, OpenCode, Kimi Code, Antigravity CLI, Gemini CLI, Cursor, GitHub Copilot CLI, Cline, Goose and Qwen Code. [Capabilities](docs/agents.md) depend on each native interface; custom adapters use command configuration.
 - **Execute on your own devices.** Runners connect outbound to the Gateway on Linux, macOS and Windows. Devices need no inbound ports.
-- **Schedule work and read the results.** Use Cron, fixed intervals, one-time schedules or manual runs. View live execution traces and Markdown reports with syntax highlighting, math and Mermaid diagrams. Moments collects results by completion time.
-- **Compose Agent DAGs.** Drag Agents onto the canvas or apply one YAML definition, connect AND dependencies and reference upstream results. Run the complete graph with selected output reports. See [DAG tasks](docs/dag.md).
-- **Keep the conversation going.** Bind tasks to supported native Agent sessions and copy an Agent's continuation command from the WebUI, or use `wakeit run resume <run-id>` on the original Runner device. See [session continuation](docs/cli.md#绑定会话与本机续聊).
+- **Schedule work and read the results.** Use Cron, fixed intervals, one-time schedules or manual runs. View live execution traces and Markdown reports with syntax highlighting, math and Mermaid diagrams. Moments collects results by completion time. Open supported local file links through the original Runner to preview report files within its allowed directories.
+- **Compose Agent DAGs.** Drag Agents onto the canvas or apply one YAML definition, connect AND dependencies and reference upstream results. Run the complete graph with selected output reports and configurable node retries with exponential backoff. See [DAG tasks](docs/dag.md).
+- **Keep the conversation going.** Bind tasks to supported native Agent sessions. Continue them in the browser terminal, copy the original command, or use `wakeit run resume <run-id>` on the Runner device. See [session continuation](docs/cli.md#绑定会话与本机续聊).
 - **Separate workspaces.** Keep tasks, runs, devices and permissions isolated across teams. See [workspace configuration and authentication](docs/workspaces.md).
 - **Host locally or in the cloud.** One Rust binary includes the Gateway, Runner and CLI; the WebUI ships with the Gateway.
 
-The latest published release is **0.3.0**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
+The latest published release is **0.3.1**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
 
 ## Install
 
-Download the binary for your platform from the [v0.3.0 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.0), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
+Download the binary for your platform from the [v0.3.1 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.1), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
 
 To build from source, install Rust 1.89+ and Node.js 22.12+, then run:
 
@@ -83,7 +83,7 @@ wakeit run watch <run-id>
 wakeit task pause daily-review
 ```
 
-Tasks are stored in the Gateway's PostgreSQL database; YAML files are inputs for creating or updating them. Model discovery depends on the adapter; enter a model manually when no discovery interface is available. Failed tasks are not automatically rerun. An execution whose outcome cannot be confirmed enters `unknown`; check its actual state before deciding whether to retry.
+Tasks are stored in the Gateway's PostgreSQL database; YAML files are inputs for creating or updating them. Model discovery depends on the adapter; enter a model manually when no discovery interface is available. Ordinary tasks are not automatically rerun. DAG nodes can opt into bounded retries with `max_retries`; queued retries can be started immediately without adding attempts. An execution whose outcome cannot be confirmed enters `unknown`; check its actual state before deciding whether to retry.
 
 Archive a task from its detail view to stop future scheduling while preserving history and letting active runs finish. Restore it from Settings → Archived tasks; restored tasks remain paused. CLI equivalents are `wakeit task archive <id>`, `wakeit task list --archived` and `wakeit task restore <id>`.
 

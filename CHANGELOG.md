@@ -1,3 +1,25 @@
+## 0.3.1
+
+### Added
+
+- Continue supported native Agent sessions in a browser terminal, with original-command copying, terminal resizing and reconnection after a short interruption. Closing the terminal ends its interactive process while preserving the native session.
+- Configure bounded DAG node retries with exponential backoff, inspect individual attempts and start an already queued retry immediately without adding attempts.
+- Preview supported text, code, Markdown, JSON and image files linked from saved reports through the original Runner, within its permitted directories.
+
+### Improved
+
+- Run history uses compact, collapsible summaries, independent tool input/output folds and JSON syntax highlighting without code-block backgrounds in parameters and results. Reading earlier messages pauses following; new output and ready results no longer interrupt it.
+- DAG structure stays bounded above the selected node's activity. Whole-run status and current node issues remain beside the Execution/Details tabs, with failure reasons in tooltips and direct navigation to the selected node's current attempt.
+- Secondary sidebars have distinct surfaces, consistent typography and aligned selection states; Settings retains a separate width preference.
+
+### Fixed
+
+- DAG node pickers keep long names, statuses and checkmarks aligned, and execution times use consistent compact typography.
+
+### Upgrade
+
+- Back up PostgreSQL and stop all Gateway writers before applying `0005_terminals.sql` and `0006_dag_retries.sql`. Update Runners to enable browser terminals, file previews and complete failure-retry support. Existing data, device identities and Agent credentials are preserved; configuration and message protocols remain version 1. See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.1/docs/operations.md#upgrading-from-030).
+
 ## 0.3.0
 
 ### Added
