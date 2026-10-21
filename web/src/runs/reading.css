@@ -22,11 +22,13 @@
   gap: 8px;
 }
 .run-trace .trace-title {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   font-weight: 550;
-  max-width: 35%;
+  max-width: calc(100% - 8px);
+  overflow-wrap: anywhere;
 }
 .run-trace .trace-summary {
+  flex: 1 1 0%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -367,9 +369,7 @@
   color: var(--muted);
 }
 .run-trace .trace-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .run-trace .trace-parent {
   color: var(--muted);

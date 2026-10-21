@@ -555,3 +555,27 @@ for (const [width, language, theme] of [
     await expect(trigger).toBeFocused()
     expect(f.writes).toEqual([])
   })
+
+test('tool names stay fully readable beside long summaries on desktop and mobile', async ({
+  page,
+}) => {
+  const { rows } = await fixture(page, 0, 2)
+  const tool = rows.at(-1).data
+  tool.title = 'Bash'
+  tool.input = { command: 'TZ=Asia/Shanghai date && cat /workspace/'.repeat(100) }
+  await page.reload()
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    const title = page.locator('[data-trace-id="tool"] .trace-title')
+    await expect(title).toHaveText('Bash')
+    expect(await title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    expect(await title.evaluate((element) => getComputedStyle(element).textOverflow)).not.toBe(
+      'ellipsis',
+    )
+    const summary = page.locator('[data-trace-id="tool"] .trace-summary')
+    expect(await summary.evaluate((element) => getComputedStyle(element).textOverflow)).toBe(
+      'ellipsis',
+    )
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+  }
+})
