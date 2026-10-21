@@ -204,3 +204,80 @@ fn combined_tool_payloads_stay_within_the_public_record_limit() {
     adapter.accept(success("Done"));
     assert!(!adapter.failed());
 }
+
+#[test]
+fn qwen_and_cursor_trace_budgets_never_override_native_terminal_outcomes() {
+    for protocol in ["qwen", "cursor"] {
+        for budget in ["messages", "tools", "pending"] {
+            for failed in [false, true] {
+                let mut qwen = QwenNormalizer::default();
+                let mut cursor = CursorNormalizer::default();
+                let mut diagnostics = 0;
+                let count = if budget == "pending" { 15 } else { 10_001 };
+                for i in 0..count {
+                    let input = if budget == "pending" {
+                        "x".repeat(600_000)
+                    } else {
+                        "small".into()
+                    };
+                    let event = if budget == "messages" {
+                        json!({"type":"assistant","message":{"id":format!("m-{i}"),"content":[{"type":"text","text":"partial"}]}})
+                    } else if protocol == "qwen" {
+                        json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":format!("tool-{i}"),"name":"read","input":{"path":input}}]}})
+                    } else {
+                        json!({"type":"tool_call","subtype":"started","call_id":format!("tool-{i}"),"tool_call":{"readToolCall":{"args":{"path":input}}}})
+                    };
+                    let records = if protocol == "qwen" {
+                        qwen.accept(event)
+                    } else {
+                        cursor.accept(event)
+                    };
+                    diagnostics += records
+                        .iter()
+                        .filter(|r| matches!(&r.record,RecordData::Log(l) if l.diagnostic))
+                        .count();
+                }
+                assert!(
+                    diagnostics > 0,
+                    "{protocol}/{budget} must mark omitted trace"
+                );
+                let terminal = if failed {
+                    json!({"type":"result","subtype":"error_during_execution","is_error":true,"error":"native failure"})
+                } else {
+                    success("Completed")
+                };
+                if protocol == "qwen" {
+                    qwen.accept(terminal);
+                    assert_eq!(qwen.failed(), failed, "{protocol}/{budget}");
+                    assert_eq!(qwen.finish().is_empty(), failed);
+                } else {
+                    cursor.accept(terminal);
+                    assert_eq!(cursor.failed(), failed, "{protocol}/{budget}");
+                    assert_eq!(cursor.finish().is_empty(), failed);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn oversized_final_reports_are_marked_incomplete_without_failing_native_execution() {
+    for protocol in ["qwen", "cursor"] {
+        let mut qwen = QwenNormalizer::default();
+        let mut cursor = CursorNormalizer::default();
+        let terminal = success(&"中".repeat(400_000));
+        let records = if protocol == "qwen" {
+            qwen.accept(terminal);
+            assert!(!qwen.failed());
+            qwen.finish()
+        } else {
+            cursor.accept(terminal);
+            assert!(!cursor.failed());
+            cursor.finish()
+        };
+        assert!(
+            matches!(&records[0].record,RecordData::Result(v) if v["truncated"]==true && v["preview"].as_str().unwrap().len()<=32*1024)
+        );
+        assert!(serde_json::to_vec(&records[0]).unwrap().len() < RECORD_LIMIT);
+    }
+}
