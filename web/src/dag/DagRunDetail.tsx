@@ -517,6 +517,7 @@ function NodeExecution({
             <div className="dag-attempt-picker">
               <ChoicePicker
                 label={t('retry.attempts')}
+                popoverClassName="dag-attempt-menu"
                 value={executionId ?? ''}
                 options={execution.data!.attempts!.map((a, index) => ({
                   value: a.id,

@@ -813,6 +813,31 @@ for (const language of ['zh', 'en'] as const) {
         true,
       )
     }
+    const attempt = page
+      .getByRole('combobox', { name: messages['retry.attempts'], exact: true })
+      .first()
+    await attempt.click()
+    const menu = page.locator('.dag-attempt-menu')
+    await expect(menu).toBeVisible()
+    const rows = await menu.getByRole('option').evaluateAll((elements) =>
+      elements.map((el) => {
+        const row = el.getBoundingClientRect()
+        const label = el.querySelector('.choice-option-label')!.getBoundingClientRect()
+        const status = el.querySelector('.choice-option-meta')!.getBoundingClientRect()
+        return {
+          height: row.height,
+          labelHeight: label.height,
+          statusX: status.x,
+          width: row.width,
+        }
+      }),
+    )
+    expect(rows.every((row) => row.labelHeight <= 20 && row.height <= 40 && row.width >= 190)).toBe(
+      true,
+    )
+    expect(new Set(rows.map((row) => row.statusX)).size).toBe(1)
+    await page.screenshot({ path: `../.local/review/attempt-menu-${language}.png` })
+    await menu.getByRole('listbox').press('Escape')
     await page.setViewportSize({ width: 1440, height: 900 })
     await retry.click()
     await expect(page.getByRole('alert')).toContainText(
