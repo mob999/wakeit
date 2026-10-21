@@ -488,50 +488,52 @@ function NodeExecution({
       className={mode === 'details' ? 'content-card dag-node-details' : 'dag-node-process'}
     >
       <div className="dag-node-context" tabIndex={-1}>
-        {nodes.length > 1 ? (
-          <ChoicePicker
-            id={pickerId(node)}
-            label={t('dag.selectNode')}
-            searchLabel={t('dag.searchNodes')}
-            popoverClassName="dag-node-picker"
-            searchable
-            value={node}
-            options={nodes.map((n) => ({
-              value: n.id,
-              label: n.name,
-              title: n.name,
-              description: shortId(n.id),
-              keywords: n.id,
-              status: <Status state={n.state} />,
-            }))}
-            onChange={(next) => {
-              onSelect(next)
-              requestAnimationFrame(() => document.getElementById(pickerId(next))?.focus())
-            }}
-          />
-        ) : (
-          <strong>{name}</strong>
-        )}
+        <div className="dag-node-identity">
+          {nodes.length > 1 ? (
+            <ChoicePicker
+              id={pickerId(node)}
+              label={t('dag.selectNode')}
+              searchLabel={t('dag.searchNodes')}
+              popoverClassName="dag-node-picker"
+              searchable
+              value={node}
+              options={nodes.map((n) => ({
+                value: n.id,
+                label: n.name,
+                title: n.name,
+                description: shortId(n.id),
+                keywords: n.id,
+                status: <Status state={n.state} />,
+              }))}
+              onChange={(next) => {
+                onSelect(next)
+                requestAnimationFrame(() => document.getElementById(pickerId(next))?.focus())
+              }}
+            />
+          ) : (
+            <strong>{name}</strong>
+          )}
+          {(execution.data?.attempts?.length ?? 0) > 1 && (
+            <div className="dag-attempt-picker">
+              <ChoicePicker
+                label={t('retry.attempts')}
+                value={executionId ?? ''}
+                options={execution.data!.attempts!.map((a, index) => ({
+                  value: a.id,
+                  label: t('retry.attempt', { number: index + 1 }),
+                  status: stateNames[a.state] ?? a.state,
+                }))}
+                onChange={(id) => setChosen(id === currentExecutionId ? null : id)}
+              />
+            </div>
+          )}
+        </div>
         {chosen && !run ? (
           <span className="dag-node-state-placeholder quiet">{t('正在加载…')}</span>
         ) : (
           <RunReason key={executionId ?? node} state={run?.state ?? state} reason={displayedReason}>
             <Status state={run?.state ?? state} />
           </RunReason>
-        )}
-        {(execution.data?.attempts?.length ?? 0) > 1 && (
-          <div className="dag-attempt-picker">
-            <ChoicePicker
-              label={t('retry.attempts')}
-              value={executionId ?? ''}
-              options={execution.data!.attempts!.map((a, index) => ({
-                value: a.id,
-                label: t('retry.attempt', { number: index + 1 }),
-                status: stateNames[a.state] ?? a.state,
-              }))}
-              onChange={(id) => setChosen(id === currentExecutionId ? null : id)}
-            />
-          </div>
         )}
         {!chosen && current?.retry_at && (
           <span className="quiet dag-retry-time">
