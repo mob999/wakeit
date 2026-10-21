@@ -240,9 +240,24 @@
   grid-column: 4;
   grid-row: 1;
 }
-.dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-attempt-picker {
-  grid-column: 1;
-  grid-row: 2;
+.dag-node-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.dag-node-identity > :first-child {
+  min-width: 0;
+  flex: 1;
+}
+.dag-node-identity > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dag-node-identity .dag-attempt-picker {
+  width: 100px;
+  flex: 0 0 auto;
 }
 .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-retry-time {
   grid-column: 2 / 4;
@@ -262,10 +277,7 @@
   .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context {
     grid-template-columns: minmax(0, 1fr) auto auto auto;
   }
-  .dag-run-page
-    :is(.dag-node-process, .dag-node-details)
-    > .dag-node-context
-    > :is(strong, .choice-selector) {
+  .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-node-identity {
     grid-column: 1 / -1;
     grid-row: 1;
   }
@@ -286,13 +298,6 @@
     > .dag-node-context-actions {
     grid-column: 4;
     grid-row: 2;
-  }
-  .dag-run-page
-    :is(.dag-node-process, .dag-node-details)
-    > .dag-node-context
-    > .dag-attempt-picker {
-    grid-column: 1 / 3;
-    grid-row: 3;
   }
   .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-retry-time {
     grid-column: 3;

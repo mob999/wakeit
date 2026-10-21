@@ -799,6 +799,21 @@ for (const language of ['zh', 'en'] as const) {
     await expect(
       page.getByRole('combobox', { name: messages['retry.attempts'], exact: true }).first(),
     ).toBeVisible()
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      const identity = page.locator('.dag-node-context:visible .dag-node-identity')
+      const centers = await identity.evaluate((el) =>
+        Array.from(el.children).map((child) => {
+          const box = child.getBoundingClientRect()
+          return box.y + box.height / 2
+        }),
+      )
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(1)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+    }
+    await page.setViewportSize({ width: 1440, height: 900 })
     await retry.click()
     await expect(page.getByRole('alert')).toContainText(
       messages['Execution changed; refresh before retrying'],
