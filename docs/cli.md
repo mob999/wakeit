@@ -69,7 +69,7 @@ WebUI 可在设置 → 归档任务恢复；成员关系和邀请在设置 → �
 
 ## DAG 任务
 
-一个 Task 可以通过内嵌 `dag` 定义整张 AND 图，多个根统一开始，不支持独立触发、重试或取消节点。WebUI 提供两步图编辑器，CLI 使用相同 `task apply --file`、trigger 和 run watch 命令。配置、结果引用、输出选择、warning 与取消规则见 [DAG 指南](dag.md)，完整示例见 [task-dag.yaml](../examples/task-dag.yaml)。
+一个 Task 可以通过内嵌 `dag` 定义整张 AND 图，多个根统一开始，不支持绕过依赖独立触发或取消节点。失败节点可在原 Run 内手动重试，保留成功节点。WebUI 提供两步图编辑器，CLI 使用相同 `task apply --file`、trigger 和 run watch 命令。配置、结果引用、输出选择、warning 与取消规则见 [DAG 指南](dag.md)，完整示例见 [task-dag.yaml](../examples/task-dag.yaml)。
 
 ## 查看、取消与重试
 
@@ -79,6 +79,8 @@ wakeit run get <run-id>
 wakeit run logs <run-id> --follow
 wakeit run cancel <run-id>
 wakeit --request-key retry-once run retry <run-id>
+wakeit run retry <run-id> --node <node-id>
+wakeit run retry <run-id> --node <node-id> --resume-stopped
 ```
 
 ### 阻塞观察一次运行
@@ -111,7 +113,7 @@ wakeit --json run watch <run-id> --timeout 10m
 wakeit run resolve <run-id> --state interrupted --reason '已确认原进程结束'
 ```
 
-然后才能考虑手动重试，生成新的关联 Run。
+然后才能考虑重试。不带 `--node` 创建新的关联 Run；DAG 节点重试保留原父 Run。
 
 ## 绑定会话与本机续聊
 
@@ -213,6 +215,6 @@ WebUI 的“续聊”现在直接连接 Runner 上的原生交互终端（管理
 
 ## DAG node retries
 
-A node may set `max_retries: 3` for up to four attempts. Omitted/0 disables retries. Confirmed execution failures and node timeouts retry after 5/10/20/40/60 seconds with bounded jitter; validation, invalid Session, cancellation and unknown do not automatically retry. Older Runners without the optional state-event retry verdict conservatively do not retry failed executions. The graph timeout includes backoff and never resets. Attempts remain child Runs with their own logs, Trace, result and native Session; default sessions start anew, explicitly bound sessions are reused under the same locks.
+A node may set `max_retries: 3` for the initial attempt plus up to three automatic retries; manual attempts are separate. Omitted/0 disables automatic retries. Confirmed execution failures and node timeouts retry after 5/10/20/40/60 seconds with bounded jitter; validation, invalid Session, cancellation and unknown do not automatically retry. Older Runners without the optional state-event retry verdict conservatively do not retry failed executions. Optional graph total timeout includes backoff and does not extend on retry within an active Run; a settled Run gets a new window when explicitly recovered. Attempts remain child Runs with their own logs, Trace, result and native Session; default sessions start anew, explicitly bound sessions are reused under the same locks.
 
-While a retry is queued, Operator/Admin may accelerate that exact execution via `POST /runs/{parent}/nodes/{node}/retry` with `{execution_id}`. This does not grant extra attempts. `GET /runs/{parent}/nodes/{node}` lists lightweight `attempts`; optional `?execution=<uuid>` reads a specific attempt of this node. After graph completion only whole-graph retry is supported, using the current Task definition from all roots; historical Runs are never reopened. Migration 0006 replaces the single-attempt index without discarding existing executions.
+Admin/Read-write members can retry a confirmed failed node with `run retry ID --node NODE` in the same frozen Run. Successful nodes remain unchanged; dependent skipped nodes resume after AND succeeds. Each manual attempt runs once without resetting or consuming automatic quota. Pending automatic successors are accelerated, not duplicated. `--resume-stopped` explicitly recovers graph cancellation/total timeout after all old processes stop; unknown must be reconciled. Task archival, retained-result availability and overlap are checked again. The CLI reads the latest node and submits its required nullable execution ID. Without `--node`, whole-graph retry still creates a new Run from current Task configuration. See [DAG recovery](dag.md#manual-node-retry-and-recovery).

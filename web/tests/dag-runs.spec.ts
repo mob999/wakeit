@@ -100,7 +100,12 @@ async function mock(page: Page, f: ReturnType<typeof fixture>, role = 'admin') {
     else if (path.endsWith('/runs')) value = { items: [f.run], total: 1, page: 1, page_size: 20 }
     else if (path.endsWith(`/runs/${id}`)) value = f.run
     else if (path.endsWith('/nodes/collect'))
-      value = { node: f.run.nodes[0], execution: f.execution }
+      value = {
+        node: f.run.nodes[0],
+        execution: f.execution,
+        retry: (f as any).retry,
+        attempts: (f as any).attempts,
+      }
     else if (path.endsWith('/events'))
       value = f.events.filter((e) => e.id > Number(url.searchParams.get('after') ?? 0))
     else if (path.endsWith('/stream'))
@@ -238,8 +243,9 @@ test('DAG completion does not leave details; Moments previews reports and resume
   await expect(page.getByRole('heading', { name: 'Preview report', exact: true })).toBeVisible()
   await expect(page.locator('.moment-identity')).toContainText('2')
   await expect(page.locator('.moment-identity')).not.toContainText('Preview device')
-  await page.getByRole('button', { name: '阅读全文', exact: true }).click()
+  await page.getByRole('link', { name: '查看运行', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Final report', exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
   await page.getByRole('button', { name: '续聊', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('pi --resume native-session')
   await expect(page.getByRole('dialog')).toContainText('/workspace')
@@ -408,8 +414,9 @@ test('Run graph shares the overview canvas controls and fullscreen is read-only'
 test('retry acceleration targets the reserved execution and historical attempts retain their own result and session', async ({
   page,
 }) => {
-  const f = fixture(),
-    old = '00000000-0000-4000-8000-000000000003'
+  const f = fixture()
+  ;(f as any).retry = { action: 'accelerate', affected: [] }
+  const old = '00000000-0000-4000-8000-000000000003'
   f.run.nodes[0] = {
     ...f.run.nodes[0],
     state: 'queued',
@@ -429,6 +436,7 @@ test('retry acceleration targets the reserved execution and historical attempts 
     return route.fulfill({
       json: {
         node: f.run.nodes[0],
+        retry: (f as any).retry,
         attempts: [
           { id: old, state: 'failed' },
           { id: child, state: 'queued' },
@@ -460,7 +468,7 @@ test('retry acceleration targets the reserved execution and historical attempts 
   })
   await page.goto(`/w/${workspace}/runs?run=${id}`)
   await page.getByRole('button', { name: '立即重试', exact: true }).click()
-  expect(writes).toEqual([{ execution_id: child }])
+  expect(writes).toEqual([{ execution_id: child, resume_stopped: false }])
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   const details = page.locator('.dag-node-details:visible')
   await details.getByRole('combobox', { name: '执行尝试', exact: true }).click()
@@ -670,3 +678,65 @@ for (const [width, language, theme] of [
     expect(writes).toEqual([])
   })
 }
+
+test('manual retry uses the current guard, preserves selection and requires explicit stopped confirmation', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = f.execution.state = f.run.nodes[0].state = 'failed'
+  f.run.finished_at = f.execution.finished_at = at
+  ;(f as any).retry = { action: 'retry', affected: [] }
+  await mock(page, f)
+  const requests: any[] = []
+  await page.route('**/nodes/collect/retry', async (route) => {
+    requests.push(route.request().postDataJSON())
+    return route.fulfill({
+      status: 409,
+      json: { error: 'Execution changed; refresh before retrying' },
+    })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('button', { name: '重试节点', exact: true }).first().click()
+  await expect(page.getByRole('alert')).toContainText('Execution changed')
+  expect(requests[0]).toEqual({ execution_id: child, resume_stopped: false })
+  f.run.state = f.execution.state = f.run.nodes[0].state = 'cancelled'
+  ;(f as any).retry = {
+    action: 'resume',
+    affected: [{ id: 'after', name: 'Downstream report', state: 'cancelled' }],
+  }
+  await expect(page.getByRole('button', { name: '恢复节点', exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: '恢复节点', exact: true }).first().click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('保留成功节点')
+  await expect(dialog.getByRole('table')).toContainText('Downstream report')
+  expect(requests).toHaveLength(1)
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(dialog).toBeVisible()
+    await page.screenshot({ path: `../.local/review/recovery-dialog-${width}.png` })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+  await dialog.getByRole('button', { name: '恢复节点', exact: true }).click()
+  await expect.poll(() => requests.length).toBe(2)
+  expect(requests[1]).toEqual({ execution_id: child, resume_stopped: true })
+  await expect(dialog).toBeVisible() // conflict retains context instead of silently switching attempts
+})
+
+test('uncreated failed execution supports retry and historical attempts do not expose the action', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = f.execution.state = f.run.nodes[0].state = 'failed'
+  f.run.nodes[0].execution_id = null as any
+  ;(f as any).retry = { action: 'retry', affected: [] }
+  await mock(page, f)
+  const bodies: any[] = []
+  await page.route('**/nodes/collect/retry', async (route) => {
+    bodies.push(route.request().postDataJSON())
+    return route.fulfill({ json: { id: child, parent_run_id: id, node_id: 'collect' } })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('button', { name: '重试节点', exact: true }).first().click()
+  await expect.poll(() => bodies.length).toBe(1)
+  expect(bodies[0].execution_id).toBeNull()
+})

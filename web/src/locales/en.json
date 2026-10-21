@@ -518,7 +518,7 @@
   "dag.delete": "Delete node",
   "dag.deleteBlocked": "Remove the following dependencies, result references or output selection before deleting this node.",
   "dag.fixErrors": "Fix the node configuration",
-  "dag.graphTimeout": "Graph timeout",
+  "dag.graphTimeout": "Graph total time limit",
   "dag.task": "DAG task",
   "dag.resultMissing": "No result returned",
   "dag.warning": "Warning",
@@ -667,5 +667,9 @@
   "filePreview.enlargeImage": "Enlarge image: {{name}}",
   "image is not present in the complete Markdown document": "image is not present in the complete Markdown document",
   "Markdown document directory is unavailable": "Markdown document directory is unavailable",
-  "referenced file is not a supported image": "referenced file is not a supported image"
+  "referenced file is not a supported image": "referenced file is not a supported image",
+  "retry.node": "Retry node",
+  "retry.resume": "Resume node",
+  "retry.preserve": "Successful nodes are retained. Resume the selected node and the affected downstream nodes.",
+  "retry.continue": "Continue when ready"
 }

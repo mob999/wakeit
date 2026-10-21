@@ -87,6 +87,8 @@ wakeit task pause daily-review
 
 Task 的权威存储是 Gateway 的 PostgreSQL；YAML 是提交或更新任务的输入文件。模型发现取决于适配提供的接口，没有接口时手填。普通任务失败不会自动重新执行；DAG 节点可通过 `max_retries` 启用有限次数的重试，并可立即启动已排队的重试，不增加尝试次数；无法确认执行结果时进入 `unknown`，先核对实际状态，再决定是否重试。
 
+使用 `wakeit run retry RUN --node NODE` 可在原 Run 内重试失败节点，保留成功节点并继续下游。DAG 整图总时限默认关闭，可按需开启。
+
 任务可在详情中归档，停止后续调度，正在执行的运行继续，历史保留；设置 → 归档任务可恢复，恢复后保持暂停。CLI 对应命令为 `wakeit task archive <id>`、`wakeit task list --archived` 和 `wakeit task restore <id>`。
 
 ## 让 Agent 帮你使用 Wakeit

@@ -8,6 +8,8 @@ wakeit --json run watch <run-id> --timeout 1h
 wakeit run logs <run-id> --follow
 wakeit run cancel <run-id>
 wakeit --request-key <stable-retry-key> run retry <run-id>
+wakeit run retry <run-id> --node <node-id>
+wakeit run retry <run-id> --node <node-id> --resume-stopped
 ```
 
 需要等待任务完成时，先从实际触发响应或运行列表取得 Run ID，再使用 `run watch`，不要猜测 ID 或用反复重试代替等待。watch 仅观察这次 Run，实时显示状态、日志和真实 Agent 过程，结束后输出结果；已结束的 Run 直接读取返回。不提供 `task watch`，也不会自动触发下一次执行。
@@ -22,7 +24,7 @@ wakeit --request-key <stable-retry-key> run retry <run-id>
 wakeit run resolve <run-id> --state interrupted --reason '实际核对说明'
 ```
 
-支持的人工最终状态见 `wakeit run resolve --help` 和 API 返回错误，不能仅因离线把运行标记成功或已取消。重试会创建关联的新 Run，可能再次产生外部副作用；用户要重试且原执行结束确认后再操作。
+支持的人工最终状态见 `wakeit run resolve --help` 和 API 返回错误，不能仅因离线把运行标记成功或已取消。整轮重试会创建关联的新 Run；DAG 的 `--node` 在原 Run 内补跑所选失败节点并保留成功节点，二者都可能再次产生外部副作用；用户要重试且原执行结束确认后再操作。
 
 输出可能明确截断或过期，报告中保留该状态，不把缺少输出解释为没有执行。默认日志/过程保留 7 天，运行记录 90 天。
 
@@ -30,7 +32,7 @@ wakeit run resolve <run-id> --state interrupted --reason '实际核对说明'
 
 DAG Run 代表整图。日志和 Trace 的子事件带 node_id、execution_id、original_seq；按 DAG 节点和原生 Trace ID 组合聚合，不混用不同节点的工具事件。输出 result.outputs 保留所选节点的独立报告。触发、取消和手动整轮重试作用于整图，整轮重试读取当前任务定义并从全部根开始。unknown 须通过父 Run 的 nodes/{node}/resolve 接口逐节点核对，不强制标记父 Run。续聊必须读取具体节点的真实 Session；不得把父 Run ID 当原生会话 ID。
 
-DAG 的运行状态和异常节点菜单位于“执行 / 详情”页签右侧，状态的 Tooltip 展示整轮原因。异常菜单按当前尝试列出失败、超时、中断及待核对节点，跳过节点单独分组；定位会切回当前执行，不把已恢复的旧失败算作异常。节点的日志、过程、报告及续聊必须来自同一实际 execution。整轮重试与配置中的节点自动重试不同；“立即重试”只加速同轮已排队、预算内的下一次尝试，不能重新打开已结束的整图。
+DAG 的运行状态和异常节点菜单位于“执行 / 详情”页签右侧，状态的 Tooltip 展示整轮原因。异常菜单按当前尝试列出失败、超时、中断及待核对节点，跳过节点单独分组；定位会切回当前执行，不把已恢复的旧失败算作异常。节点的日志、过程、报告及续聊必须来自同一实际 execution。整轮重试与配置中的节点自动重试不同；“立即重试”加速同轮已排队的自动尝试；“重试节点”只新增一次手动尝试，不消耗或重置自动额度，失败后也不自动追加。成功后恢复因依赖失败而跳过的下游，继续遵守 AND。取消或总超时需明确 `--resume-stopped`，先确认旧执行全部停止；其他独立失败或取消分支保持原样。归档、unknown、前置未成功、结果不可复用和重叠冲突会阻止恢复。历史尝试不可执行重试。原 Run ID、冻结定义和成功记录保持不变；新 Watch 可观察同一恢复后的 Run。
 
 ## Result file previews
 

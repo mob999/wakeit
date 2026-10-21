@@ -895,13 +895,14 @@ async fn run_node(
     if execution.is_some_and(|id| !attempts.iter().any(|a| a["id"] == id.to_string())) {
         return Err(Error::missing());
     }
+    let retry = crate::dag_manual_retry::info(&s, workspace, id, &node).await?;
     let execution = if let Some(id) = execution {
         run(State(s), h, Path(id)).await?.0
     } else {
         Value::Null
     };
     Ok(Json(
-        json!({"node":summary,"execution":execution,"attempts":attempts}),
+        json!({"node":summary,"execution":execution,"attempts":attempts,"retry":retry}),
     ))
 }
 async fn node_events(
@@ -932,78 +933,18 @@ async fn resolve_node(
         .ok_or_else(Error::missing)?;
     resolve(State(s), h, Path(execution), ApiJson(b)).await
 }
-#[derive(Deserialize, schemars::JsonSchema)]
-pub(crate) struct RetryNode {
-    execution_id: Uuid,
-}
+pub(crate) type RetryNode = crate::dag_manual_retry::RetryNode;
 async fn retry_node(
     State(s): State<App>,
     h: HeaderMap,
     Path((id, node)): Path<(Uuid, String)>,
     ApiJson(b): ApiJson<RetryNode>,
 ) -> Result<Json<Value>> {
-    let u = user(&s, &h, "operator", true).await?;
-    let workspace = u.workspace()?;
-    let mut tx = s.pool.begin().await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
-    reauthorize(&mut tx, &u, "operator").await?;
-    let _row=sqlx::query("SELECT r.* FROM runs r JOIN dag_run_nodes n ON n.execution_id=r.id WHERE n.workspace_id=$1 AND n.parent_run_id=$2 AND n.node_id=$3 AND r.id=$4").bind(workspace).bind(id).bind(&node).bind(b.execution_id).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
-    crate::dag_store::lock_parent(&mut tx, b.execution_id).await?;
-    let graph =
-        sqlx::query("SELECT finished_at,cancel_requested,started_at,config FROM runs WHERE id=$1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
-    let config: TaskConfig = serde_json::from_value(graph.get("config"))?;
-    let now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
-        .fetch_one(&mut *tx)
-        .await?;
-    if graph
-        .get::<Option<DateTime<Utc>>, _>("finished_at")
-        .is_some()
-        || graph.get::<bool, _>("cancel_requested")
-        || graph
-            .get::<Option<DateTime<Utc>>, _>("started_at")
-            .is_some_and(|at| {
-                now - at
-                    >= chrono::Duration::from_std(
-                        crate::config::duration(&config.execution.timeout).unwrap(),
-                    )
-                    .unwrap()
-            })
-    {
-        return Err(Error::conflict("graph is no longer running"));
-    }
-    let current:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM dag_run_nodes WHERE workspace_id=$1 AND parent_run_id=$2 AND node_id=$3 AND execution_id=$4)").bind(workspace).bind(id).bind(&node).bind(b.execution_id).fetch_one(&mut *tx).await?;
-    if !current {
-        return Err(Error::conflict("retry is no longer current"));
-    }
-    let dispatched: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM outbox WHERE message_id=$1)")
-            .bind(format!("start:{}", b.execution_id))
-            .fetch_one(&mut *tx)
-            .await?;
-    if dispatched {
-        tx.commit().await?;
-        return Ok(Json(json!({"id":b.execution_id})));
-    }
-    // Re-read after acquiring the shared graph lock: stale clicks never target a later attempt.
-    let changed=sqlx::query("UPDATE runs r SET scheduled_at=LEAST(scheduled_at,$5),deadline=CASE WHEN scheduled_at>$5 THEN $5+($6::bigint * interval '1 second') ELSE deadline END FROM dag_run_nodes n WHERE r.id=$4 AND r.workspace_id=$1 AND r.parent_run_id=$2 AND r.node_id=$3 AND n.parent_run_id=$2 AND n.node_id=$3 AND n.execution_id=r.id AND r.state='queued' AND r.retry_of IS NOT NULL AND NOT r.cancel_requested RETURNING r.id").bind(workspace).bind(id).bind(&node).bind(b.execution_id).bind(now).bind(crate::config::duration(&config.execution.start_grace)?.as_secs() as i64).fetch_optional(&mut *tx).await?;
-    if changed.is_none() {
-        return Err(Error::conflict("retry is no longer waiting"));
-    }
-    crate::dag_retry::dispatch(&mut tx, workspace, id, now).await?;
-    store::audit(
-        &mut tx,
-        u.id,
-        Some(workspace),
-        "node.retry",
-        &b.execution_id.to_string(),
-    )
-    .await?;
-    tx.commit().await?;
-    Ok(Json(json!({"id":b.execution_id})))
+    crate::dag_manual_retry::retry(&s, &h, id, &node, b)
+        .await
+        .map(Json)
 }
+
 async fn apply(
     State(s): State<App>,
     h: HeaderMap,
@@ -1075,7 +1016,7 @@ async fn archive_change(
         .ok_or_else(Error::missing)?,
     ))
 }
-fn request_key(h: &HeaderMap) -> Result<String> {
+pub(crate) fn request_key(h: &HeaderMap) -> Result<String> {
     let k = h
         .get("idempotency-key")
         .and_then(|v| v.to_str().ok())
@@ -1194,9 +1135,9 @@ async fn cancel(State(s): State<App>, h: HeaderMap, Path(id): Path<Uuid>) -> Res
     }
     let state: String = row.get("state");
     if !protocol::terminal(&state) {
-        sqlx::query("UPDATE runs SET cancel_requested=true,state=CASE WHEN state='queued' THEN 'cancelled' ELSE state END,finished_at=CASE WHEN state='queued' THEN now() ELSE finished_at END WHERE id=$1").bind(id).execute(&mut *tx).await?;
+        sqlx::query("UPDATE runs SET cancel_requested=true,stop_cause=CASE WHEN config ? 'dag' THEN 'graph_cancel' ELSE stop_cause END,state=CASE WHEN state='queued' THEN 'cancelled' ELSE state END,finished_at=CASE WHEN state='queued' THEN now() ELSE finished_at END WHERE id=$1").bind(id).execute(&mut *tx).await?;
         if row.get::<Option<Uuid>, _>("runner_id").is_none() {
-            crate::dag_store::cancel_nodes(&mut tx, workspace, id).await?;
+            crate::dag_store::cancel_nodes(&mut tx, workspace, id, "graph_cancel").await?;
         } else {
             store::enqueue(
                 &mut tx,
@@ -1573,7 +1514,7 @@ async fn claim(
     let parent = if let Some(id) = graph_parent {
         Some(
             sqlx::query(
-                "SELECT state,started_at,cancel_requested,finished_at,config FROM runs WHERE id=$1",
+                "SELECT state,started_at,window_started_at,cancel_requested,finished_at,config FROM runs WHERE id=$1",
             )
             .bind(id)
             .fetch_one(&mut *tx)
@@ -1616,16 +1557,11 @@ async fn claim(
             .is_none_or(|p| p.get::<Option<DateTime<Utc>>, _>("started_at").is_none()))
         || parent.as_ref().is_some_and(|p| {
             p.get::<bool, _>("cancel_requested")
-                || p.get::<Option<DateTime<Utc>>, _>("started_at")
-                    .is_some_and(|at| {
-                        let config: TaskConfig =
-                            serde_json::from_value(p.get("config")).expect("saved graph");
-                        claim_now - at
-                            >= chrono::Duration::from_std(
-                                crate::config::duration(&config.execution.timeout).unwrap(),
-                            )
-                            .unwrap()
-                    })
+                || crate::dag_manual_retry::expired(
+                    &serde_json::from_value(p.get("config")).expect("saved graph"),
+                    p.get("window_started_at"),
+                    claim_now,
+                )
                 || p.get::<Option<DateTime<Utc>>, _>("finished_at").is_some()
         })
         || state != "queued"
@@ -1666,9 +1602,16 @@ async fn claim(
         let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE runner_id=$1 AND config->>'agent'=$2 AND COALESCE(session->>'id',config->'session'->>'id')=$3 AND id<>$4 AND state IN ('starting','running','unknown')) OR EXISTS(SELECT 1 FROM terminals WHERE runner_id=$1 AND agent=$2 AND session_id=$3 AND state<>'closed')")
             .bind(runner).bind(&task.agent).bind(&session.id).bind(b.run_id).fetch_one(&mut *tx).await?;
         if busy {
-            sqlx::query("UPDATE runs SET state='skipped',reason='会话正在使用',finished_at=now() WHERE id=$1").bind(b.run_id).execute(&mut *tx).await?;
+            let state = crate::dag_manual_retry::session_conflict_state(row.get("attempt_origin"));
+            sqlx::query(
+                "UPDATE runs SET state=$2,reason='会话正在使用',finished_at=now() WHERE id=$1",
+            )
+            .bind(b.run_id)
+            .bind(state)
+            .execute(&mut *tx)
+            .await?;
             tx.commit().await?;
-            return Ok(Json(json!({"execute":false,"state":"skipped"})));
+            return Ok(Json(json!({"execute":false,"state":state})));
         }
     }
     if graph_parent.is_none() && task.execution.overlap == crate::config::Overlap::Skip {
@@ -1698,7 +1641,7 @@ async fn claim(
     }
     if let Some(parent) = graph_parent {
         sqlx::query(
-            "UPDATE runs SET state='running',started_at=COALESCE(started_at,now()) WHERE id=$1",
+            "UPDATE runs SET state='running',started_at=COALESCE(started_at,now()),window_started_at=COALESCE(window_started_at,now()) WHERE id=$1",
         )
         .bind(parent)
         .execute(&mut *tx)

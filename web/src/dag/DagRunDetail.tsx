@@ -29,7 +29,7 @@ import {
   type Agent,
   type Runner,
 } from '../api'
-import { IconButton, Button } from '../ui'
+import { IconButton, Button, Modal } from '../ui'
 import { PageActions } from '../PageHeader'
 import { Status } from '../Status'
 import { ChoicePicker } from '../ChoicePicker'
@@ -382,26 +382,40 @@ function NodeExecution({
   const [chosen, setChosen] = useEditorValue<string | null>('attempt', null)
   const executionId = chosen ?? currentExecutionId
   const current = nodes.find((n) => n.id === node)
+  const [resume, setResume] = useState(false)
   const retry = useMutation({
-    mutationFn: () =>
+    mutationFn: (resumeStopped: boolean) =>
       api(`/runs/${parent}/nodes/${encodeURIComponent(node)}/retry`, 'POST', {
-        execution_id: currentExecutionId,
+        execution_id: currentExecutionId ?? null,
+        resume_stopped: resumeStopped,
       }),
     onSuccess: () => {
+      setResume(false)
+      client.invalidateQueries({ queryKey: ['runs'] })
+      client.invalidateQueries({ queryKey: ['moments'] })
+      client.invalidateQueries({ queryKey: ['search'] })
       client.invalidateQueries({ queryKey: ['run', parent] })
       client.invalidateQueries({ queryKey: ['dag-node', parent, node] })
     },
     onError: (error) => toast(error.message),
   })
-  const execution = useQuery<{ execution: Run | null; attempts?: { id: string; state: string }[] }>(
-    {
-      queryKey: ['dag-node', parent, node, executionId],
-      queryFn: () =>
-        api(`/runs/${parent}/nodes/${encodeURIComponent(node)}?execution=${executionId}`),
-      enabled: active && !!executionId,
-      refetchInterval: active ? 2000 : false,
-    },
-  )
+  const execution = useQuery<{
+    execution: Run | null
+    attempts?: { id: string; state: string }[]
+    retry?: {
+      action: 'retry' | 'accelerate' | 'resume' | null
+      reason?: string
+      affected: { id: string; name: string; state: string }[]
+    }
+  }>({
+    queryKey: ['dag-node', parent, node, executionId],
+    queryFn: () =>
+      api(
+        `/runs/${parent}/nodes/${encodeURIComponent(node)}${executionId ? `?execution=${executionId}` : ''}`,
+      ),
+    enabled: active,
+    refetchInterval: active ? 2000 : false,
+  })
   const trace = useRunTrace(executionId ?? '', active && !!executionId && mode === 'trace')
   const [events, setEvents] = useState<RunEvent[]>([])
   const [logError, setLogError] = useState(false)
@@ -526,11 +540,23 @@ function NodeExecution({
             </time>
           </span>
         )}
-        {!chosen && current?.retry_at && user.role !== 'viewer' && (
+        {!chosen && user.role !== 'viewer' && execution.data?.retry && (
           <IconButton
-            label={t('retry.now')}
+            label={
+              execution.data.retry.reason ||
+              t(
+                execution.data.retry.action === 'accelerate'
+                  ? 'retry.now'
+                  : execution.data.retry.action === 'resume'
+                    ? 'retry.resume'
+                    : 'retry.node',
+              )
+            }
+            disabled={!execution.data.retry.action}
             loading={retry.isPending}
-            onClick={() => retry.mutate()}
+            onClick={() =>
+              execution.data?.retry?.action === 'resume' ? setResume(true) : retry.mutate(false)
+            }
           >
             <Redo2 />
           </IconButton>
@@ -626,6 +652,50 @@ function NodeExecution({
           </RunSection>
         </>
       )}
+      <Modal
+        open={resume}
+        onOpenChange={(open) => {
+          if (!retry.isPending) setResume(open)
+        }}
+        title={t('retry.resume')}
+        description={t('retry.preserve')}
+        actions={
+          <>
+            <Button disabled={retry.isPending} onClick={() => setResume(false)}>
+              {t('取消')}
+            </Button>
+            <Button
+              className="primary"
+              loading={retry.isPending}
+              onClick={() => retry.mutate(true)}
+            >
+              {t('retry.resume')}
+            </Button>
+          </>
+        }
+      >
+        <div className="dag-recovery-table" role="table" aria-label={t('retry.resume')}>
+          <div className="table-head" role="row">
+            <span role="columnheader">{t('dag.field.name')}</span>
+            <span role="columnheader">{t('状态')}</span>
+            <span role="columnheader">{t('操作')}</span>
+          </div>
+          {[
+            { id: node, name, state: run?.state ?? state },
+            ...(execution.data?.retry?.affected ?? []),
+          ].map((item, index) => (
+            <div role="row" key={item.id}>
+              <span role="cell" title={item.id}>
+                {item.name}
+              </span>
+              <span role="cell">
+                <Status state={item.state} />
+              </span>
+              <span role="cell">{t(index ? 'retry.continue' : 'retry.node')}</span>
+            </div>
+          ))}
+        </div>
+      </Modal>
       {resolve && (
         <ResolveDialog
           id={parent}

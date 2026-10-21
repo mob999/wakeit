@@ -518,7 +518,7 @@
   "dag.delete": "删除节点",
   "dag.deleteBlocked": "请先移除以下依赖、结果引用或输出选择，再删除节点。",
   "dag.fixErrors": "请修正节点配置",
-  "dag.graphTimeout": "整图超时",
+  "dag.graphTimeout": "整图总时限",
   "dag.task": "DAG 任务",
   "dag.resultMissing": "未返回结果",
   "dag.warning": "警告",
@@ -667,5 +667,9 @@
   "filePreview.enlargeImage": "放大图片：{{name}}",
   "image is not present in the complete Markdown document": "完整的 Markdown 文件中没有此图片引用",
   "Markdown document directory is unavailable": "无法确定 Markdown 文件所在目录",
-  "referenced file is not a supported image": "引用的文件不是受支持的图片"
+  "referenced file is not a supported image": "引用的文件不是受支持的图片",
+  "retry.node": "重试节点",
+  "retry.resume": "恢复节点",
+  "retry.preserve": "保留成功节点，恢复所选节点及受影响的下游节点。",
+  "retry.continue": "依赖满足后继续"
 }

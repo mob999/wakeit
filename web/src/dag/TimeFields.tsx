@@ -31,6 +31,7 @@ export function TimeFields({
           ? 'cron'
           : 'manual',
   )
+  const [timeoutDraft, setTimeoutDraft] = useState(config.execution.timeout ?? '1h')
   const [zone, setZone] = useState(config.schedule?.timezone || timezone)
   const [drafts, setDrafts] = useState(() => ({
     cron: config.schedule?.cron || '0 9 * * *',
@@ -114,7 +115,10 @@ export function TimeFields({
     if (kind !== 'manual' && (localError || preview.error))
       errors.push({ path: field, message: localError || preview.error!.message })
     for (const key of ['timeout', 'start_grace'] as const)
-      if (!validDuration(config.execution[key]))
+      if (
+        (key !== 'timeout' || config.execution.timeout !== null) &&
+        !validDuration(config.execution[key] ?? '')
+      )
         errors.push({
           path: 'execution.' + key,
           message: t(
@@ -208,20 +212,50 @@ export function TimeFields({
           <h3>{t('dag.executionPolicy')}</h3>
         </header>
         <div className="dag-settings-rows">
-          {(['timeout', 'start_grace'] as const).map((key) => (
-            <Field
-              key={key}
-              fieldKey={'execution.' + key}
-              label={key === 'timeout' ? t('dag.graphTimeout') : t('允许延迟')}
-            >
-              <input
-                value={config.execution[key]}
-                onChange={(e) =>
-                  onChange({ ...config, execution: { ...config.execution, [key]: e.target.value } })
-                }
-              />
-            </Field>
-          ))}
+          <Field label={t('dag.graphTimeout')} fieldKey="execution.timeout">
+            <div className="dag-time-limit">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={config.execution.timeout != null}
+                  onChange={(e) =>
+                    onChange({
+                      ...config,
+                      execution: {
+                        ...config.execution,
+                        timeout: e.target.checked ? timeoutDraft : null,
+                      },
+                    })
+                  }
+                />
+                {t('启用')}
+              </label>
+              {config.execution.timeout != null && (
+                <input
+                  aria-label={t('dag.graphTimeout')}
+                  value={config.execution.timeout}
+                  onChange={(e) => {
+                    setTimeoutDraft(e.target.value)
+                    onChange({
+                      ...config,
+                      execution: { ...config.execution, timeout: e.target.value },
+                    })
+                  }}
+                />
+              )}
+            </div>
+          </Field>
+          <Field label={t('允许延迟')} fieldKey="execution.start_grace">
+            <input
+              value={config.execution.start_grace}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  execution: { ...config.execution, start_grace: e.target.value },
+                })
+              }
+            />
+          </Field>
           <Field label={t('错过执行')} fieldKey="execution.misfire">
             <ChoicePicker
               label={t('错过执行')}

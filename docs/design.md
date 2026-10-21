@@ -186,3 +186,5 @@ Tasks、Runs、Runners、Settings 共用独立的第二侧栏语义底色与细�
 对象列表保持 350px 默认、270–560px 范围和原有宽度偏好；Settings 默认 240px、200–320px 范围并独立保存。拖拽、键盘调整和双击恢复沿用同一控件，窄屏继续通过列表/详情和面包屑切换。
 
 Trace 工具名称完整显示，不压缩为省略号；只有后面的命令、路径等摘要单行省略。极长工具名在窄屏允许换行，状态及耗时保持原列对齐。
+
+DAG manual recovery keeps the selected node context and reading state. Show Retry node, Retry now or Resume node as the same transparent context action, only on the latest attempt; disabled actions expose the server blocking reason through a Tooltip. Confirm stopped recovery in a compact three-column table (node / state / action) and retain the dialog and reading position after errors. Successful nodes remain unchanged. The DAG Time step uses the existing execution-policy table row for an optional total-limit switch; new drafts default off, while existing explicit limits remain visible. Errors use top-right Toasts.

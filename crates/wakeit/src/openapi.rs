@@ -134,7 +134,10 @@ pub fn document() -> Value {
             "session":{"anyOf":[{"$ref":"#/components/schemas/RunSession"},{"type":"null"}],"description":"Actual session captured by this execution. Null for historical or unsupported runs; a configured binding alone does not establish continuation readiness."},
             "result":{},"reason":{"type":["string","null"]},
             "started_at":{"type":["string","null"],"format":"date-time"},
-            "finished_at":{"type":["string","null"],"format":"date-time"}
+            "finished_at":{"type":["string","null"],"format":"date-time"},
+            "attempt_origin":{"enum":["initial","automatic","manual","continuation"]},
+            "recovery_generation":{"type":"integer","minimum":0},
+            "window_started_at":{"type":["string","null"],"format":"date-time"}
         }
     }));
     schemas.insert("Settings".into(), json!({"type":"object","required":["timezone","log_retention_days","run_retention_days"],"properties":{"timezone":{"type":"string"},"log_retention_days":{"type":"integer","minimum":1,"maximum":3650},"run_retention_days":{"type":"integer","minimum":1,"maximum":3650}}}));
@@ -337,7 +340,10 @@ pub fn document() -> Value {
             if path == "/schema/{kind}" {
                 parameters.push(json!({"name":"kind","in":"path","required":true,"schema":{"type":"string","enum":["task","agent"]}}));
             }
-            if matches!(path, "/tasks/{id}/runs" | "/runs/{id}/retry") {
+            if matches!(
+                path,
+                "/tasks/{id}/runs" | "/runs/{id}/retry" | "/runs/{id}/nodes/{node}/retry"
+            ) {
                 parameters.push(json!({"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","maxLength":200}}));
             }
             if matches!(
@@ -426,12 +432,16 @@ pub fn document() -> Value {
                 );
             }
             if path == "/runs/{id}/nodes/{node}/retry" {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["id","parent_run_id","node_id"],"properties":{"id":{"type":"string","format":"uuid"},"parent_run_id":{"type":"string","format":"uuid"},"node_id":{"type":"string"}}}}});
                 op["description"] = json!(
-                    "Operator only. Advances the exact queued retry execution_id without consuming additional budget or changing ended graphs. Concurrent/stale attempts cannot start a second execution."
+                    "Admin/Read-write only. Retries a confirmed failed node in its frozen parent Run, preserving successful nodes and restoring affected descendants under AND. Required nullable execution_id guards stale requests; resume_stopped explicitly recovers graph cancellation/total timeout only after old executions stop. Reuses queued automatic successor. Idempotency-Key returns the same id,parent_run_id,node_id. Node detail exposes retry action, blocking reason and affected descendants."
                 );
             }
             if path == "/runs/{id}/nodes/{node}" {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["node","execution"],"properties":{"node":{"$ref":"#/components/schemas/DagRunNode"},"execution":{"anyOf":[{"$ref":"#/components/schemas/Run"},{"type":"null"}]},"attempts":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"state":{"type":"string"},"scheduled_at":{"type":"string","format":"date-time"},"reason":{"type":["string","null"]}}}}}}}});
+            }
+            if path == "/runs/{id}/nodes/{node}" {
+                op["responses"]["200"]["content"]["application/json"]["schema"]["properties"]["retry"] = json!({"type":"object","required":["action","reason","affected"],"properties":{"action":{"type":["string","null"],"enum":["retry","accelerate","resume",null]},"reason":{"type":["string","null"]},"affected":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"state":{"type":"string"},"action":{"const":"resume"}}}}}});
             }
             if path == "/runs/{id}/nodes/{node}/resolve" {
                 op["description"] = json!(

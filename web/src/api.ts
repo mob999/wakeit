@@ -134,7 +134,7 @@ export type TaskConfig = {
   enabled: boolean
   schedule: Schedule | null
   execution: {
-    timeout: string
+    timeout: string | null
     start_grace: string
     overlap: 'skip' | 'allow'
     misfire: 'skip' | 'latest'

@@ -304,8 +304,8 @@ pub enum Misfire {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Execution {
-    #[serde(default = "timeout")]
-    pub timeout: String,
+    #[serde(default)]
+    pub timeout: Option<String>,
     #[serde(default = "timeout")]
     pub start_grace: String,
     #[serde(default)]
@@ -316,14 +316,14 @@ pub struct Execution {
 impl Default for Execution {
     fn default() -> Self {
         Self {
-            timeout: timeout(),
+            timeout: None,
             start_grace: timeout(),
             overlap: Overlap::Skip,
             misfire: Misfire::Latest,
         }
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 #[schemars(transform = task_schema)]
 pub struct TaskConfig {
@@ -351,6 +351,46 @@ pub struct TaskConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dag: Option<crate::dag::Dag>,
 }
+// Normalize ordinary tasks at the input boundary; DAG omission means no total cap.
+#[derive(Deserialize)]
+#[serde(remote = "TaskConfig", deny_unknown_fields)]
+struct TaskConfigWire {
+    #[serde(default = "version")]
+    version: u32,
+    id: String,
+    name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    runner: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    agent: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    cwd: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    prompt: String,
+    #[serde(default)]
+    parameters: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    session: Option<SessionBinding>,
+    schedule: Option<Schedule>,
+    #[serde(default = "yes")]
+    enabled: bool,
+    #[serde(default)]
+    execution: Execution,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dag: Option<crate::dag::Dag>,
+}
+impl<'de> Deserialize<'de> for TaskConfig {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let mut config = TaskConfigWire::deserialize(deserializer)?;
+        if config.dag.is_none() && config.execution.timeout.is_none() {
+            config.execution.timeout = Some(timeout());
+        }
+        Ok(config)
+    }
+}
+
 fn task_schema(schema: &mut schemars::Schema) {
     schema.insert("oneOf".into(), serde_json::json!([
         {"required":["runner","agent","cwd","prompt"],"properties":{"dag":{"type":"null"},"runner":{"minLength":1},"agent":{"minLength":1},"cwd":{"minLength":1},"prompt":{"minLength":1}}},
@@ -377,7 +417,9 @@ impl TaskConfig {
                 serde_json::to_vec(self)?.len() <= 1000 * 1024,
                 "encoded task configuration exceeds 1000 KiB"
             );
-            duration(&self.execution.timeout)?;
+            if let Some(timeout) = &self.execution.timeout {
+                duration(timeout)?;
+            }
             duration(&self.execution.start_grace)?;
             if let Some(s) = &self.schedule {
                 crate::schedule::validate(s)?;
@@ -399,7 +441,7 @@ impl TaskConfig {
         if let Some(session) = &self.session {
             crate::sessions::validate_id(&session.id)?;
         }
-        duration(&self.execution.timeout)?;
+        duration(self.execution.timeout.as_deref().unwrap_or("1h"))?;
         duration(&self.execution.start_grace)?;
         if let Some(s) = &self.schedule {
             crate::schedule::validate(s)?;

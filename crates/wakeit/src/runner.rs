@@ -405,7 +405,14 @@ impl Runner {
             &run.assignment.task,
             id,
             None,
-            duration(&run.assignment.task.execution.timeout)?,
+            duration(
+                run.assignment
+                    .task
+                    .execution
+                    .timeout
+                    .as_deref()
+                    .unwrap_or("1h"),
+            )?,
             active.cancel.clone(),
             self.sink(id, true),
             matches!(run.agent.output.format, OutputFormat::Events),
@@ -621,8 +628,14 @@ impl Runner {
             .await?;
         let status = run.agent.status.as_ref().context("status required")?;
         let interval = duration(&run.agent.poll_interval)?;
-        let timeout =
-            chrono::Duration::from_std(duration(&run.assignment.task.execution.timeout)?)?;
+        let timeout = chrono::Duration::from_std(duration(
+            run.assignment
+                .task
+                .execution
+                .timeout
+                .as_deref()
+                .unwrap_or("1h"),
+        )?)?;
         let deadline = run.started + timeout;
         let mut cancel_sent = false;
         let mut cancel_since = None;

@@ -85,7 +85,7 @@ wakeit run watch <run-id>
 wakeit task pause daily-review
 ```
 
-Tasks are stored in the Gateway's PostgreSQL database; YAML files are inputs for creating or updating them. Model discovery depends on the adapter; enter a model manually when no discovery interface is available. Ordinary tasks are not automatically rerun. DAG nodes can opt into bounded retries with `max_retries`; queued retries can be started immediately without adding attempts. An execution whose outcome cannot be confirmed enters `unknown`; check its actual state before deciding whether to retry.
+Tasks are stored in the Gateway's PostgreSQL database; YAML files are inputs for creating or updating them. Model discovery depends on the adapter; enter a model manually when no discovery interface is available. Ordinary tasks are not automatically rerun. DAG nodes can opt into bounded retries with `max_retries`; queued retries can be started immediately without adding attempts. Manually retry a failed node with `wakeit run retry RUN --node NODE` to preserve successful nodes and continue downstream in the same frozen Run. DAG total timeout is optional and disabled by default. An execution whose outcome cannot be confirmed enters `unknown`; check its actual state before deciding whether to retry.
 
 Archive a task from its detail view to stop future scheduling while preserving history and letting active runs finish. Restore it from Settings → Archived tasks; restored tasks remain paused. CLI equivalents are `wakeit task archive <id>`, `wakeit task list --archived` and `wakeit task restore <id>`.
 
