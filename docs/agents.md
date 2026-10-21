@@ -79,6 +79,8 @@ wakeit adapter detect gemini-cli
 
 三者模型手填。原生 CLI 提供模型显示命令不等于已有稳定的无副作用机器目录接口；没有接入 `models` 的适配不会显示模型下拉。会话 ID 的观察记录不构成持久化与目录校验证明，不开放绑定或续聊。
 
+过程展示预算不决定执行成败：Copilot 的大消息、工具输入输出使用截断预览；Copilot、Cursor、Qwen Code 达到过程数量或待处理内容预算后停止保留后续过程，继续读取原生终态。界面会标记过程不完整，任务仍按原生执行结果收尾。最终报告超出传输容量时保留带截断标识的预览；DAG 下游不得将其当作完整结果使用。原生失败、缺少终态和真实协议错误仍会失败。
+
 ## Cline
 
 使用当前 [Cline CLI JSONL](https://github.com/cline/cline/blob/main/docs/cli/cli-reference.mdx#json-output-for-agent-runs)，通过 `--` 后的独立 argv 传递指令，保留多行、中文及 shell 字面量；当前 3.0.72 的管道输入不能可靠启动任务。解析公开消息、按 `toolCallId` 关联的工具输入、进度与结果，保留源事件时间；不展示隐藏推理。`agent_event.done` 不是最终报告，必须收到 `run_result` 且 `finishReason: completed`；停止、失败或原生非零退出不发布局部答案。

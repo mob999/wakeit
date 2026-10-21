@@ -45,6 +45,8 @@ parameters 必须与适配声明对应。没接口只手填，空列表或失败
 
 同一节点 id 更新用完整快照；parent_id 可表示真实父子关系。不要提供未公开的推理内容。最终结果独立输出，退出码仍决定同步执行成功/失败。可运行 `wakeit schema stream` 获取精确契约，`wakeit adapter stream <protocol> -- <command> <args...>` 归一化内置原生协议。
 
+展示容量不足不能伪造 Agent 执行失败。Copilot、Cursor、Qwen Code 的过程预算耗尽时仅截断或省略过程，继续消费原生终态和最终结果；通过 diagnostic 日志标记过程不完整。最终结果的截断使用 `{"truncated":true,"preview":"..."}`，不得把省略说明当作完整正文供 DAG 下游引用。执行错误、缺少终态及真实协议错误仍需如实报告。
+
 异步 submit 输出 `{"job_id":"..."}`，status 输出 `{"state":"running","message":"..."}` 或最终 `{"state":"succeeded","result":"..."}`。状态支持 queued/running/succeeded/failed/cancelled，命令失败只是查询失败。可选 cancel 后由 status 确认 cancelled。建议外部 API 用 run.id 作幂等键；提交可能成功但取不到 job_id 时进入 unknown，不重新提交。
 
 异步 `agent test` 只提交并查询一次；完整轮询、重启恢复和取消需通过隔离 Runner/Run 检查。Windows 脚本入口显式指定解释器，路径/中文/空格通过独立参数传递。

@@ -127,3 +127,65 @@ if (protocol === 'agy') {
         }
     }
 }
+
+#[tokio::test]
+async fn observational_budgets_do_not_turn_native_zero_exits_into_failures() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("budget-agent.cjs");
+    std::fs::write(&script,r#"
+const [protocol, outcome] = process.argv.slice(2);
+const events = [];
+if (protocol === 'copilot') {
+  events.push({type:'tool.execution_start',data:{toolCallId:'tool',toolName:'read',arguments:{}}});
+  events.push({type:'tool.execution_complete',data:{toolCallId:'tool',success:true,result:{text:'x'.repeat(400000)}}});
+  events.push({type:'assistant.message',data:{messageId:'final',content:'Completed'}});
+  events.push({type:'result',exitCode:outcome === 'terminal-error' ? 1 : 0});
+} else {
+  for (let i=0; i<15; i++) {
+    const id = `tool-${i}`;
+    if (protocol === 'qwen-code') events.push({type:'assistant',message:{content:[{type:'tool_use',id,name:'read',input:{path:'x'.repeat(600000)}}]}});
+    else events.push({type:'tool_call',subtype:'started',call_id:id,tool_call:{readToolCall:{args:{path:'x'.repeat(600000)}}}});
+  }
+  events.push({type:'result',subtype:outcome === 'terminal-error' ? 'error_during_execution' : 'success',is_error:outcome === 'terminal-error',result:'Completed'});
+}
+process.stdout.write(events.map(e=>JSON.stringify(e)).join('\n')+'\n',()=>process.exit(outcome === 'exit-error' ? 7 : 0));
+"#).unwrap();
+    for protocol in ["copilot", "qwen-code", "cursor"] {
+        for outcome in ["success", "terminal-error", "exit-error"] {
+            let output = tokio::time::timeout(
+                std::time::Duration::from_secs(20),
+                Command::new(env!("CARGO_BIN_EXE_wakeit"))
+                    .args(["adapter", "stream", protocol, "--", "node"])
+                    .arg(&script)
+                    .arg(protocol)
+                    .arg(outcome)
+                    .output(),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(match outcome {
+                    "success" => 0,
+                    "terminal-error" => 1,
+                    _ => 7,
+                }),
+                "{protocol}/{outcome}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let results: Vec<_> = output
+                .stdout
+                .split(|b| *b == b'\n')
+                .filter(|line| !line.is_empty())
+                .map(|line| StreamRecord::parse(line).unwrap())
+                .filter(|r| matches!(r.record, RecordData::Result(_)))
+                .collect();
+            assert_eq!(
+                results.len(),
+                if outcome == "success" { 1 } else { 0 },
+                "{protocol}/{outcome}"
+            );
+        }
+    }
+}
