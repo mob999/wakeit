@@ -63,9 +63,13 @@ export function RunListRow({
 }) {
   useTranslation()
   return (
-    <button className={`task-row run-row ${selected ? 'active' : ''}`} onClick={onSelect}>
+    <button
+      className={`task-row run-row ${selected ? 'active' : ''}`}
+      aria-current={selected ? 'page' : undefined}
+      onClick={onSelect}
+    >
       <div className="row-title">
-        <span>{run.config.name}</span>
+        <span title={run.config.name}>{run.config.name}</span>
         <Status state={run.state} />
       </div>
       <div className="row-meta">

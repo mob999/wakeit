@@ -228,7 +228,12 @@ impl<W: Write> Reporter<W> {
         }
         let node: TraceNode =
             serde_json::from_value(data).map_err(|_| Failure::query("invalid Trace response"))?;
-        let key = format!("{}\0{}", event.node_id.as_deref().unwrap_or(""), node.id);
+        let key = format!(
+            "{}\0{}\0{}",
+            event.execution_id.unwrap_or(event.run_id),
+            event.node_id.as_deref().unwrap_or(""),
+            node.id
+        );
         let old = self.traces.get(&key).cloned();
         if old.as_ref().is_some_and(|(seq, old)| {
             *seq >= event.seq
@@ -766,6 +771,20 @@ mod tests {
                 assert_eq!(text.matches("Alpha").count(), 1);
             }
         }
+    }
+    #[test]
+    fn retry_trace_sequence_can_restart_with_same_native_id() {
+        let id = Uuid::new_v4();
+        let mut reporter = Reporter::new(vec![], id, true);
+        for (seq, output) in [(50, "first attempt"), (1, "second attempt")] {
+            let mut value = event(id, seq, "trace", node(json!(output), "running"));
+            value["node_id"] = json!("same-node");
+            value["execution_id"] = json!(Uuid::new_v4());
+            reporter
+                .event(&serde_json::from_value(value).unwrap())
+                .unwrap();
+        }
+        assert_eq!(lines(&reporter.output).len(), 2);
     }
     #[tokio::test]
     async fn drains_more_than_500_and_terminal_tail_then_returns_final_result() {

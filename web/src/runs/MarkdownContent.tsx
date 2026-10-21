@@ -10,24 +10,37 @@ import { markdownSchema, safeHtmlStyles } from '../markdown/safeHtml'
 import 'katex/dist/katex.min.css'
 import '../markdown/markdown.css'
 
+import { ResultFileLink } from '../files/ResultFileLink'
+import { resultFileLinks, type FileSource } from '../files/links'
 import MermaidDiagram from '../markdown/MermaidDiagram'
 const remarkPlugins = [remarkGfm, remarkMath]
 const rehypePlugins = [
   rehypeRaw,
   safeHtmlStyles,
+  resultFileLinks,
   [rehypeSanitize, markdownSchema],
   [rehypeKatex, { throwOnError: false, trust: false, maxExpand: 1000 }],
   [rehypeHighlight, { detect: false, plainText: ['mermaid'] }],
 ] satisfies NonNullable<ComponentProps<typeof Markdown>['rehypePlugins']>
 
-export const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }) {
+export const MarkdownContent = memo(function MarkdownContent({
+  text,
+  source,
+}: {
+  text: string
+  source?: FileSource
+}) {
   return (
     <Markdown
       remarkPlugins={remarkPlugins}
       rehypePlugins={rehypePlugins}
       components={{
-        a: ({ href, children }) =>
-          href ? (
+        a: ({ href, children, node }) =>
+          typeof node?.properties.dataWakeitLocal === 'string' ? (
+            <ResultFileLink href={node.properties.dataWakeitLocal} source={source}>
+              {children}
+            </ResultFileLink>
+          ) : href ? (
             <a href={href} target="_blank" rel="noopener noreferrer">
               {children}
             </a>
@@ -39,8 +52,12 @@ export const MarkdownContent = memo(function MarkdownContent({ text }: { text: s
             <table>{children}</table>
           </div>
         ),
-        img: ({ src, alt }) =>
-          src ? (
+        img: ({ src, alt, node }) =>
+          typeof node?.properties.dataWakeitLocal === 'string' ? (
+            <span title={node.properties.dataWakeitLocal}>
+              {alt || node.properties.dataWakeitLocal}
+            </span>
+          ) : src ? (
             <img src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />
           ) : (
             <span>{alt}</span>

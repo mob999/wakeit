@@ -42,6 +42,16 @@ export function issues(dag: Dag): DagIssue[] {
           path: `dag.nodes.${node.id}.${key}`,
           message: t('dag.required', { field: t(`dag.field.${key}`) }),
         })
+    if (
+      !Number.isInteger(node.max_retries ?? 0) ||
+      (node.max_retries ?? 0) < 0 ||
+      (node.max_retries ?? 0) > 10
+    )
+      result.push({
+        node_id: node.id,
+        path: `dag.nodes.${node.id}.max_retries`,
+        message: t('retry.invalid'),
+      })
     if (ancestors(dag, node.id).has(node.id))
       result.push({ node_id: node.id, path: `dag.nodes.${node.id}.pre`, message: t('dag.cycle') })
     if (

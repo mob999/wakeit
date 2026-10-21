@@ -243,6 +243,9 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
         if stop {
             cancel_nodes(&mut tx, workspace, id).await?;
         }
+        if !stop {
+            crate::dag_retry::prepare(&mut tx, workspace, id, &c, now).await?;
+        }
         let rows=sqlx::query("SELECT n.*,r.result,r.state AS execution_state,r.reason AS execution_reason,r.started_at AS execution_started,r.finished_at AS execution_finished FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.parent_run_id=$1 ORDER BY n.position").bind(id).fetch_all(&mut *tx).await?;
         let mut states = BTreeMap::new();
         let mut results = BTreeMap::new();
@@ -256,7 +259,7 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
                 .get::<Option<String>, _>("execution_reason")
                 .or_else(|| row.get("reason"));
             if state != row.get::<String, _>("state") {
-                sqlx::query("UPDATE dag_run_nodes SET state=$3,reason=$4,started_at=$5,finished_at=$6 WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node).bind(&state).bind(&why).bind(row.get::<Option<DateTime<Utc>>,_>("execution_started")).bind(row.get::<Option<DateTime<Utc>>,_>("execution_finished")).execute(&mut *tx).await?;
+                sqlx::query("UPDATE dag_run_nodes SET state=$3,reason=$4,started_at=COALESCE(started_at,$5),finished_at=$6 WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node).bind(&state).bind(&why).bind(row.get::<Option<DateTime<Utc>>,_>("execution_started")).bind(row.get::<Option<DateTime<Utc>>,_>("execution_finished")).execute(&mut *tx).await?;
                 event(
                     &mut tx,
                     workspace,
@@ -442,5 +445,5 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
 }
 
 pub async fn summaries(pool: &PgPool, workspace: Uuid, id: Uuid) -> Result<Vec<Value>> {
-    Ok(sqlx::query_scalar("SELECT n.config || jsonb_build_object('execution_id',n.execution_id,'continuation_available',(COALESCE(r.session->>'ready'='true',false) AND COALESCE(length(r.session->>'command')>0,false)),'state',COALESCE(r.state,n.state),'reason',COALESCE(r.reason,n.reason),'started_at',COALESCE(r.started_at,n.started_at),'finished_at',COALESCE(r.finished_at,n.finished_at)) FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.workspace_id=$1 AND n.parent_run_id=$2 ORDER BY n.position").bind(workspace).bind(id).fetch_all(pool).await?)
+    Ok(sqlx::query_scalar("SELECT n.config || jsonb_build_object('execution_id',n.execution_id,'attempt_count',(SELECT count(*) FROM runs a WHERE a.parent_run_id=n.parent_run_id AND a.node_id=n.node_id),'retry_at',CASE WHEN r.state='queued' AND r.retry_of IS NOT NULL AND r.scheduled_at>now() THEN r.scheduled_at ELSE NULL END,'continuation_available',(COALESCE(r.session->>'ready'='true',false) AND COALESCE(length(r.session->>'command')>0,false)),'state',COALESCE(r.state,n.state),'reason',COALESCE(r.reason,n.reason),'started_at',COALESCE(r.started_at,n.started_at),'finished_at',COALESCE(r.finished_at,n.finished_at)) FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.workspace_id=$1 AND n.parent_run_id=$2 ORDER BY n.position").bind(workspace).bind(id).fetch_all(pool).await?)
 }

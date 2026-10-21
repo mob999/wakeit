@@ -151,6 +151,7 @@ export type DagNode = {
   parameters: Record<string, string>
   session?: { id: string } | null
   timeout: string
+  max_retries?: number
 }
 export type Dag = { nodes: DagNode[]; results?: string[] | null }
 export type DagIssue = { path: string; node_id?: string; message: string; cycle?: string[] }
@@ -158,6 +159,8 @@ export type DagRunNode = DagNode & {
   state: string
   execution_id?: string | null
   continuation_available?: boolean
+  attempt_count?: number
+  retry_at?: string | null
   reason?: string | null
   started_at?: string | null
   finished_at?: string | null

@@ -330,9 +330,11 @@ pub fn router(app: App) -> Router {
         .route("/moments", get(crate::moments::entries))
         .route("/runs", get(runs))
         .route("/runs/{id}", get(run))
+        .route("/runs/{id}/files/preview", post(crate::file_api::preview))
         .route("/runs/{id}/nodes/{node}", get(run_node))
         .route("/runs/{id}/nodes/{node}/events", get(node_events))
         .route("/runs/{id}/nodes/{node}/resolve", post(resolve_node))
+        .route("/runs/{id}/nodes/{node}/retry", post(retry_node))
         .route("/runs/{id}/cancel", post(cancel))
         .route("/runs/{id}/retry", post(retry))
         .route("/runs/{id}/resolve", post(resolve))
@@ -870,10 +872,15 @@ async fn node_execution(s: &App, workspace: Uuid, id: Uuid, node: &str) -> Resul
     sqlx::query_scalar("SELECT execution_id FROM dag_run_nodes WHERE workspace_id=$1 AND parent_run_id=$2 AND node_id=$3")
         .bind(workspace).bind(id).bind(node).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)
 }
+#[derive(Default, Deserialize)]
+struct NodeQuery {
+    execution: Option<Uuid>,
+}
 async fn run_node(
     State(s): State<App>,
     h: HeaderMap,
     Path((id, node)): Path<(Uuid, String)>,
+    Query(q): Query<NodeQuery>,
 ) -> Result<Json<Value>> {
     let u = user(&s, &h, "viewer", false).await?;
     let workspace = u.workspace()?;
@@ -883,12 +890,19 @@ async fn run_node(
         .into_iter()
         .find(|n| n["id"] == node)
         .ok_or_else(Error::missing)?;
+    let attempts:Vec<Value> = sqlx::query_scalar("SELECT jsonb_build_object('id',id,'state',state,'reason',reason,'scheduled_at',scheduled_at,'started_at',started_at,'finished_at',finished_at) FROM runs WHERE workspace_id=$1 AND parent_run_id=$2 AND node_id=$3 ORDER BY created_at,id").bind(workspace).bind(id).bind(&node).fetch_all(&s.pool).await?;
+    let execution = q.execution.or(execution);
+    if execution.is_some_and(|id| !attempts.iter().any(|a| a["id"] == id.to_string())) {
+        return Err(Error::missing());
+    }
     let execution = if let Some(id) = execution {
         run(State(s), h, Path(id)).await?.0
     } else {
         Value::Null
     };
-    Ok(Json(json!({"node":summary,"execution":execution})))
+    Ok(Json(
+        json!({"node":summary,"execution":execution,"attempts":attempts}),
+    ))
 }
 async fn node_events(
     State(s): State<App>,
@@ -917,6 +931,78 @@ async fn resolve_node(
         .await?
         .ok_or_else(Error::missing)?;
     resolve(State(s), h, Path(execution), ApiJson(b)).await
+}
+#[derive(Deserialize, schemars::JsonSchema)]
+pub(crate) struct RetryNode {
+    execution_id: Uuid,
+}
+async fn retry_node(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path((id, node)): Path<(Uuid, String)>,
+    ApiJson(b): ApiJson<RetryNode>,
+) -> Result<Json<Value>> {
+    let u = user(&s, &h, "operator", true).await?;
+    let workspace = u.workspace()?;
+    let mut tx = s.pool.begin().await?;
+    crate::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &u, "operator").await?;
+    let _row=sqlx::query("SELECT r.* FROM runs r JOIN dag_run_nodes n ON n.execution_id=r.id WHERE n.workspace_id=$1 AND n.parent_run_id=$2 AND n.node_id=$3 AND r.id=$4").bind(workspace).bind(id).bind(&node).bind(b.execution_id).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
+    crate::dag_store::lock_parent(&mut tx, b.execution_id).await?;
+    let graph =
+        sqlx::query("SELECT finished_at,cancel_requested,started_at,config FROM runs WHERE id=$1")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+    let config: TaskConfig = serde_json::from_value(graph.get("config"))?;
+    let now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
+        .fetch_one(&mut *tx)
+        .await?;
+    if graph
+        .get::<Option<DateTime<Utc>>, _>("finished_at")
+        .is_some()
+        || graph.get::<bool, _>("cancel_requested")
+        || graph
+            .get::<Option<DateTime<Utc>>, _>("started_at")
+            .is_some_and(|at| {
+                now - at
+                    >= chrono::Duration::from_std(
+                        crate::config::duration(&config.execution.timeout).unwrap(),
+                    )
+                    .unwrap()
+            })
+    {
+        return Err(Error::conflict("graph is no longer running"));
+    }
+    let current:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM dag_run_nodes WHERE workspace_id=$1 AND parent_run_id=$2 AND node_id=$3 AND execution_id=$4)").bind(workspace).bind(id).bind(&node).bind(b.execution_id).fetch_one(&mut *tx).await?;
+    if !current {
+        return Err(Error::conflict("retry is no longer current"));
+    }
+    let dispatched: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM outbox WHERE message_id=$1)")
+            .bind(format!("start:{}", b.execution_id))
+            .fetch_one(&mut *tx)
+            .await?;
+    if dispatched {
+        tx.commit().await?;
+        return Ok(Json(json!({"id":b.execution_id})));
+    }
+    // Re-read after acquiring the shared graph lock: stale clicks never target a later attempt.
+    let changed=sqlx::query("UPDATE runs r SET scheduled_at=LEAST(scheduled_at,$5),deadline=CASE WHEN scheduled_at>$5 THEN $5+($6::bigint * interval '1 second') ELSE deadline END FROM dag_run_nodes n WHERE r.id=$4 AND r.workspace_id=$1 AND r.parent_run_id=$2 AND r.node_id=$3 AND n.parent_run_id=$2 AND n.node_id=$3 AND n.execution_id=r.id AND r.state='queued' AND r.retry_of IS NOT NULL AND NOT r.cancel_requested RETURNING r.id").bind(workspace).bind(id).bind(&node).bind(b.execution_id).bind(now).bind(crate::config::duration(&config.execution.start_grace)?.as_secs() as i64).fetch_optional(&mut *tx).await?;
+    if changed.is_none() {
+        return Err(Error::conflict("retry is no longer waiting"));
+    }
+    crate::dag_retry::dispatch(&mut tx, workspace, id, now).await?;
+    store::audit(
+        &mut tx,
+        u.id,
+        Some(workspace),
+        "node.retry",
+        &b.execution_id.to_string(),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(json!({"id":b.execution_id})))
 }
 async fn apply(
     State(s): State<App>,
@@ -1487,7 +1573,7 @@ async fn claim(
     let parent = if let Some(id) = graph_parent {
         Some(
             sqlx::query(
-                "SELECT state,started_at,cancel_requested,finished_at FROM runs WHERE id=$1",
+                "SELECT state,started_at,cancel_requested,finished_at,config FROM runs WHERE id=$1",
             )
             .bind(id)
             .fetch_one(&mut *tx)
@@ -1519,6 +1605,9 @@ async fn claim(
             json!({"execute":true,"cancel_requested":row.get::<bool,_>("cancel_requested"),"session_title":row.get::<Option<Value>,_>("execution_snapshot").and_then(|v|v.get("session_title").cloned())}),
         ));
     }
+    let claim_now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
+        .fetch_one(&mut *tx)
+        .await?;
     if (task_row
         .get::<Option<DateTime<Utc>>, _>("archived_at")
         .is_some()
@@ -1527,9 +1616,20 @@ async fn claim(
             .is_none_or(|p| p.get::<Option<DateTime<Utc>>, _>("started_at").is_none()))
         || parent.as_ref().is_some_and(|p| {
             p.get::<bool, _>("cancel_requested")
+                || p.get::<Option<DateTime<Utc>>, _>("started_at")
+                    .is_some_and(|at| {
+                        let config: TaskConfig =
+                            serde_json::from_value(p.get("config")).expect("saved graph");
+                        claim_now - at
+                            >= chrono::Duration::from_std(
+                                crate::config::duration(&config.execution.timeout).unwrap(),
+                            )
+                            .unwrap()
+                    })
                 || p.get::<Option<DateTime<Utc>>, _>("finished_at").is_some()
         })
         || state != "queued"
+        || row.get::<DateTime<Utc>, _>("scheduled_at") > claim_now
         || row.get::<bool, _>("cancel_requested")
         || row.get::<DateTime<Utc>, _>("deadline")
             < sqlx::query_scalar::<_, DateTime<Utc>>("SELECT now()")
@@ -1860,7 +1960,7 @@ async fn query_models(
         .await?,
     ))
 }
-async fn device_query(
+pub(crate) async fn device_query(
     s: &App,
     headers: &HeaderMap,
     workspace: Uuid,

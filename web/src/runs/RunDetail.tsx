@@ -27,6 +27,9 @@ import { ResumeRun } from '../sessions/ResumeRun'
 import { PageActions } from '../PageHeader'
 import { TaskEditor } from '../TaskEditor'
 import { DagRunDetail } from '../dag/DagRunDetail'
+import { useRunReading, TraceActions } from './RunReading'
+import { RunReason } from './RunReason'
+import { Status } from '../Status'
 function SingleRunDetail({
   id,
   user,
@@ -48,28 +51,32 @@ function SingleRunDetail({
     queryFn: () => api('/agents'),
     refetchInterval: 3000,
   })
+  const [reading, updateReading] = useRunReading(`execution:${id}`)
   const [events, setEvents] = useState<RunEvent[]>([])
   const [tab, setTab] = useState<'execute' | 'details'>('execute')
-  const [resultOpen, setResultOpen] = useState(false)
+  const [resultOpen, setResultOpen] = useState(reading.highlighted && !reading.resultReady)
   const [raw, setRaw] = useState(false)
-  const [processOpen, setProcessOpen] = useState(true)
+  const [processOpen, setProcessOpen] = useState(!reading.highlighted || reading.resultReady)
   const [logsOpen, setLogsOpen] = useState(true)
   const [infoOpen, setInfoOpen] = useState(false)
   const [logError, setLogError] = useState(false)
   const [logAttempt, setLogAttempt] = useState(0)
-  const highlighted = useRef(false)
   const execution = useRef<HTMLDivElement>(null)
   const hasResult = run.data?.result != null && run.data.result !== ''
   useEffect(() => {
-    if (run.data?.state === 'succeeded' && hasResult && !highlighted.current) {
-      highlighted.current = true
+    if (run.data?.state === 'succeeded' && hasResult && !reading.highlighted) {
+      updateReading({ highlighted: true, resultReady: !reading.follow })
+      if (!reading.follow) return
       setResultOpen(true)
       setProcessOpen(false)
       if (tab === 'execute') execution.current?.scrollTo({ top: 0 })
     }
-  }, [run.data?.state, hasResult, tab])
+  }, [run.data?.state, hasResult, tab, reading.highlighted, reading.follow, updateReading])
   const trace = useRunTrace(id)
   const [follow, setFollow] = useState(true)
+  useEffect(() => {
+    if (run.data?.execution_snapshot?.trace_supported === false) updateReading({ follow })
+  }, [run.data?.execution_snapshot?.trace_supported, follow, updateReading])
   const [resolve, setResolve] = useState(false)
   const [createTask, setCreateTask] = useState(false)
   const settings = useQuery<WorkspaceSettings>({
@@ -203,13 +210,6 @@ function SingleRunDetail({
         ))}
       </div>
       <div className="run-page run-execution-page" ref={execution} hidden={tab !== 'execute'}>
-        {['failed', 'timed_out', 'cancelled', 'interrupted', 'unknown', 'skipped'].includes(
-          r.state,
-        ) && (
-          <div className="run-outcome content-card" role="status">
-            {r.reason || stateNames[r.state] || r.state}
-          </div>
-        )}
         {['queued', 'starting'].includes(r.state) && (
           <p className="run-waiting quiet content-card">{tr('等待执行')}</p>
         )}
@@ -224,22 +224,46 @@ function SingleRunDetail({
               : tr('过程')
           }
           hidden={
-            ['queued', 'starting', 'skipped'].includes(r.state) && !trace.state.nodes.size && !logs
+            ['queued', 'starting', 'skipped'].includes(r.state) &&
+            !r.reason &&
+            !trace.state.nodes.size &&
+            !logs
           }
           open={processOpen}
           onChange={setProcessOpen}
           actions={
-            r.execution_snapshot?.trace_supported === false ||
-            (!r.execution_snapshot?.trace_supported && !trace.state.nodes.size && !!logs) ? (
-              <RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />
-            ) : (
-              <div className="trace-column-labels">
-                <span>{tr('状态')}</span>
-                <span>{tr('耗时')}</span>
-              </div>
-            )
+            <>
+              {reading.resultReady && (
+                <button
+                  type="button"
+                  className="result-ready-inline"
+                  onClick={() => {
+                    updateReading({ resultReady: false })
+                    setProcessOpen(false)
+                    setResultOpen(true)
+                    execution.current?.scrollTo({ top: 0 })
+                  }}
+                >
+                  {tr('reading.resultReady')}
+                </button>
+              )}
+
+              {r.execution_snapshot?.trace_supported === false ||
+              (!r.execution_snapshot?.trace_supported && !trace.state.nodes.size && !!logs) ? (
+                <RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />
+              ) : (
+                <TraceActions id={id} />
+              )}
+            </>
           }
         >
+          {r.reason && (
+            <div className="run-context">
+              <RunReason key={r.id} state={r.state} reason={r.reason}>
+                <Status state={r.state} />
+              </RunReason>
+            </div>
+          )}
           {r.execution_snapshot?.trace_supported === false ||
           (!r.execution_snapshot?.trace_supported && !trace.state.nodes.size && !!logs) ? (
             <RunLogs
@@ -251,7 +275,13 @@ function SingleRunDetail({
               retry={() => setLogAttempt((v) => v + 1)}
             />
           ) : (
-            <RunTrace run={r} trace={trace} />
+            <RunTrace
+              key={r.id}
+              run={r}
+              trace={trace}
+              viewport={execution}
+              active={tab === 'execute' && processOpen}
+            />
           )}
         </RunSection>
         <RunSection
@@ -261,7 +291,7 @@ function SingleRunDetail({
           hidden={!hasResult}
           actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
         >
-          <RunResult result={r.result} raw={raw} />
+          <RunResult result={r.result} raw={raw} source={{ runId: r.id }} />
         </RunSection>
       </div>
       <div className="run-page run-diagnostic-page" hidden={tab !== 'details'}>

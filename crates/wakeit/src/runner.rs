@@ -527,24 +527,12 @@ impl Runner {
                                 .cloned()
                                 .context("output result_pointer not found")?;
                         }
-                        self.state(
-                            id,
-                            state,
-                            if !out.confirmed {
-                                Some("could not confirm process tree termination")
-                            } else if out.code != Some(0) && out.stopped.is_none() {
-                                Some("command exited unsuccessfully")
-                            } else {
-                                None
-                            },
-                            Some(value),
-                            Some(if state == "unknown" {
-                                "unknown"
-                            } else {
-                                "done"
-                            }),
-                        )
-                        .await?;
+                        self.journal.emit(id, "state", json!({
+                            "state":state,
+                            "reason":if !out.confirmed { Some("could not confirm process tree termination") } else if out.code != Some(0) && out.stopped.is_none() { Some("command exited unsuccessfully") } else { None },
+                            "result":value,
+                            "retryable":out.confirmed && matches!(state,"failed"|"timed_out"),
+                        }), Some(if state=="unknown" {"unknown"} else {"done"})).await?;
                     }
                     Err(e) => {
                         self.state(

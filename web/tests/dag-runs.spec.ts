@@ -404,3 +404,269 @@ test('Run graph shares the overview canvas controls and fullscreen is read-only'
   await expect(graph.locator('.dag-structure-fullscreen')).toHaveCount(0)
   expect(writes).toEqual([])
 })
+
+test('retry acceleration targets the reserved execution and historical attempts retain their own result and session', async ({
+  page,
+}) => {
+  const f = fixture(),
+    old = '00000000-0000-4000-8000-000000000003'
+  f.run.nodes[0] = {
+    ...f.run.nodes[0],
+    state: 'queued',
+    reason: 'Current attempt reason',
+    started_at: '2026-10-20T10:00:00Z',
+    finished_at: '2026-10-20T10:01:00Z',
+    attempt_count: 2,
+    retry_at: '2099-01-01T00:00:00Z',
+  }
+  f.execution.state = 'queued'
+  await mock(page, f)
+  const writes: any[] = []
+  const selected: string[] = []
+  await page.route('**/nodes/collect?**', (route) => {
+    const execution = new URL(route.request().url()).searchParams.get('execution')!
+    selected.push(execution)
+    return route.fulfill({
+      json: {
+        node: f.run.nodes[0],
+        attempts: [
+          { id: old, state: 'failed' },
+          { id: child, state: 'queued' },
+        ],
+        execution:
+          execution === old
+            ? {
+                ...f.execution,
+                id: old,
+                state: 'failed',
+                reason: 'First attempt reason',
+                started_at: '2026-10-20T10:00:00Z',
+                finished_at: '2026-10-20T10:00:07Z',
+                result: '# First attempt',
+                session: {
+                  ...f.execution.session,
+                  id: 'old-session',
+                  command: 'cd -- /workspace && pi --resume old-session',
+                },
+              }
+            : f.execution,
+      },
+    })
+  })
+  await page.route('**/nodes/collect/retry', (route) => {
+    writes.push(route.request().postDataJSON())
+    f.run.nodes[0].retry_at = null
+    return route.fulfill({ json: { id: child } })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('button', { name: '立即重试', exact: true }).click()
+  expect(writes).toEqual([{ execution_id: child }])
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  const details = page.locator('.dag-node-details:visible')
+  await details.getByRole('combobox', { name: '执行尝试', exact: true }).click()
+  await page.getByRole('option').filter({ hasText: '第 1 次' }).click()
+  await expect(details.getByRole('heading', { name: 'First attempt', exact: true })).toBeVisible()
+  await expect(details.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: First attempt reason',
+  )
+  await expect(details.locator('.dag-node-context')).toContainText('7.0s')
+  await expect(details).not.toContainText('Current attempt reason')
+  expect(selected).toContain(old)
+  await details.getByRole('button', { name: '续聊', exact: true }).click()
+  await expect(page.getByRole('dialog')).toContainText('pi --resume old-session')
+})
+
+test('issue navigation restores the current attempt without resetting reading or structure state', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.EventSource = class extends EventTarget {
+      close() {}
+    } as unknown as typeof EventSource
+  })
+  const f = fixture(),
+    old = '00000000-0000-4000-8000-000000000003'
+  f.run.state = 'failed'
+  f.run.reason = null
+  f.run.nodes[0].state = 'failed'
+  f.execution.state = 'failed'
+  f.execution.reason = 'Current attempt failure'
+  const writes = await mock(page, f, 'viewer')
+  await page.route('**/nodes/collect?**', (route) => {
+    const execution = new URL(route.request().url()).searchParams.get('execution')
+    return route.fulfill({
+      json: {
+        node: f.run.nodes[0],
+        attempts: [
+          { id: old, state: 'failed' },
+          { id: child, state: 'failed' },
+        ],
+        execution:
+          execution === old
+            ? { ...f.execution, id: old, reason: 'Old attempt failure', result: '# Old attempt' }
+            : f.execution,
+      },
+    })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('button', { name: '收起结构', exact: true }).click()
+  await page.getByText('Read sources', { exact: true }).click()
+  await expect(page.getByText('Primary sources', { exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  const details = page.locator('.dag-node-details:visible')
+  await details.getByRole('combobox', { name: '执行尝试', exact: true }).click()
+  await page.getByRole('option').filter({ hasText: '第 1 次' }).click()
+  await expect(details.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: Old attempt failure',
+  )
+  await page.getByRole('button', { name: '异常节点 1', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Collect sources 失败 collect', exact: true }).click()
+  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  const process = page.locator('.dag-node-process:visible')
+  await expect(process.locator('.run-trace')).toHaveAttribute('data-execution', child)
+  await expect(process.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: Current attempt failure',
+  )
+  await expect(process.getByText('Primary sources', { exact: true })).toBeVisible()
+  await expect(page.locator('.dag-run-structure')).toBeHidden()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(details.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: Current attempt failure',
+  )
+  await expect(details.getByRole('combobox', { name: '执行尝试', exact: true })).toContainText(
+    '第 2 次',
+  )
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0)
+  expect(writes).toEqual([])
+})
+
+for (const [width, language, theme] of [
+  [1440, 'en', 'light'],
+  [1440, 'zh', 'dark'],
+  [390, 'en', 'dark'],
+  [390, 'zh', 'light'],
+] as const) {
+  test(`DAG node menu keeps aligned columns and compact timing at ${width}px in ${language}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 })
+    const f = fixture()
+    const states = ['succeeded', 'running', 'unknown', 'failed', 'skipped']
+    f.run.nodes = Array.from({ length: 100 }, (_, index) => ({
+      ...f.run.nodes[0],
+      id: index === 0 ? 'collect' : `research-node-${String(index).padStart(3, '0')}-full-id`,
+      name: `Synthetic research ${index + 1} — 多语言节点名称与较长的研究主题`,
+      state: states[index % states.length],
+      started_at: at,
+      finished_at: '2026-10-20T10:06:41.800Z',
+    }))
+    const writes = await mock(page, f)
+    await page.route('**/nodes/*', async (route) => {
+      const node = f.run.nodes.find((n: any) =>
+        new URL(route.request().url()).pathname.endsWith(`/nodes/${n.id}`),
+      )
+      return route.fulfill({
+        json: {
+          node,
+          execution: {
+            ...f.execution,
+            node_id: node.id,
+            state: node.state,
+            started_at: node.started_at,
+            finished_at: node.finished_at,
+          },
+        },
+      })
+    })
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    await page.evaluate(
+      async ({ language, theme }) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+        document.documentElement.dataset.theme = theme
+      },
+      { language, theme },
+    )
+    await page
+      .getByRole('tab', { name: language === 'en' ? 'Details' : '详情', exact: true })
+      .click()
+    const details = page.locator('.dag-node-details:visible')
+    const trigger = details.locator('.dag-node-context > .choice-selector')
+    await expect(trigger).toHaveAttribute('title', f.run.nodes[0].name)
+    await expect(details.locator('.dag-node-duration')).toHaveText('401.8s')
+    expect(await trigger.evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px')
+    for (const selector of ['.dag-node-context > .status', '.dag-node-duration']) {
+      expect(await details.locator(selector).evaluate((el) => getComputedStyle(el).fontSize)).toBe(
+        '11px',
+      )
+    }
+    await trigger.click()
+    const menu = page.locator('.dag-node-picker')
+    const search = menu.getByRole('combobox')
+    await expect(search).toHaveAttribute(
+      'placeholder',
+      language === 'en' ? 'Search nodes…' : '搜索节点…',
+    )
+    await expect(menu.getByRole('option')).toHaveCount(100)
+    const geometry = await menu.evaluate((el) => {
+      const list = el.querySelector('.model-options')!
+      const rows = [...list.querySelectorAll('button')]
+      return {
+        width: el.getBoundingClientRect().width,
+        left: el.getBoundingClientRect().left,
+        right: el.getBoundingClientRect().right,
+        fits: [el, list, ...rows].every((item) => item.scrollWidth <= item.clientWidth),
+        height: Math.max(...rows.map((row) => row.getBoundingClientRect().height)),
+        statusX: rows.map((row) => row.querySelector('.status')!.getBoundingClientRect().x),
+        labelWidths: rows.map(
+          (row) => row.querySelector('.choice-option-label')!.getBoundingClientRect().width,
+        ),
+        checkX: rows[0].querySelector('.choice-option-meta > svg')!.getBoundingClientRect().x,
+      }
+    })
+    expect(geometry.width).toBe(width === 390 ? 366 : 420)
+    expect(geometry.left).toBeGreaterThanOrEqual(12)
+    expect(geometry.right).toBeLessThanOrEqual(width - 12)
+    expect(geometry.fits).toBe(true)
+    expect(geometry.height).toBeLessThanOrEqual(54)
+    expect(Math.max(...geometry.statusX) - Math.min(...geometry.statusX)).toBeLessThan(1)
+    expect(Math.max(...geometry.labelWidths) - Math.min(...geometry.labelWidths)).toBeLessThan(1)
+    await expect(menu.locator('.choice-option-label').first()).toHaveAttribute(
+      'title',
+      f.run.nodes[0].name,
+    )
+    await page.screenshot({ path: `test-results/dag-node-menu-${width}-${language}-${theme}.png` })
+    await search.press('End')
+    await expect(menu.getByRole('option').last()).toHaveAttribute('data-active', '')
+    await expect(menu.getByRole('option').last()).toBeInViewport()
+    await search.press('Home')
+    await search.press('ArrowDown')
+    await search.press('Enter')
+    await expect(trigger).toContainText(f.run.nodes[1].name)
+    await expect(trigger).toBeFocused()
+    await trigger.press('ArrowDown')
+    const checkX = await menu
+      .locator('.choice-option-meta > svg')
+      .evaluate((el) => el.getBoundingClientRect().x)
+    expect(Math.abs(checkX - geometry.checkX)).toBeLessThan(1)
+    await search.fill(f.run.nodes[99].id)
+    await expect(menu.getByRole('option')).toHaveCount(1)
+    await search.press('Enter')
+    await expect(trigger).toContainText(f.run.nodes[99].name)
+    await trigger.click()
+    await search.fill('no matching fixture node')
+    await expect(menu.getByRole('option')).toHaveCount(0)
+    await search.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(trigger).toBeFocused()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    expect(writes).toEqual([])
+  })
+}

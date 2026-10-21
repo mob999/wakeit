@@ -502,6 +502,12 @@
               "id": {
                 "type": "string"
               },
+              "max_retries": {
+                "format": "uint32",
+                "maximum": 10,
+                "minimum": 0,
+                "type": "integer"
+              },
               "name": {
                 "type": "string"
               },
@@ -905,6 +911,9 @@
           "agent": {
             "type": "string"
           },
+          "attempt_count": {
+            "type": "integer"
+          },
           "continuation_available": {
             "type": "boolean"
           },
@@ -928,6 +937,12 @@
           "id": {
             "type": "string"
           },
+          "max_retries": {
+            "format": "uint32",
+            "maximum": 10,
+            "minimum": 0,
+            "type": "integer"
+          },
           "name": {
             "type": "string"
           },
@@ -949,6 +964,13 @@
             "type": "string"
           },
           "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "retry_at": {
+            "format": "date-time",
             "type": [
               "string",
               "null"
@@ -1149,6 +1171,21 @@
         "required": [
           "error"
         ],
+        "type": "object"
+      },
+      "FilePreviewRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "href": {
+            "maxLength": 8192,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "href"
+        ],
+        "title": "Preview",
         "type": "object"
       },
       "Heartbeat": {
@@ -1518,6 +1555,20 @@
           "reason"
         ],
         "title": "Resolution",
+        "type": "object"
+      },
+      "RetryNode": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "execution_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution_id"
+        ],
+        "title": "RetryNode",
         "type": "object"
       },
       "Role": {
@@ -2208,6 +2259,12 @@
               },
               "id": {
                 "type": "string"
+              },
+              "max_retries": {
+                "format": "uint32",
+                "maximum": 10,
+                "minimum": 0,
+                "type": "integer"
               },
               "name": {
                 "type": "string"
@@ -7390,7 +7447,7 @@
     },
     "/api/v1/workspaces/{workspace}/runs/{id}/events": {
       "get": {
-        "description": "Parent DAG events merge child events in durable event-ID order and include node_id, execution_id and original_seq. Child state events have kind node_state. Trace snapshots are keyed by node_id plus native Trace ID.",
+        "description": "Parent DAG events merge child events in durable event-ID order and include node_id, execution_id and original_seq. Child state events have kind node_state. Trace snapshots are keyed by execution_id, node_id and native Trace ID.",
         "operationId": "get__runs_id_events",
         "parameters": [
           {
@@ -7516,6 +7573,173 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace}/runs/{id}/files/preview": {
+      "post": {
+        "description": "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization, stream or persistent content. Maximum raw content 512 KiB, also bounded by NATS payload. UTF-8 text may be truncated; oversized images are rejected. Response is no-store and nosniff.",
+        "operationId": "post__runs_id_files_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "content": {
+                      "description": "UTF-8 text or base64 PNG/JPEG/WebP",
+                      "type": "string"
+                    },
+                    "format": {
+                      "enum": [
+                        "text",
+                        "markdown",
+                        "json",
+                        "image"
+                      ]
+                    },
+                    "mime": {
+                      "type": "string"
+                    },
+                    "modified_at": {
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "runner_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "name",
+                    "format",
+                    "content",
+                    "size",
+                    "truncated",
+                    "runner_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid JSON shape"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace}/runs/{id}/nodes/{node}": {
       "get": {
         "operationId": "get__runs_id_nodes_node",
@@ -7537,6 +7761,15 @@
             }
           },
           {
+            "description": "An existing attempt owned by this parent and node. Omit to follow the current execution.",
+            "in": "query",
+            "name": "execution",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "workspace",
             "required": true,
@@ -7552,6 +7785,31 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "attempts": {
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "scheduled_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "execution": {
                       "anyOf": [
                         {
@@ -7652,7 +7910,7 @@
     },
     "/api/v1/workspaces/{workspace}/runs/{id}/nodes/{node}/events": {
       "get": {
-        "description": "Parent DAG events merge child events in durable event-ID order and include node_id, execution_id and original_seq. Child state events have kind node_state. Trace snapshots are keyed by node_id plus native Trace ID.",
+        "description": "Parent DAG events merge child events in durable event-ID order and include node_id, execution_id and original_seq. Child state events have kind node_state. Trace snapshots are keyed by execution_id, node_id and native Trace ID.",
         "operationId": "get__runs_id_nodes_node_events",
         "parameters": [
           {
@@ -7822,6 +8080,130 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Resolution"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid JSON shape"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/runs/{id}/nodes/{node}/retry": {
+      "post": {
+        "description": "Operator only. Advances the exact queued retry execution_id without consuming additional budget or changing ended graphs. Concurrent/stale attempts cannot start a second execution.",
+        "operationId": "post__runs_id_nodes_node_retry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "node",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryNode"
               }
             }
           },

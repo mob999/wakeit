@@ -210,3 +210,9 @@ setup 自启名称包含 Runner ID，支持多 Gateway。Linux 使用 systemd us
 工作区连接不能跨区复用。多项连接匹配时，先用 `connection use NAME` 明确选择；`--workspace`（或 `WAKEIT_WORKSPACE`）指定作用域。旧连接仅在原 Gateway 认证成功并返回其固定 Default 工作区后补全元数据，不替换凭据或 Runner 配置；失败保留原文件。新 Runner 实例固定一个工作区，同机多工作区使用分别隔离的配置、Journal 和服务。
 
 WebUI 的“续聊”现在直接连接 Runner 上的原生交互终端（管理员/读写），同时保留标题栏复制完整原生命令。只读成员、演示区及旧版 Runner 仍可复制。关闭弹窗结束进程，不删除会话；意外断线最多保留 30 秒用于重连。网页终端与 `wakeit run resume`、Task 共用 Session 互斥和 Runner 容量，不生成新的 Run。直接运行复制出的原生命令仍不受 Wakeit 锁控制。
+
+## DAG node retries
+
+A node may set `max_retries: 3` for up to four attempts. Omitted/0 disables retries. Confirmed execution failures and node timeouts retry after 5/10/20/40/60 seconds with bounded jitter; validation, invalid Session, cancellation and unknown do not automatically retry. Older Runners without the optional state-event retry verdict conservatively do not retry failed executions. The graph timeout includes backoff and never resets. Attempts remain child Runs with their own logs, Trace, result and native Session; default sessions start anew, explicitly bound sessions are reused under the same locks.
+
+While a retry is queued, Operator/Admin may accelerate that exact execution via `POST /runs/{parent}/nodes/{node}/retry` with `{execution_id}`. This does not grant extra attempts. `GET /runs/{parent}/nodes/{node}` lists lightweight `attempts`; optional `?execution=<uuid>` reads a specific attempt of this node. After graph completion only whole-graph retry is supported, using the current Task definition from all roots; historical Runs are never reopened. Migration 0006 replaces the single-attempt index without discarding existing executions.

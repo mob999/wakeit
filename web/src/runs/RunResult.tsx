@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { MarkdownContent } from './MarkdownContent'
 import { DetailBody } from '../Workbench'
 import { CopyValue } from './CopyValue'
+import type { FileSource } from '../files/links'
 import { Status } from '../Status'
+import { CodeContent, isJsonCode } from './CodeContent'
 export function resultData(result: unknown) {
   const truncated =
     result !== null &&
@@ -52,13 +54,15 @@ export function RunResult({
   result,
   raw,
   toast,
+  source,
 }: {
   result: unknown
   raw: boolean
   toast?: (s: string) => void
+  source?: FileSource
 }) {
   useTranslation()
-  const { truncated, text, source, empty } = resultData(result)
+  const { truncated, text, source: rawSource, empty } = resultData(result)
   if (empty) return null
   const outputs = dagOutputs(result)
   if (outputs && !raw)
@@ -83,7 +87,11 @@ export function RunResult({
             {resultData(output.result).empty ? (
               <p className="quiet dag-node-empty">{tr('未返回结果')}</p>
             ) : (
-              <RunResult result={output.result} raw={false} />
+              <RunResult
+                result={output.result}
+                raw={false}
+                source={source && { runId: source.runId, nodeId: output.node_id }}
+              />
             )}
           </section>
         ))}
@@ -95,10 +103,14 @@ export function RunResult({
       <DetailBody>
         {truncated && <p className="quiet">{tr('结果已截断')}</p>}
         {raw || typeof text !== 'string' ? (
-          <pre className="code result result-raw">{source}</pre>
+          <CodeContent
+            text={rawSource ?? ''}
+            json={isJsonCode(result)}
+            className="result result-raw"
+          />
         ) : (
           <article className="markdown-result result">
-            <MarkdownContent text={text} />
+            <MarkdownContent text={text} source={source} />
           </article>
         )}
       </DetailBody>

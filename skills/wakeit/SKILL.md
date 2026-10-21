@@ -18,7 +18,7 @@ Wakeit 集中调度 Agent 任务，在用户设备上的 Runner 执行。使用�
 - 管理成员账号、启停或重置密码：[账号](references/accounts.md)。
 - 定义完整 AND 图、多根执行及上游结果引用：[DAG](references/dag.md)。
 - 定义、注册或修改任务：[任务](references/tasks.md)。
-- 查结果、日志、阻塞观察执行、取消、核对或重试：[运行](references/runs.md)。
+- 查结果、设备文件预览、日志、阻塞观察执行、取消、核对或重试：[运行](references/runs.md)。
 - 任务绑定已有会话、网页终端及本机续聊：[会话](references/sessions.md)。
 - 接入新 Agent 或远端服务：[适配器](references/adapters.md)。
 - 检查版本和更新：[更新](references/updates.md)。

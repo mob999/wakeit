@@ -172,9 +172,13 @@ def main():
         def sql(query): return command([pg / 'psql', database, '-At', '-v', 'ON_ERROR_STOP=1', '-c', query]).strip()
         dag_runs = verify_dags(api, a, b, check, dict(other=other, sql=sql, binary=binary, cli_env=cli_env, workspace=workspace_a, root=root, spawn=spawn))
 
+        from dag_retry_checks import verify as verify_retries
+        verify_retries(api, a, b, check, dict(other=other, sql=sql))
         from editor_layout_checks import verify as verify_layout
         verify_layout(api, a, b, check, dict(base=base, other=other, root=root, binary=binary, cli_env=cli_env, global_api=global_api))
 
+        from result_file_checks import verify as verify_files
+        verify_files(api,a,b,check,dict(other=other))
         summary = dict(base_url=base, other_url=other, root=str(root), checks=checks, workspaces=[workspace_a, workspace_b],
                        processes=[p.pid for p in processes], pg_port=pg_port, dag_runs=dag_runs)
         (root / 'summary.json').write_text(json.dumps(summary, indent=2))

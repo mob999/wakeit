@@ -5,7 +5,8 @@
 | 项目                 | Light    | Dark     |
 | -------------------- | -------- | -------- |
 | 主画布               | #ffffff  | #0a0a0a  |
-| 顶栏、侧栏、列表底色 | #f5f5f5  | #171717  |
+| 顶栏、一级导航底色 | #f5f5f5  | #171717  |
+| 第二侧栏底色 | #fafafa | #121212 |
 | 选中行、菜单         | #ffffff  | #1f1f1f  |
 | 细边框               | #e5e5e5  | #262626  |
 | 正文                 | #0a0a0a  | #fafafa  |
@@ -60,7 +61,7 @@ Runner 的 Agent 表格占满详情内容宽度，采用细边框、6px 圆角�
 
 两个列表使用相同的三行结构：任务名称与状态、Runner 图标和名称及 Agent Logo 与显示名、时间。字段之间使用图标和留白，不使用装饰分隔点；Run ID 与触发来源仅出现在详情。Runs 面包屑为 Runs → 任务名称 → 执行时间，任务节点可进入对应任务。
 
-运行名称、执行时间与操作合并至顶栏面包屑及操作区，正文不重复显示大标题；状态仅在左侧列表展示。页签为执行、详情。执行页固定过程→结果；运行中展开过程，成功且有非空结果后强制折叠过程、展开结果，每个 Run 仅一次，之后用户手动展开不被刷新覆盖。成功无结果、失败、取消及未知状态展示必要提示，不将日志当报告。详情页日志默认展开、执行信息默认折叠；设备、目录、解析参数、时间、来源、完整 ID、任务 YAML 和状态事件均保留。切换页签不丢失工具展开、原文模式或跟随输出状态。
+运行名称、执行时间与操作合并至顶栏面包屑及操作区，正文不重复显示大标题；状态仅在左侧列表展示。页签为执行、详情。执行页固定过程→结果；运行中展开过程，首次结果就绪时，仅在跟随最新时折叠过程、展开结果，每个 Run 一次；阅读历史时保留过程并显示“结果已就绪”入口，用户点击后再定位结果，之后手动展开不被刷新覆盖。成功无结果、失败、取消及未知状态展示必要提示，不将日志当报告。详情页日志默认展开、执行信息默认折叠；设备、目录、解析参数、时间、来源、完整 ID、任务 YAML 和状态事件均保留。切换页签不丢失工具展开、原文模式或跟随输出状态。
 
 字符串结果使用 Markdown 阅读视图，支持表格、列表、代码块及链接，并可切换原文或复制。JSON 结果保留结构化原文，不猜测摘要；成功空结果显示未返回结果，持久化截断结果明确标记。阅读视图沿用中性色、紧凑字号与细边框，HTML 经白名单清理后展示，仅 span 可带受限文本样式；危险链接协议不进入可点击链接。
 
@@ -90,7 +91,7 @@ Agent 过程采用细分隔线的纵向列表，显示类型图标、标题、�
 
 全部工作台沿用 Runner Agents 表格的容器：1px 细边框、6px 圆角、无阴影，浅色表头约44px、数据行48px、卡片间距16px。内容区左右留白18px，窄屏Run区12px，卡片占满可用宽度。属性以标签/值行展示，内部使用分隔线，不给字段和Trace节点重复套卡片。
 
-任务概览依次展示调度、指令、执行内容、最近执行；指令独立成卡片，位于第二行；最近执行与执行历史只保留一行表头，名称和列名同排，窄屏保留名称。表头与数据行通过共享列轨道对齐，设备/Agent和执行时间不再按每行内容独立计算宽度。Run的过程/输出、结果、日志和执行信息采用同一折叠卡片，操作放表头右侧。Trace使用动作、状态、耗时的固定对齐列，真实未知耗时以破折号表示，不推断时间。原文、输入输出和配置留在展开内容内，Markdown代码保留轻背景。
+任务概览依次展示调度、指令、执行内容、最近执行；指令独立成卡片，位于第二行；最近执行与执行历史只保留一行表头，名称和列名同排，窄屏保留名称。表头与数据行通过共享列轨道对齐，设备/Agent和执行时间不再按每行内容独立计算宽度。Run的过程/输出、结果、日志和执行信息采用同一折叠卡片，操作放表头右侧。Trace使用动作、状态、耗时的固定对齐列，真实未知耗时以破折号表示，不推断时间。原文、输入输出和配置留在展开内容内；工具参数和结果正文的代码不加底色，结构化 JSON 与声明语言的代码块保留语法高亮。
 
 Runner概览、工作区设置、成员/Token表格和搜索结果分组共用相同边框、表头与行样式。登录与全部弹窗统一6px边框及标题/内容/操作区域；任务编辑高级分组、目录和选择器沿用相同控件语言。报告与过程共用页面滚动，长日志保留跟随与独立滚动。
 
@@ -153,3 +154,27 @@ DAG 编辑器使用占满剩余高度的可交互画布，取消第二侧栏和�
 Run, DAG-node and Moments continuation entries open the same terminal modal. Use a compact 44px header and terminal body, without a property table, command card, footer or extra explanation. The header contains continuation title, concise device/Agent context, optional shared DAG-node selector, connection state, native-command copy and close. Keep 1px borders, 6px corners, transparent icon actions, 12px controls and 11px metadata. Desktop bounds are 1100px and 85dvh; narrow screens retain 8px margins and never create page-level horizontal scrolling.
 
 Show device and complete native command inside the terminal before connecting; do not submit this text as input. Header copy always retains that command after native clear-screen operations. xterm owns Escape, Tab, arrows and Ctrl+C; Escape/backdrop never closes the modal. Ctrl+Shift+F6 moves focus between the terminal and header controls; closing returns focus to the source entry. All Wakeit errors use the top-right Toast, while Agent output remains terminal content. Explicit close awaits process cleanup; unexpected disconnect disables input while reconnecting for up to 30 seconds. No screen or input is persisted in browser storage.
+
+## Result file previews
+
+Admin and Read/write members can click explicit local links in a saved Run/DAG report or Moments to preview a current Runner file. Viewer can copy paths; demo workspaces never query real files. No separate preview_roots is configured: the exact saved link and current Runner allowed_roots bound access. Relative targets use the execution snapshot's task directory, which may differ from an adapter's overridden process directory; adapters should return absolute links in that case. Current files are not archived historical artifacts.
+
+`POST /runs/{execution-id}/files/preview` accepts `{href}`. DAG uses the actual child execution ID. Gateway parses the persisted Markdown/HTML anchors and reauthorizes before delivery; arbitrary, code-block and nested preview links do not grant access. Runner uses the existing version-1 query channel with `read_result_file`, no shell/listener or database fields. At most 512 KiB raw content (further limited by NATS) is returned once: UTF-8 text/code, Markdown/JSON or complete PNG/JPEG/WebP. HTML/SVG stay escaped source; PDF, downloads, directories and special files are unsupported. Local image references do not automatically load. Preview body is memory-only and no-store; closing cancels delivery. Existing Runner identities and allowed_roots remain unchanged.
+
+DAG 运行的节点上下文行使用 12px 名称、11px 状态和耗时，耗时保持弱化等宽字体；窄屏将名称与状态信息分为两行。节点菜单独立于触发器宽度，桌面宽 420px，窄屏保留 12px 页边距；名称与小字 ID 占同一身份列，状态和勾号各自对齐，仅纵向滚动。长名称单行省略并保留完整名称提示，支持按名称和完整 ID 搜索。
+
+## 运行阅读与节点上下文
+
+父 Run 状态与异常节点入口固定在“执行 / 详情”页签行右侧，不随页签、结果或选中节点移动。状态悬停或聚焦显示完整运行原因，过程和结果正文不增加独立诊断行。异常节点菜单使用对齐的名称／状态列，只统计当前失败、超时、中断或待核对的节点；跳过节点单独分组，自动重试等待和恢复后的旧失败不计入。选择后打开过程并定位到目标节点的当前执行，保留结构视图与各执行阅读状态。取消不虚构节点异常，没有匹配节点时隐藏入口；键盘关闭菜单返回触发器。
+
+DAG 过程使用上下分区。图/表切换、搜索和结构折叠位于过程表头，节点表最大高度与图高为 min(280px,35dvh)，窄屏上限 220px；表头固定、结构独立滚动。收起结构不隐藏消息。选中节点上下文在阅读区吸顶，名称、实际尝试、状态、原因、耗时和已有操作对齐；点击节点只在上下文不可见时定位，不因状态刷新跳动。状态、耗时和操作靠右对齐；失败状态支持悬停或键盘聚焦，通过右对齐 Tooltip 查看完整原因，不在上下文栏平铺原因或增加展开行；历史原因、耗时、结果和续聊来自同一实际 execution。操作错误使用右上 Toast，持久原因留在内容中。
+
+Trace 内部行最小 36px，正文 12px、状态和耗时 11px，采用细分隔线。历史消息默认摘要，最新非空消息默认展开；空消息不生成正文。工具输入/输出分别折叠，标签和代码统一 12px、20px 行高，以 8px 间距分组；代码与标签文字对齐，只保留 Trace 条目最外层分隔线。长内容先预览 12 行，完整内容可展开和复制。保留真实 ID、父子关系与事件顺序，不从日志补造 Trace。阅读页负责主纵向滚动，代码区只承担自身横向滚动。
+
+阅读状态仅保存在内存并按工作区和实际执行隔离。手动展开优先于默认规则；全部收起停止自动展开，回到最新恢复跟随。距消息末尾 48px 内为跟随；向上阅读后不自动滚动，新事件提示更新数量，不收起正在阅读的消息。页签及尝试切换保留折叠、全文、锚点和跟随状态，迟到请求或快照不得覆盖另一执行。
+
+## 第二侧栏层级与密度
+
+Tasks、Runs、Runners、Settings 共用独立的第二侧栏语义底色与细边界。工具头高 44px，名称和分类 12px，元信息、状态、时间及分页 11px，不随窗口改变字号。Tasks/Runs 三行对象最小 64px，Runners 两行 48px，Settings 分类 36px；名称可省略，状态和操作不压缩。默认、悬停、选中与键盘焦点分别可辨，选中边框不改变尺寸，当前项具有 aria-current。列表和详情独立滚动，工具头和分页固定，滚动条保留稳定空间。
+
+对象列表保持 350px 默认、270–560px 范围和原有宽度偏好；Settings 默认 240px、200–320px 范围并独立保存。拖拽、键盘调整和双击恢复沿用同一控件，窄屏继续通过列表/详情和面包屑切换。

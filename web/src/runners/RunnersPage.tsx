@@ -120,10 +120,11 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
                   <button
                     key={r.id}
                     className={`task-row runner-row ${runner?.id === r.id ? 'active' : ''}`}
+                    aria-current={runner?.id === r.id ? 'page' : undefined}
                     onClick={() => choose(r.id)}
                   >
                     <div className="row-title">
-                      <span>{r.name}</span>
+                      <span title={r.name}>{r.name}</span>
                       <RunnerStatus runner={r} />
                     </div>
                     <div className="row-meta">

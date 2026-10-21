@@ -375,7 +375,7 @@ function MomentCard({
             >
               {entry.format === 'dag' ? (
                 content && full.data ? (
-                  <RunResult result={full.data.result} raw={false} />
+                  <RunResult result={full.data.result} raw={false} source={{ runId: entry.id }} />
                 ) : (
                   <div className="moment-dag-reports">
                     {entry.outputs?.map((output) => (
@@ -390,7 +390,10 @@ function MomentCard({
                         {output.preview ? (
                           output.format === 'markdown' ? (
                             <article className="markdown-result">
-                              <MarkdownContent text={output.preview} />
+                              <MarkdownContent
+                                text={output.preview}
+                                source={{ runId: entry.id, nodeId: output.node_id }}
+                              />
                             </article>
                           ) : (
                             <pre className="code result-raw">{output.preview}</pre>
@@ -404,7 +407,7 @@ function MomentCard({
                 )
               ) : format === 'markdown' ? (
                 <article className="markdown-result">
-                  <MarkdownContent text={text ?? ''} />
+                  <MarkdownContent text={text ?? ''} source={{ runId: entry.id }} />
                 </article>
               ) : (
                 <pre className="code result-raw">{text}</pre>

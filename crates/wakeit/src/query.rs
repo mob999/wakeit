@@ -184,6 +184,13 @@ pub async fn serve(
                     "runner runtime changed"
                 );
                 match request.action.as_str() {
+                    "read_result_file" => {
+                        let roots=config.allowed_roots.clone();
+                        let href=request.payload["href"].as_str().context("file link is required")?.to_owned();
+                        let cwd=request.payload["cwd"].as_str().map(str::to_owned);
+                        let limit=(client.server_info().max_payload / 2).min(crate::result_files::MAX_BYTES);
+                        tokio::time::timeout(Duration::from_secs(8),tokio::task::spawn_blocking(move || { let _held=_permit; crate::result_files::read(&roots,&href,cwd.as_deref(),limit) })).await.context("file preview timed out")??
+                    }
                     "list_directories" => {
                         let roots = config.allowed_roots.clone();
                         let path = request.payload["path"].as_str().map(str::to_owned);
@@ -241,11 +248,45 @@ pub async fn serve(
                 let _ = client
                     .publish(
                         reply,
-                        serde_json::to_vec(&response).unwrap_or_default().into(),
+                        bounded_response(response, client.server_info().max_payload).into(),
                     )
                     .await;
             }
         });
     }
     Ok(())
+}
+
+fn bounded_response(mut response: QueryReply, max_payload: usize) -> Vec<u8> {
+    let encoded = serde_json::to_vec(&response).unwrap_or_default();
+    if encoded.len() <= max_payload {
+        return encoded;
+    }
+    response.data = None;
+    response.error = Some(QueryError {
+        code: "query_result_too_large".into(),
+        message: "query response exceeds the transport limit".into(),
+    });
+    serde_json::to_vec(&response).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn escaped_text_cannot_exceed_the_query_transport_limit() {
+        let reply = QueryReply {
+            version: 1,
+            id: Uuid::new_v4(),
+            runtime_id: Uuid::new_v4(),
+            data: Some(json!({"content": "\u{1}".repeat(500)})),
+            error: None,
+        };
+        let encoded = bounded_response(reply, 2048);
+        assert!(encoded.len() < 2048);
+        let reply: QueryReply = serde_json::from_slice(&encoded).unwrap();
+        assert!(reply.data.is_none());
+        assert_eq!(reply.error.unwrap().code, "query_result_too_large");
+    }
 }
