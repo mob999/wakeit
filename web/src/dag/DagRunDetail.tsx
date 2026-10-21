@@ -540,27 +540,6 @@ function NodeExecution({
             </time>
           </span>
         )}
-        {!chosen && user.role !== 'viewer' && execution.data?.retry && (
-          <IconButton
-            label={
-              execution.data.retry.reason ||
-              t(
-                execution.data.retry.action === 'accelerate'
-                  ? 'retry.now'
-                  : execution.data.retry.action === 'resume'
-                    ? 'retry.resume'
-                    : 'retry.node',
-              )
-            }
-            disabled={!execution.data.retry.action}
-            loading={retry.isPending}
-            onClick={() =>
-              execution.data?.retry?.action === 'resume' ? setResume(true) : retry.mutate(false)
-            }
-          >
-            <Redo2 />
-          </IconButton>
-        )}
         {startedAt && finishedAt && (
           <span className="dag-node-duration quiet mono">
             {Math.max(0, (Date.parse(finishedAt) - Date.parse(startedAt)) / 1000).toFixed(1)}s
@@ -569,6 +548,27 @@ function NodeExecution({
         <div className="dag-node-context-actions">
           {resultAction}
           {mode === 'trace' && executionId && <TraceActions id={executionId} />}
+          {!chosen && user.role !== 'viewer' && execution.data?.retry && (
+            <IconButton
+              label={
+                execution.data.retry.reason ||
+                t(
+                  execution.data.retry.action === 'accelerate'
+                    ? 'retry.now'
+                    : execution.data.retry.action === 'resume'
+                      ? 'retry.resume'
+                      : 'retry.node',
+                )
+              }
+              disabled={!execution.data.retry.action}
+              loading={retry.isPending}
+              onClick={() =>
+                execution.data?.retry?.action === 'resume' ? setResume(true) : retry.mutate(false)
+              }
+            >
+              <Redo2 />
+            </IconButton>
+          )}
           {run && (
             <ResumeRun
               run={run}

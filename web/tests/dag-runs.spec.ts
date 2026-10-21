@@ -696,6 +696,32 @@ test('manual retry uses the current guard, preserves selection and requires expl
     })
   })
   await page.goto(`/w/${workspace}/runs?run=${id}`)
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const tab of ['执行', '详情']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click()
+      const context = page.locator('.dag-node-context:visible')
+      await expect(
+        context
+          .locator('.dag-node-context-actions')
+          .getByRole('button', { name: '重试节点', exact: true }),
+      ).toBeVisible()
+      await expect(context.locator(':scope > .icon-button')).toHaveCount(0)
+      const centers = await context.evaluate((el) => {
+        const center = (element: Element) => {
+          const rect = element.getBoundingClientRect()
+          return rect.y + rect.height / 2
+        }
+        return [
+          center(el.querySelector('[aria-label="重试节点"]')!),
+          center(el.querySelector('.status')!),
+          center(el.querySelector('.dag-node-duration')!),
+        ]
+      })
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(1)
+    }
+  }
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
   await page.getByRole('button', { name: '重试节点', exact: true }).first().click()
   await expect(page.getByRole('alert')).toContainText('Execution changed')
   expect(requests[0]).toEqual({ execution_id: child, resume_stopped: false })

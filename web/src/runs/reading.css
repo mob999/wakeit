@@ -248,12 +248,7 @@
   grid-column: 2 / 4;
   grid-row: 2;
 }
-.dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .icon-button {
-  grid-column: 4;
-  grid-row: 2;
-  margin: 0;
-  justify-self: end;
-}
+
 @media (max-width: 700px) {
   .dag-reading-tools input {
     width: 88px;
@@ -306,10 +301,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .icon-button {
-    grid-column: 4;
-    grid-row: 3;
-  }
+
   .run-trace .trace-heading,
   .run-trace .trace-operation > summary {
     grid-template-columns: 12px 12px minmax(0, 1fr) 60px 42px;
