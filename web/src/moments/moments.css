@@ -168,6 +168,7 @@
   grid-template-columns: minmax(0, 1fr) 260px;
 }
 .moment-reading {
+  align-self: start;
   min-width: 0;
   padding: 12px 16px;
 }
@@ -292,8 +293,6 @@
 .moment-link-list {
   display: flex;
   flex-direction: column;
-  max-height: 180px;
-  overflow: auto;
 }
 .moment-link-list > button,
 .moment-link-list > a {
@@ -323,6 +322,7 @@
   text-decoration: underline;
 }
 .moment-more {
+  line-height: 18px;
   display: block;
   font-size: 11px;
   color: var(--muted);
@@ -471,7 +471,6 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0 10px;
-    max-height: 100px;
   }
   .moment-link-list > a,
   .moment-link-list > button {
@@ -515,4 +514,9 @@
   .moment-identity .moment-agent-name {
     display: none;
   }
+}
+
+.moment-link-list > [hidden],
+.moment-context .moment-more[hidden] {
+  display: none;
 }

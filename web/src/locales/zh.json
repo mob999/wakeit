@@ -656,7 +656,7 @@
   "moments.related": "报告相关信息",
   "moments.outputTitle": "输出",
   "moments.outline": "目录",
-  "moments.links": "文件与链接",
+  "moments.links": "引用",
   "moments.excerpt": "节选",
   "moments.more": "另外 {{count}} 项",
   "moments.outputs_one": "{{count}} 份输出",

@@ -5,6 +5,7 @@ const child = '00000000-0000-4000-8000-000000000002'
 type Options = {
   surface?: 'run' | 'dag' | 'moments'
   href?: string
+  result?: string
   preview?: { format: string; content: string; mime?: string }
   pending?: Promise<void>
 }
@@ -32,7 +33,9 @@ async function fixture(page: Page, role = 'admin', options: Options = {}) {
     source: 'manual',
     created_at: '2026-10-20T01:00:00Z',
     finished_at: '2026-10-20T01:00:01Z',
-    result: `[Report](${href})\n\n<a href="file:///workspace/html.md">HTML report</a>\n\n[Windows](C:/data/report.md)\n\n![Local image](/workspace/picture.png)`,
+    result:
+      options.result ??
+      `[Report](${href})\n\n<a href="file:///workspace/html.md">HTML report</a>\n\n[Windows](C:/data/report.md)\n\n![Local image](/workspace/picture.png)`,
     execution_snapshot: { trace_supported: false, cwd: '/workspace' },
   }
   const execution = { ...run, id: child, parent_run_id: id, node_id: 'report' }
@@ -126,6 +129,55 @@ async function fixture(page: Page, role = 'admin', options: Options = {}) {
   )
   return reads
 }
+
+for (const surface of ['report', 'markdown file'] as const) {
+  test(`${surface} renders remote Markdown images but does not request local or relative images`, async ({
+    page,
+  }) => {
+    const imageUrl = 'https://images.example.test/fixture.png'
+    const content = `![Remote image](${imageUrl})\n\n![Absolute image](/workspace/absolute.png)\n\n![Relative image](./relative.png)`
+    const localRequests: string[] = []
+    page.on('request', (request) => {
+      if (/\/(absolute|relative)\.png(?:\?|$)/.test(request.url()))
+        localRequests.push(request.url())
+    })
+    await page.route(imageUrl, (route) =>
+      route.fulfill({
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6XzQAAAAASUVORK5CYII=',
+          'base64',
+        ),
+      }),
+    )
+    const reads = await fixture(
+      page,
+      'admin',
+      surface === 'report' ? { result: content } : { preview: { format: 'markdown', content } },
+    )
+    if (surface === 'markdown file')
+      await page
+        .locator('.run-result-panel')
+        .getByRole('button', { name: 'Report', exact: true })
+        .click()
+    const root = surface === 'report' ? page.locator('.run-result-panel') : page.getByRole('dialog')
+    const image = root.getByRole('img', { name: 'Remote image', exact: true })
+    await expect(image).toBeVisible()
+    await expect
+      .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
+      .toBe(1)
+    for (const [name, path] of [
+      ['Absolute image', '/workspace/absolute.png'],
+      ['Relative image', './relative.png'],
+    ]) {
+      await expect(root.locator(`[data-result-image-href="${path}"]`)).toHaveText(name)
+      await expect(root.getByRole('img', { name, exact: true })).toHaveCount(0)
+    }
+    expect(localRequests).toEqual([])
+    expect(reads).toEqual(surface === 'report' ? [] : [{ href: '/workspace/report.md' }])
+  })
+}
+
 test('local result links preview only on click and preview links do not expand file authorization', async ({
   page,
   context,

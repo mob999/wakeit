@@ -31,6 +31,7 @@ import {
   type ReportLink,
 } from './reportModel'
 import { PreviewActivity } from '../files/PreviewActivity'
+import { useReferenceCapacity } from './useReferenceCapacity'
 import { VisitContext, manual } from './MomentsPage'
 
 export function MomentCard({
@@ -121,6 +122,10 @@ function MomentContent({
   const writable = me.data?.role !== 'viewer' && !me.data?.workspace?.is_demo
   const expanded = visit.expanded.has(entry.id)
   const report = useRef<HTMLDivElement>(null)
+  const reading = useRef<HTMLDivElement>(null),
+    context = useRef<HTMLElement>(null),
+    referenceList = useRef<HTMLDivElement>(null),
+    referenceToggle = useRef<HTMLButtonElement>(null)
   const [overflow, setOverflow] = useState(false)
   const [output, setOutput] = useState(visit.outputs.current.get(entry.id))
   const [headings, setHeadings] = useState<ReportHeading[]>([]),
@@ -129,6 +134,13 @@ function MomentContent({
     [moreHeadings, setMoreHeadings] = useState(false)
   const [copying, setCopying] = useState(false),
     [copied, setCopied] = useState(false)
+  const referenceCapacity = useReferenceCapacity({
+    reading,
+    context,
+    list: referenceList,
+    toggle: referenceToggle,
+    count: links.length,
+  })
   const locate = useRef<number | null>(null)
   const queryKey = ['moments', 'report', entry.id]
   const full = useQuery({
@@ -315,7 +327,7 @@ function MomentContent({
         </div>
       </header>
       <div className={`moment-content ${hasInfo ? 'moment-with-context' : ''}`}>
-        <div className="moment-reading">
+        <div className="moment-reading" ref={reading}>
           {retries > 0 && (
             <p className="moment-retries quiet">{t('moments.retried', { count: retries })}</p>
           )}
@@ -368,7 +380,7 @@ function MomentContent({
           </div>
         </div>
         {hasInfo && (
-          <aside className="moment-context" aria-label={t('moments.related')}>
+          <aside ref={context} className="moment-context" aria-label={t('moments.related')}>
             {outputs.length > 1 && (
               <section className="moment-context-section">
                 <h4>{t('moments.outputTitle')}</h4>
@@ -424,11 +436,12 @@ function MomentContent({
                     <span className="quiet">{t('moments.excerpt')}</span>
                   )}
                 </h4>
-                <div className="moment-link-list">
-                  {(moreLinks ? links : links.slice(0, 3)).map((link) =>
+                <div className="moment-link-list" ref={referenceList}>
+                  {links.map((link, index) =>
                     link.local ? (
                       <button
                         key={link.href}
+                        hidden={!moreLinks && index >= referenceCapacity}
                         title={
                           link.image || !writable
                             ? `${t('filePreview.copyPath')}: ${link.href}`
@@ -448,11 +461,12 @@ function MomentContent({
                       >
                         <FileText size={13} />
                         <span>{link.label}</span>
-                        {link.image || !writable ? <Copy size={12} /> : <ArrowUpRight size={12} />}
+                        {(link.image || !writable) && <Copy size={12} />}
                       </button>
                     ) : (
                       <a
                         key={link.href}
+                        hidden={!moreLinks && index >= referenceCapacity}
                         href={link.href}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -460,16 +474,20 @@ function MomentContent({
                       >
                         <ExternalLink size={13} />
                         <span>{link.label}</span>
-                        <ArrowUpRight size={12} />
                       </a>
                     ),
                   )}
                 </div>
-                {links.length > 3 && (
-                  <button className="moment-more" onClick={() => setMoreLinks((v) => !v)}>
-                    {moreLinks ? t('收起') : t('moments.more', { count: links.length - 3 })}
-                  </button>
-                )}
+                <button
+                  ref={referenceToggle}
+                  className="moment-more"
+                  hidden={!moreLinks && links.length <= referenceCapacity}
+                  onClick={() => setMoreLinks((v) => !v)}
+                >
+                  {moreLinks
+                    ? t('收起')
+                    : t('moments.more', { count: Math.max(0, links.length - referenceCapacity) })}
+                </button>
               </section>
             )}
           </aside>

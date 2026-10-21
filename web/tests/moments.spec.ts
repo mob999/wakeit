@@ -386,6 +386,65 @@ test('device and Agent stay together on the right of the card header', async ({ 
   expect(identity!.y + identity!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height)
   await expect(page.locator('.moment-meta')).toHaveCount(0)
 })
+
+test('references fill the reading height, adapt to expansion and narrow columns, without trailing arrows', async ({
+  page,
+}, testInfo) => {
+  const { runs } = await momentsFixture(page, { count: 1 })
+  runs[0].result = Array.from(
+    { length: 30 },
+    (_, n) =>
+      `A synthetic finding with supporting [Reference ${n + 1}](https://example.test/source/${n + 1}).`,
+  ).join('\n\n')
+  await page.goto(workspacePage('/'))
+  const card = page.locator('.moment-card')
+  const list = card.locator('.moment-link-list')
+  const references = list.locator('a:visible')
+  const section = list.locator('..')
+  const more = section.locator('.moment-more')
+  await expect(section.locator('h4')).toHaveText('引用')
+  await expect(list.locator('a')).toHaveCount(30)
+  await expect.poll(() => references.count()).toBeGreaterThan(3)
+  const collapsed = await references.count()
+  expect(collapsed).toBeLessThan(30)
+  const room = await card.evaluate((element) => {
+    const reading = element.querySelector('.moment-reading')!.getBoundingClientRect()
+    const context = element.querySelector('.moment-context')!
+    const toggle = context.querySelector('.moment-more')!.getBoundingClientRect()
+    const row = context.querySelector('.moment-link-list a')!.getBoundingClientRect()
+    return {
+      spare: reading.bottom - toggle.bottom - parseFloat(getComputedStyle(context).paddingBottom),
+      row: row.height,
+    }
+  })
+  expect(room.spare).toBeGreaterThanOrEqual(-1)
+  expect(room.spare).toBeLessThan(room.row)
+  await expect(list.locator('.lucide-arrow-up-right')).toHaveCount(0)
+  await more.click()
+  await expect(references).toHaveCount(30)
+  await more.click()
+  await expect(references).toHaveCount(collapsed)
+  await card
+    .locator('.moment-reading-actions')
+    .getByRole('button', { name: '阅读全文', exact: true })
+    .click()
+  await expect(references).toHaveCount(30)
+  await expect(more).toBeHidden()
+  await card
+    .locator('.moment-reading-actions')
+    .getByRole('button', { name: '收起', exact: true })
+    .click()
+  await expect(references).toHaveCount(collapsed)
+  await page.setViewportSize({ width: 390, height: 900 })
+  await expect.poll(() => references.count()).toBeGreaterThan(collapsed)
+  expect((await references.count()) % 2).toBe(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false)
+  await page.screenshot({ path: testInfo.outputPath('references-narrow.png') })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(references).toHaveCount(collapsed)
+  await page.screenshot({ path: testInfo.outputPath('references-desktop.png') })
+})
+
 test('late report hydration above the reading position preserves the visible anchor', async ({
   page,
 }) => {
