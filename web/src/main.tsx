@@ -518,6 +518,7 @@ function TasksPage() {
                   <button
                     key={t.id}
                     className={`task-row ${task?.id === t.id ? 'active' : ''}`}
+                    aria-current={task?.id === t.id ? 'page' : undefined}
                     onClick={() => {
                       setSelected(t.id)
                       navigate({ to: '/tasks', search: { task: t.id } })
@@ -525,7 +526,7 @@ function TasksPage() {
                     }}
                   >
                     <div className="row-title">
-                      <span>{t.config.name}</span>
+                      <span title={t.config.name}>{t.config.name}</span>
                       <Status state={t.last_run?.state ?? 'not_run'} />
                     </div>
                     <div className="row-meta">
