@@ -20,6 +20,12 @@ pub struct Preview {
     /// An original result link to a Markdown file containing this image.
     #[schemars(length(min = 1, max = 8192))]
     pub document: Option<String>,
+    /// Thumbnail for inline display, or a bounded original-image chunk.
+    pub image: Option<crate::image_preview::Mode>,
+    #[serde(default)]
+    pub offset: u64,
+    #[schemars(length(max = 64))]
+    pub revision: Option<String>,
 }
 pub(crate) async fn preview(
     State(s): State<App>,
@@ -27,6 +33,13 @@ pub(crate) async fn preview(
     Path(id): Path<Uuid>,
     ApiJson(b): ApiJson<Preview>,
 ) -> Result<Response> {
+    if b.revision
+        .as_ref()
+        .is_some_and(|r| r.len() != 64 || !r.bytes().all(|c| c.is_ascii_hexdigit()))
+        || (b.image.is_none() && (b.offset != 0 || b.revision.is_some()))
+    {
+        return Err(Error::bad("invalid image request"));
+    }
     let u = user(&s, &h, "operator", true).await?;
     let workspace = u.workspace()?;
     let row=sqlx::query("SELECT r.runner_id,r.result,r.execution_snapshot FROM runs r JOIN tasks t ON t.workspace_id=r.workspace_id AND t.id=r.task_id WHERE r.workspace_id=$1 AND r.id=$2 AND NOT r.config ? 'dag'").bind(workspace).bind(id).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)?;
@@ -90,7 +103,7 @@ pub(crate) async fn preview(
         workspace,
         runner,
         "read_result_file",
-        json!({"href":b.href,"cwd":cwd}),
+        json!({"href":b.href,"cwd":cwd,"image":b.image,"offset":b.offset,"revision":b.revision}),
         10,
     )
     .await?;

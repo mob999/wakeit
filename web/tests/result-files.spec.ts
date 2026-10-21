@@ -199,10 +199,12 @@ for (const surface of ['report', 'markdown file'] as const) {
       expect.arrayContaining([
         {
           href: '/workspace/absolute.png',
+          image: 'thumbnail',
           ...(surface === 'markdown file' ? { document: '/workspace/report.md' } : {}),
         },
         {
           href: './relative.png',
+          image: 'thumbnail',
           ...(surface === 'markdown file' ? { document: '/workspace/report.md' } : {}),
         },
       ]),
@@ -214,7 +216,7 @@ for (const surface of ['report', 'markdown file'] as const) {
     await expect(enlarged.getByRole('img', { name: 'Absolute image', exact: true })).toBeVisible()
     await enlarged.getByRole('button', { name: '关闭', exact: true }).click()
     await expect(root.getByRole('img', { name: 'Relative image', exact: true })).toBeVisible()
-    expect(reads).toHaveLength(before)
+    await expect.poll(() => reads.length).toBe(before + 1)
   })
 }
 
@@ -237,7 +239,7 @@ test('local result links preview only on click and preview links do not expand f
     .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
   await expect(dialog.getByRole('heading', { name: 'Preview', exact: true })).toBeVisible()
-  expect(reads).toEqual([{ href: '/workspace/report.md' }])
+  expect(reads).toEqual([{ href: '/workspace/report.md', image: 'thumbnail' }])
   await dialog.getByRole('button', { name: 'Nested', exact: true }).click()
   expect(reads).toHaveLength(1)
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('./nested.md')
@@ -262,11 +264,11 @@ test('file and Windows targets survive sanitization without becoming Gateway pat
   const reads = await fixture(page)
   await page.getByRole('button', { name: 'HTML report', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
-  expect(reads[0]).toEqual({ href: 'file:///workspace/html.md' })
+  expect(reads[0]).toEqual({ href: 'file:///workspace/html.md', image: 'thumbnail' })
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: 'Windows', exact: true }).click()
   await expect.poll(() => reads.length).toBe(2)
-  expect(reads[1]).toEqual({ href: 'C:/data/report.md' })
+  expect(reads[1]).toEqual({ href: 'C:/data/report.md', image: 'thumbnail' })
 })
 test('Viewer can copy result paths without file IO', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -303,7 +305,7 @@ test('file preview stays mounted through Run polling and SSE reconnects', async 
   expect(streams).toBeGreaterThan(1)
   await expect(dialog).toBeVisible()
   expect(await original!.evaluate((element) => element.isConnected)).toBe(true)
-  expect(reads).toEqual([{ href: '/workspace/report.md' }])
+  expect(reads).toEqual([{ href: '/workspace/report.md', image: 'thumbnail' }])
 })
 
 test('an in-flight preview survives background updates and retains loaded scroll position', async ({
@@ -413,8 +415,12 @@ for (const item of [
     await page.waitForTimeout(3500)
     await expect(dialog).toBeVisible()
     expect(await original!.evaluate((element) => element.isConnected)).toBe(true)
-    expect(requests).toEqual([`/runs/${item.surface === 'dag' ? child : id}/files/preview`])
-    expect(reads).toEqual([{ href: item.href }])
+    const endpoint = `/runs/${item.surface === 'dag' ? child : id}/files/preview`
+    expect(requests).toEqual(item.format === 'image' ? [endpoint, endpoint] : [endpoint])
+    expect(reads.map((read) => read.image)).toEqual(
+      item.format === 'image' ? ['thumbnail', 'original'] : ['thumbnail'],
+    )
+    expect(reads.every((read) => read.href === item.href)).toBe(true)
     await dialog.getByRole('button', { name: '复制路径', exact: true }).click()
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(item.href)
   })
@@ -453,7 +459,7 @@ test('duplicate image references share a read, code examples never read files, a
   const reads = await fixture(page, 'admin', { result: content, images: true })
   await expect(page.getByRole('img', { name: 'First', exact: true })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Second', exact: true })).toBeVisible()
-  expect(reads).toEqual([{ href: './%E5%9B%BE%20%E8%A1%A8.png' }])
+  expect(reads).toEqual([{ href: './%E5%9B%BE%20%E8%A1%A8.png', image: 'thumbnail' }])
   await page.reload()
   await expect(page.getByRole('img', { name: 'Second', exact: true })).toBeVisible()
   const count = reads.length
@@ -482,6 +488,7 @@ test('image errors use Toast and retry, while revoked access removes inline and 
   await page.reload()
   const holder = page.locator('[data-result-image-href="./retry.png"]')
   await expect(page.getByRole('alert')).toContainText('Synthetic image is unavailable')
+  await expect(holder).toContainText('缩略图加载失败：Synthetic image is unavailable')
   await expect(holder.getByRole('button', { name: '重试', exact: true })).toBeVisible()
   fail = false
   await holder.getByRole('button', { name: '重试', exact: true }).click()
@@ -610,4 +617,134 @@ test('Markdown image cache reuses an unchanged document and refreshes when the d
   await open()
   await expect(dialog.getByRole('img', { name: 'Sketch', exact: true })).toBeVisible()
   expect(reads.filter((read) => read.document)).toHaveLength(2)
+})
+
+for (const language of ['zh', 'en']) {
+  test(`large inline images load thumbnails first and byte-identical originals only on click (${language})`, async ({
+    page,
+  }) => {
+    await page.addInitScript(
+      (language) => localStorage.setItem('wakeit-language', language),
+      language,
+    )
+    await fixture(page, 'admin', { result: '![Large diagram](./large.png)', images: true })
+    const pixel = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6XzQAAAAASUVORK5CYII=',
+      'base64',
+    )
+    const bytes = Buffer.concat([pixel, Buffer.alloc(1100000, 19)])
+    const revision = 'a'.repeat(64)
+    const reads: any[] = []
+    await page.route('**/files/preview', (route) => {
+      const body = route.request().postDataJSON()
+      reads.push(body)
+      const offset = body.offset ?? 0,
+        end = Math.min(offset + 180000, bytes.length)
+      return route.fulfill({
+        json: {
+          path: '/workspace/large.png',
+          name: 'large.png',
+          runner_id: 'device',
+          format: 'image',
+          mime: 'image/png',
+          size: bytes.length,
+          truncated: false,
+          revision,
+          image: body.image,
+          content:
+            body.image === 'thumbnail'
+              ? pixel.toString('base64')
+              : bytes.subarray(offset, end).toString('base64'),
+          ...(body.image === 'original'
+            ? { offset, next_offset: end < bytes.length ? end : null }
+            : {}),
+        },
+      })
+    })
+    await page.reload()
+    const image = page.getByRole('img', { name: 'Large diagram', exact: true })
+    await expect(image).toBeVisible()
+    expect(reads).toEqual([{ href: './large.png', image: 'thumbnail' }])
+    await page.locator('.result-image-open').click()
+    const dialog = page.getByRole('dialog', { name: 'Large diagram', exact: true })
+    await expect(dialog.locator('img')).toHaveAttribute('src', /^blob:/)
+    const restored = await dialog
+      .locator('img')
+      .evaluate(async (img: HTMLImageElement) =>
+        Array.from(new Uint8Array(await (await fetch(img.src)).arrayBuffer())),
+      )
+    expect(Buffer.from(restored)).toEqual(bytes)
+    expect(reads[1].image).toBe('original')
+    expect(reads[1].revision).toBeUndefined()
+    expect(
+      reads.slice(2).every((read) => read.image === 'original' && read.revision === revision),
+    ).toBe(true)
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+    }
+    await dialog
+      .getByRole('button', { name: language === 'zh' ? '关闭' : 'Close', exact: true })
+      .click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(image).toBeVisible()
+  })
+}
+
+test('closing an original load cancels further chunks and changed originals retain the thumbnail with a clear error', async ({
+  page,
+}) => {
+  await fixture(page, 'admin', { result: '![Photo](./photo.png)', images: true })
+  const pixel =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6XzQAAAAASUVORK5CYII='
+  let release!: () => void
+  const pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let originals = 0,
+    changed = false
+  await page.route('**/files/preview', async (route) => {
+    const body = route.request().postDataJSON()
+    if (body.image === 'original') {
+      originals++
+      if (changed)
+        return route.fulfill({ status: 400, json: { error: 'image changed; reload the preview' } })
+      await pending
+    }
+    await route
+      .fulfill({
+        json: {
+          path: '/workspace/photo.png',
+          name: 'photo.png',
+          runner_id: 'device',
+          format: 'image',
+          mime: 'image/png',
+          size: 1000000,
+          truncated: false,
+          revision: 'b'.repeat(64),
+          image: body.image,
+          content: pixel,
+          offset: 0,
+          next_offset: 68,
+        },
+      })
+      .catch(() => {})
+  })
+  await page.reload()
+  await expect(page.locator('.result-image-open')).toBeVisible()
+  await page.locator('.result-image-open').click()
+  const dialog = page.getByRole('dialog', { name: 'Photo', exact: true })
+  await expect(dialog).toContainText('正在加载原图…')
+  await expect.poll(() => originals).toBe(1)
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  release()
+  await page.waitForTimeout(200)
+  expect(originals).toBe(1)
+  changed = true
+  await page.locator('.result-image-open').click()
+  await expect(dialog).toContainText('原图加载失败：图片在读取期间已变化，请重新打开预览。')
+  await expect(dialog.locator('img')).toHaveAttribute('src', /^data:/)
+  await expect(page.getByRole('alert')).toContainText('图片在读取期间已变化')
 })

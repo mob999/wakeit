@@ -8,6 +8,7 @@ import { CopyValue } from '../runs/CopyValue'
 import { MarkdownContent } from '../runs/MarkdownContent'
 import type { FileSource } from './links'
 import './files.css'
+import { OriginalImage } from './OriginalImage'
 import { PreviewActivity } from './PreviewActivity'
 import { type Preview, executionId, readPreview, imageMimes } from './preview'
 export function ResultFileLink({
@@ -28,7 +29,7 @@ export function ResultFileLink({
     [documentVersion, setDocumentVersion] = useState(''),
     [value, setValue] = useState<Preview | null>(null),
     [pending, setPending] = useState(false),
-    [failed, setFailed] = useState(false)
+    [failed, setFailed] = useState('')
   const previewActivity = useContext(PreviewActivity),
     previewId = useId()
   useEffect(() => {
@@ -65,10 +66,10 @@ export function ResultFileLink({
     request.current = controller
     setOpen(true)
     setPending(true)
-    setFailed(false)
+    setFailed('')
     try {
       const id = await executionId(source, controller.signal)
-      const result = await readPreview(id, href, controller.signal)
+      const result = await readPreview(id, href, controller.signal, undefined, 'thumbnail')
       const revision =
         result.format === 'markdown'
           ? Array.from(
@@ -85,7 +86,7 @@ export function ResultFileLink({
       }
     } catch (error) {
       if (!controller.signal.aborted) {
-        setFailed(true)
+        setFailed((error as Error).message)
         toast((error as Error).message)
       }
     } finally {
@@ -150,9 +151,10 @@ export function ResultFileLink({
                   {value.truncated && <span>{t('结果已截断')}</span>}
                 </div>
                 {value.format === 'image' && imageMimes.includes(value.mime) ? (
-                  <img
-                    className="file-preview-image"
-                    src={`data:${value.mime};base64,${value.content}`}
+                  <OriginalImage
+                    preview={value}
+                    href={href}
+                    source={{ runId: actualId }}
                     alt={value.name}
                   />
                 ) : value.format === 'markdown' ? (
@@ -172,7 +174,10 @@ export function ResultFileLink({
                 {!value.content && <p className="quiet">{t('filePreview.empty')}</p>}
               </>
             ) : failed ? (
-              <Button onClick={() => void load()}>{t('重试')}</Button>
+              <div className="file-preview-image-status" role="status">
+                <span>{failed}</span>
+                <Button onClick={() => void load()}>{t('重试')}</Button>
+              </div>
             ) : null}
           </div>
         </Modal>

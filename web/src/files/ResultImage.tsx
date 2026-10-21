@@ -5,6 +5,7 @@ import { t } from '../i18n'
 import { useToast } from '../Toast'
 import { Modal } from '../ui'
 import { CopyValue } from '../runs/CopyValue'
+import { OriginalImage } from './OriginalImage'
 import { PreviewActivity } from './PreviewActivity'
 import { executionId, readPreview, imageMimes, imageRead, type ImageSource } from './preview'
 import './files.css'
@@ -45,7 +46,7 @@ export function ResultImage({
     return () => observer.disconnect()
   }, [allowed, href, source?.runId, source?.nodeId, source?.document, source?.revision])
   const queryKey = [
-    'result-image',
+    'result-thumbnail',
     workspaceId,
     me.data?.id,
     source?.runId,
@@ -60,7 +61,7 @@ export function ResultImage({
     queryFn: ({ signal }) =>
       imageRead(signal, async () => {
         const id = await executionId(source!, signal)
-        const value = await readPreview(id, href, signal, source?.document)
+        const value = await readPreview(id, href, signal, source?.document, 'thumbnail')
         if (value.format !== 'image' || !imageMimes.includes(value.mime) || value.truncated)
           throw new Error(t('filePreview.unsupportedImage'))
         return value
@@ -133,6 +134,13 @@ export function ResultImage({
       ) : (
         <span className="result-image-placeholder">
           <span>{alt || href}</span>
+          {failed && (
+            <span className="result-image-error">
+              {t('filePreview.thumbnailFailed', {
+                reason: query.error?.message ?? t('filePreview.unsupportedImage'),
+              })}
+            </span>
+          )}
           {failed ? (
             !linked && (
               <button
@@ -159,7 +167,7 @@ export function ResultImage({
           actions={<CopyValue label={t('filePreview.copyPath')} value={image.path} toast={toast} />}
         >
           <div className="file-preview-content">
-            <img className="file-preview-image" src={src} alt={alt || image.name} />
+            <OriginalImage preview={image} href={href} source={source!} alt={alt || image.name} />
           </div>
         </Modal>
       )}

@@ -99,6 +99,7 @@
 .result-image-placeholder {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-height: 64px;
   font-size: 11px;
@@ -107,6 +108,27 @@
 .result-image-placeholder button {
   flex: none;
   color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.result-image-error {
+  color: var(--muted);
+}
+.file-preview-image-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: var(--ui-text);
+}
+.file-preview-image-status > button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
 }

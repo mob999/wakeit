@@ -163,7 +163,11 @@ pub fn path(href: &str, cwd: Option<&str>) -> Result<PathBuf> {
     Ok(absolute)
 }
 
-pub fn read(roots: &[PathBuf], href: &str, cwd: Option<&str>, limit: usize) -> Result<Value> {
+pub(crate) fn open(
+    roots: &[PathBuf],
+    href: &str,
+    cwd: Option<&str>,
+) -> Result<(std::fs::File, PathBuf)> {
     let requested = path(href, cwd)?;
     let real = requested
         .canonicalize()
@@ -189,7 +193,16 @@ pub fn read(roots: &[PathBuf], href: &str, cwd: Option<&str>, limit: usize) -> R
     }
     // Capability-relative open prevents intermediate/final symlink races from
     // escaping the already-open allowed directory. Inspect the opened handle.
-    let mut file = dir.open_with(relative, &options)?.into_std();
+    let file = dir.open_with(relative, &options)?.into_std();
+    ensure!(
+        file.metadata()?.is_file(),
+        "only regular files can be previewed"
+    );
+    Ok((file, real))
+}
+
+pub fn read(roots: &[PathBuf], href: &str, cwd: Option<&str>, limit: usize) -> Result<Value> {
+    let (mut file, real) = open(roots, href, cwd)?;
     let before = file.metadata()?;
     ensure!(before.is_file(), "only regular files can be previewed");
     let limit = limit.min(MAX_BYTES);

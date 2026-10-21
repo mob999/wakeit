@@ -2,6 +2,9 @@
 import base64
 import json
 import os
+import random
+import struct
+import zlib
 from pathlib import Path
 from integration import call, expect_status, wait
 
@@ -20,7 +23,13 @@ def verify(api, a, b, check, context):
     document='![Relative](./pixel.png)\n\n![Encoded](./%E4%BD%A0%E5%A5%BD%20%E5%9B%BE.png)\n\n![Absolute]('+str(root/'pixel.png')+')\n\n![Parent](../pixel.png)\n\n![Nonimage](../report.md)\n\n![Escape](../../outside-preview/private.txt)\n\n`![Hidden](./secret.png)`\n\n```md\n![Hidden](./code.png)\n```'
     (root/'docs/report.md').write_text(document)
     (root/'unlinked.md').write_text('![Image](./pixel.png)')
-    links=['./report.md','./%E4%BD%A0%E5%A5%BD%20file.md','./large.txt','./pixel.png','../outside-preview/private.txt','file://remote/private.txt','./docs/report.md','./large.md']
+    def png_chunk(kind, data):
+        return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data))
+    rng=random.Random(98)
+    raw=b''.join(b'\0'+rng.randbytes(3000) for _ in range(900))
+    large=b'\x89PNG\r\n\x1a\n'+png_chunk(b'IHDR',struct.pack('>IIBBBBB',1000,900,8,2,0,0,0))+png_chunk(b'IDAT',zlib.compress(raw))+png_chunk(b'IEND',b'')
+    (root/'large.png').write_bytes(large)
+    links=['./large.png','./report.md','./%E4%BD%A0%E5%A5%BD%20file.md','./large.txt','./pixel.png','../outside-preview/private.txt','file://remote/private.txt','./docs/report.md','./large.md']
     if os.name!='nt':
         os.symlink(outside/'private.txt',root/'escape')
         os.mkfifo(root/'pipe')
@@ -30,10 +39,26 @@ def verify(api, a, b, check, context):
     api('/tasks/file-preview','PUT',dict(config=c,expected_revision=None))
     id=api('/tasks/file-preview/runs','POST',{})['id']
     final=wait(lambda:(r if (r:=api('/runs/'+id))['finished_at'] else None),'file source finishes')
-    def read(href,document=None,**kwargs):return api('/runs/'+id+'/files/preview','POST',dict(href=href,**({'document':document} if document else {})),**kwargs)
+    def read(href,document=None,image=None,offset=0,revision=None,**kwargs):return api('/runs/'+id+'/files/preview','POST',dict(href=href,**({'document':document} if document else {}),**({'image':image,'offset':offset,'revision':revision} if image else {})),**kwargs)
+    thumbnail=read('./large.png',image='thumbnail')
+    assert thumbnail['image']=='thumbnail' and thumbnail['size']==len(large)
+    assert len(base64.b64decode(thumbnail['content']))<=512*1024
+    restored=bytearray();offset=0
+    while True:
+        value=read('./large.png',image='original',offset=offset,revision=thumbnail['revision'],gateway=context['other'])
+        assert value['offset']==offset and value['revision']==thumbnail['revision']
+        restored.extend(base64.b64decode(value['content']))
+        if value['next_offset'] is None:break
+        offset=value['next_offset']
+    assert bytes(restored)==large
+    expect_status(lambda:read('./large.png'),400)
+    expect_status(lambda:read('./large.png',image='original',offset=1),400)
+    (root/'large.png').write_bytes(large)
+    expect_status(lambda:read('./large.png',image='original',revision=thumbnail['revision']),400)
+    check('Large images use bounded thumbnails; original chunks remain byte-identical across Gateways and reject changed files/invalid offsets')
     value=read('./report.md',gateway=context['other'])
     assert value['format']=='markdown' and value['content'].startswith('# Current file') and value['runner_id']==a['id'],value
-    assert read(links[1])['content']=='Unicode file'
+    assert read('./%E4%BD%A0%E5%A5%BD%20file.md')['content']=='Unicode file'
     assert read('./large.txt')['truncated'] and len(read('./large.txt')['content'])<=512*1024
     assert base64.b64decode(read('./pixel.png')['content'])==png
     assert base64.b64decode(read('./image-only.png')['content'])==png

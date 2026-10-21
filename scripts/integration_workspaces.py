@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--prepare-only', action='store_true', help='Retain only the basic disposable stack for live-upgrade checks')
     parser.add_argument('--gateway-binary', type=pathlib.Path, help='Previous Gateway binary for a disposable live-upgrade check')
     parser.add_argument('--manual-retry-only', action='store_true', help='Run focused same-Run recovery acceptance on a fresh stack')
+    parser.add_argument('--files-only', action='store_true', help='Run result file and image acceptance on a fresh two-Gateway stack')
     parser.add_argument('--gateway-port', type=int)
     parser.add_argument('--old-runner', type=pathlib.Path, help='Read-only legacy Runner binary used for workspace A')
     args = parser.parse_args()
@@ -174,20 +175,24 @@ def main():
         def sql(query): return command([pg / 'psql', database, '-At', '-v', 'ON_ERROR_STOP=1', '-c', query]).strip()
         dag_runs, file_run = {}, None
         if not args.prepare_only:
-            from dag_retry_migration_checks import verify as verify_retry_migration
-            verify_retry_migration(sql,check)
-            if not args.manual_retry_only:
-                from dag_checks import verify as verify_dags
-                dag_runs = verify_dags(api, a, b, check, dict(other=other, sql=sql, binary=binary, cli_env=cli_env, workspace=workspace_a, root=root, spawn=spawn))
-                from dag_retry_checks import verify as verify_retries
-                verify_retries(api, a, b, check, dict(other=other, sql=sql))
-            from dag_manual_retry_checks import verify as verify_manual
-            verify_manual(api, a, b, check, dict(base=base, other=other, sql=sql, binary=binary, cli_env=cli_env, root=root, spawn=spawn, global_api=global_api))
-            if not args.manual_retry_only:
-                from editor_layout_checks import verify as verify_layout
-                verify_layout(api, a, b, check, dict(base=base, other=other, root=root, binary=binary, cli_env=cli_env, global_api=global_api))
+            if args.files_only:
                 from result_file_checks import verify as verify_files
                 file_run = verify_files(api,a,b,check,dict(other=other))
+            else:
+                from dag_retry_migration_checks import verify as verify_retry_migration
+                verify_retry_migration(sql,check)
+                if not args.manual_retry_only:
+                    from dag_checks import verify as verify_dags
+                    dag_runs = verify_dags(api, a, b, check, dict(other=other, sql=sql, binary=binary, cli_env=cli_env, workspace=workspace_a, root=root, spawn=spawn))
+                    from dag_retry_checks import verify as verify_retries
+                    verify_retries(api, a, b, check, dict(other=other, sql=sql))
+                from dag_manual_retry_checks import verify as verify_manual
+                verify_manual(api, a, b, check, dict(base=base, other=other, sql=sql, binary=binary, cli_env=cli_env, root=root, spawn=spawn, global_api=global_api))
+                if not args.manual_retry_only:
+                    from editor_layout_checks import verify as verify_layout
+                    verify_layout(api, a, b, check, dict(base=base, other=other, root=root, binary=binary, cli_env=cli_env, global_api=global_api))
+                    from result_file_checks import verify as verify_files
+                    file_run = verify_files(api,a,b,check,dict(other=other))
         summary = dict(base_url=base, other_url=other, root=str(root), checks=checks, workspaces=[workspace_a, workspace_b],
                        processes=[p.pid for p in processes], pg_port=pg_port, dag_runs=dag_runs, file_run=file_run)
         (root / 'summary.json').write_text(json.dumps(summary, indent=2))

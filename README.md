@@ -16,7 +16,7 @@ Define the instructions and timing, and Wakeit sends the task to a Runner on you
 
 The latest published release is **0.3.1**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
 
-Local PNG/JPEG/WebP references render inline in reports and Markdown-file previews through the original Runner; relative image paths use the execution or Markdown directory and existing workspace/root permissions apply.
+Local PNG/JPEG/WebP references render as thumbnails in reports and Markdown-file previews through the original Runner; clicking loads the original image on demand; relative image paths use the execution or Markdown directory and existing workspace/root permissions apply.
 
 ## Install
 
