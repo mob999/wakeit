@@ -173,6 +173,37 @@ test('compact history, empty messages, independent payload folds and full copy',
   await tool.locator('summary').click()
   await expectAlignedIcons()
   await expect(tool.locator('.trace-payload-section')).toHaveCount(2)
+  const input = tool.locator('.trace-payload-section').first()
+  await expect(input.locator('code')).toHaveClass(/language-json/)
+  await expect(input.locator('.hljs-attr')).toHaveText('"path"')
+  await expect(input.locator('.hljs-string')).toHaveText('"/workspace/synthetic.md"')
+  await expect(input.locator('pre')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const section of await tool.locator('.trace-payload-section').all()) {
+      const label = section.locator('.trace-payload-heading > button')
+      await expect(section).toHaveCSS('border-top-width', '0px')
+      await expect(label).toHaveCSS('font-size', '12px')
+      await expect(section.locator('pre')).toHaveCSS('font-size', '12px')
+      await expect(section.locator('pre')).toHaveCSS('line-height', '20px')
+      await expect
+        .poll(() =>
+          section.evaluate((el) => {
+            const toggle = el.querySelector('.trace-payload-heading > button')!
+            const icon = toggle.querySelector('svg')!.getBoundingClientRect()
+            const code = el.querySelector('pre')!.getBoundingClientRect()
+            return Math.abs(code.x - icon.right - parseFloat(getComputedStyle(toggle).gap))
+          }),
+        )
+        .toBeLessThan(0.5)
+      await expect(section.getByRole('button', { name: '复制', exact: true })).toHaveCSS(
+        'width',
+        '28px',
+      )
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await tool.screenshot({ path: 'test-results/trace-payload-transparent.png' })
   const output = tool.locator('.trace-payload-section').last()
   await expect(output.locator('pre')).toContainText('output line 12')
   await expect(output.locator('pre')).not.toContainText('output line 13')
@@ -188,6 +219,35 @@ test('compact history, empty messages, independent payload folds and full copy',
   await expect(tool).not.toHaveAttribute('open')
   await page.getByRole('button', { name: '回到最新', exact: true }).click()
   await expect(trace.locator('[data-trace-id="message-99"]')).toHaveAttribute('open')
+  expect(f.writes).toEqual([])
+})
+test('result code and raw JSON stay transparent with syntax colors in both themes', async ({
+  page,
+}) => {
+  const f = await fixture(page, 0, 4)
+  f.run.state = 'succeeded'
+  f.run.result = '# Report\n\n```json\n{"status": "ready", "count": 2}\n```\n\nInline `value`.'
+  const result = page.locator('.run-result-panel')
+  await expect(result.getByRole('heading', { name: 'Report', exact: true })).toBeVisible()
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((value) => (document.documentElement.dataset.theme = value), theme)
+    await expect(result.locator('pre')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    await expect(result.locator('code').last()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    const colors = await result
+      .locator('pre')
+      .evaluate((el) => [
+        getComputedStyle(el.querySelector('.hljs-attr')!).color,
+        getComputedStyle(el.querySelector('.hljs-string')!).color,
+      ])
+    expect(colors[0]).not.toBe(colors[1])
+  }
+  await page.getByRole('button', { name: '原文', exact: true }).click()
+  await expect(result.locator('pre.result-raw')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  f.run.result = { status: 'ready', count: 2, content: '```\n<script>literal text</script>' }
+  await expect(result.locator('code.language-json')).toBeVisible()
+  await expect(result.locator('pre')).toHaveText(JSON.stringify(f.run.result, null, 2) + '\n')
+  await expect(result.locator('pre')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(result.locator('.hljs-attr').first()).toHaveText('"status"')
   expect(f.writes).toEqual([])
 })
 test('new messages and ready results do not interrupt reading; tabs preserve the anchor', async ({
@@ -311,14 +371,39 @@ test('failure reasons remain persistent context while successful tools retain th
   f.run.nodes[0].reason = 'Synthetic child failure'
   f.run.reason = 'Synthetic graph failure'
   f.run.state = 'failed'
-  await expect(page.locator('.dag-outcome .run-reason')).toContainText('Synthetic graph failure')
+  await expect(page.locator('.dag-outcome .run-reason')).toHaveAttribute(
+    'aria-label',
+    '整图原因: Synthetic graph failure',
+  )
   await expect(page.locator('.dag-node-process:not([hidden]) .trace-state.succeeded')).toHaveCount(
     5,
   )
-  await expect(page.locator('.dag-node-process:not([hidden]) .run-reason')).toContainText(
-    'Synthetic child failure',
-  )
+  const process = page.locator('.dag-node-process:not([hidden])')
+  const childReason = process.locator('.run-reason')
+  await expect(childReason).toHaveAttribute('aria-label', '失败原因: Synthetic child failure')
+  await expect(childReason).toHaveText('失败')
   await expect(page.locator('.dag-node-reason')).toHaveCount(0)
-  await page.locator('.dag-outcome .run-reason').click()
-  await expect(page.locator('.dag-outcome .run-reason-full')).toHaveText('Synthetic graph failure')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect
+      .poll(() =>
+        process.locator('.dag-node-context').evaluate((el) => {
+          const context = el.getBoundingClientRect()
+          const status = el.querySelector('.run-reason')!.getBoundingClientRect()
+          return status.x - context.x - context.width / 2
+        }),
+      )
+      .toBeGreaterThan(0)
+    await childReason.hover()
+    await expect(page.getByRole('tooltip')).toContainText('Synthetic child failure')
+    await childReason.press('Escape')
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
+  }
+  await process.getByRole('button', { name: '全部收起', exact: true }).focus()
+  await childReason.focus()
+  await expect(page.getByRole('tooltip')).toContainText('Synthetic child failure')
+  await childReason.press('Escape')
+  await page.locator('.dag-outcome .run-reason').hover()
+  await expect(page.getByRole('tooltip')).toContainText('Synthetic graph failure')
+  await expect(page.locator('.run-reason-full')).toHaveCount(0)
 })

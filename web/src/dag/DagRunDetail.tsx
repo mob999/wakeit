@@ -537,9 +537,10 @@ function NodeExecution({
         {chosen && !run ? (
           <span className="dag-node-state-placeholder quiet">{t('正在加载…')}</span>
         ) : (
-          <Status state={run?.state ?? state} />
+          <RunReason key={executionId ?? node} state={run?.state ?? state} reason={displayedReason}>
+            <Status state={run?.state ?? state} />
+          </RunReason>
         )}
-        <RunReason key={executionId ?? node} state={run?.state ?? state} reason={displayedReason} />
         {(execution.data?.attempts?.length ?? 0) > 1 && (
           <div className="dag-attempt-picker">
             <ChoicePicker

@@ -1,18 +1,19 @@
-import { useId, useState } from 'react'
+import type { ReactNode } from 'react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 import { t } from '../i18n'
 
 export function RunReason({
   reason,
   state,
   label: suppliedLabel,
+  children,
 }: {
   reason?: string | null
   state: string
   label?: string
+  children?: ReactNode
 }) {
-  const [open, setOpen] = useState(false),
-    id = useId()
-  if (!reason) return null
+  if (!reason) return children ?? null
   const label =
     suppliedLabel ??
     t(
@@ -21,24 +22,22 @@ export function RunReason({
         : 'reading.reason',
     )
   return (
-    <>
-      <button
-        type="button"
-        className="run-reason"
-        aria-label={`${label}: ${reason}`}
-        title={reason}
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span>{label}</span>
-        <span>{reason}</span>
-      </button>
-      {open && (
-        <div id={id} className="run-reason-full">
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button type="button" className="run-reason" aria-label={`${label}: ${reason}`}>
+          {children ?? label}
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          className="tooltip run-reason-tooltip"
+          align="end"
+          sideOffset={6}
+          collisionPadding={8}
+        >
           {reason}
-        </div>
-      )}
-    </>
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   )
 }

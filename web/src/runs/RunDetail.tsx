@@ -259,8 +259,9 @@ function SingleRunDetail({
         >
           {r.reason && (
             <div className="run-context">
-              <Status state={r.state} />
-              <RunReason key={r.id} state={r.state} reason={r.reason} />
+              <RunReason key={r.id} state={r.state} reason={r.reason}>
+                <Status state={r.state} />
+              </RunReason>
             </div>
           )}
           {r.execution_snapshot?.trace_supported === false ||

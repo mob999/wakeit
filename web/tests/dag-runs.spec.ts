@@ -466,7 +466,10 @@ test('retry acceleration targets the reserved execution and historical attempts 
   await details.getByRole('combobox', { name: '执行尝试', exact: true }).click()
   await page.getByRole('option').filter({ hasText: '第 1 次' }).click()
   await expect(details.getByRole('heading', { name: 'First attempt', exact: true })).toBeVisible()
-  await expect(details.locator('.run-reason')).toContainText('First attempt reason')
+  await expect(details.locator('.run-reason')).toHaveAttribute(
+    'aria-label',
+    '失败原因: First attempt reason',
+  )
   await expect(details.locator('.dag-node-context')).toContainText('7.0s')
   await expect(details).not.toContainText('Current attempt reason')
   expect(selected).toContain(old)

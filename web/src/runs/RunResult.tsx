@@ -5,6 +5,7 @@ import { DetailBody } from '../Workbench'
 import { CopyValue } from './CopyValue'
 import type { FileSource } from '../files/links'
 import { Status } from '../Status'
+import { CodeContent, isJsonCode } from './CodeContent'
 export function resultData(result: unknown) {
   const truncated =
     result !== null &&
@@ -102,7 +103,11 @@ export function RunResult({
       <DetailBody>
         {truncated && <p className="quiet">{tr('结果已截断')}</p>}
         {raw || typeof text !== 'string' ? (
-          <pre className="code result result-raw">{rawSource}</pre>
+          <CodeContent
+            text={rawSource ?? ''}
+            json={isJsonCode(result)}
+            className="result result-raw"
+          />
         ) : (
           <article className="markdown-result result">
             <MarkdownContent text={text} source={source} />

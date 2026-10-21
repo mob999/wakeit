@@ -24,6 +24,7 @@ import {
   followingTail,
 } from './readingModel'
 import { CopyValue } from './CopyValue'
+import { CodeContent, isJsonCode } from './CodeContent'
 import { useToast } from '../Toast'
 
 type Entry = { firstSeq: number; lastSeq: number; node: TraceNode }
@@ -444,6 +445,7 @@ function TracePayload({
           {preview.truncated && open && (
             <button
               type="button"
+              className="trace-payload-full"
               onClick={() => update((old) => ({ ...old, full: { ...old.full, [keyName]: !full } }))}
             >
               {tr(full ? 'reading.less' : 'reading.full')}
@@ -452,7 +454,7 @@ function TracePayload({
           <CopyValue value={text} label={tr('复制')} toast={toast} />
         </span>
       </div>
-      {open && <pre className="code">{preview.text}</pre>}
+      {open && <CodeContent text={preview.text} json={isJsonCode(value)} />}
     </section>
   )
 }
