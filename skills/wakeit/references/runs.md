@@ -28,7 +28,9 @@ wakeit run resolve <run-id> --state interrupted --reason '实际核对说明'
 
 用户要继续对话时，读取实际 Run 的 session.command，按 [会话](sessions.md) 提供原生 Agent 续聊命令。需要本地验证和互斥时，可选用 `wakeit run resume <run-id>`。二者均与 `run retry` 不同：续聊在本机打开已有会话，retry 重新提交一次任务；不要相互替代。
 
-DAG Run 代表整图。日志和 Trace 的子事件带 node_id、execution_id、original_seq；按 DAG 节点和原生 Trace ID 组合聚合，不混用不同节点的工具事件。输出 result.outputs 保留所选节点的独立报告。触发、取消和重试只能作用于整图，重试读取当前任务定义并从全部根开始。unknown 须通过父 Run 的 nodes/{node}/resolve 接口逐节点核对，不强制标记父 Run。续聊必须读取具体节点的真实 Session；不得把父 Run ID 当原生会话 ID。
+DAG Run 代表整图。日志和 Trace 的子事件带 node_id、execution_id、original_seq；按 DAG 节点和原生 Trace ID 组合聚合，不混用不同节点的工具事件。输出 result.outputs 保留所选节点的独立报告。触发、取消和手动整轮重试作用于整图，整轮重试读取当前任务定义并从全部根开始。unknown 须通过父 Run 的 nodes/{node}/resolve 接口逐节点核对，不强制标记父 Run。续聊必须读取具体节点的真实 Session；不得把父 Run ID 当原生会话 ID。
+
+DAG 的运行状态和异常节点菜单位于“执行 / 详情”页签右侧，状态的 Tooltip 展示整轮原因。异常菜单按当前尝试列出失败、超时、中断及待核对节点，跳过节点单独分组；定位会切回当前执行，不把已恢复的旧失败算作异常。节点的日志、过程、报告及续聊必须来自同一实际 execution。整轮重试与配置中的节点自动重试不同；“立即重试”只加速同轮已排队、预算内的下一次尝试，不能重新打开已结束的整图。
 
 ## Result file previews
 
