@@ -376,6 +376,7 @@ impl Journal {
                 .open(self.dir.join("logs").join(format!("{id}.log")))
                 .await?;
             file.write_all(text.as_bytes()).await?;
+            file.flush().await?;
         }
         Ok(())
     }
