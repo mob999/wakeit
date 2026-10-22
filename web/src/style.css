@@ -3200,6 +3200,13 @@ input:disabled {
   min-height: 0;
   overflow-y: auto;
 }
+.workspace-menu > [role='menuitem'] > svg {
+  flex-shrink: 0;
+}
+.workspace-signout,
+.icon-button.workspace-signout:hover:not(:disabled) {
+  color: var(--failure);
+}
 .workspace-option {
   display: flex;
   gap: 12px;
@@ -3291,7 +3298,9 @@ input:disabled {
   background: var(--hover);
 }
 .workspace-instance-link {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 16px;
   color: var(--muted);
 }

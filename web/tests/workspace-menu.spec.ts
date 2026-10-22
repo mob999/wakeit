@@ -1,7 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { apiPath, fixtureWorkspace, workspacePage } from './workspace'
 
-async function fixture(page: Page, role: 'admin' | 'operator' | 'viewer', demo = false) {
+async function fixture(
+  page: Page,
+  role: 'admin' | 'operator' | 'viewer',
+  demo = false,
+  instanceAdmin = false,
+) {
   const calls: { path: string; method: string }[] = []
   const workspace = { id: fixtureWorkspace, name: 'Workspace Preview', role, is_demo: demo }
   await page.route('**/api/v1/**', async (route) => {
@@ -9,7 +14,8 @@ async function fixture(page: Page, role: 'admin' | 'operator' | 'viewer', demo =
     const method = route.request().method()
     calls.push({ path, method })
     const send = (json: unknown, status = 200) => route.fulfill({ json, status })
-    if (path === '/api/v1/session') return send({ id: 'fixture-user', username: '@fixture', role })
+    if (path === '/api/v1/session')
+      return send({ id: 'fixture-user', username: '@fixture', role, instance_admin: instanceAdmin })
     if (path === '/api/v1/workspaces')
       return send({ items: demo ? [] : [workspace], demo: demo ? workspace : null })
     if (path === `/api/v1/workspaces/${fixtureWorkspace}`) return send(workspace)
@@ -71,6 +77,7 @@ for (const [role, label, english] of [
     }
     await page.getByRole('button', { name: '用户菜单', exact: true }).click()
     const menu = page.getByRole('menu')
+    await expect(menu.getByRole('menuitem', { name: '账号管理', exact: true })).toHaveCount(0)
     await expect(menu.locator('.user-menu-label')).toHaveText('@fixture')
     const selected = menu.getByRole('menuitemradio', { name: 'Workspace Preview', exact: true })
     await expect(selected).toBeChecked()
@@ -119,11 +126,11 @@ test('demo keeps Settings visible without keys, privileged controls or a leave a
 })
 
 for (const width of [390, 1440]) {
-  test(`compact text-only workspace menu at ${width}px with keyboard selection and internal scrolling`, async ({
+  test(`compact workspace menu at ${width}px with account actions, keyboard selection and internal scrolling`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 844 })
-    await fixture(page, 'viewer')
+    await fixture(page, 'viewer', false, true)
     // Keep a long list and names confined to the workspace list, not the account actions.
     await page.route('**/api/v1/workspaces', (route) =>
       route.fulfill({
@@ -149,6 +156,11 @@ for (const width of [390, 1440]) {
       await trigger.focus()
       await trigger.press('Enter')
       const menu = page.getByRole('menu')
+      const accounts = menu.getByRole('menuitem', { name: '账号管理', exact: true })
+      const signout = menu.getByRole('menuitem', { name: '退出登录', exact: true })
+      await expect(accounts.locator('svg[aria-hidden="true"]')).toHaveCount(1)
+      await expect(signout.locator('svg[aria-hidden="true"]')).toHaveCount(1)
+      await expect(signout).toHaveCSS('color', dark ? 'rgb(248, 81, 73)' : 'rgb(207, 34, 46)')
       const bounds = (await menu.boundingBox())!
       expect(bounds.x).toBeGreaterThanOrEqual(12)
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 12)
@@ -158,12 +170,22 @@ for (const width of [390, 1440]) {
           .evaluate((el) => el.scrollHeight > el.clientHeight),
       ).toBe(true)
       await page.keyboard.press('End')
-      await expect(menu.getByRole('menuitem', { name: '退出登录', exact: true })).toBeFocused()
+      await expect(signout).toBeFocused()
+      await expect(signout).toHaveCSS('color', dark ? 'rgb(248, 81, 73)' : 'rgb(207, 34, 46)')
       await page.screenshot({
         path: test.info().outputPath(`workspace-menu-${width}-${dark ? 'dark' : 'light'}.png`),
       })
       await page.keyboard.press('Escape')
       await expect(trigger).toBeFocused()
     }
+    await page.getByRole('button', { name: '切换到英文', exact: true }).click()
+    await page.getByRole('button', { name: 'User menu', exact: true }).click()
+    await expect(
+      page.getByRole('menuitem', { name: 'Account management', exact: true }),
+    ).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Sign out', exact: true })).toHaveCSS(
+      'color',
+      'rgb(248, 81, 73)',
+    )
   })
 }
