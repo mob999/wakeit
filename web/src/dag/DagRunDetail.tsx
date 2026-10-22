@@ -551,7 +551,9 @@ function NodeExecution({
         )}
         <div className="dag-node-context-actions">
           {resultAction}
-          {mode === 'trace' && executionId && <TraceActions id={executionId} />}
+          {mode === 'trace' && executionId && (
+            <TraceActions id={executionId} issues={trace.state.issues} />
+          )}
           {!chosen && user.role !== 'viewer' && execution.data?.retry && (
             <IconButton
               label={

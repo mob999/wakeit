@@ -174,3 +174,9 @@ Run.session.command保存Runner根据本地interactive快照生成的原生交�
 
 
 Kimi Code、Antigravity CLI 和 Gemini CLI 的原生协议分别归一化，不因命令风格相近而共用解析器。AGY 的单次任务先编码为一个 JSON stdin 事件；并发读 stdout/写 stdin，防止大型初始化输出和多行指令互相阻塞。新增适配的真实能力与官方依据见[内置适配](agents.md)。
+
+### Activity recording causes
+
+`trace_status.data` retains `status` and may include `reason`: `content_shortened`, `event_limit`, `event_unsupported`, `event_parse_failed`, `event_too_large`, `content_limit`, or `content_expired`. These describe recording quality, not execution outcomes. Ordinary adapter diagnostic logs do not imply incomplete activity. An adapter can explicitly attach optional `recording_issue` to a version-1 log record; the Runner emits the corresponding status once per cause. The Runner also recognizes explicit truncated input/output previews. Existing logs without that field remain valid. Old Runners can omit an unknown diagnostic record and retain their generic incomplete marker; execution and terminal-result messages are unchanged.
+
+The WebUI displays causes in a toolbar information tooltip for the actual execution. Historical statuses without a cause remain unspecified; the UI does not infer a cause from human log text. No activity warnings are inserted ahead of recorded messages. Empty, loading, unsupported and fully expired activity remain distinct empty states.

@@ -192,3 +192,5 @@ Tasks、Runs、Runners、Settings 共用独立的第二侧栏语义底色与细�
 Trace 工具名称完整显示，不压缩为省略号；只有后面的命令、路径等摘要单行省略。极长工具名在窄屏允许换行，状态及耗时保持原列对齐。
 
 DAG manual recovery keeps the selected node context and reading state. Show Retry node, Retry now or Resume node as the same transparent context action, only on the latest attempt; disabled actions expose the server blocking reason through a Tooltip. Confirm stopped recovery in a compact three-column table (node / state / action) and retain the dialog and reading position after errors. Successful nodes remain unchanged. The DAG Time step uses the existing execution-policy table row for an optional total-limit switch; new drafts default off, while existing explicit limits remain visible. Errors use top-right Toasts.
+
+过程记录完整性使用过程表头或 DAG 当前节点工具栏中的 Info 图标与 Tooltip 展示，按实际执行隔离。提示区分输入/输出节选、事件数量限制、不支持的事件、解析失败、单条事件过大、保存容量和保留过期；普通诊断只留在日志，不根据文案推测缺失。历史记录没有结构化原因时明确提示原因未提供。消息列表前不插入完整性提示段落；没有消息时保留加载、等待、不支持、未记录或全部过期的空状态。Tooltip 中英文同步，支持悬停和键盘聚焦，去重显示所有已知原因，不影响消息折叠、跟随或运行状态。

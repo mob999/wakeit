@@ -236,6 +236,7 @@ export type RunEvent = {
     state?: string
     result?: unknown
     status?: string
+    reason?: string
   }
 }
 export const terminal = (state: string) =>

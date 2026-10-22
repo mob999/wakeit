@@ -30,12 +30,16 @@ impl State {
             text: format!("Native Agent event omitted ({key}).\n"),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
     fn invalid(&mut self, key: &str) -> Vec<StreamRecord> {
         self.fatal = true;
         self.result = None;
-        self.diagnostic(key)
+        crate::trace::recording_issue(
+            self.diagnostic(key),
+            crate::trace::RecordingIssue::EventParseFailed,
+        )
     }
     fn omit_trace(&mut self, key: &str) -> Vec<StreamRecord> {
         // Retain terminal/session parsing after the observability budget is spent.
@@ -44,7 +48,10 @@ impl State {
         self.seen_tools.clear();
         self.seen_messages.clear();
         self.pending_bytes = 0;
-        self.diagnostic(key)
+        crate::trace::recording_issue(
+            self.diagnostic(key),
+            crate::trace::RecordingIssue::EventLimit,
+        )
     }
     fn bounded(value: Value) -> Value {
         if serde_json::to_vec(&value).map_or(true, |v| v.len() > RECORD_LIMIT - 8192) {
@@ -200,6 +207,7 @@ impl State {
                     text: format!("{message}\n"),
                     stream: "stderr".into(),
                     diagnostic: false,
+                    recording_issue: None,
                 })),
             ];
         }
@@ -343,7 +351,10 @@ impl CursorNormalizer {
                     .iter()
                     .find(|(name, _)| name.ends_with("ToolCall") || name.as_str() == "function")
                 else {
-                    return state.diagnostic("unsupported Cursor tool call");
+                    return crate::trace::recording_issue(
+                        state.diagnostic("unsupported Cursor tool call"),
+                        crate::trace::RecordingIssue::EventUnsupported,
+                    );
                 };
                 let title = if name == "function" {
                     call["name"].as_str().unwrap_or("Tool")

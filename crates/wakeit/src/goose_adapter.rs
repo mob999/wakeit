@@ -67,7 +67,10 @@ impl GooseNormalizer {
             return self.error("Agent response reached the output token limit", at);
         }
         let Some(content) = message["content"].as_array() else {
-            return self.diagnostic("missing message content");
+            return crate::trace::recording_issue(
+                self.diagnostic("missing message content"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            );
         };
         let mut records = vec![];
         for part in content {
@@ -125,7 +128,10 @@ impl GooseNormalizer {
             self.message_omitted = true;
             node.output = json!("[Response omitted: exceeds 1000 KiB]");
             let record = StreamRecord::new(RecordData::Trace(node.clone()));
-            let mut records = self.diagnostic("response exceeds 1000 KiB");
+            let mut records = crate::trace::recording_issue(
+                self.diagnostic("response exceeds 1000 KiB"),
+                crate::trace::RecordingIssue::EventTooLarge,
+            );
             records.push(record);
             return records;
         }
@@ -136,14 +142,20 @@ impl GooseNormalizer {
 
     fn tool_request(&mut self, part: &Value, at: DateTime<Utc>) -> Vec<StreamRecord> {
         let Some(id) = tool_id(part) else {
-            return self.diagnostic("invalid tool id");
+            return crate::trace::recording_issue(
+                self.diagnostic("invalid tool id"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            );
         };
         if self.tools.contains_key(&id) {
             return vec![];
         }
         let call = &part["toolCall"];
         if call["status"] != "success" && call["status"] != "error" {
-            return self.diagnostic("invalid tool call status");
+            return crate::trace::recording_issue(
+                self.diagnostic("invalid tool call status"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            );
         }
         let name = call["value"]["name"].as_str().unwrap_or("Tool");
         let mut records = self.close_message(at, TraceState::Succeeded);
@@ -176,10 +188,16 @@ impl GooseNormalizer {
 
     fn tool_response(&mut self, part: &Value, at: DateTime<Utc>) -> Vec<StreamRecord> {
         let Some(id) = tool_id(part) else {
-            return self.diagnostic("invalid tool result id");
+            return crate::trace::recording_issue(
+                self.diagnostic("invalid tool result id"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            );
         };
         let Some(node) = self.tools.get_mut(&id) else {
-            return self.diagnostic("unmatched tool result");
+            return crate::trace::recording_issue(
+                self.diagnostic("unmatched tool result"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            );
         };
         if node.finished_at.is_some() {
             return vec![];
@@ -238,6 +256,7 @@ impl GooseNormalizer {
                 text: format!("{message}\n"),
                 stream: "stderr".into(),
                 diagnostic: false,
+                recording_issue: None,
             })),
         ]);
         records
@@ -252,6 +271,7 @@ impl GooseNormalizer {
             text: format!("Native Agent event omitted ({key}).\n"),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
 }

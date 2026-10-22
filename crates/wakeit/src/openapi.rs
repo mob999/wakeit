@@ -355,7 +355,7 @@ pub fn document() -> Value {
                 );
             }
             if path == "/runs/{id}/events" || path == "/runs/{id}/nodes/{node}/events" {
-                parameters.push(json!({"name":"kind","in":"query","schema":{"type":"string"},"description":"Filter event kind; trace includes trace_status. Up to 500 rows ordered by ID per page."}));
+                parameters.push(json!({"name":"kind","in":"query","schema":{"type":"string"},"description":"Filter event kind; trace includes trace_status (status and optional recording reason). Up to 500 rows ordered by ID per page."}));
             }
             if path == "/runs/{id}/stream" {
                 parameters.push(

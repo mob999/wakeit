@@ -101,6 +101,7 @@ impl Normalizer {
             ),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
     fn native_error(&mut self, event: &Value, at: DateTime<Utc>) -> Vec<StreamRecord> {
@@ -140,6 +141,7 @@ impl Normalizer {
                 text: format!("{message}\n"),
                 stream: "stderr".into(),
                 diagnostic: false,
+                recording_issue: None,
             })),
         ]
     }
@@ -282,7 +284,10 @@ impl Normalizer {
                 if typ.starts_with("item.") {
                     let item = &event["item"];
                     let Some(id) = item["id"].as_str() else {
-                        return self.diagnostic("missing item id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing item id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     let kind = item["type"].as_str().unwrap_or("");
                     let start = typ == "item.started";
@@ -358,7 +363,10 @@ impl Normalizer {
                 if typ == "assistant" {
                     let message = &event["message"];
                     let Some(id) = message["id"].as_str() else {
-                        return self.diagnostic("missing message id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing message id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     let mut records = vec![];
                     for (index, part) in message["content"]
@@ -381,7 +389,10 @@ impl Normalizer {
                             )),
                             Some("tool_use") => {
                                 let Some(tool_id) = part["id"].as_str() else {
-                                    records.extend(self.diagnostic("missing tool id"));
+                                    records.extend(crate::trace::recording_issue(
+                                        self.diagnostic("missing tool id"),
+                                        crate::trace::RecordingIssue::EventParseFailed,
+                                    ));
                                     continue;
                                 };
                                 let name = part["name"].as_str().unwrap_or("工具");
@@ -413,7 +424,10 @@ impl Normalizer {
                             continue;
                         }
                         let Some(id) = part["tool_use_id"].as_str() else {
-                            records.extend(self.diagnostic("missing tool result id"));
+                            records.extend(crate::trace::recording_issue(
+                                self.diagnostic("missing tool result id"),
+                                crate::trace::RecordingIssue::EventParseFailed,
+                            ));
                             continue;
                         };
                         let prior = self.nodes.get(id).cloned();
@@ -516,7 +530,10 @@ impl Normalizer {
                     "tool_execution_start" | "tool_execution_update" | "tool_execution_end"
                 ) {
                     let Some(id) = event["toolCallId"].as_str() else {
-                        return self.diagnostic("missing tool id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing tool id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     let previous = self.nodes.get(id).cloned();
                     let name = event["toolName"]
@@ -650,7 +667,10 @@ impl Normalizer {
                 let part = &event["part"];
                 if matches!(typ, "text" | "tool_use") {
                     let Some(id) = part["id"].as_str() else {
-                        return self.diagnostic("missing part id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing part id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     if typ == "text" {
                         let text = part["text"].clone();
@@ -829,6 +849,7 @@ async fn write_records(
                     log.text
                         .push_str("\n[Native Agent output preview truncated.]\n");
                     log.diagnostic = true;
+                    log.recording_issue = Some(crate::trace::RecordingIssue::ContentShortened);
                 }
                 RecordData::Session(_) => {}
             }
@@ -840,6 +861,7 @@ async fn write_records(
                     text: "Oversized native Agent observation omitted.\n".into(),
                     stream: "stderr".into(),
                     diagnostic: true,
+                    recording_issue: Some(crate::trace::RecordingIssue::EventTooLarge),
                 })))?;
             }
         }
@@ -965,7 +987,10 @@ pub async fn stream_checked(
                             }
                             normalizer.accept(v)
                         }
-                        Err(_) => normalizer.diagnostic("invalid json"),
+                        Err(_) => crate::trace::recording_issue(
+                            normalizer.diagnostic("invalid json"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        ),
                     };
                     write_records(&mut writer, records).await?;
                 }
@@ -977,7 +1002,10 @@ pub async fn stream_checked(
                     dropping = true;
                     write_records(
                         &mut writer,
-                        normalizer.diagnostic("native record exceeds 64 MiB"),
+                        crate::trace::recording_issue(
+                            normalizer.diagnostic("native record exceeds 64 MiB"),
+                            crate::trace::RecordingIssue::EventTooLarge,
+                        ),
                     )
                     .await?;
                 } else {
@@ -1012,7 +1040,10 @@ pub async fn stream_checked(
                 }
                 normalizer.accept(v)
             }
-            Err(_) => normalizer.diagnostic("invalid json"),
+            Err(_) => crate::trace::recording_issue(
+                normalizer.diagnostic("invalid json"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            ),
         };
         write_records(&mut writer, records).await?;
     }

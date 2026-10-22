@@ -1177,6 +1177,15 @@
         "type": "object"
       },
       "FilePreviewRequest": {
+        "$defs": {
+          "Mode": {
+            "enum": [
+              "thumbnail",
+              "original"
+            ],
+            "type": "string"
+          }
+        },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
           "document": {
@@ -1192,6 +1201,30 @@
             "maxLength": 8192,
             "minLength": 1,
             "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilePreviewRequest/$defs/Mode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Thumbnail for inline display, or a bounded original-image chunk."
+          },
+          "offset": {
+            "default": 0,
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "revision": {
+            "maxLength": 64,
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2030,6 +2063,17 @@
               "diagnostic": {
                 "type": "boolean"
               },
+              "recording_issue": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StreamRecord/$defs/RecordingIssue"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Explicit recording degradation; ordinary diagnostics do not imply lost events."
+              },
               "stream": {
                 "default": "stdout",
                 "type": "string"
@@ -2042,6 +2086,17 @@
               "text"
             ],
             "type": "object"
+          },
+          "RecordingIssue": {
+            "enum": [
+              "content_shortened",
+              "event_limit",
+              "event_unsupported",
+              "event_parse_failed",
+              "event_too_large",
+              "content_limit"
+            ],
+            "type": "string"
           },
           "SessionInfo": {
             "additionalProperties": false,
@@ -7506,7 +7561,7 @@
             }
           },
           {
-            "description": "Filter event kind; trace includes trace_status. Up to 500 rows ordered by ID per page.",
+            "description": "Filter event kind; trace includes trace_status (status and optional recording reason). Up to 500 rows ordered by ID per page.",
             "in": "query",
             "name": "kind",
             "schema": {
@@ -7614,7 +7669,7 @@
     },
     "/api/v1/workspaces/{workspace}/runs/{id}/files/preview": {
       "post": {
-        "description": "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization, stream or persistent content. Maximum raw content 512 KiB, also bounded by NATS payload. UTF-8 text may be truncated; oversized images are rejected. Response is no-store and nosniff.",
+        "description": "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization or persistent content. Text stays bounded to512KiB. Optional image=thumbnail generates a bounded1280px preview on Runner from sources up to32MiB/40MP/16384px per side. image=original returns unchanged original byte chunks: offset, revision, next_offset(null atEOF); every chunk is independently authorized and rejects file changes. Each response fits the existing NATS payload. Old Runners can return small complete images. Response is no-store and nosniff.",
         "operationId": "post__runs_id_files_preview",
         "parameters": [
           {
@@ -7663,6 +7718,12 @@
                         "image"
                       ]
                     },
+                    "image": {
+                      "enum": [
+                        "thumbnail",
+                        "original"
+                      ]
+                    },
                     "mime": {
                       "type": "string"
                     },
@@ -7676,7 +7737,21 @@
                     "name": {
                       "type": "string"
                     },
+                    "next_offset": {
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "offset": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
                     "path": {
+                      "type": "string"
+                    },
+                    "revision": {
                       "type": "string"
                     },
                     "runner_id": {
@@ -8025,7 +8100,7 @@
             }
           },
           {
-            "description": "Filter event kind; trace includes trace_status. Up to 500 rows ordered by ID per page.",
+            "description": "Filter event kind; trace includes trace_status (status and optional recording reason). Up to 500 rows ordered by ID per page.",
             "in": "query",
             "name": "kind",
             "schema": {

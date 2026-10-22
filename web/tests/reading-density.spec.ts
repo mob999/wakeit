@@ -127,6 +127,69 @@ async function fixture(page: Page, dag = 0, count = 100) {
   await page.goto(workspacePage(`/runs?run=${id}`))
   return { run, rows, requests, writes }
 }
+test('recording causes stay in the toolbar tooltip, with history and diagnostics kept intact', async ({
+  page,
+}) => {
+  const f = await fixture(page, 0, 2)
+  f.rows.push(
+    ...[
+      ['truncated', 'content_shortened'],
+      ['truncated', 'content_shortened'],
+      ['incomplete', 'event_parse_failed'],
+      ['expired', undefined],
+      ['incomplete', undefined],
+    ].map(([status, reason], index) => ({
+      id: 100 + index,
+      seq: 100 + index,
+      kind: 'trace_status',
+      created_at: at,
+      data: { status, reason },
+    })),
+    {
+      id: 105,
+      seq: 105,
+      kind: 'log',
+      created_at: at,
+      data: { text: 'Ordinary adapter diagnostic', diagnostic: true },
+    },
+  )
+  await page.reload()
+  const info = page.getByRole('button', { name: '过程记录提示', exact: true })
+  await expect(info).toHaveCount(1)
+  await expect(page.locator('.run-trace .trace-row')).toHaveCount(3)
+  await expect(page.locator('.run-trace .trace-retention')).toHaveCount(0)
+  await expect(page.getByText('部分事件未记录', { exact: true })).toHaveCount(0)
+  await info.focus()
+  const tip = page.getByRole('tooltip')
+  await expect(tip).toContainText('仅保存了节选')
+  await expect(tip).toContainText('无法解析')
+  await expect(tip).toContainText('保留期限清理')
+  await expect(tip).toContainText('未提供具体原因')
+  expect((await tip.innerText()).match(/仅保存了节选/g)).toHaveLength(1)
+  await page.keyboard.press('Escape')
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await expect(page.locator('.logs')).toContainText('Ordinary adapter diagnostic')
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('button', { name: '切换到英文', exact: true }).click()
+  const english = page.getByRole('button', { name: 'Activity recording info', exact: true })
+  await english.focus()
+  await expect(tip).toContainText('saved as excerpts')
+  await expect(tip).toContainText('could not be parsed')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(english).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+  // Diagnostic logs alone must not recreate the old incomplete banner or toolbar notice.
+  f.rows.splice(3, 5)
+  await page.reload()
+  await expect(
+    page.getByRole('button', { name: 'Activity recording info', exact: true }),
+  ).toHaveCount(0)
+  await expect(page.locator('.run-trace .trace-row')).toHaveCount(3)
+  expect(f.writes).toEqual([])
+})
+
 test('compact history, empty messages, independent payload folds and full copy', async ({
   page,
   context,

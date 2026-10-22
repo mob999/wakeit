@@ -339,8 +339,13 @@ impl Journal {
                 .execute(&mut *tx)
                 .await?;
             tx.commit().await?;
-            self.emit(id, "trace_status", json!({"status":"truncated"}), None)
-                .await?;
+            self.emit(
+                id,
+                "trace_status",
+                json!({"status":"truncated","reason":"content_limit"}),
+                None,
+            )
+            .await?;
             self.emit(
                 id,
                 "truncated",

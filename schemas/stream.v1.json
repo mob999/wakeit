@@ -6,6 +6,17 @@
         "diagnostic": {
           "type": "boolean"
         },
+        "recording_issue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecordingIssue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Explicit recording degradation; ordinary diagnostics do not imply lost events."
+        },
         "stream": {
           "default": "stdout",
           "type": "string"
@@ -19,6 +30,17 @@
       ],
       "type": "object"
     },
+    "RecordingIssue": {
+      "enum": [
+        "content_shortened",
+        "event_limit",
+        "event_unsupported",
+        "event_parse_failed",
+        "event_too_large",
+        "content_limit"
+      ],
+      "type": "string"
+    },
     "SessionInfo": {
       "additionalProperties": false,
       "properties": {
@@ -30,6 +52,13 @@
         },
         "persisted": {
           "type": "boolean"
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "version": {
           "format": "uint32",

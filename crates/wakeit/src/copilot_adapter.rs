@@ -27,12 +27,16 @@ impl CopilotNormalizer {
             text: format!("Copilot event omitted ({kind}).\n"),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
     fn malformed(&mut self, kind: &str) -> Vec<StreamRecord> {
         self.invalid = true;
         self.result = None;
-        self.diagnostic(kind)
+        crate::trace::recording_issue(
+            self.diagnostic(kind),
+            crate::trace::RecordingIssue::EventParseFailed,
+        )
     }
     fn omit_trace(&mut self, kind: &str) -> Vec<StreamRecord> {
         // Observability budgets must not change the native execution outcome.
@@ -40,7 +44,10 @@ impl CopilotNormalizer {
         self.nodes.clear();
         self.seen.clear();
         self.retained = 0;
-        self.diagnostic(kind)
+        crate::trace::recording_issue(
+            self.diagnostic(kind),
+            crate::trace::RecordingIssue::EventLimit,
+        )
     }
     fn preview(value: Value, limit: usize) -> Value {
         let encoded = serde_json::to_string(&value).unwrap_or_default();
@@ -191,7 +198,10 @@ impl CopilotNormalizer {
                 }
                 let mut records = vec![record];
                 if truncated {
-                    records.extend(self.diagnostic("message preview truncated"));
+                    records.extend(crate::trace::recording_issue(
+                        self.diagnostic("message preview truncated"),
+                        crate::trace::RecordingIssue::ContentShortened,
+                    ));
                 }
                 records
             }
@@ -240,7 +250,10 @@ impl CopilotNormalizer {
                 self.nodes.insert(id, node.clone());
                 let mut records = vec![StreamRecord::new(RecordData::Trace(node))];
                 if truncated {
-                    records.extend(self.diagnostic("tool input preview truncated"));
+                    records.extend(crate::trace::recording_issue(
+                        self.diagnostic("tool input preview truncated"),
+                        crate::trace::RecordingIssue::ContentShortened,
+                    ));
                 }
                 records
             }
@@ -280,7 +293,10 @@ impl CopilotNormalizer {
                 node.output = Value::Null;
                 let mut records = vec![record];
                 if truncated {
-                    records.extend(self.diagnostic("tool output preview truncated"));
+                    records.extend(crate::trace::recording_issue(
+                        self.diagnostic("tool output preview truncated"),
+                        crate::trace::RecordingIssue::ContentShortened,
+                    ));
                 }
                 records
             }

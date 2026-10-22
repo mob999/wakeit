@@ -365,3 +365,122 @@ fn opencode_report_combines_final_message_parts_without_tool_output_or_previous_
             .any(|r| matches!(&r.record,RecordData::Result(v) if v=="# 报告\n完成"))
     );
 }
+
+async fn recording_sample(script: &str) -> (process::Output, Vec<Value>) {
+    let dir = tempfile::tempdir().unwrap();
+    let task = task(dir.path().to_str().unwrap());
+    let id = Uuid::new_v4();
+    let runner = Uuid::new_v4();
+    let journal = Journal::open(&dir.path().join("journal"), runner)
+        .await
+        .unwrap();
+    let agent: AgentConfig = yaml_serde::from_str(builtin("codex").unwrap()).unwrap();
+    journal
+        .insert(
+            &Assignment {
+                version: 1,
+                run_id: id,
+                runner_id: runner,
+                task: task.clone(),
+                deadline: Utc::now() + chrono::Duration::hours(1),
+            },
+            &agent,
+        )
+        .await
+        .unwrap();
+    let command = CommandSpec {
+        command: "node".into(),
+        args: vec!["-e".into(), script.into()],
+        ..Default::default()
+    };
+    let out = process::execute_events(
+        &command,
+        &task,
+        id,
+        None,
+        Duration::from_secs(30),
+        tokio_util::sync::CancellationToken::new(),
+        Some(LogSink {
+            journal: journal.clone(),
+            id,
+            stdout: true,
+        }),
+    )
+    .await
+    .unwrap();
+    let records: Vec<String> =
+        sqlx::query_scalar("SELECT payload FROM pending_events ORDER BY seq")
+            .fetch_all(&journal.pool)
+            .await
+            .unwrap();
+    (
+        out,
+        records
+            .iter()
+            .map(|record| serde_json::from_str(record).unwrap())
+            .collect(),
+    )
+}
+
+#[tokio::test]
+async fn ordinary_diagnostics_only_enter_logs_and_do_not_mark_activity_incomplete() {
+    let (out, events) = recording_sample(
+        r#"
+const send = (type,data) => console.log(JSON.stringify({version:1,type,data}));
+send('log',{text:'Ordinary adapter diagnostic',stream:'stderr',diagnostic:true});
+send('result','Native result retained');
+"#,
+    )
+    .await;
+    assert_eq!(out.code, Some(0));
+    assert_eq!(out.result, Some(json!("Native result retained")));
+    assert!(
+        events.iter().any(|event| event["kind"] == "log"
+            && event["data"]["text"] == "Ordinary adapter diagnostic")
+    );
+    assert!(events.iter().all(|event| event["kind"] != "trace_status"));
+}
+
+#[tokio::test]
+async fn recording_causes_are_explicit_deduplicated_and_never_abort_native_execution() {
+    let (out, events) = recording_sample(r#"
+const send = (type,data) => console.log(JSON.stringify({version:1,type,data}));
+for (let i=0;i<2;i++) {
+  send('log',{text:'Event budget exhausted',diagnostic:true,recording_issue:'event_limit'});
+  console.log('{malformed}');
+  console.log('x'.repeat(1024*1024));
+  send('trace',{id:'tool',kind:'tool',status:'succeeded',title:'Read',input:null,output:{truncated:true,preview:'Saved excerpt'},occurred_at:'2026-10-20T00:00:00Z'});
+}
+send('result','The native Agent still finishes');
+"#).await;
+    assert_eq!(out.code, Some(0));
+    assert!(out.confirmed);
+    assert_eq!(out.result, Some(json!("The native Agent still finishes")));
+    let reasons: Vec<&str> = events
+        .iter()
+        .filter(|event| event["kind"] == "trace_status")
+        .map(|event| event["data"]["reason"].as_str().unwrap())
+        .collect();
+    for cause in [
+        "event_limit",
+        "event_parse_failed",
+        "event_too_large",
+        "content_shortened",
+    ] {
+        assert_eq!(
+            reasons.iter().filter(|reason| **reason == cause).count(),
+            1,
+            "{cause}"
+        );
+    }
+    assert_eq!(reasons.len(), 4);
+}
+
+#[test]
+fn version_one_diagnostics_remain_valid_without_optional_recording_metadata() {
+    let record = StreamRecord::parse(
+        br#"{"version":1,"type":"log","data":{"text":"diagnostic","diagnostic":true}}"#,
+    )
+    .unwrap();
+    assert!(matches!(record.record, RecordData::Log(log) if log.recording_issue.is_none()));
+}

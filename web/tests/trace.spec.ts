@@ -157,7 +157,10 @@ test('unsupported, historic, waiting, truncated and expired process states stay 
     await page.getByRole('tab', { name: '执行', exact: true }).click()
     if (support === false)
       await expect(page.locator('.run-execution-page .logs')).toContainText(text)
-    else await expect(page.getByText(text, { exact: true })).toBeVisible()
+    else if (notice === 'truncated') {
+      await page.getByRole('button', { name: '过程记录提示', exact: true }).focus()
+      await expect(page.getByRole('tooltip')).toContainText('未提供具体原因')
+    } else await expect(page.getByText(text, { exact: true })).toBeVisible()
   }
 })
 

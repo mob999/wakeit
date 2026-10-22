@@ -609,11 +609,14 @@ for (const [width, language, theme] of [
       .getByRole('tab', { name: language === 'en' ? 'Details' : '详情', exact: true })
       .click()
     const details = page.locator('.dag-node-details:visible')
-    const trigger = details.locator('.dag-node-context > .choice-selector')
+    const trigger = details.getByRole('combobox', {
+      name: language === 'en' ? 'Select a node' : '选择节点',
+      exact: true,
+    })
     await expect(trigger).toHaveAttribute('title', f.run.nodes[0].name)
     await expect(details.locator('.dag-node-duration')).toHaveText('401.8s')
     expect(await trigger.evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px')
-    for (const selector of ['.dag-node-context > .status', '.dag-node-duration']) {
+    for (const selector of ['.dag-node-context .status', '.dag-node-duration']) {
       expect(await details.locator(selector).evaluate((el) => getComputedStyle(el).fontSize)).toBe(
         '11px',
       )
@@ -894,3 +897,53 @@ for (const language of ['zh', 'en'] as const) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
 }
+
+test('recording tooltips belong to the selected DAG execution, never another node', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.nodes.push({
+    ...f.run.nodes[0],
+    id: 'other',
+    name: 'Other branch',
+    execution_id: '00000000-0000-4000-8000-000000000003',
+  })
+  await mock(page, f)
+  await page.route('**/nodes/other', (route) =>
+    route.fulfill({
+      json: {
+        node: f.run.nodes[1],
+        execution: { ...f.execution, id: f.run.nodes[1].execution_id, node_id: 'other' },
+      },
+    }),
+  )
+  await page.route('**/runs/*/events?*', (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill({
+      json:
+        url.pathname.includes(child) && !Number(url.searchParams.get('after'))
+          ? [
+              ...f.events,
+              {
+                id: 2,
+                run_id: child,
+                seq: 2,
+                kind: 'trace_status',
+                created_at: at,
+                data: { status: 'truncated', reason: 'content_shortened' },
+              },
+            ]
+          : [],
+    })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  const info = page.getByRole('button', { name: '过程记录提示', exact: true })
+  await expect(info).toHaveCount(1)
+  const picker = page.getByRole('combobox', { name: '选择节点', exact: true }).first()
+  await picker.click()
+  await page.getByRole('option', { name: /^Other branch/ }).click()
+  await expect(info).toHaveCount(0)
+  await picker.click()
+  await page.getByRole('option', { name: /^Collect sources/ }).click()
+  await expect(info).toHaveCount(1)
+})

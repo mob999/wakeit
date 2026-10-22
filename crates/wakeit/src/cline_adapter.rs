@@ -28,12 +28,16 @@ impl ClineNormalizer {
             text: format!("Cline event omitted ({key}).\n"),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
     fn emit(&mut self, node: TraceNode) -> Vec<StreamRecord> {
         let record = StreamRecord::new(RecordData::Trace(node));
         if serde_json::to_vec(&record).map_or(true, |v| v.len() > RECORD_LIMIT) {
-            return self.diagnostic("trace exceeds record limit");
+            return crate::trace::recording_issue(
+                self.diagnostic("trace exceeds record limit"),
+                crate::trace::RecordingIssue::EventTooLarge,
+            );
         }
         vec![record]
     }
@@ -57,7 +61,10 @@ impl ClineNormalizer {
             if serde_json::to_vec(&StreamRecord::new(RecordData::Result(json!(text))))
                 .map_or(true, |v| v.len() > RECORD_LIMIT)
             {
-                return self.diagnostic("result exceeds record limit");
+                return crate::trace::recording_issue(
+                    self.diagnostic("result exceeds record limit"),
+                    crate::trace::RecordingIssue::EventTooLarge,
+                );
             }
             self.result = Some(json!(text));
             return vec![];
@@ -102,7 +109,10 @@ impl ClineNormalizer {
         if content == "text" {
             let agent = event["agentId"].as_str().unwrap_or("main");
             if agent.len() > 256 {
-                return self.diagnostic("invalid Agent ID");
+                return crate::trace::recording_issue(
+                    self.diagnostic("invalid Agent ID"),
+                    crate::trace::RecordingIssue::EventParseFailed,
+                );
             }
             if self.omitted_messages.contains(agent) {
                 if typ == "content_end" {
@@ -147,7 +157,10 @@ impl ClineNormalizer {
                 if typ != "content_end" && self.omitted_messages.len() < 128 {
                     self.omitted_messages.insert(agent.into());
                 }
-                return self.diagnostic("message exceeds limit");
+                return crate::trace::recording_issue(
+                    self.diagnostic("message exceeds limit"),
+                    crate::trace::RecordingIssue::EventTooLarge,
+                );
             }
             node.output = json!(text);
             node.occurred_at = at;
@@ -157,7 +170,10 @@ impl ClineNormalizer {
             } else if self.active_messages.len() < 64 {
                 self.active_messages.insert(agent.into(), node.clone());
             } else {
-                return self.diagnostic("too many simultaneous messages");
+                return crate::trace::recording_issue(
+                    self.diagnostic("too many simultaneous messages"),
+                    crate::trace::RecordingIssue::EventLimit,
+                );
             }
             return self.emit(node);
         }
@@ -168,7 +184,10 @@ impl ClineNormalizer {
             .as_str()
             .filter(|id| !id.is_empty() && id.len() <= 200)
         else {
-            return self.diagnostic("missing tool call ID");
+            return crate::trace::recording_issue(
+                self.diagnostic("missing tool call ID"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            );
         };
         let mut node = if let Some(existing) = self.tools.get(id) {
             if existing.finished_at.is_some() {
@@ -181,7 +200,10 @@ impl ClineNormalizer {
         } else {
             let size = serde_json::to_vec(event).map_or(RECORD_LIMIT, |v| v.len());
             if self.tools.len() >= 10_000 || self.retained_bytes + size > 8 * 1024 * 1024 {
-                return self.diagnostic("tool history exceeds limit");
+                return crate::trace::recording_issue(
+                    self.diagnostic("tool history exceeds limit"),
+                    crate::trace::RecordingIssue::EventLimit,
+                );
             }
             self.retained_bytes += size;
             let name = event["toolName"].as_str().unwrap_or("Tool");

@@ -252,7 +252,7 @@ function SingleRunDetail({
               (!r.execution_snapshot?.trace_supported && !trace.state.nodes.size && !!logs) ? (
                 <RunLogActions text={logs} follow={follow} onFollow={setFollow} toast={toast} />
               ) : (
-                <TraceActions id={id} />
+                <TraceActions id={id} issues={trace.state.issues} />
               )}
             </>
           }

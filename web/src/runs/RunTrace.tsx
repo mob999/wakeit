@@ -26,15 +26,21 @@ import {
 import { CopyValue } from './CopyValue'
 import { CodeContent, isJsonCode } from './CodeContent'
 import { useToast } from '../Toast'
+import { recordingReason, type RecordingReason } from './recordingInfo'
 
 type Entry = { firstSeq: number; lastSeq: number; node: TraceNode }
-type TraceState = { nodes: Map<string, Entry>; notices: Set<string> }
-const empty = (): TraceState => ({ nodes: new Map(), notices: new Set() })
+type TraceState = { nodes: Map<string, Entry>; notices: Set<string>; issues: Set<RecordingReason> }
+const empty = (): TraceState => ({ nodes: new Map(), notices: new Set(), issues: new Set() })
 function merge(state: TraceState, events: RunEvent[]): TraceState {
   const nodes = new Map(state.nodes)
   const notices = new Set(state.notices)
+  const issues = new Set(state.issues)
   for (const event of events) {
-    if (event.kind === 'trace_status' && event.data.status) notices.add(event.data.status)
+    if (event.kind === 'trace_status' && event.data.status) {
+      notices.add(event.data.status)
+      const reason = recordingReason(event.data)
+      if (reason) issues.add(reason)
+    }
     if (event.kind !== 'trace') continue
     const node = event.data as unknown as TraceNode
     if (!node.id || !['message', 'tool', 'command'].includes(node.kind)) continue
@@ -49,7 +55,7 @@ function merge(state: TraceState, events: RunEvent[]): TraceState {
     }
     nodes.set(node.id, { firstSeq, lastSeq: event.seq, node })
   }
-  return { nodes, notices }
+  return { nodes, notices, issues }
 }
 export function useRunTrace(id: string, enabled = true) {
   const cursor = useRef(0)
@@ -254,19 +260,6 @@ export function RunTrace({
             {tr('重试')}
           </Button>
         </ErrorToast>
-      )}
-      {notices.has('expired') && entries.length > 0 && (
-        <p className="quiet trace-retention">{tr('部分过程已过期')}</p>
-      )}
-      {notices.has('truncated') && (
-        <p className="quiet trace-retention" role="status">
-          {tr('过程已截断')}
-        </p>
-      )}
-      {notices.has('incomplete') && (
-        <p className="quiet trace-retention" role="status">
-          {tr('部分事件未记录')}
-        </p>
       )}
       {message && <p className="quiet trace-retention">{message}</p>}
       {entries.map(({ node }) => (

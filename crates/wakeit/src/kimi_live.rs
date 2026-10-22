@@ -360,7 +360,7 @@ pub struct LiveNormalizer {
     seen: BTreeSet<(u64, String)>,
     seen_floor: u64,
     trace_saturated: bool,
-    diagnosed_truncation: bool,
+    diagnosed_recording: BTreeSet<crate::trace::RecordingIssue>,
     pub ended: bool,
     pub failed: bool,
 }
@@ -446,7 +446,7 @@ impl LiveNormalizer {
                 self.reclaim_finished();
                 if self.nodes.len() >= 10_000 {
                     self.trace_saturated = true;
-                    self.truncation_notice(&mut output);
+                    self.truncation_notice(&mut output, crate::trace::RecordingIssue::EventLimit);
                     return Ok(output);
                 }
                 let input = bounded(
@@ -528,6 +528,7 @@ impl LiveNormalizer {
                         ),
                         stream: "stderr".into(),
                         diagnostic: true,
+                        recording_issue: None,
                     })));
                 }
             }
@@ -540,7 +541,7 @@ impl LiveNormalizer {
             _ => {}
         }
         if output.iter().any(|record| matches!(&record.record, RecordData::Trace(node) if node.input["truncated"] == true || node.output["truncated"] == true)) {
-            self.truncation_notice(&mut output);
+            self.truncation_notice(&mut output, crate::trace::RecordingIssue::ContentShortened);
         }
         Ok(output)
     }
@@ -554,13 +555,22 @@ impl LiveNormalizer {
             self.trace_saturated = true;
         }
     }
-    fn truncation_notice(&mut self, output: &mut Vec<StreamRecord>) {
-        if !self.diagnosed_truncation {
-            self.diagnosed_truncation = true;
+    fn truncation_notice(
+        &mut self,
+        output: &mut Vec<StreamRecord>,
+        issue: crate::trace::RecordingIssue,
+    ) {
+        if self.diagnosed_recording.insert(issue) {
             output.push(StreamRecord::new(RecordData::Log(LogRecord {
-                text: "Kimi trace content was truncated; native execution continues.\n".into(),
+                text: if issue == crate::trace::RecordingIssue::EventLimit {
+                    "Kimi trace events omitted; native execution continues.\n"
+                } else {
+                    "Kimi trace content was truncated; native execution continues.\n"
+                }
+                .into(),
                 stream: "stderr".into(),
                 diagnostic: true,
+                recording_issue: Some(issue),
             })));
         }
     }

@@ -311,31 +311,34 @@ async fn stream_record(
     record: anyhow::Result<crate::trace::StreamRecord>,
     sink: &Option<LogSink>,
     result: &mut Option<serde_json::Value>,
-    diagnosed: &mut std::collections::BTreeSet<&'static str>,
+    diagnosed: &mut std::collections::BTreeSet<crate::trace::RecordingIssue>,
 ) -> Result<()> {
     use crate::trace::RecordData;
     match record {
         Ok(record) => match record.record {
             RecordData::Trace(node) => {
+                let shortened = node.input["truncated"] == true || node.output["truncated"] == true;
                 if let Some(s) = sink {
-                    s.journal
+                    let recorded = s
+                        .journal
                         .content(s.id, "trace", serde_json::to_value(node)?)
                         .await?;
+                    if recorded && shortened {
+                        recording_issue(
+                            sink,
+                            diagnosed,
+                            crate::trace::RecordingIssue::ContentShortened,
+                        )
+                        .await?;
+                    }
                 }
             }
             RecordData::Log(log) => {
                 if let Some(s) = sink {
                     s.journal.log(s.id, &log.stream, &log.text).await?;
-                    if log.diagnostic && diagnosed.insert("incomplete") {
-                        s.journal
-                            .emit(
-                                s.id,
-                                "trace_status",
-                                serde_json::json!({"status":"incomplete"}),
-                                None,
-                            )
-                            .await?;
-                    }
+                }
+                if let Some(issue) = log.recording_issue {
+                    recording_issue(sink, diagnosed, issue).await?;
                 }
             }
             RecordData::Session(info) => {
@@ -357,25 +360,17 @@ async fn stream_record(
             }
         },
         Err(error) => {
-            let status = if error
+            let issue = if error
                 .downcast_ref::<crate::trace::RecordTooLarge>()
                 .is_some()
             {
-                "truncated"
+                crate::trace::RecordingIssue::EventTooLarge
             } else {
-                "incomplete"
+                crate::trace::RecordingIssue::EventParseFailed
             };
-            if diagnosed.insert(status)
-                && let Some(s) = sink
-            {
-                s.journal
-                    .emit(
-                        s.id,
-                        "trace_status",
-                        serde_json::json!({"status":status}),
-                        None,
-                    )
-                    .await?;
+            let first = !diagnosed.contains(&issue);
+            recording_issue(sink, diagnosed, issue).await?;
+            if first && let Some(s) = sink {
                 s.journal
                     .log(
                         s.id,
@@ -385,6 +380,25 @@ async fn stream_record(
                     .await?;
             }
         }
+    }
+    Ok(())
+}
+async fn recording_issue(
+    sink: &Option<LogSink>,
+    diagnosed: &mut std::collections::BTreeSet<crate::trace::RecordingIssue>,
+    issue: crate::trace::RecordingIssue,
+) -> Result<()> {
+    if diagnosed.insert(issue)
+        && let Some(s) = sink
+    {
+        s.journal
+            .emit(
+                s.id,
+                "trace_status",
+                serde_json::json!({"status": issue.status(), "reason": issue}),
+                None,
+            )
+            .await?;
     }
     Ok(())
 }

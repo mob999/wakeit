@@ -69,3 +69,5 @@ WebUI 的续聊复制来自 interactive 命令的原生 argv 与 cwd，不包含
 
 
 内置模板 ID 为 `codex`、`claude-code`、`pi`、`opencode`、`kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。新增适配可用 `wakeit adapter detect <id>` 只读检查原生帮助/版本。Kimi Code 2.x 支持只读会话索引、精确绑定和续聊，模型手填；agy 支持原生模型查询，但未声明 Wakeit 会话能力。Cursor、Cline、Goose、Qwen Code 提供公开过程及最终结果，Copilot 提供原生最终文本；这些适配的模型手填，不声明未经验证的模型和会话目录。Cursor 默认不强制应用文件修改，Copilot 不自动授予工具权限，Cline 一次性模式沿用原生自动批准默认值，Goose 沿用原生无人值守模式。配置事件输出不意味着支持模型或会话发现，不增加静态模型目录兜底。任务选择器仅展示 Runner 检测到的 Agent；Runner Agents 页仍展示完整安装状态。
+
+普通 `log.diagnostic` 只写日志。明确损失过程记录时，可给同一 version-1 log 添加可选 `recording_issue`（`content_shortened` / `event_limit` / `event_unsupported` / `event_parse_failed` / `event_too_large` / `content_limit`）；Runner 按原因去重生成 `trace_status`，不改变执行结果。内容明确为截断预览时，Runner 也会记录 `content_shortened`。未知历史原因不能由日志文案推测。
