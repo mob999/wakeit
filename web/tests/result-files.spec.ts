@@ -876,3 +876,53 @@ test('multiple DAG outputs keep separate reference lists and execution ownership
   await references.getByRole('button', { name: '引用: First file', exact: true }).click()
   expect(requests.at(-1)).toContain(`/runs/${child}/files/preview`)
 })
+
+for (const surface of ['run', 'dag'] as const) {
+  test(`${surface} full report rails fill the real reading viewport and resize with it`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1920, height: 900 })
+    await fixture(page, 'admin', {
+      surface,
+      result:
+        '# Full report\n\n' +
+        Array.from(
+          { length: 100 },
+          (_, n) =>
+            `## Section ${n + 1}\n\nSynthetic finding ${n + 1}. [Reference ${n + 1}](https://example.test/${n + 1})`,
+        ).join('\n\n'),
+    })
+    const reader = page.locator('.report-reader')
+    const viewport = page.locator('.run-page:visible')
+    const section = page.locator('.run-section').filter({ has: reader })
+    await expect(reader.locator('.report-navigation')).toBeVisible()
+    await viewport.evaluate((el) => {
+      el.scrollTop = 700
+    })
+    for (const height of [900, 1200, 700]) {
+      await page.setViewportSize({ width: 1920, height })
+      const frame = (await viewport.boundingBox())!
+      const header = (await section.locator('.run-section-header').boundingBox())!
+      for (const selector of ['.report-navigation', '.result-references']) {
+        const rail = reader.locator(selector)
+        await expect
+          .poll(async () => (await rail.boundingBox())!.y)
+          .toBeCloseTo(header.y + header.height, 0)
+        await expect
+          .poll(async () => {
+            const box = (await rail.boundingBox())!
+            return box.y + box.height
+          })
+          .toBeCloseTo(frame.y + frame.height, 0)
+      }
+      for (const selector of ['.report-outline-list', '.result-reference-list']) {
+        await expect
+          .poll(async () => {
+            const box = (await reader.locator(selector).boundingBox())!
+            return box.y + box.height
+          })
+          .toBeCloseTo(frame.y + frame.height - 12, 0)
+      }
+    }
+  })
+}

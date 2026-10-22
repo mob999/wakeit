@@ -14,6 +14,7 @@ import { ListTree } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { workspaceId } from '../api'
 import { Button } from '../ui'
+import { PaneResizeHandle } from '../PaneResizeHandle'
 import { Status } from '../Status'
 import { RunReason } from '../runs/RunReason'
 import { ResultReferences } from '../runs/ResultReferences'
@@ -21,7 +22,8 @@ import type { FileSource } from '../files/links'
 import { PreviewActivity } from '../files/PreviewActivity'
 import { reportIndex, type ReportHeading, type ReportLink } from '../moments/reportModel'
 import { useReferenceCapacity } from '../moments/useReferenceCapacity'
-import { useReportReading } from './ReportVisit'
+import { useReportLayout, useReportReading } from './ReportVisit'
+import { defaultReportWidths, reportWidthLimits, reportWidths } from './layout'
 import type { ReportReadingState } from './readingState'
 import './reports.css'
 
@@ -67,6 +69,9 @@ export function ReportReader({
   const { t } = useTranslation()
   const key = `${workspaceId ?? ''}:${identity}`
   const { state, update } = useReportReading(key)
+  const layout = useReportLayout(workspaceId ?? '')
+  const grid = useRef<HTMLDivElement>(null)
+  const [room, setRoom] = useState(0)
   const reading = useRef<HTMLDivElement>(null),
     report = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState<{
@@ -76,7 +81,14 @@ export function ReportReader({
     links: ReportLink[]
   }>({ identity: '', indexKey: '', headings: [], links: [] })
   const [height, setHeight] = useState(162)
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null)
   const [navigationOpen, setNavigationOpen] = useState(false)
+  useLayoutEffect(() => {
+    if (!grid.current) return
+    const observer = new ResizeObserver(([entry]) => setRoom(entry.contentRect.width))
+    observer.observe(grid.current)
+    return () => observer.disconnect()
+  }, [])
   const pendingHeading = useRef<{
     identity: string
     heading: string
@@ -104,16 +116,23 @@ export function ReportReader({
     const body = reading.current,
       content = report.current
     if (!body || !content) return
+    const viewport = scrollParent(body)
     const measure = () => {
       onOverflowChange?.(content.scrollHeight > 138)
       setHeight(body.getBoundingClientRect().height)
+      setViewportHeight(viewport.clientHeight)
     }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(body)
     observer.observe(content)
+    observer.observe(viewport)
     if (content.firstElementChild) observer.observe(content.firstElementChild)
-    return () => observer.disconnect()
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [key, indexKey, preview, onOverflowChange])
   function target(heading: string) {
     const item = index.headings.find((candidate) => candidate.key === heading)
@@ -217,6 +236,10 @@ export function ReportReader({
     }
   }
   const hasNavigation = outputs.length > 0 || index.headings.length > 1
+  const { widths, max } = reportWidths(room, hasNavigation, index.links.length > 0, layout.widths)
+  function resize(side: 'navigation' | 'references', value: number) {
+    layout.update({ ...widths, [side]: value })
+  }
   const navigationProps = {
     outputs,
     selectedOutput,
@@ -231,14 +254,32 @@ export function ReportReader({
   return (
     <div
       className={`report-reader${preview ? ' is-preview' : ''}`}
-      style={{ '--report-reading-height': `${Math.max(0, height)}px` } as CSSProperties}
+      style={
+        {
+          '--report-reading-height': `${Math.max(0, height)}px`,
+          '--report-viewport-height': viewportHeight == null ? undefined : `${viewportHeight}px`,
+          '--report-navigation-width': `${widths.navigation}px`,
+          '--report-references-width': `${widths.references}px`,
+        } as CSSProperties
+      }
     >
       <div
+        ref={grid}
         className={`report-grid${hasNavigation ? ' has-navigation' : ''}${index.links.length ? ' has-references' : ''}`}
       >
         {hasNavigation && (
           <>
             <ReportNavigation {...navigationProps} preview={preview} />
+            <PaneResizeHandle
+              className="report-navigation-resize"
+              label={t('report.resizeNavigation')}
+              width={widths.navigation}
+              min={reportWidthLimits.navigation.min}
+              max={max.navigation}
+              onResize={(value) => resize('navigation', value)}
+              onReset={() => resize('navigation', defaultReportWidths.navigation)}
+              style={{ left: 'calc(var(--report-navigation-width) - 4px)' }}
+            />
             <div className="report-tools">
               <Popover.Root open={navigationOpen} onOpenChange={setNavigationOpen}>
                 <Popover.Trigger asChild>
@@ -277,17 +318,30 @@ export function ReportReader({
           </div>
         </div>
         {index.links.length > 0 && (
-          <ResultReferences
-            links={index.links}
-            reading={reading}
-            source={source}
-            expanded={state.referencesExpanded}
-            onExpandedChange={(value) => update({ referencesExpanded: value })}
-            scroll={state.referencesScroll}
-            onScroll={(value) => update({ referencesScroll: value })}
-            identity={key}
-            preview={preview}
-          />
+          <>
+            <PaneResizeHandle
+              className="report-references-resize"
+              label={t('report.resizeReferences')}
+              edge="right"
+              width={widths.references}
+              min={reportWidthLimits.references.min}
+              max={max.references}
+              onResize={(value) => resize('references', value)}
+              onReset={() => resize('references', defaultReportWidths.references)}
+              style={{ right: 'calc(var(--report-references-width) - 4px)' }}
+            />
+            <ResultReferences
+              links={index.links}
+              reading={reading}
+              source={source}
+              expanded={state.referencesExpanded}
+              onExpandedChange={(value) => update({ referencesExpanded: value })}
+              scroll={state.referencesScroll}
+              onScroll={(value) => update({ referencesScroll: value })}
+              identity={key}
+              preview={preview}
+            />
+          </>
         )}
       </div>
     </div>

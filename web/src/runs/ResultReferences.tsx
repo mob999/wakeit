@@ -31,7 +31,13 @@ export function ResultReferences({
   const context = useRef<HTMLElement>(null),
     list = useRef<HTMLDivElement>(null),
     toggle = useRef<HTMLButtonElement>(null)
-  const capacity = useReferenceCapacity({ reading, context, list, toggle, count: links.length })
+  const capacity = useReferenceCapacity({
+    reading,
+    context,
+    list,
+    toggle,
+    count: preview ? links.length : 0,
+  })
   useLayoutEffect(() => {
     if (list.current) list.current.scrollTop = scroll
   }, [identity])

@@ -27,6 +27,7 @@ import { duration, retriedNodes } from './reportModel'
 import { PreviewActivity } from '../files/PreviewActivity'
 import { ReportReader } from '../reports/ReportReader'
 import { VisitContext, manual } from './MomentsPage'
+import { momentCollapseAnchor } from './collapsePosition'
 
 export function MomentCard({
   entry,
@@ -45,6 +46,74 @@ export function MomentCard({
     [pinned, setPinned] = useState(false)
   const [height, setHeight] = useState(visit.heights.current.get(entry.id) ?? 260)
   const pins = useRef(new Set<string>())
+  const originalOffset = useRef(0)
+  const pendingCollapse = useRef<{
+    viewport: HTMLElement
+    node: HTMLElement
+    top: number
+    overflowAnchor: string
+  } | null>(null)
+  const expanded = visit.expanded.has(entry.id)
+  function changeExpanded(value: boolean) {
+    const element = shell.current
+    const viewport = element?.closest<HTMLElement>('.moments-page')
+    if (element && viewport) {
+      const top = viewport.getBoundingClientRect().top
+      if (value && !expanded) originalOffset.current = element.getBoundingClientRect().top - top
+      if (!value && expanded) {
+        const entries = Array.from(viewport.querySelectorAll<HTMLElement>('[data-moment-id]'))
+        const anchor = momentCollapseAnchor(
+          entry.id,
+          entries.map((node) => {
+            const rect = node.getBoundingClientRect()
+            return { id: node.dataset.momentId!, top: rect.top, bottom: rect.bottom }
+          }),
+          top,
+          originalOffset.current,
+          card.current?.querySelector('.card-header')?.getBoundingClientRect().height ?? 44,
+        )
+        pendingCollapse.current = {
+          viewport,
+          node: entries.find((node) => node.dataset.momentId === anchor.id) ?? element,
+          top: anchor.top,
+          overflowAnchor: viewport.style.overflowAnchor,
+        }
+        viewport.style.overflowAnchor = 'none'
+      }
+    }
+    visit.setExpanded(entry.id, value)
+  }
+  useLayoutEffect(() => {
+    const anchor = pendingCollapse.current
+    if (expanded || !anchor) return
+    pendingCollapse.current = null
+    let frame = 0
+    const restore = () => {
+      anchor.viewport.scrollTop += anchor.node.getBoundingClientRect().top - anchor.top
+    }
+    const finish = () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      for (const name of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+        anchor.viewport.removeEventListener(name, finish)
+      anchor.viewport.style.overflowAnchor = anchor.overflowAnchor
+    }
+    const settle = () => {
+      restore()
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        restore()
+        frame = requestAnimationFrame(finish)
+      })
+    }
+    const observer = new ResizeObserver(settle)
+    if (card.current) observer.observe(card.current)
+    observer.observe(anchor.node)
+    for (const name of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+      anchor.viewport.addEventListener(name, finish, { passive: true })
+    settle()
+    return finish
+  }, [expanded])
   const pin = useCallback((id: string, open: boolean) => {
     if (open) pins.current.add(id)
     else pins.current.delete(id)
@@ -62,7 +131,7 @@ export function MomentCard({
     return () => observer.disconnect()
   }, [])
   useLayoutEffect(() => {
-    if (!mounted || !card.current) return
+    if (!mounted || expanded || !card.current) return
     const observer = new ResizeObserver(([size]) => {
       const next = size.borderBoxSize[0]?.blockSize ?? size.contentRect.height
       if (next > 0) {
@@ -72,7 +141,7 @@ export function MomentCard({
     })
     observer.observe(card.current)
     return () => observer.disconnect()
-  }, [mounted, entry.id, visit.heights])
+  }, [mounted, expanded, entry.id, visit.heights])
   return (
     <article className="moment-entry" ref={shell} data-moment-id={entry.id}>
       <time className="moment-time" dateTime={entry.finished_at}>
@@ -87,7 +156,12 @@ export function MomentCard({
       <div ref={card} className="moment-card-host">
         <PreviewActivity.Provider value={pin}>
           {mounted ? (
-            <MomentContent entry={entry} toast={toast} terminalActive={terminalActive} />
+            <MomentContent
+              entry={entry}
+              toast={toast}
+              terminalActive={terminalActive}
+              onExpandedChange={changeExpanded}
+            />
           ) : (
             <div
               className="content-card moment-card moment-placeholder"
@@ -104,10 +178,12 @@ function MomentContent({
   entry,
   toast,
   terminalActive,
+  onExpandedChange,
 }: {
   entry: MomentEntry
   toast: (s: string) => void
   terminalActive: (open: boolean) => void
+  onExpandedChange: (value: boolean) => void
 }) {
   useTranslation()
   const visit = useContext(VisitContext),
@@ -203,7 +279,7 @@ function MomentContent({
             label={expanded ? t('收起') : t('阅读全文')}
             aria-expanded={expanded}
             loading={expanded && full.isFetching}
-            onClick={() => visit.setExpanded(entry.id, !expanded)}
+            onClick={() => onExpandedChange(!expanded)}
           >
             {expanded ? <Minimize /> : <Maximize />}
           </IconButton>
@@ -293,7 +369,7 @@ function MomentContent({
         onSelectOutput={choose}
         preview={!expanded}
         incomplete={!!incomplete}
-        onExpand={() => visit.setExpanded(entry.id, true)}
+        onExpand={() => onExpandedChange(true)}
         notice={
           <>
             {retries > 0 && (

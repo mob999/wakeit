@@ -659,6 +659,36 @@ test('three-column report uses the container width and merges image aliases with
     .evaluate((el) => el.getBoundingClientRect().bottom)
   await expect.poll(async () => (await nav.boundingBox())!.y).toBeCloseTo(headerBottom, 0)
   await expect.poll(async () => (await refs.boundingBox())!.y).toBeCloseTo(headerBottom, 0)
+  async function expectFilledRails() {
+    const viewport = (await page.locator('.moments-page').boundingBox())!
+    const bottom = viewport.y + viewport.height
+    for (const rail of [nav, refs]) {
+      await expect
+        .poll(async () => {
+          const rect = (await rail.boundingBox())!
+          return rect.y + rect.height
+        })
+        .toBeCloseTo(bottom, 0)
+    }
+    for (const list of [
+      nav.locator('.report-outline-list'),
+      refs.locator('.result-reference-list'),
+    ]) {
+      await expect
+        .poll(async () => {
+          const rect = (await list.boundingBox())!
+          return rect.y + rect.height
+        })
+        .toBeCloseTo(bottom - 12, 0)
+    }
+  }
+  await expectFilledRails()
+  const outlineHeight = (await nav.locator('.report-outline-list').boundingBox())!.height
+  await page.setViewportSize({ width: 1920, height: 1200 })
+  await expectFilledRails()
+  expect((await nav.locator('.report-outline-list').boundingBox())!.height).toBeGreaterThan(
+    outlineHeight + 250,
+  )
   await page.setViewportSize({ width: 1024, height: 900 })
   await expect(card.locator('.report-navigation-trigger')).toBeVisible()
   await expect(nav).toBeHidden()
@@ -676,5 +706,82 @@ test('three-column report uses the container width and merges image aliases with
   for (const width of [390, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
+
+test('report rails resize independently, reset and share widths with Run results in the same visit', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await momentsFixture(page)
+  await page.goto(workspacePage('/'))
+  const card = page.locator('.moment-card').first()
+  const left = card.getByRole('separator', { name: '调整输出与目录宽度' })
+  const right = card.getByRole('separator', { name: '调整引用宽度' })
+  const drag = async (handle: Locator, delta: number) => {
+    const rect = (await handle.boundingBox())!
+    await page.mouse.move(rect.x + rect.width / 2, rect.y + 60)
+    await page.mouse.down()
+    await page.mouse.move(rect.x + rect.width / 2 + delta, rect.y + 60, { steps: 10 })
+    await page.mouse.up()
+  }
+  await drag(left, 80)
+  await expect(left).toHaveAttribute('aria-valuenow', '280')
+  await drag(right, -80)
+  await expect(right).toHaveAttribute('aria-valuenow', '320')
+  await left.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(left).toHaveAttribute('aria-valuenow', '290')
+  await right.focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect(right).toHaveAttribute('aria-valuenow', '330')
+  await card.getByRole('button', { name: '阅读全文', exact: true }).click()
+  await card.getByRole('link', { name: '查看运行', exact: true }).click()
+  await expect(
+    page.locator('.run-result-panel').getByRole('separator', { name: '调整输出与目录宽度' }),
+  ).toHaveAttribute('aria-valuenow', '290')
+  await expect(
+    page.locator('.run-result-panel').getByRole('separator', { name: '调整引用宽度' }),
+  ).toHaveAttribute('aria-valuenow', '330')
+  await page.getByRole('link', { name: '动态', exact: true }).click()
+  await left.dblclick()
+  await right.dblclick()
+  await expect(left).toHaveAttribute('aria-valuenow', '200')
+  await expect(right).toHaveAttribute('aria-valuenow', '240')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(left).toBeHidden()
+  await expect(right).toBeHidden()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('collapse restores the expanded moment, but anchors another moment after reading into it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await momentsFixture(page, { count: 8 })
+  await page.goto(workspacePage('/'))
+  const viewport = page.locator('.moments-page')
+  const first = page.locator('[data-moment-id]').first()
+  const originalTop = (await first.boundingBox())!.y
+  await first.getByRole('button', { name: '阅读全文', exact: true }).click()
+  await viewport.evaluate((el) => {
+    el.scrollTop += 600
+  })
+  await first.getByRole('button', { name: '收起', exact: true }).click()
+  await expect.poll(async () => (await first.boundingBox())!.y).toBeCloseTo(originalTop, 0)
+  const next = page.locator('[data-moment-id]').nth(1)
+  for (const offset of [80, 800]) {
+    await first.getByRole('button', { name: '阅读全文', exact: true }).click()
+    await next.evaluate((el, offset) => {
+      const viewport = el.closest('.moments-page')!
+      viewport.scrollTop +=
+        el.getBoundingClientRect().top - viewport.getBoundingClientRect().top + offset
+    }, offset)
+    const nextTop = (await next.boundingBox())!.y
+    // Invoke the original DOM action without scrolling its offscreen control back into view.
+    await first
+      .getByRole('button', { name: '收起', exact: true })
+      .evaluate((el: HTMLButtonElement) => el.click())
+    await expect.poll(async () => (await next.boundingBox())!.y).toBeCloseTo(nextTop, 0)
   }
 })

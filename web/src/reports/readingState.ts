@@ -1,3 +1,4 @@
+import { defaultReportWidths, type ReportWidths } from './layout.ts'
 export type ReadingAnchor = { heading: string | null; offset: number }
 export type ReportReadingState = {
   outlineExpanded: boolean
@@ -9,7 +10,17 @@ export type ReportReadingState = {
 }
 export class ReportReadingStore {
   private states = new Map<string, ReportReadingState>()
+  private layouts = new Map<string, ReportWidths>()
   private listeners = new Set<() => void>()
+  getLayout = (workspace: string): ReportWidths =>
+    this.layouts.get(workspace) ?? defaultReportWidths
+  updateLayout = (workspace: string, widths: ReportWidths) => {
+    const previous = this.getLayout(workspace)
+    if (previous.navigation === widths.navigation && previous.references === widths.references)
+      return
+    this.layouts.set(workspace, widths)
+    this.listeners.forEach((listener) => listener())
+  }
   get = (key: string): ReportReadingState => {
     let value = this.states.get(key)
     if (!value) {

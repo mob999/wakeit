@@ -2,6 +2,65 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { reportIndex, referenceIdentity } from '../../src/moments/reportModel.ts'
 import { ReportReadingStore } from '../../src/reports/readingState.ts'
+import { reportWidths, defaultReportWidths } from '../../src/reports/layout.ts'
+import { momentCollapseAnchor } from '../../src/moments/collapsePosition.ts'
+
+test('report width preferences are shared within a workspace visit and isolated across workspaces', () => {
+  const store = new ReportReadingStore()
+  store.updateLayout('a', { navigation: 320, references: 420 })
+  assert.deepEqual(store.getLayout('a'), { navigation: 320, references: 420 })
+  assert.deepEqual(store.getLayout('b'), defaultReportWidths)
+  assert.deepEqual(new ReportReadingStore().getLayout('a'), defaultReportWidths)
+})
+test('report resizing reserves a readable body and restores preferred widths after a narrow layout', () => {
+  const preferred = { navigation: 400, references: 480 }
+  for (const room of [1080, 1200, 1440, 1920]) {
+    const { widths, max } = reportWidths(room, true, true, preferred)
+    assert.ok(room - widths.navigation - widths.references >= 360)
+    assert.ok(widths.navigation >= 160 && widths.references >= 180)
+    assert.ok(max.navigation + widths.references <= room - 360)
+    assert.ok(max.references + widths.navigation <= room - 360)
+  }
+  assert.deepEqual(reportWidths(1920, true, true, preferred).widths, preferred)
+  assert.deepEqual(preferred, { navigation: 400, references: 480 })
+  const { widths } = reportWidths(740, true, true, preferred)
+  assert.equal(widths.navigation, 400) // hidden navigation consumes no width
+  assert.equal(widths.references, 380)
+})
+test('collapsing returns to the original card until the leading reading edge reaches another moment', () => {
+  const positions = [
+    { id: 'a', top: -500, bottom: 800 },
+    { id: 'b', top: 800, bottom: 1100 },
+  ]
+  assert.deepEqual(momentCollapseAnchor('a', positions, 0, 120, 44), { id: 'a', top: 120 })
+  assert.deepEqual(momentCollapseAnchor('a', positions, 0, -80, 44), { id: 'a', top: 0 })
+  assert.deepEqual(
+    momentCollapseAnchor(
+      'a',
+      [
+        { id: 'a', top: -1300, bottom: 12 },
+        { id: 'b', top: 12, bottom: 800 },
+      ],
+      0,
+      120,
+      44,
+    ),
+    { id: 'b', top: 12 },
+  )
+  assert.deepEqual(
+    momentCollapseAnchor(
+      'a',
+      [
+        { id: 'a', top: -1300, bottom: -500 },
+        { id: 'b', top: -500, bottom: 800 },
+      ],
+      0,
+      120,
+      44,
+    ),
+    { id: 'b', top: -500 },
+  )
+})
 
 const local = (href: string, cwd?: string) => referenceIdentity(href, true, cwd)
 test('local identity folds only lexical aliases with a known execution directory', () => {

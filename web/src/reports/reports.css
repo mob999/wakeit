@@ -1,13 +1,24 @@
 .report-reader {
+  --report-viewport-height: 100dvh;
+  --report-sticky-top: 44px;
+  --report-rail-height: min(
+    var(--report-reading-height),
+    calc(var(--report-viewport-height) - var(--report-sticky-top))
+  );
   container-type: inline-size;
   min-width: 0;
 }
 .report-grid {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: 'tools' 'body' 'references';
   min-width: 0;
   align-items: start;
+}
+.report-grid > .resize-handle {
+  display: none;
+  z-index: 2;
 }
 .report-grid::before,
 .report-grid::after {
@@ -293,21 +304,28 @@
   position: static;
 }
 @container (min-width:740px) {
+  .report-grid > .report-references-resize {
+    display: block;
+  }
   .report-grid.has-references::after {
     display: block;
   }
   .report-grid.has-references {
-    grid-template-columns: minmax(0, 1fr) 240px;
+    grid-template-columns: minmax(0, 1fr) var(--report-references-width);
     grid-template-areas: 'tools tools' 'body references';
   }
   .report-reader .result-references {
     border-top: 0;
     border-left: 0;
     position: sticky;
-    top: 44px;
-    max-height: calc(100dvh - 172px);
+    top: var(--report-sticky-top);
+    max-height: var(--report-rail-height);
     display: flex;
     flex-direction: column;
+  }
+  .report-reader .result-reference-list {
+    flex: 1 1 auto;
+    max-height: none;
   }
   .report-reader.is-preview .result-references {
     position: static;
@@ -318,26 +336,58 @@
   }
 }
 @container (min-width:1080px) {
+  .report-grid > .report-navigation-resize {
+    display: block;
+  }
   .report-grid.has-navigation::before {
     display: block;
   }
   .report-grid.has-navigation {
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: var(--report-navigation-width) minmax(0, 1fr);
     grid-template-areas: 'navigation body';
   }
   .report-grid.has-navigation.has-references {
-    grid-template-columns: 200px minmax(0, 1fr) 240px;
+    grid-template-columns: var(--report-navigation-width) minmax(0, 1fr) var(
+        --report-references-width
+      );
     grid-template-areas: 'navigation body references';
   }
   .report-grid .report-tools {
     display: none;
   }
   .report-navigation {
-    display: block;
+    display: flex;
+    flex-direction: column;
     position: sticky;
-    top: 44px;
-    max-height: calc(100dvh - 172px);
+    top: var(--report-sticky-top);
+    max-height: var(--report-rail-height);
     overflow: auto;
+  }
+  .report-grid > .report-navigation .report-output-section {
+    flex: none;
+  }
+  .report-grid > .report-navigation .report-outline-section {
+    flex: 1 1 auto;
+  }
+  .report-grid > .report-navigation .report-outline-list {
+    flex: 1 1 auto;
+    max-height: none;
+  }
+  .report-reader:not(.is-preview)
+    .report-grid
+    > .report-navigation:not(:has(.report-outline-section))
+    .report-output-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+  .report-reader:not(.is-preview)
+    .report-grid
+    > .report-navigation:not(:has(.report-outline-section))
+    .report-output-list {
+    flex: 1 1 auto;
+    max-height: none;
   }
   .report-reader.is-preview .report-navigation {
     display: flex;

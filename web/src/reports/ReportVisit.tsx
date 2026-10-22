@@ -15,3 +15,14 @@ export function useReportReading(key: string) {
     update: (patch: Parameters<ReportReadingStore['update']>[1]) => store.update(key, patch),
   }
 }
+export function useReportLayout(workspace: string) {
+  const context = useContext(Context)
+  const [fallback] = useState(() => new ReportReadingStore())
+  const store = context ?? fallback
+  const widths = useSyncExternalStore(store.subscribe, () => store.getLayout(workspace))
+  return {
+    widths,
+    update: (next: Parameters<ReportReadingStore['updateLayout']>[1]) =>
+      store.updateLayout(workspace, next),
+  }
+}
