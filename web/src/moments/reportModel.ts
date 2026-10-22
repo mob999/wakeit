@@ -32,7 +32,7 @@ export type ReportLink = {
   image?: boolean
 }
 // Read the sanitized, rendered report, so code samples and rejected URLs never
-// become links. The file-preview button remains owned by the original report.
+// become links. Reference previews retain the report's actual execution source.
 export function reportIndex(root: ParentNode) {
   const headings: ReportHeading[] = []
   root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6').forEach((node, index) => {
