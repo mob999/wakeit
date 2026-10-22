@@ -16,3 +16,5 @@ GitHub 凭据与 Gateway Token 分开。依次读取 WAKEIT_GITHUB_TOKEN、GH_TO
 从 0.2.0 升级至 0.3.0 时，先备份并停止全部 Gateway 写入，再执行 `wakeit gateway migrate --config gateway.yaml`，统一升级并启动 Gateway，验证 ready 后恢复使用。新增 DAG 与布局迁移保留旧任务、历史和 Runner 身份；旧 Runner 继续接收单次执行的 version 1 消息，不需为 DAG 理解整图。不要混跑新旧 Gateway，也不要改写已发布迁移。
 
 从 0.3.0 升级至 0.3.1 时，备份 PostgreSQL 并保留 NATS、Runner 配置、Journal 和 Agent 凭据；停止所有 Gateway 写入，用新二进制执行 `wakeit gateway migrate --config gateway.yaml`，应用 `0005_terminals.sql` 与 `0006_dag_retries.sql` 后统一启动并验证 ready。升级 Runner 才能启用网页终端、结果文件预览及完整的失败重试判断；SQLite 自动兼容升级，不重新注册设备或改动 Agent 登录。配置和消息协议仍为 version 1。
+
+从 0.3.1 升级到 0.3.2 时，备份 PostgreSQL、NATS 状态和 Runner Journal，停止全部 Gateway 写入后，用新二进制执行独立迁移，应用 `0007_dag_manual_retry.sql`，再统一启动并验证 ready。保留原 Run、成功尝试、设备身份和 Agent 凭据，不重新注册。更新 Runner 以启用缩略图、分块原图及不会中断健康 Agent 的过程记录处理；已有设备继续兼容 version 1。旧 DAG 的显式总时限保持，新 DAG 默认不启用整图总时限。

@@ -159,6 +159,7 @@ pub async fn serve(
 ) -> Result<()> {
     let mut sub = client.subscribe(protocol::query_subject(config.id)).await?;
     let permits = Arc::new(tokio::sync::Semaphore::new(8));
+    let image_permits = Arc::new(tokio::sync::Semaphore::new(2));
     loop {
         let msg = tokio::select! {_=stop.cancelled()=>break,msg=sub.next()=>match msg {Some(m)=>m,None=>break}};
         let Some(reply) = msg.reply else { continue };
@@ -176,6 +177,7 @@ pub async fn serve(
         let agents = agents.clone();
         let stop = stop.clone();
         let permit = permits.clone().try_acquire_owned();
+        let image_permits = image_permits.clone();
         tokio::spawn(async move {
             let result: Result<Value> = async {
                 let _permit = permit.context("query capacity reached")?;
@@ -185,11 +187,22 @@ pub async fn serve(
                 );
                 match request.action.as_str() {
                     "read_result_file" => {
+                        let image: crate::image_preview::Request = serde_json::from_value(request.payload.clone())?;
+                        let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
+                        let image_permit = if matches!(image.image, Some(crate::image_preview::Mode::Thumbnail)) {
+                            Some(tokio::select! {
+                                _ = stop.cancelled() => anyhow::bail!("Runner is stopping"),
+                                permit = tokio::time::timeout_at(deadline, image_permits.acquire_owned()) => permit.context("file preview timed out")??,
+                            })
+                        } else { None };
                         let roots=config.allowed_roots.clone();
                         let href=request.payload["href"].as_str().context("file link is required")?.to_owned();
                         let cwd=request.payload["cwd"].as_str().map(str::to_owned);
                         let limit=(client.server_info().max_payload / 2).min(crate::result_files::MAX_BYTES);
-                        tokio::time::timeout(Duration::from_secs(8),tokio::task::spawn_blocking(move || { let _held=_permit; crate::result_files::read(&roots,&href,cwd.as_deref(),limit) })).await.context("file preview timed out")??
+                        tokio::select! {
+                            _ = stop.cancelled() => anyhow::bail!("Runner is stopping"),
+                            value = tokio::time::timeout_at(deadline,tokio::task::spawn_blocking(move || { let _held=(_permit, image_permit); crate::image_preview::read(&roots,&href,cwd.as_deref(),limit,image) })) => value.context("file preview timed out")??,
+                        }
                     }
                     "list_directories" => {
                         let roots = config.allowed_roots.clone();

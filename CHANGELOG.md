@@ -1,3 +1,26 @@
+## 0.3.2
+
+### Added
+
+- Retry a failed DAG node inside its original Run, retaining successful executions and continuing affected downstream nodes after recovery. Manual retries, stopped-Run confirmation and an optional graph total timeout are available in WebUI and CLI.
+- Embed local Markdown images in reports and file previews, using inline thumbnails and loading originals only when opened. Image failures show their specific cause.
+
+### Improved
+
+- Moments retains its timeline with denser report cards, output selection, outlines and references. Run results also include references and explicitly switch between output nodes; raw view and copying follow the selected report.
+- DAG nodes use compact, aligned layouts with clearer output markers and device/Agent context. Account actions use consistent icons, with a distinct sign-out action.
+- Activity recording notices move to toolbar tooltips and distinguish excerpts, omitted events, parsing failures, storage capacity and expiration. Ordinary diagnostics remain in logs.
+
+### Fixed
+
+- Large Kimi, Copilot, Qwen, Cursor and other supported Agent observations no longer fail a healthy execution merely because an activity or output-preview budget is exhausted. Complete JSON/JSONL validation and downstream-result completeness checks remain enforced.
+- File-preview dialogs remain open during background polling and event reconnections, and Trace tool names remain readable beside long arguments.
+- Appended local logs are flushed before execution completion is returned, preserving complete Unicode output for immediate readers.
+
+### Upgrade
+
+- Back up PostgreSQL and stop all Gateway writers before applying `0007_dag_manual_retry.sql`, then restart every Gateway on 0.3.2. Update Runners for thumbnails and current observation handling. Existing Run IDs, successful attempts, device identities and Agent credentials are retained; configuration and messages remain version 1. Existing explicit DAG timeouts are preserved; new DAGs default to no total timeout. See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.2/docs/operations.md#upgrading-from-031).
+
 ## 0.3.1
 
 ### Added

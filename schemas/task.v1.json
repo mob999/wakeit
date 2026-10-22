@@ -41,8 +41,11 @@
           "type": "string"
         },
         "timeout": {
-          "default": "1h",
-          "type": "string"
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object"
@@ -253,7 +256,7 @@
         "misfire": "latest",
         "overlap": "skip",
         "start_grace": "1h",
-        "timeout": "1h"
+        "timeout": null
       }
     },
     "id": {

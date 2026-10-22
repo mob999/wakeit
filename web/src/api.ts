@@ -1,4 +1,5 @@
 import { t as tr, locale } from './i18n'
+import { apiErrorText } from './apiErrorText'
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -43,7 +44,9 @@ export async function api<T = any>(
   if (!response.ok)
     throw new ApiError(
       response.status,
-      value.error ? tr(value.error) : tr('请求失败 ({{v0}})', { v0: response.status }),
+      typeof value.error === 'string'
+        ? apiErrorText(value.error, tr, (state) => stateNames[state] ?? state)
+        : tr('请求失败 ({{v0}})', { v0: response.status }),
     )
   return value
 }
@@ -134,7 +137,7 @@ export type TaskConfig = {
   enabled: boolean
   schedule: Schedule | null
   execution: {
-    timeout: string
+    timeout: string | null
     start_grace: string
     overlap: 'skip' | 'allow'
     misfire: 'skip' | 'latest'
@@ -233,6 +236,7 @@ export type RunEvent = {
     state?: string
     result?: unknown
     status?: string
+    reason?: string
   }
 }
 export const terminal = (state: string) =>

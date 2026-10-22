@@ -21,6 +21,7 @@ pub mod moments;
 pub mod native_sessions;
 pub mod nats_auth;
 pub mod openapi;
+mod output_capture;
 pub mod process;
 pub mod protocol;
 pub mod query;
@@ -52,4 +53,7 @@ pub mod workspace_api;
 pub mod workspaces;
 
 pub mod file_api;
+pub mod image_preview;
 pub mod result_files;
+
+pub mod dag_manual_retry;

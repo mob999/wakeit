@@ -68,7 +68,7 @@ impl Node {
             schedule: None,
             enabled: true,
             execution: Execution {
-                timeout: self.timeout.clone(),
+                timeout: Some(self.timeout.clone()),
                 ..graph.execution.clone()
             },
             dag: None,
@@ -312,8 +312,11 @@ pub fn render(prompt: &str, results: &BTreeMap<String, Value>) -> Result<String>
                 .get(&id)
                 .ok_or_else(|| anyhow::anyhow!("Upstream result unavailable: {id}"))?;
             ensure!(
-                !value.is_null() && value.get("truncated") != Some(&Value::Bool(true)),
-                "Upstream result missing or truncated: {id}"
+                !value.is_null()
+                    && !["truncated", "expired", "incomplete"]
+                        .iter()
+                        .any(|k| value.get(*k) == Some(&Value::Bool(true))),
+                "Upstream result missing, truncated or unavailable: {id}"
             );
             if let Some(text) = value.as_str() {
                 ensure!(!text.is_empty(), "Upstream result is empty: {id}");

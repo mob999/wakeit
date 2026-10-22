@@ -38,7 +38,10 @@ impl GeminiNormalizer {
             "message" if event["role"] == "user" => vec![],
             "message" if event["role"] == "assistant" => {
                 let Some(content) = event["content"].as_str() else {
-                    return self.diagnostic("missing message content");
+                    return crate::trace::recording_issue(
+                        self.diagnostic("missing message content"),
+                        crate::trace::RecordingIssue::EventParseFailed,
+                    );
                 };
                 if self.message.is_none() {
                     self.message_omitted = false;
@@ -72,7 +75,10 @@ impl GeminiNormalizer {
                     self.message_omitted = true;
                     node.output = json!("[Response omitted: exceeds 1000 KiB]");
                     let record = StreamRecord::new(RecordData::Trace(node.clone()));
-                    let mut records = self.diagnostic("response exceeds 1000 KiB");
+                    let mut records = crate::trace::recording_issue(
+                        self.diagnostic("response exceeds 1000 KiB"),
+                        crate::trace::RecordingIssue::EventTooLarge,
+                    );
                     records.push(record);
                     return records;
                 }
@@ -82,10 +88,16 @@ impl GeminiNormalizer {
             }
             "tool_use" => {
                 let Some(id) = tool_id(&event) else {
-                    return self.diagnostic("invalid tool id");
+                    return crate::trace::recording_issue(
+                        self.diagnostic("invalid tool id"),
+                        crate::trace::RecordingIssue::EventParseFailed,
+                    );
                 };
                 let Some(name) = event["tool_name"].as_str() else {
-                    return self.diagnostic("missing tool name");
+                    return crate::trace::recording_issue(
+                        self.diagnostic("missing tool name"),
+                        crate::trace::RecordingIssue::EventParseFailed,
+                    );
                 };
                 // Native IDs identify a single call, including retransmitted events.
                 if self.tools.contains_key(&id) {
@@ -116,10 +128,16 @@ impl GeminiNormalizer {
             }
             "tool_result" => {
                 let Some(id) = tool_id(&event) else {
-                    return self.diagnostic("invalid tool result id");
+                    return crate::trace::recording_issue(
+                        self.diagnostic("invalid tool result id"),
+                        crate::trace::RecordingIssue::EventParseFailed,
+                    );
                 };
                 let Some(node) = self.tools.get_mut(&id) else {
-                    return self.diagnostic("unmatched tool result");
+                    return crate::trace::recording_issue(
+                        self.diagnostic("unmatched tool result"),
+                        crate::trace::RecordingIssue::EventParseFailed,
+                    );
                 };
                 if node.finished_at.is_some() {
                     return vec![];
@@ -144,6 +162,7 @@ impl GeminiNormalizer {
                     text: format!("{}\n", event["message"].as_str().unwrap_or("Agent warning")),
                     stream: "stderr".into(),
                     diagnostic: false,
+                    recording_issue: None,
                 }))]
             }
             "error" => self.error(&event, at),
@@ -220,6 +239,7 @@ impl GeminiNormalizer {
                 text: format!("{message}\n"),
                 stream: "stderr".into(),
                 diagnostic: false,
+                recording_issue: None,
             })),
         ]);
         records
@@ -234,6 +254,7 @@ impl GeminiNormalizer {
             text: format!("Native Agent event omitted ({key}).\n"),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
 }

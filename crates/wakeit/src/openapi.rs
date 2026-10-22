@@ -134,7 +134,10 @@ pub fn document() -> Value {
             "session":{"anyOf":[{"$ref":"#/components/schemas/RunSession"},{"type":"null"}],"description":"Actual session captured by this execution. Null for historical or unsupported runs; a configured binding alone does not establish continuation readiness."},
             "result":{},"reason":{"type":["string","null"]},
             "started_at":{"type":["string","null"],"format":"date-time"},
-            "finished_at":{"type":["string","null"],"format":"date-time"}
+            "finished_at":{"type":["string","null"],"format":"date-time"},
+            "attempt_origin":{"enum":["initial","automatic","manual","continuation"]},
+            "recovery_generation":{"type":"integer","minimum":0},
+            "window_started_at":{"type":["string","null"],"format":"date-time"}
         }
     }));
     schemas.insert("Settings".into(), json!({"type":"object","required":["timezone","log_retention_days","run_retention_days"],"properties":{"timezone":{"type":"string"},"log_retention_days":{"type":"integer","minimum":1,"maximum":3650},"run_retention_days":{"type":"integer","minimum":1,"maximum":3650}}}));
@@ -337,7 +340,10 @@ pub fn document() -> Value {
             if path == "/schema/{kind}" {
                 parameters.push(json!({"name":"kind","in":"path","required":true,"schema":{"type":"string","enum":["task","agent"]}}));
             }
-            if matches!(path, "/tasks/{id}/runs" | "/runs/{id}/retry") {
+            if matches!(
+                path,
+                "/tasks/{id}/runs" | "/runs/{id}/retry" | "/runs/{id}/nodes/{node}/retry"
+            ) {
                 parameters.push(json!({"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","maxLength":200}}));
             }
             if matches!(
@@ -349,7 +355,7 @@ pub fn document() -> Value {
                 );
             }
             if path == "/runs/{id}/events" || path == "/runs/{id}/nodes/{node}/events" {
-                parameters.push(json!({"name":"kind","in":"query","schema":{"type":"string"},"description":"Filter event kind; trace includes trace_status. Up to 500 rows ordered by ID per page."}));
+                parameters.push(json!({"name":"kind","in":"query","schema":{"type":"string"},"description":"Filter event kind; trace includes trace_status (status and optional recording reason). Up to 500 rows ordered by ID per page."}));
             }
             if path == "/runs/{id}/stream" {
                 parameters.push(
@@ -426,12 +432,16 @@ pub fn document() -> Value {
                 );
             }
             if path == "/runs/{id}/nodes/{node}/retry" {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["id","parent_run_id","node_id"],"properties":{"id":{"type":"string","format":"uuid"},"parent_run_id":{"type":"string","format":"uuid"},"node_id":{"type":"string"}}}}});
                 op["description"] = json!(
-                    "Operator only. Advances the exact queued retry execution_id without consuming additional budget or changing ended graphs. Concurrent/stale attempts cannot start a second execution."
+                    "Admin/Read-write only. Retries a confirmed failed node in its frozen parent Run, preserving successful nodes and restoring affected descendants under AND. Required nullable execution_id guards stale requests; resume_stopped explicitly recovers graph cancellation/total timeout only after old executions stop. Reuses queued automatic successor. Idempotency-Key returns the same id,parent_run_id,node_id. Node detail exposes retry action, blocking reason and affected descendants."
                 );
             }
             if path == "/runs/{id}/nodes/{node}" {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["node","execution"],"properties":{"node":{"$ref":"#/components/schemas/DagRunNode"},"execution":{"anyOf":[{"$ref":"#/components/schemas/Run"},{"type":"null"}]},"attempts":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string","format":"uuid"},"state":{"type":"string"},"scheduled_at":{"type":"string","format":"date-time"},"reason":{"type":["string","null"]}}}}}}}});
+            }
+            if path == "/runs/{id}/nodes/{node}" {
+                op["responses"]["200"]["content"]["application/json"]["schema"]["properties"]["retry"] = json!({"type":"object","required":["action","reason","affected"],"properties":{"action":{"type":["string","null"],"enum":["retry","accelerate","resume",null]},"reason":{"type":["string","null"]},"affected":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"state":{"type":"string"},"action":{"const":"resume"}}}}}});
             }
             if path == "/runs/{id}/nodes/{node}/resolve" {
                 op["description"] = json!(
@@ -440,9 +450,9 @@ pub fn document() -> Value {
             }
             if path == "/runs/{id}/files/preview" {
                 op["description"] = json!(
-                    "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization, stream or persistent content. Maximum raw content 512 KiB, also bounded by NATS payload. UTF-8 text may be truncated; oversized images are rejected. Response is no-store and nosniff."
+                    "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization or persistent content. Text stays bounded to512KiB. Optional image=thumbnail generates a bounded1280px preview on Runner from sources up to32MiB/40MP/16384px per side. image=original returns unchanged original byte chunks: offset, revision, next_offset(null atEOF); every chunk is independently authorized and rejects file changes. Each response fits the existing NATS payload. Old Runners can return small complete images. Response is no-store and nosniff."
                 );
-                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["path","name","format","content","size","truncated","runner_id"],"properties":{"path":{"type":"string"},"name":{"type":"string"},"format":{"enum":["text","markdown","json","image"]},"mime":{"type":"string"},"content":{"type":"string","description":"UTF-8 text or base64 PNG/JPEG/WebP"},"size":{"type":"integer"},"truncated":{"type":"boolean"},"modified_at":{"type":["string","null"],"format":"date-time"},"runner_id":{"type":"string","format":"uuid"}}}}});
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["path","name","format","content","size","truncated","runner_id"],"properties":{"path":{"type":"string"},"name":{"type":"string"},"format":{"enum":["text","markdown","json","image"]},"mime":{"type":"string"},"content":{"type":"string","description":"UTF-8 text or base64 PNG/JPEG/WebP"},"size":{"type":"integer"},"truncated":{"type":"boolean"},"modified_at":{"type":["string","null"],"format":"date-time"},"runner_id":{"type":"string","format":"uuid"},"image":{"enum":["thumbnail","original"]},"revision":{"type":"string"},"offset":{"type":"integer","minimum":0},"next_offset":{"type":["integer","null"],"minimum":0}}}}});
             }
             if path == "/runs/{id}" {
                 op["responses"]["200"]["content"] =

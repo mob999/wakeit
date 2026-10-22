@@ -3,7 +3,7 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const home=process.env.KIMI_CODE_HOME,mode=process.env.WAKEIT_KIMI_FIXTURE||'ok';
 const sessionId='session_fixture-live';const token='synthetic-fixture-only';let websocket,seq=0,warmed=false;
 const traceFile=path.join(home,'requests.jsonl');
-const send=(type,payload)=>{if(!websocket)return;const data=Buffer.from(JSON.stringify({type,seq:++seq,session_id:sessionId,timestamp:new Date().toISOString(),payload}));let head;if(data.length<126)head=Buffer.from([129,data.length]);else{head=Buffer.alloc(4);head[0]=129;head[1]=126;head.writeUInt16BE(data.length,2)}websocket.write(Buffer.concat([head,data]));};
+const send=(type,payload)=>{if(!websocket)return;const data=Buffer.from(JSON.stringify({type,seq:++seq,session_id:sessionId,timestamp:new Date().toISOString(),payload}));let head;if(data.length<126)head=Buffer.from([129,data.length]);else if(data.length<=65535){head=Buffer.alloc(4);head[0]=129;head[1]=126;head.writeUInt16BE(data.length,2)}else{head=Buffer.alloc(10);head[0]=129;head[1]=127;head.writeBigUInt64BE(BigInt(data.length),2)}websocket.write(Buffer.concat([head,data]));};
 function info(){const meta=JSON.parse(fs.readFileSync(path.join(home,'state.json')));return {id:sessionId,title:meta.title,metadata:{cwd:meta.cwd}}}
 const server=http.createServer(async(req,res)=>{
  let raw='';for await(const chunk of req)raw+=chunk;const body=raw?JSON.parse(raw):null;
@@ -25,12 +25,12 @@ const server=http.createServer(async(req,res)=>{
   send('turn.started',{agentId:'main',turnId:0});send('turn.step.started',{agentId:'main',turnId:0});
   send('assistant.delta',{agentId:'main',turnId:0,delta:'Before '});send('assistant.delta',{agentId:'main',turnId:0,delta:'tool 中文'});
   if(mode==='disconnect'){websocket.destroy();return}
-  send('tool.call.started',{agentId:'main',turnId:0,toolCallId:'call1',name:'Bash',args:{command:'printf fixture'}});
+  send('tool.call.started',{agentId:'main',turnId:0,toolCallId:'call1',name:'Bash',args:{command:mode.startsWith('large-')?'中'.repeat(500000):'printf fixture'}});
   setTimeout(()=>{
    fs.writeFileSync(path.join(home,'tool-completed'),'done');
-   send('tool.result',{agentId:'main',turnId:0,toolCallId:'call1',output:{text:'fixture tool output'}});
-   send('turn.step.started',{agentId:'main',turnId:0});send('assistant.delta',{agentId:'main',turnId:0,delta:'Final report'});
-   send('turn.ended',{agentId:'main',turnId:0,reason:mode==='fail'?'failed':'completed',error:mode==='fail'?{code:'fixture.failure'}:undefined});
+   send('tool.result',{agentId:'main',turnId:0,toolCallId:'call1',output:{text:mode.startsWith('large-')?'中'.repeat(500000):'fixture tool output'},isError:mode==='large-failed-tool'});
+   send('turn.step.started',{agentId:'main',turnId:0});send('assistant.delta',{agentId:'main',turnId:0,delta:mode==='large-message'?'中'.repeat(500000):'Final report'});
+   send('turn.ended',{agentId:'main',turnId:0,reason:['fail','large-failed-tool'].includes(mode)?'failed':'completed',error:['fail','large-failed-tool'].includes(mode)?{code:'fixture.failure'}:undefined});
   },300);return;
  }
  if(req.url.endsWith(':abort'))return ok({});

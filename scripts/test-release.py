@@ -48,6 +48,7 @@ class Packaging(unittest.TestCase):
         rust_lock = tomllib.loads((ROOT / 'Cargo.lock').read_text(encoding='utf-8'))
         self.assertEqual(next(p['version'] for p in rust_lock['package'] if p['name'] == 'wakeit'), version)
         self.assertEqual(manifest['version'], version)
+        self.assertEqual(json.loads((ROOT / 'schemas/openapi.v1.json').read_text(encoding='utf-8'))['info']['version'], version)
         notes = entries((ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'))
         self.assertEqual((self.output / 'release-notes.md').read_text(encoding='utf-8'), notes[version] + '\n')
         self.assertEqual(set(manifest['assets']), set(TARGETS))

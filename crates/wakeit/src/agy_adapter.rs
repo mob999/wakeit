@@ -56,6 +56,7 @@ impl Normalizer {
             text: format!("Native Agent event omitted ({key}).\n"),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
 
@@ -73,13 +74,19 @@ impl Normalizer {
                     return self.diagnostic(typ);
                 }
                 let Some(index) = step["step_index"].as_u64() else {
-                    return self.diagnostic("missing AGY step index");
+                    return crate::trace::recording_issue(
+                        self.diagnostic("missing AGY step index"),
+                        crate::trace::RecordingIssue::EventParseFailed,
+                    );
                 };
                 let done = match step["state"].as_str() {
                     Some("ACTIVE") => false,
                     Some("DONE") => true,
                     _ => {
-                        return self.diagnostic("unknown AGY step state");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("unknown AGY step state"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     }
                 };
                 let id = format!("agy:step:{index}");
@@ -95,7 +102,10 @@ impl Normalizer {
                         .to_owned();
                     text.push_str(step["text_delta"].as_str().unwrap_or(""));
                     if text.len() > RECORD_LIMIT {
-                        return self.diagnostic("AGY response exceeds 1000 KiB");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("AGY response exceeds 1000 KiB"),
+                            crate::trace::RecordingIssue::EventTooLarge,
+                        );
                     }
                     (
                         TraceKind::Message,
@@ -159,7 +169,10 @@ impl Normalizer {
                 };
                 let record = StreamRecord::new(RecordData::Trace(node.clone()));
                 if serde_json::to_vec(&record).map_or(true, |bytes| bytes.len() > RECORD_LIMIT) {
-                    return self.diagnostic("AGY trace exceeds 1000 KiB");
+                    return crate::trace::recording_issue(
+                        self.diagnostic("AGY trace exceeds 1000 KiB"),
+                        crate::trace::RecordingIssue::EventTooLarge,
+                    );
                 }
                 self.nodes.insert(id, node);
                 vec![record]
@@ -184,6 +197,7 @@ impl Normalizer {
                         text: format!("{message}\n"),
                         stream: "stderr".into(),
                         diagnostic: false,
+                        recording_issue: None,
                     }))]
                 }
             }

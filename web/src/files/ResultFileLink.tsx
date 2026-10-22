@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useContext, useId, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, type User, type Runner, type Run } from '../api'
+import { type User, type Runner } from '../api'
 import { t } from '../i18n'
 import { useToast } from '../Toast'
 import { Modal, Button } from '../ui'
@@ -8,34 +8,36 @@ import { CopyValue } from '../runs/CopyValue'
 import { MarkdownContent } from '../runs/MarkdownContent'
 import type { FileSource } from './links'
 import './files.css'
-type Preview = {
-  path: string
-  name: string
-  runner_id: string
-  format: 'text' | 'markdown' | 'json' | 'image'
-  mime: string
-  content: string
-  size: number
-  modified_at: string | null
-  truncated: boolean
-}
+import { OriginalImage } from './OriginalImage'
+import { PreviewActivity } from './PreviewActivity'
+import { type Preview, executionId, readPreview, imageMimes } from './preview'
 export function ResultFileLink({
   href,
   source,
   children,
+  accessibleLabel,
 }: {
   href: string
   source?: FileSource
   children: ReactNode
+  accessibleLabel?: string
 }) {
   const toast = useToast()
   const me = useQuery<User>({ queryKey: ['me'], enabled: false })
   const runners = useQuery<Runner[]>({ queryKey: ['runners'], enabled: false })
   const allowed = !!source && !!me.data && me.data.role !== 'viewer' && !me.data.workspace?.is_demo
   const [open, setOpen] = useState(false),
+    [actualId, setActualId] = useState(''),
+    [documentVersion, setDocumentVersion] = useState(''),
     [value, setValue] = useState<Preview | null>(null),
     [pending, setPending] = useState(false),
-    [failed, setFailed] = useState(false)
+    [failed, setFailed] = useState('')
+  const previewActivity = useContext(PreviewActivity),
+    previewId = useId()
+  useEffect(() => {
+    previewActivity(previewId, open)
+    return () => previewActivity(previewId, false)
+  }, [open, previewActivity, previewId])
   const request = useRef<AbortController | null>(null)
   const writable = useRef(allowed)
   writable.current = allowed
@@ -66,31 +68,27 @@ export function ResultFileLink({
     request.current = controller
     setOpen(true)
     setPending(true)
-    setFailed(false)
+    setFailed('')
     try {
-      let id = source.runId
-      if (source.nodeId) {
-        const detail = await api<{ execution: Run | null }>(
-          `/runs/${id}/nodes/${encodeURIComponent(source.nodeId)}`,
-          'GET',
-          undefined,
-          undefined,
-          controller.signal,
-        )
-        if (!detail.execution) throw new Error(t('filePreview.noSource'))
-        id = detail.execution.id
+      const id = await executionId(source, controller.signal)
+      const result = await readPreview(id, href, controller.signal, undefined, 'thumbnail')
+      const revision =
+        result.format === 'markdown'
+          ? Array.from(
+              new Uint8Array(
+                await crypto.subtle.digest('SHA-256', new TextEncoder().encode(result.content)),
+              ),
+              (byte) => byte.toString(16).padStart(2, '0'),
+            ).join('')
+          : ''
+      if (!controller.signal.aborted && writable.current) {
+        setActualId(id)
+        setDocumentVersion(revision)
+        setValue(result)
       }
-      const result = await api<Preview>(
-        `/runs/${id}/files/preview`,
-        'POST',
-        { href },
-        undefined,
-        controller.signal,
-      )
-      if (!controller.signal.aborted && writable.current) setValue(result)
     } catch (error) {
       if (!controller.signal.aborted) {
-        setFailed(true)
+        setFailed((error as Error).message)
         toast((error as Error).message)
       }
     } finally {
@@ -116,6 +114,8 @@ export function ResultFileLink({
       <button
         type="button"
         className="result-file-link"
+        data-result-file-href={href}
+        aria-label={accessibleLabel}
         title={allowed ? href : `${t('filePreview.copyPath')}: ${href}`}
         onClick={allowed ? () => void load() : copy}
       >
@@ -153,16 +153,23 @@ export function ResultFileLink({
                   <span>{value.size.toLocaleString()} B</span>
                   {value.truncated && <span>{t('结果已截断')}</span>}
                 </div>
-                {value.format === 'image' &&
-                ['image/png', 'image/jpeg', 'image/webp'].includes(value.mime) ? (
-                  <img
-                    className="file-preview-image"
-                    src={`data:${value.mime};base64,${value.content}`}
+                {value.format === 'image' && imageMimes.includes(value.mime) ? (
+                  <OriginalImage
+                    preview={value}
+                    href={href}
+                    source={{ runId: actualId }}
                     alt={value.name}
                   />
                 ) : value.format === 'markdown' ? (
                   <article className="markdown-result">
-                    <MarkdownContent text={value.content} />
+                    <MarkdownContent
+                      text={value.content}
+                      imageSource={{
+                        runId: actualId,
+                        document: href,
+                        revision: documentVersion,
+                      }}
+                    />
                   </article>
                 ) : (
                   <pre className="code">{text}</pre>
@@ -170,7 +177,10 @@ export function ResultFileLink({
                 {!value.content && <p className="quiet">{t('filePreview.empty')}</p>}
               </>
             ) : failed ? (
-              <Button onClick={() => void load()}>{t('重试')}</Button>
+              <div className="file-preview-image-status" role="status">
+                <span>{failed}</span>
+                <Button onClick={() => void load()}>{t('重试')}</Button>
+              </div>
             ) : null}
           </div>
         </Modal>

@@ -339,8 +339,13 @@ impl Journal {
                 .execute(&mut *tx)
                 .await?;
             tx.commit().await?;
-            self.emit(id, "trace_status", json!({"status":"truncated"}), None)
-                .await?;
+            self.emit(
+                id,
+                "trace_status",
+                json!({"status":"truncated","reason":"content_limit"}),
+                None,
+            )
+            .await?;
             self.emit(
                 id,
                 "truncated",
@@ -371,6 +376,7 @@ impl Journal {
                 .open(self.dir.join("logs").join(format!("{id}.log")))
                 .await?;
             file.write_all(text.as_bytes()).await?;
+            file.flush().await?;
         }
         Ok(())
     }

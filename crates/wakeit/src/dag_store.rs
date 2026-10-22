@@ -43,7 +43,12 @@ pub async fn validation(
         && result.is_empty()
     {
         result.push(ValidationIssue {
-            path: if duration(&c.execution.timeout).is_err() {
+            path: if c
+                .execution
+                .timeout
+                .as_deref()
+                .is_some_and(|value| duration(value).is_err())
+            {
                 "execution.timeout"
             } else if duration(&c.execution.start_grace).is_err() {
                 "execution.start_grace"
@@ -167,17 +172,19 @@ pub async fn cancel_nodes(
     tx: &mut Transaction<'_, Postgres>,
     workspace: Uuid,
     parent: Uuid,
+    cause: &str,
 ) -> Result<()> {
-    sqlx::query("UPDATE dag_run_nodes SET state='cancelled',reason='graph cancelled',finished_at=now() WHERE parent_run_id=$1 AND execution_id IS NULL AND state='waiting'").bind(parent).execute(&mut **tx).await?;
+    sqlx::query("UPDATE dag_run_nodes SET stop_cause=$2,state='cancelled',reason='graph cancelled',finished_at=now() WHERE parent_run_id=$1 AND execution_id IS NULL AND state='waiting'").bind(parent).bind(cause).execute(&mut **tx).await?;
     let rows=sqlx::query("SELECT id,runner_id,state FROM runs WHERE parent_run_id=$1 AND finished_at IS NULL ORDER BY id FOR UPDATE").bind(parent).fetch_all(&mut **tx).await?;
     for row in rows {
         let id: Uuid = row.get("id");
         let state: String = row.get("state");
         if state == "queued" {
-            sqlx::query("UPDATE runs SET state='cancelled',cancel_requested=true,reason='graph cancelled',finished_at=now() WHERE id=$1").bind(id).execute(&mut **tx).await?;
+            sqlx::query("UPDATE runs SET stop_cause=$2,state='cancelled',cancel_requested=true,reason='graph cancelled',finished_at=now() WHERE id=$1").bind(id).bind(cause).execute(&mut **tx).await?;
         } else {
-            sqlx::query("UPDATE runs SET cancel_requested=true WHERE id=$1")
+            sqlx::query("UPDATE runs SET cancel_requested=true,stop_cause=$2 WHERE id=$1")
                 .bind(id)
+                .bind(cause)
                 .execute(&mut **tx)
                 .await?;
             store::enqueue(
@@ -226,27 +233,34 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
         let now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
             .fetch_one(&mut *tx)
             .await?;
-        let started: Option<DateTime<Utc>> = graph.get("started_at");
-        if !stop
-            && started.is_some_and(|s| {
-                now - s
-                    > chrono::Duration::from_std(duration(&c.execution.timeout).unwrap()).unwrap()
-            })
-        {
+        let started: Option<DateTime<Utc>> = graph.get("window_started_at");
+        if !stop && crate::dag_manual_retry::expired(&c, started, now) {
             stop = true;
             reason = Some("graph timeout".into());
-            sqlx::query("UPDATE runs SET cancel_requested=true,reason='graph timeout' WHERE id=$1")
+            sqlx::query("UPDATE runs SET cancel_requested=true,reason='graph timeout',stop_cause='graph_timeout' WHERE id=$1")
                 .bind(id)
                 .execute(&mut *tx)
                 .await?;
         }
         if stop {
-            cancel_nodes(&mut tx, workspace, id).await?;
+            cancel_nodes(
+                &mut tx,
+                workspace,
+                id,
+                if graph.get::<Option<&str>, _>("stop_cause") == Some("graph_timeout")
+                    || reason.as_deref() == Some("graph timeout")
+                {
+                    "graph_timeout"
+                } else {
+                    "graph_cancel"
+                },
+            )
+            .await?;
         }
         if !stop {
             crate::dag_retry::prepare(&mut tx, workspace, id, &c, now).await?;
         }
-        let rows=sqlx::query("SELECT n.*,r.result,r.state AS execution_state,r.reason AS execution_reason,r.started_at AS execution_started,r.finished_at AS execution_finished FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.parent_run_id=$1 ORDER BY n.position").bind(id).fetch_all(&mut *tx).await?;
+        let rows=sqlx::query("SELECT n.*,r.stop_cause AS execution_stop_cause,r.result,r.state AS execution_state,r.reason AS execution_reason,r.started_at AS execution_started,r.finished_at AS execution_finished FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.parent_run_id=$1 ORDER BY n.position").bind(id).fetch_all(&mut *tx).await?;
         let mut states = BTreeMap::new();
         let mut results = BTreeMap::new();
         let mut reasons = BTreeMap::new();
@@ -259,7 +273,7 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
                 .get::<Option<String>, _>("execution_reason")
                 .or_else(|| row.get("reason"));
             if state != row.get::<String, _>("state") {
-                sqlx::query("UPDATE dag_run_nodes SET state=$3,reason=$4,started_at=COALESCE(started_at,$5),finished_at=$6 WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node).bind(&state).bind(&why).bind(row.get::<Option<DateTime<Utc>>,_>("execution_started")).bind(row.get::<Option<DateTime<Utc>>,_>("execution_finished")).execute(&mut *tx).await?;
+                sqlx::query("UPDATE dag_run_nodes SET state=$3,reason=$4,started_at=COALESCE(started_at,$5),finished_at=$6,stop_cause=COALESCE($7,stop_cause) WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node).bind(&state).bind(&why).bind(row.get::<Option<DateTime<Utc>>,_>("execution_started")).bind(row.get::<Option<DateTime<Utc>>,_>("execution_finished")).bind(row.get::<Option<String>,_>("execution_stop_cause")).execute(&mut *tx).await?;
                 event(
                     &mut tx,
                     workspace,
@@ -298,7 +312,7 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
                         ("skipped", format!("Predecessor did not succeed: {failed}"))
                     });
                     if let Some((state, why)) = terminal {
-                        sqlx::query("UPDATE dag_run_nodes SET state=$3,reason=$4,finished_at=now() WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node_id).bind(state).bind(&why).execute(&mut *tx).await?;
+                        sqlx::query("UPDATE dag_run_nodes SET state=$3,stop_cause='dependency',reason=$4,finished_at=now() WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node_id).bind(state).bind(&why).execute(&mut *tx).await?;
                         states.insert(node_id.clone(), state.into());
                         reasons.insert(node_id.clone(), Some(why.clone()));
                         event(
@@ -348,13 +362,14 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
                         }
                         Ok(prompt) => {
                             let execution_id = Uuid::new_v4();
+                            let previous:Option<Uuid>=sqlx::query_scalar("SELECT id FROM runs WHERE parent_run_id=$1 AND node_id=$2 ORDER BY created_at DESC,id DESC LIMIT 1").bind(id).bind(&node_id).fetch_optional(&mut *tx).await?;
                             let runner: Uuid = row.get("runner_id");
                             let execution = n.execution(&c, prompt);
                             let deadline = now
                                 + chrono::Duration::from_std(duration(&c.execution.start_grace)?)?;
-                            sqlx::query("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,parent_run_id,node_id,execution_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'dag_node',$9,$10,$11)")
-                                .bind(workspace).bind(execution_id).bind(&c.id).bind(graph.get::<i64,_>("task_revision")).bind(runner).bind(serde_json::to_value(&execution)?).bind(now).bind(deadline).bind(id).bind(&n.id).bind(json!({"input_sources":dag::references(&n.prompt)?})).execute(&mut *tx).await?;
-                            sqlx::query("UPDATE dag_run_nodes SET execution_id=$3,state='queued' WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node_id).bind(execution_id).execute(&mut *tx).await?;
+                            sqlx::query("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,parent_run_id,node_id,execution_snapshot,attempt_origin,recovery_generation,retry_of) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'dag_node',$9,$10,$11,$12,$13,$14)")
+                                .bind(workspace).bind(execution_id).bind(&c.id).bind(graph.get::<i64,_>("task_revision")).bind(runner).bind(serde_json::to_value(&execution)?).bind(now).bind(deadline).bind(id).bind(&n.id).bind(crate::dag_manual_retry::source_snapshot(&n.prompt, &rows)?).bind(if previous.is_some() { "continuation" } else { "initial" }).bind(graph.get::<i64,_>("recovery_generation")).bind(previous).execute(&mut *tx).await?;
+                            sqlx::query("UPDATE dag_run_nodes SET execution_id=$3,state='queued',stop_cause=NULL,reason=NULL,started_at=NULL,finished_at=NULL WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node_id).bind(execution_id).execute(&mut *tx).await?;
                             store::enqueue(
                                 &mut tx,
                                 workspace,
@@ -389,7 +404,9 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
         let derived = dag::outcome(dag, &states);
         let terminal = protocol::terminal(derived);
         let new_state = if stop && terminal {
-            if reason.as_deref() == Some("graph timeout") {
+            if graph.get::<Option<&str>, _>("stop_cause") == Some("graph_timeout")
+                || reason.as_deref() == Some("graph timeout")
+            {
                 "timed_out"
             } else {
                 "cancelled"

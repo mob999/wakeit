@@ -14,6 +14,10 @@ use tokio::{
     process::Command,
 };
 
+// Native SDK events may contain a large tool result or a whole assistant turn.
+// This parsing safety budget is independent of the much smaller wire record cap.
+const NATIVE_RECORD_LIMIT: usize = 64 * 1024 * 1024;
+
 pub struct Normalizer {
     protocol: String,
     agy: Option<crate::agy_adapter::Normalizer>,
@@ -97,6 +101,7 @@ impl Normalizer {
             ),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
     fn native_error(&mut self, event: &Value, at: DateTime<Utc>) -> Vec<StreamRecord> {
@@ -136,6 +141,7 @@ impl Normalizer {
                 text: format!("{message}\n"),
                 stream: "stderr".into(),
                 diagnostic: false,
+                recording_issue: None,
             })),
         ]
     }
@@ -179,6 +185,9 @@ impl Normalizer {
                 previous.and_then(|n| n.finished_at)
             },
         };
+        let mut node = node;
+        node.input = crate::output_capture::bounded_value(node.input, RECORD_LIMIT / 4);
+        node.output = crate::output_capture::bounded_value(node.output, RECORD_LIMIT / 4);
         self.nodes.insert(id.into(), node.clone());
         StreamRecord::new(RecordData::Trace(node))
     }
@@ -275,7 +284,10 @@ impl Normalizer {
                 if typ.starts_with("item.") {
                     let item = &event["item"];
                     let Some(id) = item["id"].as_str() else {
-                        return self.diagnostic("missing item id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing item id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     let kind = item["type"].as_str().unwrap_or("");
                     let start = typ == "item.started";
@@ -351,7 +363,10 @@ impl Normalizer {
                 if typ == "assistant" {
                     let message = &event["message"];
                     let Some(id) = message["id"].as_str() else {
-                        return self.diagnostic("missing message id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing message id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     let mut records = vec![];
                     for (index, part) in message["content"]
@@ -374,7 +389,10 @@ impl Normalizer {
                             )),
                             Some("tool_use") => {
                                 let Some(tool_id) = part["id"].as_str() else {
-                                    records.extend(self.diagnostic("missing tool id"));
+                                    records.extend(crate::trace::recording_issue(
+                                        self.diagnostic("missing tool id"),
+                                        crate::trace::RecordingIssue::EventParseFailed,
+                                    ));
                                     continue;
                                 };
                                 let name = part["name"].as_str().unwrap_or("工具");
@@ -406,7 +424,10 @@ impl Normalizer {
                             continue;
                         }
                         let Some(id) = part["tool_use_id"].as_str() else {
-                            records.extend(self.diagnostic("missing tool result id"));
+                            records.extend(crate::trace::recording_issue(
+                                self.diagnostic("missing tool result id"),
+                                crate::trace::RecordingIssue::EventParseFailed,
+                            ));
                             continue;
                         };
                         let prior = self.nodes.get(id).cloned();
@@ -509,7 +530,10 @@ impl Normalizer {
                     "tool_execution_start" | "tool_execution_update" | "tool_execution_end"
                 ) {
                     let Some(id) = event["toolCallId"].as_str() else {
-                        return self.diagnostic("missing tool id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing tool id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     let previous = self.nodes.get(id).cloned();
                     let name = event["toolName"]
@@ -643,7 +667,10 @@ impl Normalizer {
                 let part = &event["part"];
                 if matches!(typ, "text" | "tool_use") {
                     let Some(id) = part["id"].as_str() else {
-                        return self.diagnostic("missing part id");
+                        return crate::trace::recording_issue(
+                            self.diagnostic("missing part id"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        );
                     };
                     if typ == "text" {
                         let text = part["text"].clone();
@@ -796,8 +823,48 @@ async fn write_records(
     writer: &mut (impl AsyncWriteExt + Unpin),
     records: Vec<StreamRecord>,
 ) -> Result<()> {
-    for record in records {
-        let bytes = serde_json::to_vec(&record)?;
+    for mut record in records {
+        let mut bytes = serde_json::to_vec(&record)?;
+        if bytes.len() > RECORD_LIMIT {
+            match &mut record.record {
+                RecordData::Result(value) => {
+                    *value = crate::output_capture::bounded_value(
+                        std::mem::take(value),
+                        RECORD_LIMIT / 2,
+                    );
+                }
+                RecordData::Trace(node) => {
+                    node.input = crate::output_capture::bounded_value(
+                        std::mem::take(&mut node.input),
+                        RECORD_LIMIT / 4,
+                    );
+                    node.output = crate::output_capture::bounded_value(
+                        std::mem::take(&mut node.output),
+                        RECORD_LIMIT / 4,
+                    );
+                }
+                RecordData::Log(log) => {
+                    let text = crate::output_capture::preview(&log.text);
+                    log.text = text["preview"].as_str().unwrap_or("").to_owned();
+                    log.text
+                        .push_str("\n[Native Agent output preview truncated.]\n");
+                    log.diagnostic = true;
+                    log.recording_issue = Some(crate::trace::RecordingIssue::ContentShortened);
+                }
+                RecordData::Session(_) => {}
+            }
+            bytes = serde_json::to_vec(&record)?;
+            if bytes.len() > RECORD_LIMIT {
+                // Malformed or enormous observation metadata must not prevent
+                // the native command's later Session/final status from arriving.
+                bytes = serde_json::to_vec(&StreamRecord::new(RecordData::Log(LogRecord {
+                    text: "Oversized native Agent observation omitted.\n".into(),
+                    stream: "stderr".into(),
+                    diagnostic: true,
+                    recording_issue: Some(crate::trace::RecordingIssue::EventTooLarge),
+                })))?;
+            }
+        }
         writer.write_all(&bytes).await?;
         writer.write_all(b"\n").await?;
     }
@@ -920,19 +987,25 @@ pub async fn stream_checked(
                             }
                             normalizer.accept(v)
                         }
-                        Err(_) => normalizer.diagnostic("invalid json"),
+                        Err(_) => crate::trace::recording_issue(
+                            normalizer.diagnostic("invalid json"),
+                            crate::trace::RecordingIssue::EventParseFailed,
+                        ),
                     };
                     write_records(&mut writer, records).await?;
                 }
                 bytes.clear();
                 dropping = false;
             } else if !dropping {
-                if bytes.len() == RECORD_LIMIT {
+                if bytes.len() == NATIVE_RECORD_LIMIT {
                     bytes.clear();
                     dropping = true;
                     write_records(
                         &mut writer,
-                        normalizer.diagnostic("record exceeds 1000 KiB"),
+                        crate::trace::recording_issue(
+                            normalizer.diagnostic("native record exceeds 64 MiB"),
+                            crate::trace::RecordingIssue::EventTooLarge,
+                        ),
                     )
                     .await?;
                 } else {
@@ -967,7 +1040,10 @@ pub async fn stream_checked(
                 }
                 normalizer.accept(v)
             }
-            Err(_) => normalizer.diagnostic("invalid json"),
+            Err(_) => crate::trace::recording_issue(
+                normalizer.diagnostic("invalid json"),
+                crate::trace::RecordingIssue::EventParseFailed,
+            ),
         };
         write_records(&mut writer, records).await?;
     }

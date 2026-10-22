@@ -1,10 +1,12 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import { ArrowDown, ChevronsUp } from 'lucide-react'
+import { ArrowDown, ChevronsUp, Info } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { workspaceId } from '../api'
 import { t } from '../i18n'
 import { IconButton } from '../ui'
 import './reading.css'
 import { freshReading, type ReadingState } from './readingModel'
+import { recordingReasons, type RecordingReason } from './recordingInfo'
 
 type Store = { value: ReadingState; listeners: Set<() => void> }
 const stores = new Map<string, Store>()
@@ -43,10 +45,25 @@ export function useRunReading(id: string) {
   )
   return [state, update] as const
 }
-export function TraceActions({ id }: { id: string }) {
+export function TraceActions({
+  id,
+  issues,
+}: {
+  id: string
+  issues?: ReadonlySet<RecordingReason>
+}) {
+  useTranslation()
   const [reading, update] = useRunReading(`execution:${id}`)
+  const messages = recordingReasons
+    .filter((reason) => issues?.has(reason))
+    .map((reason) => t(`recording.${reason}`))
   return (
     <>
+      {messages.length > 0 && (
+        <IconButton label={t('recording.info')} tooltip={messages.join(' ')}>
+          <Info />
+        </IconButton>
+      )}
       <IconButton
         label={t('reading.collapseAll')}
         onClick={() => update({ expanded: {}, autoExpand: false, follow: false })}

@@ -118,7 +118,7 @@ export function InstanceAccounts({ user }: { user: User }) {
         <nav className="breadcrumbs">
           <a href="/">Wakeit</a>
           <span>/</span>
-          <span>{tr('实例账号管理')}</span>
+          <span>{tr('账号管理')}</span>
         </nav>
         <div className="top-actions">
           <LanguageSwitch />

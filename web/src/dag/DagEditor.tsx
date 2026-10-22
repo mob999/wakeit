@@ -105,7 +105,7 @@ export function DagEditor({
           parameters: {},
           enabled: true,
           schedule: { cron: '0 9 * * *', timezone },
-          execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
+          execution: { timeout: null, start_grace: '1h', overlap: 'skip', misfire: 'latest' },
           dag: { nodes: [] },
         },
   )

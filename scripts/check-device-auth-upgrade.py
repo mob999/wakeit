@@ -38,14 +38,19 @@ def main():
               INSERT INTO tasks(id,runner_id,config,enabled,created_by,updated_by) SELECT 'preserved-task',r.id,'{}',false,u.id,u.id FROM runners r CROSS JOIN users u;
               INSERT INTO runs(id,task_id,task_revision,runner_id,config,state,source,scheduled_at,deadline) SELECT '00000000-0000-0000-0000-000000000003',id,revision,runner_id,config,'succeeded','manual',now(),now() FROM tasks;
               INSERT INTO events(run_id,seq,kind,data) SELECT id,1,'log','{"text":"preserved"}' FROM runs;""")
+            tables = ['users','credentials','runners','tasks','runs','events','settings']
+            # Compare every original column; additive migrations may introduce
+            # metadata without altering any legacy value. The legacy singleton
+            # settings key is intentionally replaced by workspace ownership.
+            columns = {
+                table: sql(f"SELECT string_agg(quote_literal(column_name),',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='{table}' AND (table_name<>'settings' OR column_name<>'id')")
+                for table in tables
+            }
             def snapshot():
-                result = {}
-                for table in ['users','credentials','runners','tasks','runs','events','settings']:
-                    # Compare legacy payloads while allowing additive workspace and DAG metadata.
-                    expression = "to_jsonb(t)-'archived_at'-'session'-'session_seq'-'workspace_id'-'instance_admin'-'parent_run_id'-'node_id'-'editor_layout'"
-                    if table == 'settings': expression += "-'id'"
-                    result[table] = sql(f"SELECT jsonb_agg({expression}) FROM {table} t")
-                return result
+                return {
+                    table: sql(f"SELECT jsonb_agg((SELECT jsonb_object_agg(key,value) FROM jsonb_each(to_jsonb(t)) WHERE key=ANY(ARRAY[{columns[table]}]))) FROM {table} t")
+                    for table in tables
+                }
             before=snapshot()
             binary=ROOT/'target/debug/wakeit'
             migrate=[binary,'gateway','migrate','--config',folder/'gateway.yaml']

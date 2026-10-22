@@ -2,7 +2,16 @@ import { ErrorToast } from './Toast'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { Building2, Check, ChevronDown, Plus, LogOut, ArrowUpRight, FileCog } from 'lucide-react'
+import {
+  Building2,
+  Check,
+  ChevronDown,
+  Plus,
+  LogOut,
+  ArrowUpRight,
+  FileCog,
+  Users,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { t as tr, roleName } from './i18n'
 import { api, workspaceId, type User, type WorkspaceList } from './api'
@@ -128,12 +137,15 @@ export function WorkspaceAccountMenu({ user, onLogout }: { user: User; onLogout:
                 controls.requestLeave().then((allowed) => allowed && location.assign('/instance'))
               }
             >
-              {tr('实例账号管理')}
+              <Users size={14} aria-hidden="true" />
+              {tr('账号管理')}
             </Dropdown.Item>
           )}
           <Dropdown.Item
+            className="workspace-signout"
             onSelect={() => controls.requestLeave().then((allowed) => allowed && onLogout())}
           >
+            <LogOut size={14} aria-hidden="true" />
             {tr('退出登录')}
           </Dropdown.Item>
         </Dropdown.Content>
@@ -175,6 +187,7 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
           <LanguageSwitch />
           <IconButton
             label={tr('退出登录')}
+            className="workspace-signout"
             onClick={() => api('/session', 'DELETE').then(() => location.assign('/'))}
           >
             <LogOut />
@@ -229,7 +242,8 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
         </div>
         {user.instance_admin && (
           <a className="workspace-instance-link" href="/instance">
-            {tr('实例账号管理')}
+            <Users size={14} aria-hidden="true" />
+            {tr('账号管理')}
           </a>
         )}
       </main>
