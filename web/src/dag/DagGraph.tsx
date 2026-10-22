@@ -13,6 +13,7 @@ import { Status } from '../Status'
 import { nodeName, runnerName } from './identity'
 import { CanvasControls } from './CanvasControls'
 import { NodeCardContent, OutputBadge } from './NodeCard'
+import { NODE_HEIGHT, NODE_WIDTH } from './layout'
 import './dag.css'
 export type DagView = 'graph' | 'list'
 export function DagGraph({
@@ -128,7 +129,7 @@ export function DagGraph({
             'elk.layered.spacing.nodeNodeBetweenLayers': '48',
             'elk.padding': '[top=20,left=20,bottom=20,right=20]',
           },
-          children: nodes.map((n) => ({ id: n.id, width: 240, height: 'state' in n ? 116 : 96 })),
+          children: nodes.map((n) => ({ id: n.id, width: NODE_WIDTH, height: NODE_HEIGHT })),
           edges: nodes.flatMap((n) =>
             n.pre
               .filter((id) => nodes.some((p) => p.id === id))

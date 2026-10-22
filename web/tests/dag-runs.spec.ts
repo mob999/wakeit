@@ -399,7 +399,7 @@ test('Run graph shares the overview canvas controls and fullscreen is read-only'
   await expect(node.locator('.dag-node-card-header')).toContainText('Preview device')
   await expect(node.locator('.dag-node-card-footer .dag-output-badge')).toHaveText('输出')
   await expect(node.locator('.dag-node-card-footer .status')).toContainText('运行中')
-  await expect(node).toHaveCSS('height', '116px')
+  await expect(node).toHaveCSS('height', '96px')
   await expect(node).toHaveAccessibleDescription('输出节点')
   await expect(controls.getByRole('button')).toHaveCount(3)
   await expect(graph.getByRole('button', { name: '适应视图', exact: true })).toHaveCount(0)
@@ -408,6 +408,35 @@ test('Run graph shares the overview canvas controls and fullscreen is read-only'
   await page.mouse.move(600, 400)
   await page.keyboard.press('Escape')
   await expect(graph.locator('.dag-structure-fullscreen')).toHaveCount(0)
+  // Output identity and the longest normal state must share the compact footer in both languages.
+  f.run.nodes[0].state = 'waiting'
+  f.run.nodes[0].execution_id = null
+  f.run.nodes[0].continuation_available = false
+  for (const [language, width, label, state] of [
+    ['en', 1440, 'Output', 'Waiting for predecessors'],
+    ['zh', 390, '输出', '等待前置节点'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.reload()
+    await page.evaluate(async (language) => {
+      const i18n = await import('/src/i18n.ts')
+      await i18n.setLanguage(language)
+    }, language)
+    await expect(node).toHaveCSS('height', '96px')
+    const badge = node.locator('.dag-output-badge'),
+      status = node.locator('.dag-node-card-status')
+    await expect(badge).toHaveText(label)
+    await expect(status).toHaveText(state)
+    const outputBounds = (await badge.boundingBox())!,
+      stateBounds = (await status.boundingBox())!,
+      cardBounds = (await node.boundingBox())!
+    expect(outputBounds.x + outputBounds.width).toBeLessThanOrEqual(stateBounds.x)
+    expect(
+      Math.abs(outputBounds.y + outputBounds.height / 2 - stateBounds.y - stateBounds.height / 2),
+    ).toBeLessThan(1)
+    expect(stateBounds.x + stateBounds.width).toBeLessThanOrEqual(cardBounds.x + cardBounds.width)
+    await node.screenshot({ path: test.info().outputPath(`compact-output-${language}.png`) })
+  }
   expect(writes).toEqual([])
 })
 

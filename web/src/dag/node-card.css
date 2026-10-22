@@ -1,6 +1,6 @@
 .dag-node-card {
   display: grid;
-  grid-template-rows: 28px minmax(0, 1fr) 24px;
+  grid-template-rows: 26px minmax(0, 1fr) 26px;
   padding: 0;
   gap: 0;
 }
@@ -9,10 +9,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 0 10px;
-  border-bottom: 1px solid var(--border);
-  border-radius: 5px 5px 0 0;
-  background: var(--surface);
+  padding: 0 12px;
   color: var(--muted);
   font-size: var(--ui-meta);
   line-height: 16px;
@@ -50,10 +47,10 @@
 }
 .dag-node-card-name {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-width: 0;
   min-height: 0;
-  padding: 0 12px;
+  padding: 6px 12px 0;
 }
 .dag-node-card-name strong {
   display: -webkit-box;
@@ -70,7 +67,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding: 0 12px 4px;
+  padding: 4px 12px;
 }
 .dag-node-card-status {
   min-width: 0;
@@ -89,10 +86,6 @@
   flex-shrink: 0;
   gap: 3px;
   height: 18px;
-  padding: 0 4px;
-  border: 1px solid #0969da33;
-  border-radius: 4px;
-  background: #0969da0d;
   color: #0969da;
   font-size: var(--ui-meta);
   font-weight: 500;
@@ -104,7 +97,5 @@
   fill: currentColor;
 }
 :root[data-theme='dark'] .dag-output-badge {
-  border-color: #58a6ff40;
-  background: #58a6ff14;
   color: #58a6ff;
 }
