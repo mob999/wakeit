@@ -9,6 +9,7 @@ type Options = {
   preview?: { format: string; content: string; mime?: string }
   pending?: Promise<void>
   images?: boolean
+  mutate?: (run: any) => void
 }
 async function fixture(page: Page, role = 'admin', options: Options = {}) {
   const reads: any[] = []
@@ -56,6 +57,7 @@ async function fixture(page: Page, role = 'admin', options: Options = {}) {
       outputs: [{ node_id: node.id, name: node.name, state: node.state, result: execution.result }],
     }
   }
+  options.mutate?.(run)
   await page.route('**/api/v1/**', async (route) => {
     if (await mockWorkspace(route, role)) return
     const path = apiPath(new URL(route.request().url()).pathname)
@@ -747,4 +749,119 @@ test('closing an original load cancels further chunks and changed originals reta
   await expect(dialog).toContainText('原图加载失败：图片在读取期间已变化，请重新打开预览。')
   await expect(dialog.locator('img')).toHaveAttribute('src', /^data:/)
   await expect(page.getByRole('alert')).toContainText('图片在读取期间已变化')
+})
+
+for (const surface of ['run', 'dag'] as const) {
+  test(`${surface} output references are deduplicated, responsive and use the actual file source`, async ({
+    page,
+  }, info) => {
+    const reads: string[] = []
+    page.on('request', (r) => {
+      if (r.url().includes('/files/preview')) reads.push(r.url())
+    })
+    await fixture(page, 'admin', {
+      surface,
+      result:
+        '# Synthetic report\n\n[Report](/workspace/report.md) and [Again](/workspace/report.md).\n\n[Source](https://example.test/source)\n\n`[Not a link](/workspace/hidden.md)`\n\n[Unsafe](javascript:alert)\n\n![Image](./chart.png)',
+      images: true,
+    })
+    const references = page.getByRole('complementary', { name: '引用', exact: true })
+    await expect(references).toHaveCount(1)
+    await expect(references.locator('.result-reference-list > div')).toHaveCount(3)
+    await expect(references).not.toContainText('Not a link')
+    await expect(references).not.toContainText('Unsafe')
+    const more = references.locator('.result-references-more')
+    if (await more.isVisible()) await more.click()
+    await expect(references.getByRole('link', { name: 'Source', exact: true })).toHaveAttribute(
+      'href',
+      'https://example.test/source',
+    )
+    await references.getByRole('button', { name: '引用: Report', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText('Preview')
+    expect(reads.at(-1)).toContain(`/runs/${surface === 'dag' ? child : id}/files/preview`)
+    await page.waitForTimeout(2300)
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+    await page.screenshot({ path: info.outputPath('references-desktop.png') })
+    for (const [width, language, theme] of [
+      [390, 'zh', 'dark'],
+      [1440, 'en', 'light'],
+    ] as const) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.evaluate(
+        async ({ language, theme }) => {
+          const module = await import('/src/i18n.ts')
+          await module.setLanguage(language)
+          document.documentElement.dataset.theme = theme
+        },
+        { language, theme },
+      )
+      const aside = page.locator('.result-references')
+      await expect(aside.locator('h4')).toHaveText(language === 'zh' ? '引用' : 'References')
+      const geometry = await aside.evaluate((el) => {
+        const reading = el.previousElementSibling!.getBoundingClientRect(),
+          own = el.getBoundingClientRect()
+        return { below: own.top >= reading.bottom, beside: own.left >= reading.right }
+      })
+      expect(width === 390 ? geometry.below : geometry.beside).toBe(true)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      await page.screenshot({ path: info.outputPath(`references-${width}-${language}.png`) })
+    }
+    await page.getByRole('button', { name: 'Raw', exact: true }).click()
+    await expect(page.locator('.result-references')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Read', exact: true }).click()
+    await expect(page.locator('.result-references')).toHaveCount(1)
+  })
+}
+
+test('readonly output references copy local paths without reading a device', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const reads = await fixture(page, 'viewer', { result: '[Report](/workspace/report.md)' })
+  await page
+    .getByRole('complementary', { name: '引用', exact: true })
+    .getByRole('button', { name: '引用: Report', exact: true })
+    .click()
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe('/workspace/report.md')
+  expect(reads).toEqual([])
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('multiple DAG outputs keep separate reference lists and execution ownership', async ({
+  page,
+}) => {
+  const other = '00000000-0000-4000-8000-000000000003'
+  const requests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/files/preview')) requests.push(request.url())
+  })
+  await fixture(page, 'admin', {
+    surface: 'dag',
+    result: '[First file](/workspace/first.md)',
+    mutate(run) {
+      run.nodes.push({ ...run.nodes[0], id: 'other', name: 'Second output', execution_id: other })
+      run.config.dag.nodes = run.nodes
+      run.result.outputs.push({
+        node_id: 'other',
+        name: 'Second output',
+        state: 'succeeded',
+        result: '[Second file](/workspace/second.md)',
+      })
+    },
+  })
+  const groups = page.locator('.dag-result-group')
+  await expect(groups).toHaveCount(2)
+  await expect(groups.nth(0).locator('.result-references')).toContainText('First file')
+  await expect(groups.nth(0).locator('.result-references')).not.toContainText('Second file')
+  await expect(groups.nth(1).locator('.result-references')).toContainText('Second file')
+  await groups.nth(1).getByRole('button', { name: '引用: Second file', exact: true }).click()
+  await expect(page.getByRole('dialog')).toContainText('Preview')
+  expect(requests.at(-1)).toContain(`/runs/${other}/files/preview`)
 })

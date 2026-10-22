@@ -15,10 +15,12 @@ export function ResultFileLink({
   href,
   source,
   children,
+  accessibleLabel,
 }: {
   href: string
   source?: FileSource
   children: ReactNode
+  accessibleLabel?: string
 }) {
   const toast = useToast()
   const me = useQuery<User>({ queryKey: ['me'], enabled: false })
@@ -113,6 +115,7 @@ export function ResultFileLink({
         type="button"
         className="result-file-link"
         data-result-file-href={href}
+        aria-label={accessibleLabel}
         title={allowed ? href : `${t('filePreview.copyPath')}: ${href}`}
         onClick={allowed ? () => void load() : copy}
       >
