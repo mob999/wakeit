@@ -395,6 +395,12 @@ test('Run graph shares the overview canvas controls and fullscreen is read-only'
   const graph = page.locator('.dag-structure'),
     controls = graph.getByRole('toolbar', { name: '画布操作', exact: true })
   await expect(graph.locator('.dag-graph-node')).toHaveCount(1)
+  const node = graph.locator('.dag-graph-node')
+  await expect(node.locator('.dag-node-card-header')).toContainText('Preview device')
+  await expect(node.locator('.dag-node-card-footer .dag-output-badge')).toHaveText('输出')
+  await expect(node.locator('.dag-node-card-footer .status')).toContainText('运行中')
+  await expect(node).toHaveCSS('height', '116px')
+  await expect(node).toHaveAccessibleDescription('输出节点')
   await expect(controls.getByRole('button')).toHaveCount(3)
   await expect(graph.getByRole('button', { name: '适应视图', exact: true })).toHaveCount(0)
   await controls.getByRole('button', { name: '全屏', exact: true }).click()

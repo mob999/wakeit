@@ -502,13 +502,13 @@
   "dag.zoomIn": "Zoom in",
   "dag.selectNodes": "Select nodes",
   "dag.needNode": "Add at least one node",
-  "dag.needResult": "Select at least one result node",
+  "dag.needResult": "Select at least one output node",
   "dag.cycle": "Dependencies form a cycle",
   "dag.required": "Enter {{field}}",
   "dag.notAncestor": "Result source is not an ancestor: {{name}}",
   "dag.pre": "Predecessors",
   "dag.insertResult": "Insert upstream result",
-  "dag.results": "Result nodes",
+  "dag.results": "Output nodes",
   "dag.autoResults": "Automatic",
   "dag.addNode": "Add node",
   "dag.resize": "Resize node configuration",
@@ -648,5 +648,6 @@
   "dag.nodeIssues": "Node issues · {{count}}",
   "dag.noNodeIssues": "No node issues",
   "reading.runStatus": "Run status",
-  "reading.runStatusReason": "Run status: {{state}}. Reason: {{reason}}"
+  "reading.runStatusReason": "Run status: {{state}}. Reason: {{reason}}",
+  "dag.output": "Output"
 }

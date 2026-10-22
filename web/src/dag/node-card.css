@@ -1,0 +1,110 @@
+.dag-node-card {
+  display: grid;
+  grid-template-rows: 28px minmax(0, 1fr) 24px;
+  padding: 0;
+  gap: 0;
+}
+.dag-node-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 5px 5px 0 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--ui-meta);
+  line-height: 16px;
+}
+.dag-node-card-runner,
+.dag-node-card-agent {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.dag-node-card-runner {
+  flex: 1;
+}
+.dag-node-card-agent {
+  flex: 0 1 auto;
+  max-width: 82px;
+}
+.dag-node-card-runner > span,
+.dag-node-card-agent > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dag-node-card-runner > svg,
+.dag-node-card-agent .agent-logo {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.dag-node-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  margin-right: -8px;
+}
+.dag-node-card-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 12px;
+}
+.dag-node-card-name strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: var(--ui-text);
+  font-weight: 550;
+  line-height: 18px;
+}
+.dag-node-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 12px 4px;
+}
+.dag-node-card-status {
+  min-width: 0;
+  margin-left: auto;
+}
+.dag-node-card-status .status {
+  font-size: var(--ui-meta);
+}
+.dag-node-card-invalid {
+  display: inline-flex;
+  color: var(--failure);
+}
+.dag-output-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 3px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid #0969da33;
+  border-radius: 4px;
+  background: #0969da0d;
+  color: #0969da;
+  font-size: var(--ui-meta);
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.dag-output-badge > svg {
+  flex-shrink: 0;
+  fill: currentColor;
+}
+:root[data-theme='dark'] .dag-output-badge {
+  border-color: #58a6ff40;
+  background: #58a6ff14;
+  color: #58a6ff;
+}
