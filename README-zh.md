@@ -14,13 +14,13 @@
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
 - **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
 
-最新已发布版本为 **0.3.1**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
+最新已发布版本为 **0.3.2**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
 
 报告和 Markdown 文件预览支持以缩略图内嵌本地 PNG/JPEG/WebP 图片，由原 Runner 读取；相对路径按执行目录或 Markdown 所在目录解析，沿用工作区权限及目录范围。点击图片后按需加载原图。
 
 ## 安装
 
-从 [v0.3.1 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.1) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
+从 [v0.3.2 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.2) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
 
 从源码构建需要 Rust 1.89+、Node.js 22.12+：
 

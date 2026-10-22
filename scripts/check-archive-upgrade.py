@@ -40,9 +40,10 @@ def main():
               INSERT INTO events(run_id,seq,kind,data) SELECT id,1,'log','{"text":"preserved"}' FROM runs;""")
             tables = ['users','credentials','runners','tasks','runs','events','settings']
             # Compare every original column; additive migrations may introduce
-            # metadata without altering any legacy value.
+            # metadata without altering any legacy value. The legacy singleton
+            # settings key is intentionally replaced by workspace ownership.
             columns = {
-                table: sql(f"SELECT string_agg(quote_literal(column_name),',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='{table}'")
+                table: sql(f"SELECT string_agg(quote_literal(column_name),',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='{table}' AND (table_name<>'settings' OR column_name<>'id')")
                 for table in tables
             }
             def snapshot():
@@ -58,7 +59,7 @@ def main():
             assert original.returncode != 0 and 'previously applied' in original.stderr,original.stderr
             upgrade=['python3',ROOT/'scripts/upgrade-unreleased-archive.py','--backup',folder/'backup.dump','--pg-bin',pg]
             run(upgrade,env)
-            assert snapshot()==before, (before, snapshot())
+            assert snapshot()==before
             assert sql('SELECT count(*) FROM runs WHERE session IS NOT NULL OR session_seq<>0')=='0'
             assert sql("SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='runs_session_active'")=='1'
             assert (folder/'backup.dump').stat().st_size>0
@@ -70,11 +71,11 @@ def main():
             sql("UPDATE _sqlx_migrations SET checksum=decode('deadbeef','hex') WHERE version=1")
             bad=run(upgrade,env,ok=False)
             assert bad.returncode != 0 and 'Unknown migration baseline' in bad.stderr
-            assert snapshot()==before, (before, snapshot())
+            assert snapshot()==before
             sql(f"UPDATE _sqlx_migrations SET checksum=decode('{published}','hex') WHERE version=1")
             run(migrate,env)
             assert sql("SELECT string_agg(version::text,',' ORDER BY version) FROM _sqlx_migrations WHERE success")==','.join(str(int(p.name.split('_')[0])) for p in sorted((ROOT/'crates/wakeit/migrations').glob('*.sql')))
-            assert snapshot()==before, (before, snapshot())
+            assert snapshot()==before
             assert sql('SELECT count(*) FROM runs WHERE parent_run_id IS NOT NULL OR node_id IS NOT NULL')=='0'
             assert sql('SELECT count(*) FROM tasks WHERE editor_layout IS NOT NULL')=='0'
             print('Archive upgrade: old checksum rejected by normal migrate; backup, data preservation, published baseline plus workspace migration, repeat and unknown-checksum refusal passed.')

@@ -14,13 +14,13 @@ Define the instructions and timing, and Wakeit sends the task to a Runner on you
 - **Separate workspaces.** Keep tasks, runs, devices and permissions isolated across teams. See [workspace configuration and authentication](docs/workspaces.md).
 - **Host locally or in the cloud.** One Rust binary includes the Gateway, Runner and CLI; the WebUI ships with the Gateway.
 
-The latest published release is **0.3.1**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
+The latest published release is **0.3.2**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
 
 Local PNG/JPEG/WebP references render as thumbnails in reports and Markdown-file previews through the original Runner; clicking loads the original image on demand; relative image paths use the execution or Markdown directory and existing workspace/root permissions apply.
 
 ## Install
 
-Download the binary for your platform from the [v0.3.1 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.1), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
+Download the binary for your platform from the [v0.3.2 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.2), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
 
 To build from source, install Rust 1.89+ and Node.js 22.12+, then run:
 

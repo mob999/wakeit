@@ -40,9 +40,10 @@ def main():
               INSERT INTO events(run_id,seq,kind,data) SELECT id,1,'log','{"text":"preserved"}' FROM runs;""")
             tables = ['users','credentials','runners','tasks','runs','events','settings']
             # Compare every original column; additive migrations may introduce
-            # metadata without altering any legacy value.
+            # metadata without altering any legacy value. The legacy singleton
+            # settings key is intentionally replaced by workspace ownership.
             columns = {
-                table: sql(f"SELECT string_agg(quote_literal(column_name),',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='{table}'")
+                table: sql(f"SELECT string_agg(quote_literal(column_name),',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema='public' AND table_name='{table}' AND (table_name<>'settings' OR column_name<>'id')")
                 for table in tables
             }
             def snapshot():
