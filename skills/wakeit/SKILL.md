@@ -27,4 +27,4 @@ Gateway 的 PostgreSQL 是 Task 的权威存储；本地 YAML 必须 apply 才�
 
 优先使用 CLI 的 `--json` 读取实际对象及能力。没有 models 接口时手填；查询失败不编造模型列表。任务与运行 ID 从返回数据读取，用户只需表达任务名称和意图。
 
-连接已有服务优先 `wakeit setup --gateway URL --workspace WORKSPACE_ID`，浏览器明确授权后保存原生连接并注册 Runner、自启和验证；仅 CLI 使用 `wakeit login --gateway URL --workspace WORKSPACE_ID`。已有连接优先复用。认证也可通过已有环境变量或凭据文件；不要要求用户把密钥贴进对话，也不要打印凭据。部署新服务与连接已有服务分开，不重建现有数据库或 Agent 身份。任务处于 unknown 时先核对原执行，再考虑重试。
+连接已有服务优先 `wakeit setup --gateway URL --workspace WORKSPACE_ID`，浏览器明确授权后保存原生连接并注册 Runner、自启和验证；仅 CLI 使用 `wakeit login --gateway URL --workspace WORKSPACE_ID`。已有连接优先复用。认证也可通过已有环境变量或凭据文件；不要要求用户把密钥贴进对话，也不要打印凭据。部署新服务与连接已有服务分开，不重建现有数据库或 Agent 身份。任务处于 unknown 时先核对原执行，再考虑重试。DAG 失败节点用 `run retry RUN --node NODE` 保留成功节点；恢复整图停止需明确 `--resume-stopped`，不把节点重试换成整轮重跑。

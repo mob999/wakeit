@@ -8,13 +8,15 @@
 
 - **接入已有 Agent**：内置 Codex、Claude Code、Pi、OpenCode、Kimi Code、Antigravity CLI、Gemini CLI、Cursor、GitHub Copilot CLI、Cline、Goose、Qwen Code；[能力与配置](docs/agents.md)按原生接口提供，自定义适配只需配置命令。
 - **在自己的设备执行**：Runner 主动连接 Gateway，支持 Linux、macOS、Windows，无需设备开放入站端口。
-- **按时运行，查看结果**：Cron、固定间隔、一次性时间和手动执行；支持实时过程及 Markdown 报告，包含代码高亮、公式与 Mermaid 图表；Moments 按完成时间汇总结果；可通过原 Runner 预览报告链接中的受支持本地文件，访问受设备目录范围限制。
+- **按时运行，查看结果**：Cron、固定间隔、一次性时间和手动执行；支持实时过程及 Markdown 报告，包含代码高亮、公式与 Mermaid 图表；动态以紧凑时间线汇总结果，提供原文目录、报告中的文件链接和 DAG 输出切换；可通过原 Runner 预览报告链接中的受支持本地文件，访问受设备目录范围限制。
 - **编排 Agent DAG。** 在画布拖入 Agent，或导入一份 YAML，连接 AND 依赖并引用上游结果；整图执行并按所选节点展示报告，节点可配置指数退避重试。见 [DAG 任务](docs/dag.md)。
 - **保留执行上下文**：支持会话的 Agent 可绑定原生会话，直接通过网页终端续聊、复制原生命令，或在原 Runner 设备用 `wakeit run resume <run-id>` 继续交互；见[会话续聊](docs/cli.md#绑定会话与本机续聊)。
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
 - **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
 
 最新已发布版本为 **0.3.1**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
+
+报告和 Markdown 文件预览支持以缩略图内嵌本地 PNG/JPEG/WebP 图片，由原 Runner 读取；相对路径按执行目录或 Markdown 所在目录解析，沿用工作区权限及目录范围。点击图片后按需加载原图。
 
 ## 安装
 
@@ -84,6 +86,8 @@ wakeit task pause daily-review
 ```
 
 Task 的权威存储是 Gateway 的 PostgreSQL；YAML 是提交或更新任务的输入文件。模型发现取决于适配提供的接口，没有接口时手填。普通任务失败不会自动重新执行；DAG 节点可通过 `max_retries` 启用有限次数的重试，并可立即启动已排队的重试，不增加尝试次数；无法确认执行结果时进入 `unknown`，先核对实际状态，再决定是否重试。
+
+使用 `wakeit run retry RUN --node NODE` 可在原 Run 内重试失败节点，保留成功节点并继续下游。DAG 整图总时限默认关闭，可按需开启。
 
 任务可在详情中归档，停止后续调度，正在执行的运行继续，历史保留；设置 → 归档任务可恢复，恢复后保持暂停。CLI 对应命令为 `wakeit task archive <id>`、`wakeit task list --archived` 和 `wakeit task restore <id>`。
 

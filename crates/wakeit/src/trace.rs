@@ -57,6 +57,39 @@ pub struct LogRecord {
     pub stream: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub diagnostic: bool,
+    /// Explicit recording degradation; ordinary diagnostics do not imply lost events.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recording_issue: Option<RecordingIssue>,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingIssue {
+    ContentShortened,
+    EventLimit,
+    EventUnsupported,
+    EventParseFailed,
+    EventTooLarge,
+    ContentLimit,
+}
+impl RecordingIssue {
+    pub fn status(self) -> &'static str {
+        match self {
+            Self::ContentShortened | Self::EventTooLarge | Self::ContentLimit => "truncated",
+            Self::EventLimit | Self::EventUnsupported | Self::EventParseFailed => "incomplete",
+        }
+    }
+}
+/// Attach an explicit cause at its producer, never by parsing human log text.
+pub fn recording_issue(mut records: Vec<StreamRecord>, issue: RecordingIssue) -> Vec<StreamRecord> {
+    for record in &mut records {
+        if let RecordData::Log(log) = &mut record.record {
+            log.recording_issue = Some(issue);
+        }
+    }
+    records
 }
 fn stdout() -> String {
     "stdout".into()

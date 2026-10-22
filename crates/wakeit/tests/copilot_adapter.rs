@@ -86,3 +86,93 @@ fn codex_and_claude_defer_reports_until_process_success_instead_of_emitting_twic
         assert_eq!(n.finish().len(), 1);
     }
 }
+
+fn copilot_done(n: &mut CopilotNormalizer, failed: bool) {
+    n.accept(
+        json!({"type":"assistant.message","data":{"messageId":"final","content":"Completed"}}),
+    );
+    n.accept(json!({"type":"result","exitCode":if failed {1} else {0}}));
+}
+
+#[test]
+fn large_copilot_tool_payloads_are_previews_not_execution_failures() {
+    let mut n = CopilotNormalizer::default();
+    let start=n.accept(json!({"type":"tool.execution_start","data":{"toolCallId":"large","toolName":"read","arguments":{"path":"x".repeat(400_000)}}}));
+    assert!(
+        start
+            .iter()
+            .any(|r| matches!(&r.record,RecordData::Trace(t) if t.input["truncated"]==true))
+    );
+    let end=n.accept(json!({"type":"tool.execution_complete","data":{"toolCallId":"large","success":true,"result":{"text":"x".repeat(400_000)}}}));
+    assert!(end.iter().any(|r|matches!(&r.record,RecordData::Trace(t) if t.status==TraceState::Succeeded && t.output["truncated"]==true)));
+    for record in start.iter().chain(end.iter()) {
+        assert!(serde_json::to_vec(record).unwrap().len() < wakeit::trace::RECORD_LIMIT);
+    }
+    copilot_done(&mut n, false);
+    assert!(!n.failed());
+    assert!(matches!(&n.finish()[0].record,RecordData::Result(v) if v=="Completed"));
+}
+
+#[test]
+fn copilot_large_message_deltas_preserve_native_success_and_authoritative_final_text() {
+    let mut n = CopilotNormalizer::default();
+    for _ in 0..3 {
+        n.accept(json!({"type":"assistant.message_delta","data":{"messageId":"large","deltaContent":"x".repeat(100_000)}}));
+    }
+    let text = "完整结果".repeat(30_000);
+    n.accept(json!({"type":"assistant.message","data":{"messageId":"large","content":text}}));
+    n.accept(json!({"type":"result","exitCode":0}));
+    assert!(!n.failed());
+    assert!(matches!(&n.finish()[0].record,RecordData::Result(v) if v==&text));
+}
+
+#[test]
+fn copilot_history_budgets_keep_reading_terminal_outcomes() {
+    for budget in ["events", "nodes", "pending", "messages"] {
+        for failed in [false, true] {
+            let mut n = CopilotNormalizer::default();
+            let mut diagnostics = 0;
+            let count = match budget {
+                "events" => 100_001,
+                "nodes" => 10_001,
+                _ => 35,
+            };
+            for i in 0..count {
+                let event = match budget {
+                    "events" => json!({"id":format!("event-{i}"),"type":"future_event"}),
+                    "nodes" => {
+                        json!({"type":"assistant.message","data":{"messageId":format!("message-{i}"),"content":"partial"}})
+                    }
+                    "messages" => {
+                        json!({"type":"assistant.message_delta","data":{"messageId":format!("message-{i}"),"deltaContent":"x".repeat(250_000)}})
+                    }
+                    _ => {
+                        json!({"type":"tool.execution_start","data":{"toolCallId":format!("tool-{i}"),"toolName":"read","arguments":{"value":"x".repeat(250_000)}}})
+                    }
+                };
+                diagnostics += n
+                    .accept(event)
+                    .iter()
+                    .filter(|r| matches!(&r.record,RecordData::Log(l) if l.diagnostic))
+                    .count();
+            }
+            assert!(diagnostics > 0, "budget {budget} must be observable");
+            copilot_done(&mut n, failed);
+            assert_eq!(n.failed(), failed, "budget {budget}");
+            assert_eq!(n.finish().is_empty(), failed, "budget {budget}");
+        }
+    }
+}
+
+#[test]
+fn oversized_copilot_final_reports_are_explicitly_incomplete() {
+    let mut n = CopilotNormalizer::default();
+    n.accept(
+        json!({"type":"assistant.message","data":{"messageId":"m","content":"中".repeat(400_000)}}),
+    );
+    n.accept(json!({"type":"result","exitCode":0}));
+    assert!(!n.failed());
+    assert!(
+        matches!(&n.finish()[0].record,RecordData::Result(v) if v["truncated"]==true && v["preview"].as_str().unwrap().len()<=32*1024)
+    );
+}

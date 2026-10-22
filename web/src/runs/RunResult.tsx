@@ -4,8 +4,10 @@ import { MarkdownContent } from './MarkdownContent'
 import { DetailBody } from '../Workbench'
 import { CopyValue } from './CopyValue'
 import type { FileSource } from '../files/links'
-import { Status } from '../Status'
 import { CodeContent, isJsonCode } from './CodeContent'
+import { useLayoutEffect, useRef, useState } from 'react'
+import { reportIndex, type ReportLink } from '../moments/reportModel'
+import { ResultReferences } from './ResultReferences'
 export function resultData(result: unknown) {
   const truncated =
     result !== null &&
@@ -53,7 +55,6 @@ export function RunResultActions({
 export function RunResult({
   result,
   raw,
-  toast,
   source,
 }: {
   result: unknown
@@ -64,40 +65,6 @@ export function RunResult({
   useTranslation()
   const { truncated, text, source: rawSource, empty } = resultData(result)
   if (empty) return null
-  const outputs = dagOutputs(result)
-  if (outputs && !raw)
-    return (
-      <div className="dag-results">
-        {outputs.map((output) => (
-          <section className="dag-result-group" key={output.node_id}>
-            <header>
-              <strong>{output.name}</strong>
-              <Status state={output.state} />
-              {toast && (
-                <CopyValue
-                  label={tr('复制结果')}
-                  value={resultData(output.result).source ?? ''}
-                  toast={toast}
-                />
-              )}
-            </header>
-            {output.reason && output.state !== 'succeeded' && (
-              <p className="quiet dag-node-empty">{output.reason}</p>
-            )}
-            {resultData(output.result).empty ? (
-              <p className="quiet dag-node-empty">{tr('未返回结果')}</p>
-            ) : (
-              <RunResult
-                result={output.result}
-                raw={false}
-                source={source && { runId: source.runId, nodeId: output.node_id }}
-              />
-            )}
-          </section>
-        ))}
-      </div>
-    )
-
   return (
     <div className="run-result-panel">
       <DetailBody>
@@ -109,11 +76,28 @@ export function RunResult({
             className="result result-raw"
           />
         ) : (
-          <article className="markdown-result result">
-            <MarkdownContent text={text} source={source} />
-          </article>
+          <ResultReading key={`${source?.runId}:${source?.nodeId}`} text={text} source={source} />
         )}
       </DetailBody>
+    </div>
+  )
+}
+
+function ResultReading({ text, source }: { text: string; source?: FileSource }) {
+  const reading = useRef<HTMLDivElement>(null),
+    report = useRef<HTMLElement>(null)
+  const [links, setLinks] = useState<ReportLink[]>([])
+  useLayoutEffect(() => {
+    setLinks(report.current ? reportIndex(report.current).links : [])
+  }, [text])
+  return (
+    <div className={`result-reading-layout${links.length ? ' result-with-references' : ''}`}>
+      <div className="result-reading-body" ref={reading}>
+        <article className="markdown-result result" ref={report}>
+          <MarkdownContent text={text} source={source} />
+        </article>
+      </div>
+      {links.length > 0 && <ResultReferences links={links} reading={reading} source={source} />}
     </div>
   )
 }

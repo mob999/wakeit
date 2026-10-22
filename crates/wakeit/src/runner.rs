@@ -392,7 +392,7 @@ impl Runner {
             .bind(id.to_string())
             .fetch_one(&self.journal.pool)
             .await?;
-        let result = process::execute_output_named(
+        let result = process::execute_output_named_format(
             if run.assignment.task.session.is_some() {
                 &run.agent
                     .session
@@ -405,10 +405,17 @@ impl Runner {
             &run.assignment.task,
             id,
             None,
-            duration(&run.assignment.task.execution.timeout)?,
+            duration(
+                run.assignment
+                    .task
+                    .execution
+                    .timeout
+                    .as_deref()
+                    .unwrap_or("1h"),
+            )?,
             active.cancel.clone(),
             self.sink(id, true),
-            matches!(run.agent.output.format, OutputFormat::Events),
+            run.agent.output.format.clone(),
             run.session_title.as_deref(),
         )
         .await;
@@ -508,28 +515,12 @@ impl Runner {
                 } else {
                     "failed"
                 };
-                let value = match &run.agent.output.format {
-                    OutputFormat::Events => Ok(out.result.unwrap_or(Value::Null)),
-                    OutputFormat::Text => Ok(json!(out.stdout)),
-                    OutputFormat::Json => serde_json::from_str::<Value>(&out.stdout),
-                    OutputFormat::Jsonl => out
-                        .stdout
-                        .lines()
-                        .map(serde_json::from_str::<Value>)
-                        .collect::<std::result::Result<Vec<_>, _>>()
-                        .map(|v| json!(v)),
-                };
+                let value = out.result_value(&run.agent.output);
                 match value {
-                    Ok(mut value) => {
-                        if let Some(pointer) = &run.agent.output.result_pointer {
-                            value = value
-                                .pointer(pointer)
-                                .cloned()
-                                .context("output result_pointer not found")?;
-                        }
+                    Ok(value) => {
                         self.journal.emit(id, "state", json!({
                             "state":state,
-                            "reason":if !out.confirmed { Some("could not confirm process tree termination") } else if out.code != Some(0) && out.stopped.is_none() { Some("command exited unsuccessfully") } else { None },
+                            "reason":if !out.confirmed { Some("could not confirm process tree termination") } else if out.code != Some(0) && out.stopped.is_none() { Some("command exited unsuccessfully") } else if out.stdout_truncated { Some("Result exceeded the retained output limit; showing a preview.") } else { None },
                             "result":value,
                             "retryable":out.confirmed && matches!(state,"failed"|"timed_out"),
                         }), Some(if state=="unknown" {"unknown"} else {"done"})).await?;
@@ -621,8 +612,14 @@ impl Runner {
             .await?;
         let status = run.agent.status.as_ref().context("status required")?;
         let interval = duration(&run.agent.poll_interval)?;
-        let timeout =
-            chrono::Duration::from_std(duration(&run.assignment.task.execution.timeout)?)?;
+        let timeout = chrono::Duration::from_std(duration(
+            run.assignment
+                .task
+                .execution
+                .timeout
+                .as_deref()
+                .unwrap_or("1h"),
+        )?)?;
         let deadline = run.started + timeout;
         let mut cancel_sent = false;
         let mut cancel_since = None;

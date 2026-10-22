@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+const zh = JSON.parse(readFileSync(new URL('../src/locales/zh.json', import.meta.url), 'utf8'))
+const en = JSON.parse(readFileSync(new URL('../src/locales/en.json', import.meta.url), 'utf8'))
 const workspace = '11111111-1111-4111-8111-111111111111'
 const id = '00000000-0000-4000-8000-000000000001'
 const child = '00000000-0000-4000-8000-000000000002'
@@ -100,7 +103,12 @@ async function mock(page: Page, f: ReturnType<typeof fixture>, role = 'admin') {
     else if (path.endsWith('/runs')) value = { items: [f.run], total: 1, page: 1, page_size: 20 }
     else if (path.endsWith(`/runs/${id}`)) value = f.run
     else if (path.endsWith('/nodes/collect'))
-      value = { node: f.run.nodes[0], execution: f.execution }
+      value = {
+        node: f.run.nodes[0],
+        execution: f.execution,
+        retry: (f as any).retry,
+        attempts: (f as any).attempts,
+      }
     else if (path.endsWith('/events'))
       value = f.events.filter((e) => e.id > Number(url.searchParams.get('after') ?? 0))
     else if (path.endsWith('/stream'))
@@ -204,7 +212,8 @@ test('DAG highlights output once, preserves trace expansion and uses only whole-
     'true',
   )
   await page.getByRole('button', { name: '原文', exact: true }).click()
-  await expect(page.locator('.result-raw')).toContainText('"type": "dag"')
+  await expect(page.locator('.result-raw')).toContainText('# Final report')
+  await expect(page.locator('.result-raw')).not.toContainText('"type": "dag"')
   await page.getByRole('button', { name: '阅读', exact: true }).click()
   await expect(page.locator('.trace-notice')).toHaveCount(0)
   await page.locator('.dag-run-page').evaluate((el) => (el.scrollTop = 0))
@@ -238,8 +247,9 @@ test('DAG completion does not leave details; Moments previews reports and resume
   await expect(page.getByRole('heading', { name: 'Preview report', exact: true })).toBeVisible()
   await expect(page.locator('.moment-identity')).toContainText('2')
   await expect(page.locator('.moment-identity')).not.toContainText('Preview device')
-  await page.getByRole('button', { name: '阅读全文', exact: true }).click()
+  await page.getByRole('link', { name: '查看运行', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Final report', exact: true })).toBeVisible()
+  await page.getByRole('tab', { name: '详情', exact: true }).click()
   await page.getByRole('button', { name: '续聊', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('pi --resume native-session')
   await expect(page.getByRole('dialog')).toContainText('/workspace')
@@ -408,8 +418,9 @@ test('Run graph shares the overview canvas controls and fullscreen is read-only'
 test('retry acceleration targets the reserved execution and historical attempts retain their own result and session', async ({
   page,
 }) => {
-  const f = fixture(),
-    old = '00000000-0000-4000-8000-000000000003'
+  const f = fixture()
+  ;(f as any).retry = { action: 'accelerate', affected: [] }
+  const old = '00000000-0000-4000-8000-000000000003'
   f.run.nodes[0] = {
     ...f.run.nodes[0],
     state: 'queued',
@@ -429,6 +440,7 @@ test('retry acceleration targets the reserved execution and historical attempts 
     return route.fulfill({
       json: {
         node: f.run.nodes[0],
+        retry: (f as any).retry,
         attempts: [
           { id: old, state: 'failed' },
           { id: child, state: 'queued' },
@@ -460,7 +472,7 @@ test('retry acceleration targets the reserved execution and historical attempts 
   })
   await page.goto(`/w/${workspace}/runs?run=${id}`)
   await page.getByRole('button', { name: '立即重试', exact: true }).click()
-  expect(writes).toEqual([{ execution_id: child }])
+  expect(writes).toEqual([{ execution_id: child, resume_stopped: false }])
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   const details = page.locator('.dag-node-details:visible')
   await details.getByRole('combobox', { name: '执行尝试', exact: true }).click()
@@ -598,11 +610,14 @@ for (const [width, language, theme] of [
       .getByRole('tab', { name: language === 'en' ? 'Details' : '详情', exact: true })
       .click()
     const details = page.locator('.dag-node-details:visible')
-    const trigger = details.locator('.dag-node-context > .choice-selector')
+    const trigger = details.getByRole('combobox', {
+      name: language === 'en' ? 'Select a node' : '选择节点',
+      exact: true,
+    })
     await expect(trigger).toHaveAttribute('title', f.run.nodes[0].name)
     await expect(details.locator('.dag-node-duration')).toHaveText('401.8s')
     expect(await trigger.evaluate((el) => getComputedStyle(el).fontSize)).toBe('12px')
-    for (const selector of ['.dag-node-context > .status', '.dag-node-duration']) {
+    for (const selector of ['.dag-node-context .status', '.dag-node-duration']) {
       expect(await details.locator(selector).evaluate((el) => getComputedStyle(el).fontSize)).toBe(
         '11px',
       )
@@ -667,6 +682,388 @@ for (const [width, language, theme] of [
     await expect(menu).toHaveCount(0)
     await expect(trigger).toBeFocused()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    expect(writes).toEqual([])
+  })
+}
+
+test('manual retry uses the current guard, preserves selection and requires explicit stopped confirmation', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = f.execution.state = f.run.nodes[0].state = 'failed'
+  f.run.finished_at = f.execution.finished_at = at
+  ;(f as any).retry = { action: 'retry', affected: [] }
+  await mock(page, f)
+  const requests: any[] = []
+  await page.route('**/nodes/collect/retry', async (route) => {
+    requests.push(route.request().postDataJSON())
+    return route.fulfill({
+      status: 409,
+      json: { error: 'Execution changed; refresh before retrying' },
+    })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const tab of ['执行', '详情']) {
+      await page.getByRole('tab', { name: tab, exact: true }).click()
+      const context = page.locator('.dag-node-context:visible')
+      await expect(
+        context
+          .locator('.dag-node-context-actions')
+          .getByRole('button', { name: '重试节点', exact: true }),
+      ).toBeVisible()
+      await expect(context.locator(':scope > .icon-button')).toHaveCount(0)
+      const centers = await context.evaluate((el) => {
+        const center = (element: Element) => {
+          const rect = element.getBoundingClientRect()
+          return rect.y + rect.height / 2
+        }
+        return [
+          center(el.querySelector('[aria-label="重试节点"]')!),
+          center(el.querySelector('.status')!),
+          center(el.querySelector('.dag-node-duration')!),
+        ]
+      })
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(1)
+    }
+  }
+  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('button', { name: '重试节点', exact: true }).first().click()
+  await expect(page.getByRole('alert')).toContainText('当前执行已变更，请刷新后重试。')
+  expect(requests[0]).toEqual({ execution_id: child, resume_stopped: false })
+  f.run.state = f.execution.state = f.run.nodes[0].state = 'cancelled'
+  ;(f as any).retry = {
+    action: 'resume',
+    affected: [{ id: 'after', name: 'Downstream report', state: 'cancelled' }],
+  }
+  await expect(page.getByRole('button', { name: '恢复节点', exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: '恢复节点', exact: true }).first().click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('保留成功节点')
+  await expect(dialog.getByRole('table')).toContainText('Downstream report')
+  expect(requests).toHaveLength(1)
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(dialog).toBeVisible()
+    await page.screenshot({ path: `../.local/review/recovery-dialog-${width}.png` })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+  await dialog.getByRole('button', { name: '恢复节点', exact: true }).click()
+  await expect.poll(() => requests.length).toBe(2)
+  expect(requests[1]).toEqual({ execution_id: child, resume_stopped: true })
+  await expect(dialog).toBeVisible() // conflict retains context instead of silently switching attempts
+})
+
+test('uncreated failed execution supports retry and historical attempts do not expose the action', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.state = f.execution.state = f.run.nodes[0].state = 'failed'
+  f.run.nodes[0].execution_id = null as any
+  ;(f as any).retry = { action: 'retry', affected: [] }
+  await mock(page, f)
+  const bodies: any[] = []
+  await page.route('**/nodes/collect/retry', async (route) => {
+    bodies.push(route.request().postDataJSON())
+    return route.fulfill({ json: { id: child, parent_run_id: id, node_id: 'collect' } })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  await page.getByRole('button', { name: '重试节点', exact: true }).first().click()
+  await expect.poll(() => bodies.length).toBe(1)
+  expect(bodies[0].execution_id).toBeNull()
+})
+
+for (const language of ['zh', 'en'] as const) {
+  test(`node retry controls, confirmation, blockers and Toast follow ${language} and live language changes`, async ({
+    page,
+  }) => {
+    const messages = language === 'zh' ? zh : en
+    const other = language === 'zh' ? en : zh
+    await page.addInitScript(
+      (language) => localStorage.setItem('wakeit-language', language),
+      language,
+    )
+    const f = fixture()
+    f.run.state = f.execution.state = f.run.nodes[0].state = 'failed'
+    f.run.finished_at = f.execution.finished_at = at
+    ;(f as any).retry = { action: 'retry', affected: [] }
+    ;(f as any).attempts = [
+      { id: child, state: 'failed' },
+      { id: 'older', state: 'failed' },
+    ]
+    await mock(page, f)
+    await page.route('**/nodes/collect/retry', (route) =>
+      route.fulfill({ status: 409, json: { error: 'Execution changed; refresh before retrying' } }),
+    )
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    const retry = page.getByRole('button', { name: messages['retry.node'], exact: true }).first()
+    await retry.hover()
+    await expect(page.getByRole('tooltip')).toHaveText(messages['retry.node'])
+    await expect(
+      page.getByRole('combobox', { name: messages['retry.attempts'], exact: true }).first(),
+    ).toBeVisible()
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 })
+      const identity = page.locator('.dag-node-context:visible .dag-node-identity')
+      const centers = await identity.evaluate((el) =>
+        Array.from(el.children).map((child) => {
+          const box = child.getBoundingClientRect()
+          return box.y + box.height / 2
+        }),
+      )
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(1)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+    }
+    const attempt = page
+      .getByRole('combobox', { name: messages['retry.attempts'], exact: true })
+      .first()
+    await attempt.click()
+    const menu = page.locator('.dag-attempt-menu')
+    await expect(menu).toBeVisible()
+    const rows = await menu.getByRole('option').evaluateAll((elements) =>
+      elements.map((el) => {
+        const row = el.getBoundingClientRect()
+        const label = el.querySelector('.choice-option-label')!.getBoundingClientRect()
+        const status = el.querySelector('.choice-option-meta')!.getBoundingClientRect()
+        return {
+          height: row.height,
+          labelHeight: label.height,
+          statusX: status.x,
+          width: row.width,
+        }
+      }),
+    )
+    expect(rows.every((row) => row.labelHeight <= 20 && row.height <= 40 && row.width >= 190)).toBe(
+      true,
+    )
+    expect(new Set(rows.map((row) => row.statusX)).size).toBe(1)
+    await page.screenshot({ path: `../.local/review/attempt-menu-${language}.png` })
+    await menu.getByRole('listbox').press('Escape')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await retry.click()
+    await expect(page.getByRole('alert')).toContainText(
+      messages['Execution changed; refresh before retrying'],
+    )
+    ;(f as any).retry = { action: 'accelerate', affected: [] }
+    f.run.nodes[0].retry_at = '2099-01-01T00:00:00Z'
+    await expect(
+      page.getByRole('button', { name: messages['retry.now'], exact: true }).first(),
+    ).toBeVisible()
+    await expect(page.locator('.dag-retry-time:visible')).toContainText(messages['retry.waiting'])
+    ;(f as any).retry = {
+      action: 'resume',
+      affected: [{ id: 'after', name: 'Downstream report', state: 'cancelled' }],
+    }
+    await page.getByRole('button', { name: messages['retry.resume'], exact: true }).first().click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText(messages['retry.preserve'])
+    await expect(
+      dialog.getByRole('columnheader').filter({ hasText: messages['操作'] }),
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole('cell', { name: messages['retry.continue'], exact: true }),
+    ).toBeVisible()
+    await page.evaluate(
+      async (language) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+      },
+      language === 'zh' ? 'en' : 'zh',
+    )
+    await expect(dialog.getByRole('heading')).toHaveText(other['retry.resume'])
+    await expect(dialog).toContainText(other['retry.preserve'])
+    await dialog.getByRole('button', { name: other['取消'], exact: true }).click()
+    ;(f as any).retry = {
+      action: null,
+      reason: 'Node in state succeeded cannot be retried',
+      affected: [],
+    }
+    const blocked = other['retry.error.state'].replace('{{state}}', other['成功'])
+    await expect(page.getByRole('button', { name: blocked, exact: true }).first()).toBeDisabled()
+    await page.evaluate(async (language) => {
+      const module = await import('/src/i18n.ts')
+      await module.setLanguage(language)
+    }, language)
+    await expect(
+      page
+        .getByRole('button', {
+          name: messages['retry.error.state'].replace('{{state}}', messages['成功']),
+          exact: true,
+        })
+        .first(),
+    ).toBeDisabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}
+
+test('recording tooltips belong to the selected DAG execution, never another node', async ({
+  page,
+}) => {
+  const f = fixture()
+  f.run.nodes.push({
+    ...f.run.nodes[0],
+    id: 'other',
+    name: 'Other branch',
+    execution_id: '00000000-0000-4000-8000-000000000003',
+  })
+  await mock(page, f)
+  await page.route('**/nodes/other', (route) =>
+    route.fulfill({
+      json: {
+        node: f.run.nodes[1],
+        execution: { ...f.execution, id: f.run.nodes[1].execution_id, node_id: 'other' },
+      },
+    }),
+  )
+  await page.route('**/runs/*/events?*', (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill({
+      json:
+        url.pathname.includes(child) && !Number(url.searchParams.get('after'))
+          ? [
+              ...f.events,
+              {
+                id: 2,
+                run_id: child,
+                seq: 2,
+                kind: 'trace_status',
+                created_at: at,
+                data: { status: 'truncated', reason: 'content_shortened' },
+              },
+            ]
+          : [],
+    })
+  })
+  await page.goto(`/w/${workspace}/runs?run=${id}`)
+  const info = page.getByRole('button', { name: '过程记录提示', exact: true })
+  await expect(info).toHaveCount(1)
+  const picker = page.getByRole('combobox', { name: '选择节点', exact: true }).first()
+  await picker.click()
+  await page.getByRole('option', { name: /^Other branch/ }).click()
+  await expect(info).toHaveCount(0)
+  await picker.click()
+  await page.getByRole('option', { name: /^Collect sources/ }).click()
+  await expect(info).toHaveCount(1)
+})
+
+for (const [width, language, theme] of [
+  [1440, 'zh', 'light'],
+  [390, 'en', 'dark'],
+] as const) {
+  test(`DAG output switching keeps report, copy and independent view state together at ${width}px ${language}`, async ({
+    page,
+    context,
+  }, info) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.setViewportSize({ width, height: 900 })
+    const f = fixture()
+    finish(f)
+    const secondId = 'second-output-full-stable-id',
+      emptyId = 'empty-output-full-stable-id'
+    f.run.nodes.push(
+      {
+        ...f.run.nodes[0],
+        id: secondId,
+        name: f.run.nodes[0].name,
+        execution_id: '00000000-0000-4000-8000-000000000003',
+      },
+      {
+        ...f.run.nodes[0],
+        id: emptyId,
+        name: 'Empty output',
+        state: 'failed',
+        execution_id: '00000000-0000-4000-8000-000000000004',
+      },
+    )
+    const first = f.run.result.outputs[0],
+      second = {
+        ...first,
+        node_id: secondId,
+        name: first.name,
+        result: '# Second output\n\n[Second source](https://example.test/second)',
+      },
+      empty = {
+        node_id: emptyId,
+        name: 'Empty output',
+        state: 'failed',
+        reason: 'Synthetic output failure',
+        result: null,
+      }
+    f.run.result.outputs.push(second, empty)
+    const writes = await mock(page, f)
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    await page.evaluate(
+      async ({ language, theme }) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+        document.documentElement.dataset.theme = theme
+      },
+      { language, theme },
+    )
+    const name = language === 'zh' ? '选择输出节点' : 'Select an output node'
+    const picker = page.getByRole('combobox', { name, exact: true })
+    const result = page.locator('.run-section').filter({ has: picker })
+    await expect(picker).toHaveAttribute('title', first.name)
+    await expect(result.getByRole('heading', { name: 'Final report', exact: true })).toBeVisible()
+    await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toHaveCount(0)
+    await result
+      .getByRole('button', { name: language === 'zh' ? '原文' : 'Raw', exact: true })
+      .click()
+    await expect(result.locator('.result-raw')).toContainText('# Final report')
+    await picker.press('ArrowDown')
+    const menu = page.locator('.dag-node-picker')
+    await menu.getByRole('combobox').fill(secondId)
+    await expect(menu.getByRole('option')).toHaveCount(1)
+    await menu.getByRole('combobox').press('Enter')
+    await expect(picker).toBeFocused()
+    await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toBeVisible()
+    await expect(result.locator('.result-references')).toContainText('Second source')
+    await expect(result.locator('.result-raw')).toHaveCount(0)
+    await result
+      .getByRole('button', { name: language === 'zh' ? '复制' : 'Copy', exact: true })
+      .click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(second.result)
+    await page
+      .getByRole('tab', { name: language === 'zh' ? '详情' : 'Details', exact: true })
+      .click()
+    await page
+      .getByRole('tab', { name: language === 'zh' ? '执行' : 'Execution', exact: true })
+      .click()
+    // Polling may reorder the data, but selection belongs to the stable node ID.
+    f.run.result.outputs = [empty, second, first]
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.querySelector('.dag-result-context .choice-selector')?.getAttribute('title'),
+        ),
+      )
+      .toBe(second.name)
+    await page.waitForTimeout(2300)
+    await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toBeVisible()
+    await picker.click()
+    await menu.getByRole('combobox').fill(first.node_id)
+    await menu.getByRole('combobox').press('End')
+    await menu.getByRole('combobox').press('Enter')
+    await expect(result.locator('.result-raw')).toContainText('# Final report')
+    await picker.click()
+    await menu.getByRole('combobox').fill(emptyId)
+    await menu.getByRole('combobox').press('Enter')
+    await expect(
+      result.getByText(language === 'zh' ? '未返回结果' : 'No result returned', { exact: true }),
+    ).toBeVisible()
+    await expect(result.locator('.dag-result-context .status')).toContainText(
+      language === 'zh' ? '失败' : 'Failed',
+    )
+    await expect(result.locator('.run-result-panel')).toHaveCount(0)
+    await expect(result.locator('.run-section-actions').getByRole('button')).toHaveCount(0)
+    await result.locator('.run-reason').focus()
+    await expect(page.getByRole('tooltip')).toContainText(empty.reason)
+    await page.keyboard.press('Escape')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: info.outputPath('output-switcher.png') })
     expect(writes).toEqual([])
   })
 }

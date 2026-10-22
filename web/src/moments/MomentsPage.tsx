@@ -1,5 +1,5 @@
 import { ErrorToast } from '../Toast'
-import { t as tr, locale } from '../i18n'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { PageBreadcrumbs, PageActions } from '../PageHeader'
 import {
@@ -12,32 +12,33 @@ import {
   type ReactNode,
 } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { ArrowUpRight, Monitor, RefreshCw, Copy, Check, GitBranch } from 'lucide-react'
-import { api, type MomentDays, type MomentEntries, type MomentEntry, type Run } from '../api'
-import { IconButton, Button, TooltipTarget } from '../ui'
-import { Status } from '../Status'
-import { AgentLogo } from '../AgentLogo'
-import { MarkdownContent } from '../runs/MarkdownContent'
-import { RunResult, resultData } from '../runs/RunResult'
-import { ResumeRun } from '../sessions/ResumeRun'
+import { RefreshCw } from 'lucide-react'
+import { api, type MomentDays, type MomentEntries } from '../api'
+import { IconButton, Button } from '../ui'
 import './moments.css'
+import { MomentCard } from './MomentCard'
 
 // This state lives only for the authenticated app visit, including trips to Run details.
-const VisitContext = createContext<{
+export const VisitContext = createContext<{
   expanded: Set<string>
   setExpanded: (id: string, value: boolean) => void
   scroll: { current: number }
+  outputs: { current: Map<string, string> }
+  heights: { current: Map<string, number> }
 }>(null!)
 export function MomentsVisit({ children }: { children: ReactNode }) {
   useTranslation()
   const [expanded, setExpanded] = useState(new Set<string>())
   const scroll = useRef(0)
+  const heights = useRef(new Map<string, number>())
+  const outputs = useRef(new Map<string, string>())
   return (
     <VisitContext.Provider
       value={{
         expanded,
         scroll,
+        outputs,
+        heights,
         setExpanded: (id, value) =>
           setExpanded((previous) => {
             const next = new Set(previous)
@@ -51,7 +52,7 @@ export function MomentsVisit({ children }: { children: ReactNode }) {
     </VisitContext.Provider>
   )
 }
-const manual = {
+export const manual = {
   staleTime: Infinity,
   gcTime: Infinity,
   refetchOnWindowFocus: false,
@@ -74,6 +75,7 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
     if (node) viewport.current.scrollTop += node.getBoundingClientRect().top - saved.top
     else viewport.current.scrollTop = saved.position
     anchor.current = null
+    viewport.current.style.overflowAnchor = ''
   }, [refreshing, fetching])
   const days = useInfiniteQuery({
     queryKey: ['moments', 'days'],
@@ -90,6 +92,7 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
   async function refresh() {
     if (refreshing) return
     setRefreshing(true)
+    if (viewport.current) viewport.current.style.overflowAnchor = 'none'
     const position = viewport.current?.scrollTop ?? 0
     const bounds = viewport.current?.getBoundingClientRect()
     const visible = Array.from(
@@ -107,6 +110,7 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
         { queryKey: ['moments', 'entries', result.data?.pages[0].timezone], type: 'all' },
         { throwOnError: true },
       )
+      await client.invalidateQueries({ queryKey: ['moments', 'report'], refetchType: 'active' })
     } catch (e) {
       toast((e as Error).message)
     } finally {
@@ -120,6 +124,14 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
     <div
       className="moments-page"
       ref={viewport}
+      onWheel={() => {
+        anchor.current = null
+        if (viewport.current) viewport.current.style.overflowAnchor = ''
+      }}
+      onTouchStart={() => {
+        anchor.current = null
+        if (viewport.current) viewport.current.style.overflowAnchor = ''
+      }}
       onScroll={(event) => {
         visit.scroll.current = event.currentTarget.scrollTop
       }}
@@ -228,208 +240,5 @@ function DayEntries({
         </Button>
       )}
     </>
-  )
-}
-function MomentCard({
-  entry,
-  timezone,
-  toast,
-}: {
-  entry: MomentEntry
-  timezone: string
-  toast: (s: string) => void
-}) {
-  useTranslation()
-  const visit = useContext(VisitContext)
-  const client = useQueryClient()
-  const expanded = visit.expanded.has(entry.id)
-  const [overflow, setOverflow] = useState(false)
-  const body = useRef<HTMLDivElement>(null)
-  const [copying, setCopying] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const full = useQuery({
-    queryKey: ['run', entry.id],
-    queryFn: () => api<Run>(`/runs/${entry.id}`),
-    enabled: expanded && entry.has_more,
-    ...manual,
-  })
-  const content = expanded && entry.has_more && full.data ? resultData(full.data.result) : null
-  const text = content
-    ? typeof content.text === 'string'
-      ? content.text
-      : content.source
-    : entry.preview
-  const format = content ? (typeof content.text === 'string' ? 'markdown' : 'json') : entry.format
-  useLayoutEffect(() => {
-    const node = body.current
-    if (!node || expanded) return
-    const measure = () => setOverflow(node.scrollHeight > 240)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(node.firstElementChild ?? node)
-    return () => observer.disconnect()
-  }, [text, expanded])
-  useEffect(() => {
-    if (body.current && !expanded) body.current.scrollTop = 0
-  }, [expanded])
-  async function copy() {
-    setCopying(true)
-    try {
-      const value =
-        entry.has_more || entry.format === 'dag'
-          ? (resultData(
-              (
-                await client.fetchQuery({
-                  queryKey: ['run', entry.id],
-                  queryFn: () => api<Run>(`/runs/${entry.id}`),
-                  staleTime: Infinity,
-                })
-              ).result,
-            ).source ?? '')
-          : (entry.preview ?? '')
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch (e) {
-      toast((e as Error).message)
-    } finally {
-      setCopying(false)
-    }
-  }
-  const time = new Date(entry.finished_at).toLocaleTimeString(locale(), {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-  return (
-    <article className="moment-entry" data-moment-id={entry.id}>
-      <time className="moment-time" dateTime={entry.finished_at}>
-        {time}
-      </time>
-      <span className="moment-node" aria-hidden="true" />
-      <div className="content-card moment-card">
-        <header className="card-header">
-          <h3>
-            <Link to="/runs" search={{ run: entry.id }}>
-              {entry.name}
-            </Link>
-          </h3>
-          <div className="moment-identity">
-            {entry.format === 'dag' ? (
-              <span>
-                <GitBranch size={13} />
-                DAG{' '}
-                <span className="quiet">
-                  {tr('dag.nodeCount', { count: entry.node_count ?? 0 })}
-                </span>
-              </span>
-            ) : (
-              <>
-                <span>
-                  <Monitor size={13} />
-                  {entry.runner}
-                </span>
-                <span>
-                  <AgentLogo name={entry.agent} logo={entry.logo} />
-                  {entry.agent}
-                </span>
-              </>
-            )}
-          </div>
-          <div className="moment-actions">
-            <Status state={entry.state} />
-            <ResumeRun id={entry.id} available={entry.continuation_available} toast={toast} />
-            {(entry.preview || !!entry.outputs?.length) && (
-              <IconButton
-                label={tr('复制结果')}
-                tooltip={copied ? tr('已复制') : tr('复制结果')}
-                disabled={copying}
-                loading={copying}
-                onClick={copy}
-              >
-                {copied ? <Check /> : <Copy />}
-              </IconButton>
-            )}
-            <TooltipTarget label={tr('查看运行')}>
-              <Link
-                className="button ghost icon-button"
-                to="/runs"
-                search={{ run: entry.id }}
-                aria-label={tr('查看运行')}
-              >
-                <ArrowUpRight size={16} />
-              </Link>
-            </TooltipTarget>
-          </div>
-        </header>
-        <div className="card-body">
-          {entry.reason && entry.state !== 'succeeded' && (
-            <p className="moment-reason">{entry.reason}</p>
-          )}
-          {entry.truncated && <p className="quiet">{tr('结果已截断')}</p>}
-          {text || entry.outputs?.length ? (
-            <div
-              ref={body}
-              className={`moment-report ${expanded ? 'moment-report-expanded' : 'moment-report-preview'}`}
-            >
-              {entry.format === 'dag' ? (
-                content && full.data ? (
-                  <RunResult result={full.data.result} raw={false} source={{ runId: entry.id }} />
-                ) : (
-                  <div className="moment-dag-reports">
-                    {entry.outputs?.map((output) => (
-                      <section key={output.node_id}>
-                        <header>
-                          <strong>{output.name}</strong>
-                          <Status state={output.state} />
-                        </header>
-                        {output.reason && output.state !== 'succeeded' && (
-                          <p className="quiet">{output.reason}</p>
-                        )}
-                        {output.preview ? (
-                          output.format === 'markdown' ? (
-                            <article className="markdown-result">
-                              <MarkdownContent
-                                text={output.preview}
-                                source={{ runId: entry.id, nodeId: output.node_id }}
-                              />
-                            </article>
-                          ) : (
-                            <pre className="code result-raw">{output.preview}</pre>
-                          )
-                        ) : (
-                          <p className="quiet">{tr('未返回结果')}</p>
-                        )}
-                      </section>
-                    ))}
-                  </div>
-                )
-              ) : format === 'markdown' ? (
-                <article className="markdown-result">
-                  <MarkdownContent text={text ?? ''} source={{ runId: entry.id }} />
-                </article>
-              ) : (
-                <pre className="code result-raw">{text}</pre>
-              )}
-            </div>
-          ) : (
-            !entry.reason && <p className="quiet">{tr('未返回结果')}</p>
-          )}
-          {full.error && expanded && (
-            <RequestError error={full.error} retry={() => full.refetch()} />
-          )}
-          {(entry.has_more || overflow || expanded) && (
-            <Button
-              className="moment-read"
-              loading={expanded && full.isFetching}
-              onClick={() => visit.setExpanded(entry.id, !expanded)}
-            >
-              {expanded ? tr('收起') : tr('阅读全文')}
-            </Button>
-          )}
-        </div>
-      </div>
-    </article>
   )
 }

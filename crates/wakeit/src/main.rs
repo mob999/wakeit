@@ -348,6 +348,12 @@ enum Run {
     },
     Retry {
         id: Uuid,
+        /// Retry one failed DAG node in the same Run; successful nodes are retained.
+        #[arg(long)]
+        node: Option<String>,
+        /// Explicitly resume a cancelled graph or graph timeout after execution has stopped.
+        #[arg(long, requires = "node")]
+        resume_stopped: bool,
     },
     Resolve {
         id: Uuid,
@@ -1042,10 +1048,27 @@ async fn run(mut cli: Cli) -> Result<()> {
                     c.post(&format!("/runs/{id}/cancel"), json!({})).await?,
                     cli.json,
                 ),
-                Run::Retry { id } => display(
-                    c.post(&format!("/runs/{id}/retry"), json!({})).await?,
-                    cli.json,
-                ),
+                Run::Retry {
+                    id,
+                    node,
+                    resume_stopped,
+                } => {
+                    let result = if let Some(node) = node {
+                        wakeit::config::validate_id(node)?;
+                        let current = c.get(&format!("/runs/{id}/nodes/{node}")).await?;
+                        c.post(
+                            &format!("/runs/{id}/nodes/{node}/retry"),
+                            json!({
+                                "execution_id": current["node"]["execution_id"],
+                                "resume_stopped": resume_stopped,
+                            }),
+                        )
+                        .await?
+                    } else {
+                        c.post(&format!("/runs/{id}/retry"), json!({})).await?
+                    };
+                    display(result, cli.json);
+                }
                 Run::Resolve { id, state, reason } => display(
                     c.post(
                         &format!("/runs/{id}/resolve"),

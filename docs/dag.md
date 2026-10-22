@@ -16,7 +16,7 @@ The top-level `dag` replaces `runner`, `agent`, `cwd`, `prompt`, `parameters` an
 
 Only AND is supported: a node runs after every predecessor succeeds. No predecessors means a root. Multiple roots become ready together; Runner capacity and Session locks still limit execution. Self-dependencies, duplicate or missing predecessors, cycles and invalid result references are rejected before saving. Validation errors include the node, field and cycle path when applicable.
 
-A failed, timed-out, interrupted or skipped predecessor causes dependent nodes to skip; independent branches continue. Nodes have no automatic retry. Trigger, retry and cancel always address the whole graph. A retry uses the **current Task definition**, creates a new Run and starts every root. Editing a Task never changes an existing Run's snapshot.
+A failed, timed-out, interrupted or skipped predecessor causes dependent nodes to skip; independent branches continue. Nodes may opt into automatic retries with `max_retries`. Trigger and cancel address the whole graph. Whole-graph retry uses the **current Task definition**, creates a new Run and starts every root. Manual node retry keeps the same parent Run and its frozen definition, retaining successful nodes and resuming affected descendants after AND dependencies succeed. Editing a Task never changes an existing Run's snapshot.
 
 Prompts can explicitly reference ancestor results:
 
@@ -33,7 +33,7 @@ Omit `dag.results` to select all leaves automatically, or specify a nonempty lis
 
 The parent waits for every node to settle. All successful nodes produce `succeeded`. If all selected outputs succeed but another branch fails or skips, the parent is `warning` (Warning). Any unsuccessful selected output makes it `failed`; AND never bypasses an unsuccessful predecessor. Whole-graph cancellation or timeout takes precedence once all active processes have confirmed termination. `unknown` stays nonterminal, with no completion time, until the actual uncertain nodes are reconciled.
 
-Graph and node timeouts default to one hour. The graph clock starts when the first node is claimed; node timeout can be overridden on that node. Allowed delay is measured from each node becoming ready. Whole-graph overlap defaults to skip. Session locks apply across all Tasks on the same Runner/Agent/Session, including nodes; unknown executions retain their locks.
+The graph total time limit is disabled by default: omit `execution.timeout` or set it to `null`. Set a duration to enable it; saved explicit limits remain in effect. Ordinary Task and individual node timeouts still default to one hour. The graph clock starts at the first claim and includes retry backoff. A retry in an active Run does not extend it; reopening a settled Run starts a new full window at the next first claim while preserving its original `started_at`. Allowed delay is measured from each node becoming ready. Whole-graph overlap defaults to skip. Session locks apply across all Tasks on the same Runner/Agent/Session, including nodes; unknown executions retain their locks.
 
 Pausing cancels scheduled rounds that have not started. Archiving cancels all unstarted rounds and blocks new triggers and retries. Already-started rounds continue with their frozen definitions. Cancelling a graph stops future dispatch and requests cancellation of active nodes; a cancellation request is not proof that a process ended.
 
@@ -68,7 +68,7 @@ All paths below are workspace-scoped under `/api/v1/workspaces/{workspace}`:
 
 Parent events merge node events in durable ID order. Child events include `node_id`, `execution_id` and `original_seq`; child state events use `node_state`. Read every batch, advance `after` only after processing it, and aggregate Trace by **DAG node ID plus native Trace ID**. Whole-graph `run watch --json` preserves these identities and ends with the parent report. `succeeded` and `warning` exit 0.
 
-Migrations `0003_dag.sql` and `0004_task_editor_layout.sql` append to the published 0.2.0 baselines. They preserve ordinary Task/Run IDs and device credentials. Gateway owns graph scheduling; Runners receive ordinary version-1 assignments, so existing Runners remain compatible. A node's real execution ID is for read-only diagnostics and local continuation, never independent trigger/retry/cancel.
+Migrations `0003_dag.sql` and `0004_task_editor_layout.sql` append to the published 0.2.0 baselines. They preserve ordinary Task/Run IDs and device credentials. Gateway owns graph scheduling; Runners receive ordinary version-1 assignments, so existing Runners remain compatible. Child execution IDs remain for diagnostics and continuation; retry through the parent/node endpoint, never the generic child trigger/retry/cancel endpoints.
 
 ## Local acceptance
 
@@ -83,3 +83,22 @@ python3 scripts/integration_workspaces.py --keep-running
 The script creates its own PostgreSQL, NATS, Gateways, test accounts, CLI profiles and Runners under ignored `.local/workspaces-*`. Its summary records ports, process IDs and checks; private test credentials are separate. Omit `--keep-running` for automatic service shutdown. Add `--old-runner /absolute/path/to/previous/wakeit` to verify legacy Runner assignment compatibility. Never point it at an existing user database.
 
 Local browser fixtures in `web/tests/dag-editor.spec.ts`, `dag-workbench-ux.spec.ts`, `dag-canvas.spec.ts` and `dag-runs.spec.ts` use synthetic data and do not run in CI. Set `WAKEIT_TEST_URL` to the Vite address. Screenshots must not contain personal accounts, paths, credentials or actual user output.
+
+## Manual node retry and recovery
+
+```sh
+wakeit run retry <parent-run-id> --node <node-id>
+wakeit run retry <parent-run-id> --node <node-id> --resume-stopped
+```
+
+A confirmed failed, timed-out or interrupted node can be retried after all predecessors succeed. Successful nodes are never repeated. One manual action creates one attempt and does not consume or reset automatic retry quota; failure of that manual attempt does not schedule another automatic attempt. An already queued automatic successor is reused and made ready immediately. The affected downstream nodes resume only when every predecessor succeeds, keeping their own automatic policies. Other failed branches and actual failed descendants require their own explicit retry.
+
+Cancelled or explicitly timed-out graphs require `--resume-stopped` and confirmation that all old executions have stopped. Reconcile unknown executions first. Recovery covers the selected node and descendants skipped for dependency failure or cancelled by the graph stop; it does not start unrelated cancelled branches. Archived Tasks and overlap conflicts reject recovery; paused Tasks allow it. Missing, truncated, expired or incomplete retained inputs/outputs reject recovery instead of recomputing successful nodes. Bound Session occupancy is checked transactionally; a claim-time race leaves a manual attempt failed and eligible for another explicit retry rather than permanently skipped.
+
+`POST /api/v1/workspaces/{workspace}/runs/{parent}/nodes/{node}/retry` requires `Idempotency-Key` and `{ "execution_id": "<current UUID>", "resume_stopped": false }`. `execution_id` is required, but must be `null` if no execution was created. Stale attempts return 409; the same key/body returns the same `{id,parent_run_id,node_id}`. Node detail adds `retry.action`, a blocking `retry.reason` and affected descendants. The CLI reads the latest node before submitting the execution guard. Successful node IDs, results, logs, Trace, Sessions and times remain unchanged. New attempts have independent history and actual input execution IDs in `execution_snapshot.input_executions`.
+
+The WebUI shows Retry node, Retry now or Resume node in the current node context. Historical attempts cannot execute actions. Stopped recovery confirms the selected node and affected descendants in a compact table; operation errors use Toasts. Run lists, search and Moments retain one parent record. A completed Watch stays exited; a new Watch observes the same recovered Run and ignores historical terminal events when determining completion. Without `--node`, `run retry` retains whole-graph retry behavior.
+
+For supplemental restart/cancellation-race checks after `--keep-running`, use `python3 scripts/dag_retry_lifecycle_checks.py --stack .local/workspaces-<id>/summary.json`. It only accepts a disposable stack created by this checkout and restarts that stack's test Gateway. Its summary records the replacement process ID for cleanup. Synthetic 0006-to-0007 migration backfill checks run with the workspace suite.
+
+For a live upgrade regression, prepare a separate old service with `python3 scripts/integration_workspaces.py --keep-running --prepare-only --gateway-binary /absolute/path/to/previous/wakeit`, then run `python3 scripts/dag_retry_live_upgrade_checks.py --stack .local/workspaces-<id>/summary.json`. This only accepts a disposable stack from this checkout. It verifies an active execution, original clock and Runner credentials survive the additive 0007 migration without restarting Runners or repeating Agent calls.

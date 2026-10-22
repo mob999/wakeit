@@ -1,6 +1,6 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MessagesSquare } from 'lucide-react'
 import { api, terminal, type Run, type Runner, type User } from '../api'
@@ -16,10 +16,14 @@ export function ResumeRun({
   toast,
   parentId,
   initialNode,
+  strictNode = false,
+  onActiveChange,
 }: {
   run?: Run
   parentId?: string
   initialNode?: string
+  strictNode?: boolean
+  onActiveChange?: (active: boolean) => void
   id: string
   available: boolean
   toast: (message: string) => void
@@ -29,6 +33,10 @@ export function ResumeRun({
   const [selected, setSelected] = useState<Run | null>(null)
   const [graph, setGraph] = useState<Run | null>(null)
   const [node, setNode] = useState('')
+  useEffect(() => {
+    onActiveChange?.(!!selected || !!graph)
+    return () => onActiveChange?.(false)
+  }, [selected, graph, onActiveChange])
   const [loading, setLoading] = useState(false)
   const generation = useRef(0)
   const terminalRef = useRef<TerminalHandle>(null)
@@ -96,7 +104,7 @@ export function ResumeRun({
       if (current.config.dag) {
         const first =
           current.nodes?.find((n) => n.id === initialNode && n.continuation_available) ??
-          current.nodes?.find((n) => n.continuation_available)
+          (!strictNode ? current.nodes?.find((n) => n.continuation_available) : undefined)
         if (!first) throw new Error(tr('该会话暂不可续聊'))
         setGraph(current)
         await choose(first.id)

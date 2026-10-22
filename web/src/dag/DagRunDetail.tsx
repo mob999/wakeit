@@ -16,7 +16,8 @@ import {
   PanelTopOpen,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { t } from '../i18n'
+import { t, locale } from '../i18n'
+import { apiErrorText } from '../apiErrorText'
 import {
   api,
   apiUrl,
@@ -29,13 +30,13 @@ import {
   type Agent,
   type Runner,
 } from '../api'
-import { IconButton, Button } from '../ui'
+import { IconButton, Button, Modal } from '../ui'
 import { PageActions } from '../PageHeader'
 import { Status } from '../Status'
 import { ChoicePicker } from '../ChoicePicker'
 import { CopyValue } from '../runs/CopyValue'
 import { RunSection } from '../runs/RunSection'
-import { RunResult, RunResultActions } from '../runs/RunResult'
+import { RunResult } from '../runs/RunResult'
 import { RunTrace, useRunTrace } from '../runs/RunTrace'
 import { RunLogs, RunLogActions } from '../runs/RunLogs'
 import { RunDetails } from '../runs/RunDetails'
@@ -45,6 +46,7 @@ import { DagGraph, type DagView } from './DagGraph'
 import { useRunReading, TraceActions } from '../runs/RunReading'
 import { RunReason } from '../runs/RunReason'
 import { DagRunStatus } from './DagRunStatus'
+import { DagRunResult } from './DagRunResult'
 
 export function DagRunDetail({
   id,
@@ -71,7 +73,6 @@ export function DagRunDetail({
   const [tab, setTab] = useState<'execute' | 'details'>('execute')
   const [processOpen, setProcessOpen] = useState(!reading.highlighted || reading.resultReady)
   const [resultOpen, setResultOpen] = useState(reading.highlighted && !reading.resultReady)
-  const [raw, setRaw] = useState(false)
   const emptyShown = useRef(false)
   const resultTop = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
@@ -283,19 +284,16 @@ export function DagRunDetail({
               ))}
           </RunSection>
           <div ref={resultTop} />
-          <RunSection
-            title={t('结果')}
+          <DagRunResult
+            key={id}
+            runId={id}
+            result={r.result}
+            nodes={nodes}
             open={resultOpen}
-            onChange={setResultOpen}
+            onOpenChange={setResultOpen}
             hidden={!hasResult && !['succeeded', 'warning'].includes(r.state)}
-            actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
-          >
-            {hasResult ? (
-              <RunResult result={r.result} raw={raw} toast={toast} source={{ runId: id }} />
-            ) : (
-              <p className="quiet dag-node-empty">{t('未返回结果')}</p>
-            )}
-          </RunSection>
+            toast={toast}
+          />
         </div>
         <div hidden={tab !== 'details'}>
           {nodes
@@ -376,26 +374,40 @@ function NodeExecution({
   const [chosen, setChosen] = useEditorValue<string | null>('attempt', null)
   const executionId = chosen ?? currentExecutionId
   const current = nodes.find((n) => n.id === node)
+  const [resume, setResume] = useState(false)
   const retry = useMutation({
-    mutationFn: () =>
+    mutationFn: (resumeStopped: boolean) =>
       api(`/runs/${parent}/nodes/${encodeURIComponent(node)}/retry`, 'POST', {
-        execution_id: currentExecutionId,
+        execution_id: currentExecutionId ?? null,
+        resume_stopped: resumeStopped,
       }),
     onSuccess: () => {
+      setResume(false)
+      client.invalidateQueries({ queryKey: ['runs'] })
+      client.invalidateQueries({ queryKey: ['moments'] })
+      client.invalidateQueries({ queryKey: ['search'] })
       client.invalidateQueries({ queryKey: ['run', parent] })
       client.invalidateQueries({ queryKey: ['dag-node', parent, node] })
     },
     onError: (error) => toast(error.message),
   })
-  const execution = useQuery<{ execution: Run | null; attempts?: { id: string; state: string }[] }>(
-    {
-      queryKey: ['dag-node', parent, node, executionId],
-      queryFn: () =>
-        api(`/runs/${parent}/nodes/${encodeURIComponent(node)}?execution=${executionId}`),
-      enabled: active && !!executionId,
-      refetchInterval: active ? 2000 : false,
-    },
-  )
+  const execution = useQuery<{
+    execution: Run | null
+    attempts?: { id: string; state: string }[]
+    retry?: {
+      action: 'retry' | 'accelerate' | 'resume' | null
+      reason?: string
+      affected: { id: string; name: string; state: string }[]
+    }
+  }>({
+    queryKey: ['dag-node', parent, node, executionId],
+    queryFn: () =>
+      api(
+        `/runs/${parent}/nodes/${encodeURIComponent(node)}${executionId ? `?execution=${executionId}` : ''}`,
+      ),
+    enabled: active,
+    refetchInterval: active ? 2000 : false,
+  })
   const trace = useRunTrace(executionId ?? '', active && !!executionId && mode === 'trace')
   const [events, setEvents] = useState<RunEvent[]>([])
   const [logError, setLogError] = useState(false)
@@ -467,30 +479,47 @@ function NodeExecution({
       className={mode === 'details' ? 'content-card dag-node-details' : 'dag-node-process'}
     >
       <div className="dag-node-context" tabIndex={-1}>
-        {nodes.length > 1 ? (
-          <ChoicePicker
-            id={pickerId(node)}
-            label={t('dag.selectNode')}
-            searchLabel={t('dag.searchNodes')}
-            popoverClassName="dag-node-picker"
-            searchable
-            value={node}
-            options={nodes.map((n) => ({
-              value: n.id,
-              label: n.name,
-              title: n.name,
-              description: shortId(n.id),
-              keywords: n.id,
-              status: <Status state={n.state} />,
-            }))}
-            onChange={(next) => {
-              onSelect(next)
-              requestAnimationFrame(() => document.getElementById(pickerId(next))?.focus())
-            }}
-          />
-        ) : (
-          <strong>{name}</strong>
-        )}
+        <div className="dag-node-identity">
+          {nodes.length > 1 ? (
+            <ChoicePicker
+              id={pickerId(node)}
+              label={t('dag.selectNode')}
+              searchLabel={t('dag.searchNodes')}
+              popoverClassName="dag-node-picker"
+              searchable
+              value={node}
+              options={nodes.map((n) => ({
+                value: n.id,
+                label: n.name,
+                title: n.name,
+                description: shortId(n.id),
+                keywords: n.id,
+                status: <Status state={n.state} />,
+              }))}
+              onChange={(next) => {
+                onSelect(next)
+                requestAnimationFrame(() => document.getElementById(pickerId(next))?.focus())
+              }}
+            />
+          ) : (
+            <strong>{name}</strong>
+          )}
+          {(execution.data?.attempts?.length ?? 0) > 1 && (
+            <div className="dag-attempt-picker">
+              <ChoicePicker
+                label={t('retry.attempts')}
+                popoverClassName="dag-attempt-menu"
+                value={executionId ?? ''}
+                options={execution.data!.attempts!.map((a, index) => ({
+                  value: a.id,
+                  label: t('retry.attempt', { number: index + 1 }),
+                  status: stateNames[a.state] ?? a.state,
+                }))}
+                onChange={(id) => setChosen(id === currentExecutionId ? null : id)}
+              />
+            </div>
+          )}
+        </div>
         {chosen && !run ? (
           <span className="dag-node-state-placeholder quiet">{t('正在加载…')}</span>
         ) : (
@@ -498,36 +527,13 @@ function NodeExecution({
             <Status state={run?.state ?? state} />
           </RunReason>
         )}
-        {(execution.data?.attempts?.length ?? 0) > 1 && (
-          <div className="dag-attempt-picker">
-            <ChoicePicker
-              label={t('retry.attempts')}
-              value={executionId ?? ''}
-              options={execution.data!.attempts!.map((a, index) => ({
-                value: a.id,
-                label: t('retry.attempt', { number: index + 1 }),
-                status: stateNames[a.state] ?? a.state,
-              }))}
-              onChange={(id) => setChosen(id === currentExecutionId ? null : id)}
-            />
-          </div>
-        )}
         {!chosen && current?.retry_at && (
           <span className="quiet dag-retry-time">
             {t('retry.waiting')}{' '}
             <time dateTime={current.retry_at}>
-              {new Date(current.retry_at).toLocaleTimeString()}
+              {new Date(current.retry_at).toLocaleTimeString(locale(), { hour12: false })}
             </time>
           </span>
-        )}
-        {!chosen && current?.retry_at && user.role !== 'viewer' && (
-          <IconButton
-            label={t('retry.now')}
-            loading={retry.isPending}
-            onClick={() => retry.mutate()}
-          >
-            <Redo2 />
-          </IconButton>
         )}
         {startedAt && finishedAt && (
           <span className="dag-node-duration quiet mono">
@@ -536,7 +542,35 @@ function NodeExecution({
         )}
         <div className="dag-node-context-actions">
           {resultAction}
-          {mode === 'trace' && executionId && <TraceActions id={executionId} />}
+          {mode === 'trace' && executionId && (
+            <TraceActions id={executionId} issues={trace.state.issues} />
+          )}
+          {!chosen && user.role !== 'viewer' && execution.data?.retry && (
+            <IconButton
+              label={
+                execution.data.retry.reason
+                  ? apiErrorText(
+                      execution.data.retry.reason,
+                      t,
+                      (state) => stateNames[state] ?? state,
+                    )
+                  : t(
+                      execution.data.retry.action === 'accelerate'
+                        ? 'retry.now'
+                        : execution.data.retry.action === 'resume'
+                          ? 'retry.resume'
+                          : 'retry.node',
+                    )
+              }
+              disabled={!execution.data.retry.action}
+              loading={retry.isPending}
+              onClick={() =>
+                execution.data?.retry?.action === 'resume' ? setResume(true) : retry.mutate(false)
+              }
+            >
+              <Redo2 />
+            </IconButton>
+          )}
           {run && (
             <ResumeRun
               run={run}
@@ -620,6 +654,50 @@ function NodeExecution({
           </RunSection>
         </>
       )}
+      <Modal
+        open={resume}
+        onOpenChange={(open) => {
+          if (!retry.isPending) setResume(open)
+        }}
+        title={t('retry.resume')}
+        description={t('retry.preserve')}
+        actions={
+          <>
+            <Button disabled={retry.isPending} onClick={() => setResume(false)}>
+              {t('取消')}
+            </Button>
+            <Button
+              className="primary"
+              loading={retry.isPending}
+              onClick={() => retry.mutate(true)}
+            >
+              {t('retry.resume')}
+            </Button>
+          </>
+        }
+      >
+        <div className="dag-recovery-table" role="table" aria-label={t('retry.resume')}>
+          <div className="table-head" role="row">
+            <span role="columnheader">{t('dag.field.name')}</span>
+            <span role="columnheader">{t('状态')}</span>
+            <span role="columnheader">{t('操作')}</span>
+          </div>
+          {[
+            { id: node, name, state: run?.state ?? state },
+            ...(execution.data?.retry?.affected ?? []),
+          ].map((item, index) => (
+            <div role="row" key={item.id}>
+              <span role="cell" title={item.id}>
+                {item.name}
+              </span>
+              <span role="cell">
+                <Status state={item.state} />
+              </span>
+              <span role="cell">{t(index ? 'retry.continue' : 'retry.node')}</span>
+            </div>
+          ))}
+        </div>
+      </Modal>
       {resolve && (
         <ResolveDialog
           id={parent}

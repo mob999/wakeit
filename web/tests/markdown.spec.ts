@@ -194,7 +194,7 @@ test('malformed diagrams and formulas retain readable source without breaking th
   await page.goto(workspacePage(`/runs?run=${id}`))
   const result = page.locator('.run-result-panel .markdown-result')
   await expect(result.getByRole('heading', { name: '仍可阅读' })).toBeVisible()
-  await expect(result.getByText('图表无法渲染', { exact: true })).toBeVisible({ timeout: 30000 })
+  await expect(page.getByRole('alert')).toContainText('图表无法渲染', { timeout: 30000 })
   await expect(result.locator('.mermaid-diagram pre')).toContainText('A[未闭合')
   await expect(result.locator('.katex')).toBeVisible()
   await expect(result.locator('.katex')).toContainText('notarealcommand')
@@ -252,9 +252,7 @@ test('diagram dependencies load only when needed and download failures preserve 
     route.abort(),
   )
   await page.reload()
-  await expect(
-    page.locator('.run-result-panel').getByText('图表无法渲染', { exact: true }),
-  ).toBeVisible({ timeout: 30000 })
+  await expect(page.getByRole('alert')).toContainText('图表无法渲染', { timeout: 30000 })
   await expect(page.locator('.run-result-panel .mermaid-diagram pre')).toContainText('A --> B')
   await expect(page.locator('.run-result-panel .markdown-result')).toContainText('其余正文')
 })

@@ -829,6 +829,46 @@ mod tests {
         assert!(server.script.lock().unwrap().is_empty());
     }
     #[tokio::test]
+    async fn recovered_run_ignores_old_terminal_events_and_rechecks_after_tail_drain() {
+        let id = Uuid::new_v4();
+        let path = format!("/api/v1/runs/{id}");
+        let server = Server::new(vec![
+            Reply::json(&path, run_value(id, "failed", Value::Null)),
+            Reply::json(
+                &format!("{path}/events?after=0"),
+                json!([event(id, 1, "state", json!({"state":"failed"}))]),
+            ),
+            Reply::json(&path, run_value(id, "failed", Value::Null)),
+            Reply::json(&format!("{path}/events?after=1"), json!([])),
+            Reply::json(&path, run_value(id, "running", Value::Null)),
+            Reply::json(
+                &format!("{path}/events?after=1"),
+                json!([event(
+                    id,
+                    2,
+                    "node",
+                    json!({"state":"running","node_id":"retry"})
+                )]),
+            ),
+            Reply::json(&path, run_value(id, "succeeded", json!("Recovered report"))),
+            Reply::json(&format!("{path}/events?after=2"), json!([])),
+            Reply::json(&path, run_value(id, "succeeded", json!("Recovered report"))),
+        ])
+        .await;
+        let mut observer = server.observer(id, true);
+        observer.observe().await.unwrap();
+        assert_eq!(observer.last.as_ref().unwrap().state, "succeeded");
+        observer
+            .reporter
+            .finish(observer.last.as_ref(), None)
+            .unwrap();
+        assert_eq!(
+            lines(&observer.reporter.output).last().unwrap()["data"]["result"],
+            "Recovered report"
+        );
+        assert!(server.script.lock().unwrap().is_empty());
+    }
+    #[tokio::test]
     async fn every_terminal_state_finishes_without_fabricating_a_report() {
         for state in [
             "succeeded",

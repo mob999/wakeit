@@ -128,7 +128,7 @@ export function TaskEditor({
         throw e
       }
       try {
-        if (!validDuration(config.execution.timeout))
+        if (!validDuration(config.execution.timeout ?? '1h'))
           throw new Error(tr('请填写有效的执行超时（1 秒至 366 天）'))
         if (!validDuration(config.execution.start_grace))
           throw new Error(tr('请填写有效的允许延迟（1 秒至 366 天）'))
@@ -411,7 +411,7 @@ export function TaskEditor({
                   <div className="form-grid">
                     <Field label={tr('执行超时')}>
                       <input
-                        value={config.execution.timeout}
+                        value={config.execution.timeout ?? '1h'}
                         onChange={(e) =>
                           change('execution', { ...config.execution, timeout: e.target.value })
                         }

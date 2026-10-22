@@ -477,8 +477,11 @@
                 "type": "string"
               },
               "timeout": {
-                "default": "1h",
-                "type": "string"
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "type": "object"
@@ -706,7 +709,7 @@
                   "misfire": "latest",
                   "overlap": "skip",
                   "start_grace": "1h",
-                  "timeout": "1h"
+                  "timeout": null
                 }
               },
               "id": {
@@ -1174,12 +1177,54 @@
         "type": "object"
       },
       "FilePreviewRequest": {
+        "$defs": {
+          "Mode": {
+            "enum": [
+              "thumbnail",
+              "original"
+            ],
+            "type": "string"
+          }
+        },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
+          "document": {
+            "description": "An original result link to a Markdown file containing this image.",
+            "maxLength": 8192,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "href": {
             "maxLength": 8192,
             "minLength": 1,
             "type": "string"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FilePreviewRequest/$defs/Mode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Thumbnail for inline display, or a bounded original-image chunk."
+          },
+          "offset": {
+            "default": 0,
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "revision": {
+            "maxLength": 64,
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1559,10 +1604,15 @@
       },
       "RetryNode": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
         "properties": {
           "execution_id": {
             "format": "uuid",
             "type": "string"
+          },
+          "resume_stopped": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
@@ -1586,6 +1636,14 @@
       },
       "Run": {
         "properties": {
+          "attempt_origin": {
+            "enum": [
+              "initial",
+              "automatic",
+              "manual",
+              "continuation"
+            ]
+          },
           "config": {
             "$ref": "#/components/schemas/Task"
           },
@@ -1624,6 +1682,10 @@
               "string",
               "null"
             ]
+          },
+          "recovery_generation": {
+            "minimum": 0,
+            "type": "integer"
           },
           "result": {},
           "session": {
@@ -1665,6 +1727,13 @@
           },
           "task_id": {
             "type": "string"
+          },
+          "window_started_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1994,6 +2063,17 @@
               "diagnostic": {
                 "type": "boolean"
               },
+              "recording_issue": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StreamRecord/$defs/RecordingIssue"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Explicit recording degradation; ordinary diagnostics do not imply lost events."
+              },
               "stream": {
                 "default": "stdout",
                 "type": "string"
@@ -2006,6 +2086,17 @@
               "text"
             ],
             "type": "object"
+          },
+          "RecordingIssue": {
+            "enum": [
+              "content_shortened",
+              "event_limit",
+              "event_unsupported",
+              "event_parse_failed",
+              "event_too_large",
+              "content_limit"
+            ],
+            "type": "string"
           },
           "SessionInfo": {
             "additionalProperties": false,
@@ -2235,8 +2326,11 @@
                 "type": "string"
               },
               "timeout": {
-                "default": "1h",
-                "type": "string"
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "type": "object"
@@ -2447,7 +2541,7 @@
               "misfire": "latest",
               "overlap": "skip",
               "start_grace": "1h",
-              "timeout": "1h"
+              "timeout": null
             }
           },
           "id": {
@@ -7467,7 +7561,7 @@
             }
           },
           {
-            "description": "Filter event kind; trace includes trace_status. Up to 500 rows ordered by ID per page.",
+            "description": "Filter event kind; trace includes trace_status (status and optional recording reason). Up to 500 rows ordered by ID per page.",
             "in": "query",
             "name": "kind",
             "schema": {
@@ -7575,7 +7669,7 @@
     },
     "/api/v1/workspaces/{workspace}/runs/{id}/files/preview": {
       "post": {
-        "description": "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization, stream or persistent content. Maximum raw content 512 KiB, also bounded by NATS payload. UTF-8 text may be truncated; oversized images are rejected. Response is no-store and nosniff.",
+        "description": "Admin/Operator, non-demo only. Reads one explicit link parsed from this exact execution's persisted Markdown result. Relative paths use execution_snapshot.cwd; Runner validates current allowed_roots using a capability-relative file open. No directory input, nested-file authorization or persistent content. Text stays bounded to512KiB. Optional image=thumbnail generates a bounded1280px preview on Runner from sources up to32MiB/40MP/16384px per side. image=original returns unchanged original byte chunks: offset, revision, next_offset(null atEOF); every chunk is independently authorized and rejects file changes. Each response fits the existing NATS payload. Old Runners can return small complete images. Response is no-store and nosniff.",
         "operationId": "post__runs_id_files_preview",
         "parameters": [
           {
@@ -7624,6 +7718,12 @@
                         "image"
                       ]
                     },
+                    "image": {
+                      "enum": [
+                        "thumbnail",
+                        "original"
+                      ]
+                    },
                     "mime": {
                       "type": "string"
                     },
@@ -7637,7 +7737,21 @@
                     "name": {
                       "type": "string"
                     },
+                    "next_offset": {
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "offset": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
                     "path": {
+                      "type": "string"
+                    },
+                    "revision": {
                       "type": "string"
                     },
                     "runner_id": {
@@ -7822,6 +7936,54 @@
                     },
                     "node": {
                       "$ref": "#/components/schemas/DagRunNode"
+                    },
+                    "retry": {
+                      "properties": {
+                        "action": {
+                          "enum": [
+                            "retry",
+                            "accelerate",
+                            "resume",
+                            null
+                          ],
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "affected": {
+                          "items": {
+                            "properties": {
+                              "action": {
+                                "const": "resume"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "state": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "reason",
+                        "affected"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
@@ -7938,7 +8100,7 @@
             }
           },
           {
-            "description": "Filter event kind; trace includes trace_status. Up to 500 rows ordered by ID per page.",
+            "description": "Filter event kind; trace includes trace_status (status and optional recording reason). Up to 500 rows ordered by ID per page.",
             "in": "query",
             "name": "kind",
             "schema": {
@@ -8170,7 +8332,7 @@
     },
     "/api/v1/workspaces/{workspace}/runs/{id}/nodes/{node}/retry": {
       "post": {
-        "description": "Operator only. Advances the exact queued retry execution_id without consuming additional budget or changing ended graphs. Concurrent/stale attempts cannot start a second execution.",
+        "description": "Admin/Read-write only. Retries a confirmed failed node in its frozen parent Run, preserving successful nodes and restoring affected descendants under AND. Required nullable execution_id guards stale requests; resume_stopped explicitly recovers graph cancellation/total timeout only after old executions stop. Reuses queued automatic successor. Idempotency-Key returns the same id,parent_run_id,node_id. Node detail exposes retry action, blocking reason and affected descendants.",
         "operationId": "post__runs_id_nodes_node_retry",
         "parameters": [
           {
@@ -8186,6 +8348,15 @@
             "name": "node",
             "required": true,
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
               "type": "string"
             }
           },
@@ -8213,7 +8384,27 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "node_id": {
+                      "type": "string"
+                    },
+                    "parent_run_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "parent_run_id",
+                    "node_id"
+                  ],
+                  "type": "object"
+                }
               }
             },
             "description": "Success"

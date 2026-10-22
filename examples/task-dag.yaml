@@ -4,7 +4,7 @@ name: Daily research
 schedule: null
 enabled: true
 execution:
-  timeout: 1h
+  timeout: null # No total graph time limit; nodes retain their own timeout.
   start_grace: 1h
   overlap: skip
   misfire: latest

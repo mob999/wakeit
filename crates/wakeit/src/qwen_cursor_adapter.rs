@@ -17,6 +17,7 @@ struct State {
     next_message: usize,
     completed: bool,
     fatal: bool,
+    trace_omitted: bool,
     result: Option<Value>,
 }
 impl State {
@@ -29,12 +30,28 @@ impl State {
             text: format!("Native Agent event omitted ({key}).\n"),
             stream: "stderr".into(),
             diagnostic: true,
+            recording_issue: None,
         }))]
     }
     fn invalid(&mut self, key: &str) -> Vec<StreamRecord> {
         self.fatal = true;
         self.result = None;
-        self.diagnostic(key)
+        crate::trace::recording_issue(
+            self.diagnostic(key),
+            crate::trace::RecordingIssue::EventParseFailed,
+        )
+    }
+    fn omit_trace(&mut self, key: &str) -> Vec<StreamRecord> {
+        // Retain terminal/session parsing after the observability budget is spent.
+        self.trace_omitted = true;
+        self.pending.clear();
+        self.seen_tools.clear();
+        self.seen_messages.clear();
+        self.pending_bytes = 0;
+        crate::trace::recording_issue(
+            self.diagnostic(key),
+            crate::trace::RecordingIssue::EventLimit,
+        )
     }
     fn bounded(value: Value) -> Value {
         if serde_json::to_vec(&value).map_or(true, |v| v.len() > RECORD_LIMIT - 8192) {
@@ -44,6 +61,9 @@ impl State {
         }
     }
     fn message(&mut self, event: &Value, prefix: &str) -> Vec<StreamRecord> {
+        if self.trace_omitted {
+            return vec![];
+        }
         let key = event["message"]["id"].as_str().or(event["uuid"].as_str());
         if let Some(key) = key {
             if key.len() > 256 {
@@ -53,7 +73,7 @@ impl State {
                 return vec![];
             }
             if self.seen_messages.len() >= 10_000 {
-                return self.invalid("message count exceeded limit");
+                return self.omit_trace("trace omitted: message count budget reached");
             }
             self.seen_messages.insert(key.into());
         }
@@ -92,6 +112,9 @@ impl State {
         parent_id: Option<String>,
         command: bool,
     ) -> Vec<StreamRecord> {
+        if self.trace_omitted {
+            return vec![];
+        }
         if !valid_trace_id(id) || name.is_empty() {
             return self.invalid("invalid tool identity");
         }
@@ -99,12 +122,12 @@ impl State {
             return vec![];
         }
         if self.seen_tools.len() >= 10_000 {
-            return self.invalid("tool count exceeded limit");
+            return self.omit_trace("trace omitted: tool count budget reached");
         }
         let input = Self::bounded(input);
         let bytes = serde_json::to_vec(&input).map_or(RECORD_LIMIT, |v| v.len());
         if self.pending_bytes + bytes > 8 * 1024 * 1024 {
-            return self.invalid("pending tool input exceeded limit");
+            return self.omit_trace("trace omitted: pending tool input budget reached");
         }
         self.pending_bytes += bytes;
         self.seen_tools.insert(id.into());
@@ -129,6 +152,9 @@ impl State {
         vec![StreamRecord::new(RecordData::Trace(node))]
     }
     fn tool_end(&mut self, id: &str, output: Value, failed: bool) -> Vec<StreamRecord> {
+        if self.trace_omitted {
+            return vec![];
+        }
         let Some(mut node) = self.pending.remove(id) else {
             return if self.seen_tools.contains(id) {
                 vec![]
@@ -181,6 +207,7 @@ impl State {
                     text: format!("{message}\n"),
                     stream: "stderr".into(),
                     diagnostic: false,
+                    recording_issue: None,
                 })),
             ];
         }
@@ -191,7 +218,16 @@ impl State {
             return self.invalid("missing terminal result");
         };
         if !self.fatal {
-            self.result = Some(Self::bounded(json!(result)));
+            let encoded = serde_json::to_vec(result).unwrap_or_default();
+            self.result = Some(if encoded.len() > RECORD_LIMIT - 8192 {
+                let mut end = result.len().min(32 * 1024);
+                while !result.is_char_boundary(end) {
+                    end -= 1;
+                }
+                json!({"truncated":true,"preview":&result[..end]})
+            } else {
+                json!(result)
+            });
         }
         vec![]
     }
@@ -315,7 +351,10 @@ impl CursorNormalizer {
                     .iter()
                     .find(|(name, _)| name.ends_with("ToolCall") || name.as_str() == "function")
                 else {
-                    return state.diagnostic("unsupported Cursor tool call");
+                    return crate::trace::recording_issue(
+                        state.diagnostic("unsupported Cursor tool call"),
+                        crate::trace::RecordingIssue::EventUnsupported,
+                    );
                 };
                 let title = if name == "function" {
                     call["name"].as_str().unwrap_or("Tool")

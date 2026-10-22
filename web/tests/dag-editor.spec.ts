@@ -47,7 +47,9 @@ test('empty draft adds Agents explicitly, keeps instruction drafts and preserves
     [2200, 'dark'],
   ] as const) {
     await page.setViewportSize({ width, height: 900 })
-    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    )
     await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `test-results/dag-canvas-panel-${width}-${theme}.png` })
@@ -154,9 +156,48 @@ for (const count of [20, 100])
     await page.keyboard.press('Escape')
     for (const width of [390, 1440, 2200]) {
       await page.setViewportSize({ width, height: 900 })
-    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      )
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       )
     }
   })
+
+test('new DAG total limit is off, toggling preserves its duration draft without task writes', async ({
+  page,
+}) => {
+  const f = await fixture(page)
+  await page.goto(base)
+  await page.getByRole('button', { name: '下一步', exact: true }).click()
+  // The control shares the execution-policy table row and has an explicit accessible duration label.
+  const toggle = page.getByRole('checkbox', { name: '启用', exact: true })
+  await expect(toggle).not.toBeChecked()
+  await expect(page.getByRole('textbox', { name: '整图总时限', exact: true })).toHaveCount(0)
+  await toggle.check()
+  await page.getByRole('textbox', { name: '整图总时限', exact: true }).fill('2h')
+  await toggle.uncheck()
+  await page.getByRole('tab', { name: '任务', exact: true }).click()
+  await page.getByRole('tab', { name: '时间', exact: true }).click()
+  await toggle.check()
+  await expect(page.getByRole('textbox', { name: '整图总时限', exact: true })).toHaveValue('2h')
+  expect(f.requests.filter((r) => r.path === '/tasks/validate' || r.method === 'PUT')).toHaveLength(
+    0,
+  )
+})
+
+test('DAG total time limit and enable control are localized in English', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('wakeit-language', 'en'))
+  await fixture(page)
+  await page.goto(base)
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
+  const row = page.locator('[data-field="execution.timeout"]')
+  await expect(row).toContainText('Graph total time limit')
+  const enable = row.getByRole('checkbox', { name: 'Enable', exact: true })
+  await expect(enable).not.toBeChecked()
+  await enable.check()
+  await expect(
+    row.getByRole('textbox', { name: 'Graph total time limit', exact: true }),
+  ).toHaveValue('1h')
+})

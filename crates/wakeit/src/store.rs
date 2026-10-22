@@ -491,7 +491,7 @@ pub async fn ingest(pool: &PgPool, e: &RunEvent, log_limit: usize) -> Result<()>
     if !data.is_object() || invalid_trace || invalid_log {
         tracing::warn!(run_id=%e.run_id, seq=e.seq, "malformed execution content omitted");
         kind = "trace_status".into();
-        data = json!({"status":"incomplete"});
+        data = json!({"status":"incomplete","reason":"event_parse_failed"});
     }
     if matches!(kind.as_str(), "log" | "trace") {
         let bytes = if kind == "trace" {
@@ -506,7 +506,7 @@ pub async fn ingest(pool: &PgPool, e: &RunEvent, log_limit: usize) -> Result<()>
                 return Ok(());
             }
             kind = "trace_status".into();
-            data = json!({"status":"truncated"});
+            data = json!({"status":"truncated","reason":"content_limit"});
             sqlx::query("UPDATE runs SET log_truncated=true WHERE id=$1")
                 .bind(e.run_id)
                 .execute(&mut *tx)

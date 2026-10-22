@@ -1,6 +1,6 @@
 # RFC-1: AND DAG tasks
 
-A DAG is one Task; a round is one Run. Nodes are inline execution configurations, not independently runnable Tasks. A complete definition may have multiple roots. Every trigger starts the complete graph; all roots become ready together, subject to Runner capacity and session locks. There is no OR condition, partial start, automatic node retry, subgraph or standalone Task reference.
+A DAG is one Task; a round is one Run. Nodes are inline execution configurations, not independently runnable Tasks. A complete definition may have multiple roots. Every trigger starts the complete graph; all roots become ready together, subject to Runner capacity and session locks. There is no OR condition, partial start, subgraph or standalone Task reference.
 
 ## Execution and results
 
@@ -32,11 +32,11 @@ All views use the current neutral palette, 1px borders, 6px corners, transparent
 
 ## Persistence and interfaces
 
-Append migration(s); never rewrite released baselines. Parent rounds and internal node executions share workspace-scoped references. Atomic node readiness/execution/outbox and unique parent/node identity prevent duplicate starts. Gateway schedules the graph; Runner receives the existing single-execution version-1 payload. All independent node start/retry/cancel API paths are rejected.
+Append migration(s); never rewrite released baselines. Parent rounds and internal node executions share workspace-scoped references. Atomic node readiness/execution/outbox and unique parent/node identity prevent duplicate starts. Gateway schedules the graph; Runner receives the existing single-execution version-1 payload. Generic child execution start/retry/cancel API paths are rejected; guarded manual retry uses the parent Run/node recovery endpoint.
 
 Add complete-definition validation with field/node/cycle errors; extend Run/node queries and events with source node identity and reliable 500-record cursors. Maintain current revision checks, permissions, archive/pause behavior, retention and cross-process session locks. Active parent rounds protect required upstream reports from retention.
 
-Graph timeout defaults to 1h from first node claim; node timeout defaults to 1h. Start grace begins when each node becomes ready. Pause cancels unstarted scheduled rounds; archive cancels all unstarted rounds. Started rounds finish using their snapshot. Cancel/timeout stops dispatch and requests cancellation, never pretending unknown executions stopped.
+Graph total timeout is optional (omitted/null disables it); individual node timeout defaults to 1h. Manual recovery and optional automatic retry follow [DAG recovery](dag.md#manual-node-retry-and-recovery). Start grace begins when each node becomes ready. Pause cancels unstarted scheduled rounds; archive cancels all unstarted rounds. Started rounds finish using their snapshot. Cancel/timeout stops dispatch and requests cancellation, never pretending unknown executions stopped.
 
 ## Acceptance and delivery
 

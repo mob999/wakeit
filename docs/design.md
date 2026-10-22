@@ -99,9 +99,15 @@ Settings 新增归档任务分类，Admin、Operator 可见；保持原默认分
 
 ### Moments
 
-Moments 位于 Tasks 上方，是 `/` 默认主页；Tasks 使用 `/tasks`。不使用第二侧栏。沿用整宽细边框容器、弱化表头、透明图标按钮和等字号 Agent Logo。完成时间按工作区时区分组，左侧时间与贯穿所有日期的中性竖线节点，日期与右侧卡片左对齐；卡片表头包含任务名称、设备、Agent、状态与操作，正文仅展示结果及必要原因。窄屏把时间移至卡片上方，避免挤压正文。
+动态保留独立导航、工作区默认首页与完成时间轴，面向成果阅读。每个父 Run 一张表格卡片：1px 边框、6px 圆角、44px 表头、12px 正文与11px元信息，卡片间距16px。时间与轴线紧凑排列，日期仍按工作区时区和完成时间分组。设备与Agent保持表头右侧，同行显示状态、真实历时和透明操作按钮。窄屏保留设备/Agent图标及可访问名称。没有开始时间时不推测历时。
 
-日期不折叠，不按单条数量提供例外。所有结果采用预览与阅读全文，预览最高 240px；短结果不显示展开入口。每批 14 个日期，日期内每批 20 条。首次进入加载，之后仅用户刷新，不轮询、不因聚焦或重连自动更新。失败保留实际原因，报告支持 Markdown、表格、代码与 JSON。返回运行详情后保留当前访问的阅读位置，浏览器重载重置；正文不持久化到本地存储。
+报告预览最高138px、按内容自然收缩，阅读全文展开原文。宽屏卡片内部使用正文和260px相关信息列；相关信息只展示真实章节目录、报告中的明确文件/外链及DAG输出。没有这些内容时自动单列，不为填空重复执行配置。主区域不足900px时相关信息移至正文下方，390px保留时间轴，无页面横向滚动。
+
+目录与链接从清理后的已渲染正文提取，代码样例和被拒绝的URL不进入索引。目录点击展开并定位原章节；文件入口复用所属Run/节点的原始链接和预览权限；本地图片按现有权限及allowed_roots按需内嵌，引用列表仍可复制路径；不扫描目录，不把引用描述为已生成产物。节选或截断报告的目录/链接标明节选。右列分区使用白底与细分隔，不套嵌额外卡片。“引用 / References”列表省去右侧打开箭头，依据正文实际高度、其他分区和引用行高计算可见行数，预留展开入口；正文展开、缩放及窄屏列数变化后重新计算。
+
+DAG保持一轮一条动态，卡内输出选择同步报告、目录、链接、复制与实际节点Session。预览预算耗尽时提示加载完整结果，不能误报空结果。节点追加尝试只呈现已记录事实，不推测恢复原因。普通报告和DAG均保留失败、空结果、截断提示。
+
+日期不折叠。每批14个日期，日期内每批20条。只在可见或主动展开时懒取现有Run详情，远处以实测高度占位并卸载全文，打开文件或续聊弹窗时保留来源卡片。异步高度变化使用浏览器锚定，手动刷新临时改用明确阅读锚点；结果缓存与运行页轮询分开，首次进入加载后仅用户刷新，不因聚焦或重连自动更新。刷新失败保留已有原文和文件预览，展开、输出选择与滚动位置在本次访问保留。原文和UI状态不写浏览器持久存储。原文比较、日分类统计、自动业务摘要与收藏不属于此版。
 
 ### 目录选择
 
@@ -117,7 +123,7 @@ Moments 位于 Tasks 上方，是 `/` 默认主页；Tasks 使用 `/tasks`。不
 
 页面操作在面包屑右侧，使用细分隔线与版本、主题、账号区分开。窄屏将页面操作收进“页面操作”图标入口，保留原操作的权限、禁用和确认状态；仅查看列表时顶栏只显示列表名称。设置分类切换及根面包屑继续遵守未保存保护。
 
-Moments 正文不再重复显示标题或刷新栏，桌面距离顶栏 16px，窄屏 12px。日期文字中心对齐时间线，不显示日期圆点；日期文字覆盖线条，条目节点和连续时间线保留。窄屏为日期预留左侧空间，长日期不超出边界。
+Moments 正文不再重复显示标题或刷新栏，桌面距离顶栏16px，窄屏12px。日期文字中心对齐时间线，不显示日期圆点；日期文字覆盖线条，条目节点和连续时间线保留。窄屏为日期预留左侧空间，长日期不超出边界。
 
 ## Markdown 扩展
 
@@ -147,7 +153,7 @@ DAG 编辑器使用占满剩余高度的可交互画布，取消第二侧栏和�
 
 首次无坐标图和主动整理使用 ELK，其他编辑保留节点位置与视口。移动、连线、改接、输出选择、删除和整理可撤销；文本使用原生撤销。共享坐标与 Task 一同手动保存，独立于 YAML 和执行快照。时间页保留整宽时间、执行策略卡片；切页和下一步不校验、不写入，保存时统一校验，错误使用 Toast 和字段/节点定位。
 
-任务概览、运行图与编辑器复用同一套右上角缩小、放大、全屏控件；只读图全屏时保留选中节点和缩放，切回表格或 Escape 退出。DAG 运行执行页保留过程→结果两张卡片。过程内部图表不再叠加灰色节点表头，选中节点的名称、状态、耗时和操作合并为白底上下文行。结果按输出节点以白底分隔行展示，不套子卡片。详情只有一张节点详情卡片，唯一表头放节点选择、状态、续聊及核对；单节点不显示选择器。日志和执行信息采用卡片内部的白底折叠行，日志操作在折叠行右侧；执行属性沿用标签/值表格，不重复节点标题。
+任务概览、运行图与编辑器复用同一套右上角缩小、放大、全屏控件；只读图全屏时保留选中节点和缩放，切回表格或 Escape 退出。DAG 运行执行页保留过程→结果两张卡片。过程内部图表不再叠加灰色节点表头，选中节点的名称、状态、耗时和操作合并为白底上下文行。结果区使用白底上下文行显式切换输出节点，一次展示一份正文及引用，不套子卡片；多输出使用公共可搜索选择器，单输出直接显示名称。详情只有一张节点详情卡片，唯一表头放节点选择、状态、续聊及核对；单节点不显示选择器。日志和执行信息采用卡片内部的白底折叠行，日志操作在折叠行右侧；执行属性沿用标签/值表格，不重复节点标题。
 
 ## Session continuation terminal
 
@@ -159,7 +165,11 @@ Show device and complete native command inside the terminal before connecting; d
 
 Admin and Read/write members can click explicit local links in a saved Run/DAG report or Moments to preview a current Runner file. Viewer can copy paths; demo workspaces never query real files. No separate preview_roots is configured: the exact saved link and current Runner allowed_roots bound access. Relative targets use the execution snapshot's task directory, which may differ from an adapter's overridden process directory; adapters should return absolute links in that case. Current files are not archived historical artifacts.
 
-`POST /runs/{execution-id}/files/preview` accepts `{href}`. DAG uses the actual child execution ID. Gateway parses the persisted Markdown/HTML anchors and reauthorizes before delivery; arbitrary, code-block and nested preview links do not grant access. Runner uses the existing version-1 query channel with `read_result_file`, no shell/listener or database fields. At most 512 KiB raw content (further limited by NATS) is returned once: UTF-8 text/code, Markdown/JSON or complete PNG/JPEG/WebP. HTML/SVG stay escaped source; PDF, downloads, directories and special files are unsupported. Local image references do not automatically load. Preview body is memory-only and no-store; closing cancels delivery. Existing Runner identities and allowed_roots remain unchanged.
+`POST /runs/{execution-id}/files/preview` accepts `{href, document?, image?, offset?, revision?}`. DAG uses the actual child execution ID. Gateway checks the exact saved result link on every request; Markdown-file images additionally require an original linked, complete Markdown document and a current image reference inside it. Relative paths use the frozen execution cwd or Runner-validated Markdown directory. Runner uses the existing version-1 `read_result_file` query and current allowed_roots; no separate roots, database changes, or protocol-version change is required. Optional image fields are additive.
+
+Text/Markdown/JSON retain the 512 KiB raw preview limit, further bounded by NATS. Inline PNG/JPEG/WebP uses `image: "thumbnail"`: Runner decodes a source of at most 32 MiB / 40 megapixels / 16,384 pixels per side and generates a preview of at most 1280 pixels per side, reducing it further to fit one response. Transparency is preserved; thumbnail encoding may differ from the original. At most two thumbnails decode concurrently per Runner. Clicking opens a preview and reads the unchanged original using `image: "original"`, byte `offset` and the returned `revision`; each response contains `offset`, `next_offset` (null at EOF), base64 content and the original total `size`. The first original chunk establishes the current file revision (a cached thumbnail may be older); later chunks must match it. All chunks are independently authorized, including current Markdown references and permissions. Original data is memory-only and discarded on close; closing cancels further reads. Old Runners retain small complete-image compatibility and show an update message for oversized files.
+
+Reports, Moments and Markdown-file previews lazily load visible thumbnails with at most four concurrent browser reads, scoped memory-only caching and click-to-enlarge. Inline failures show their specific cause as well as Toasts. Original failures retain the thumbnail and display the cause. Viewer/demo performs no local file IO. Responses are no-store/nosniff. No files are rewritten, no image bytes are persisted to a Gateway URL or browser storage, and no image is substituted for the original report result. HTML/SVG remain escaped source; PDF, directory browsing, special files and downloads are unsupported.
 
 DAG 运行的节点上下文行使用 12px 名称、11px 状态和耗时，耗时保持弱化等宽字体；窄屏将名称与状态信息分为两行。节点菜单独立于触发器宽度，桌面宽 420px，窄屏保留 12px 页边距；名称与小字 ID 占同一身份列，状态和勾号各自对齐，仅纵向滚动。长名称单行省略并保留完整名称提示，支持按名称和完整 ID 搜索。
 
@@ -178,3 +188,13 @@ Trace 内部行最小 36px，正文 12px、状态和耗时 11px，采用细分�
 Tasks、Runs、Runners、Settings 共用独立的第二侧栏语义底色与细边界。工具头高 44px，名称和分类 12px，元信息、状态、时间及分页 11px，不随窗口改变字号。Tasks/Runs 三行对象最小 64px，Runners 两行 48px，Settings 分类 36px；名称可省略，状态和操作不压缩。默认、悬停、选中与键盘焦点分别可辨，选中边框不改变尺寸，当前项具有 aria-current。列表和详情独立滚动，工具头和分页固定，滚动条保留稳定空间。
 
 对象列表保持 350px 默认、270–560px 范围和原有宽度偏好；Settings 默认 240px、200–320px 范围并独立保存。拖拽、键盘调整和双击恢复沿用同一控件，窄屏继续通过列表/详情和面包屑切换。
+
+Trace 工具名称完整显示，不压缩为省略号；只有后面的命令、路径等摘要单行省略。极长工具名在窄屏允许换行，状态及耗时保持原列对齐。
+
+DAG manual recovery keeps the selected node context and reading state. Show Retry node, Retry now or Resume node as the same transparent context action, only on the latest attempt; disabled actions expose the server blocking reason through a Tooltip. Confirm stopped recovery in a compact three-column table (node / state / action) and retain the dialog and reading position after errors. Successful nodes remain unchanged. The DAG Time step uses the existing execution-policy table row for an optional total-limit switch; new drafts default off, while existing explicit limits remain visible. Errors use top-right Toasts.
+
+过程记录完整性使用过程表头或 DAG 当前节点工具栏中的 Info 图标与 Tooltip 展示，按实际执行隔离。提示区分输入/输出节选、事件数量限制、不支持的事件、解析失败、单条事件过大、保存容量和保留过期；普通诊断只留在日志，不根据文案推测缺失。历史记录没有结构化原因时明确提示原因未提供。消息列表前不插入完整性提示段落；没有消息时保留加载、等待、不支持、未记录或全部过期的空状态。Tooltip 中英文同步，支持悬停和键盘聚焦，去重显示所有已知原因，不影响消息折叠、跟随或运行状态。
+
+运行输出阅读模式复用动态页的已净化 Markdown 引用索引，按出现顺序去重收录文件、图片和外部链接，代码示例及被拒绝的 URL 不收录。引用在正文右侧以 11px 紧凑行展示，用细竖线分区，不另套卡片；可用宽度不足 740px 时移至正文下方，以细横线分隔。行数随正文高度调整，额外引用通过“更多”展开；无引用、空输出和原文模式不留空区域。每份 DAG 输出独立归属实际执行，引用文件复用现有权限及预览，保持轮询期间弹窗稳定；只读成员仅复制路径。
+
+DAG 结果选择与过程节点选择独立，按稳定节点 ID 保留，轮询及执行/详情切页不重置。状态、失败原因 Tooltip、正文、引用、原文和复制统一来自当前输出；原文及复制针对该份原始输出，不包含整图聚合封装。每个输出分别保留阅读/原文模式，选择器支持名称与 ID 搜索、状态列、键盘和窄屏；输出不存在或为空时保留明确空状态。
