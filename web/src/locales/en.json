@@ -456,7 +456,7 @@
   "退出「{{v0}}」后，你将失去该工作区的访问权限。": "Leaving “{{v0}}” removes your access to this workspace.",
   "退出": "Leave",
   "只读": "Read only",
-  "实例账号管理": "Instance accounts",
+  "账号管理": "Account management",
   "更改工作区名称": "Rename workspace",
   "使用 GitHub 登录": "Sign in with GitHub",
   "登录已有账号": "Sign in to an existing account",

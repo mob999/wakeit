@@ -169,7 +169,7 @@ test('workspace and instance accounts remain separate and responsive in both the
   }
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.getByRole('button', { name: '用户菜单', exact: true }).click()
-  await page.getByRole('menuitem', { name: '实例账号管理', exact: true }).click()
+  await page.getByRole('menuitem', { name: '账号管理', exact: true }).click()
   await expect(page).toHaveURL('/instance')
   await expect(page.getByRole('button', { name: '新建账号', exact: true })).toBeVisible()
   await expect(page.locator('.settings-member-name').filter({ hasText: /^admin$/ })).toHaveText(
