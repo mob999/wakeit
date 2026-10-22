@@ -502,13 +502,13 @@
   "dag.zoomIn": "Zoom in",
   "dag.selectNodes": "Select nodes",
   "dag.needNode": "Add at least one node",
-  "dag.needResult": "Select at least one result node",
+  "dag.needResult": "Select at least one output node",
   "dag.cycle": "Dependencies form a cycle",
   "dag.required": "Enter {{field}}",
   "dag.notAncestor": "Result source is not an ancestor: {{name}}",
   "dag.pre": "Predecessors",
   "dag.insertResult": "Insert upstream result",
-  "dag.results": "Result nodes",
+  "dag.results": "Output nodes",
   "dag.autoResults": "Automatic",
   "dag.addNode": "Add node",
   "dag.resize": "Resize node configuration",
@@ -727,5 +727,6 @@
   "recording.content_expired": "Some activity records were removed under the retention policy.",
   "recording.unspecified": "The recording is incomplete, but no specific cause was provided. Check the logs.",
   "dag.selectOutput": "Select an output node",
-  "dag.searchOutputs": "Search output nodes"
+  "dag.searchOutputs": "Search output nodes",
+  "dag.output": "Output"
 }

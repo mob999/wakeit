@@ -25,14 +25,14 @@ import {
   type FinalConnectionState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Flag, CircleAlert, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import type { Agent, DagNode, EditorLayout, Runner } from '../api'
-import { AgentLogo } from '../AgentLogo'
 import { IconButton } from '../ui'
 import { t } from '../i18n'
 import { nodeName, runnerName } from './identity'
 import { arrangeNodes, NODE_HEIGHT, NODE_WIDTH } from './layout'
 import { positionOf, type Point } from './workbench'
+import { NodeCardContent } from './NodeCard'
 export type CanvasHandle = {
   point: (screen: Point) => Point
   center: () => Point
@@ -56,29 +56,24 @@ const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<CanvasNo
   return (
     <div
       className={
-        'dag-canvas-node ' +
+        'dag-canvas-node dag-node-card ' +
         (selected ? 'selected ' : '') +
         (data.invalid ? 'invalid ' : '') +
         (data.matched ? 'matched' : '')
       }
       data-node={data.config.id}
+      aria-description={data.output ? t('dag.outputNode') : undefined}
     >
       <Handle type="target" position={Position.Left} aria-label={t('dag.inputPort')} />
-      <div className="dag-canvas-node-title">
-        <strong title={nodeName(data.config)}>{nodeName(data.config)}</strong>
-        {data.output && <Flag size={12} aria-label={t('dag.outputNode')} />}{' '}
-        {data.invalid && <CircleAlert size={13} aria-label={t('dag.checkNode')} />}
-        <div className="nodrag nopan" onClick={(e) => e.stopPropagation()}>
-          {data.actions}
-        </div>
-      </div>
-      <div className="dag-node-meta">
-        <span title={data.runner}>{data.runner}</span>
-        <span className="run-agent">
-          <AgentLogo name={data.agent?.name ?? data.config.agent} logo={data.agent?.logo} />
-          {data.agent?.name ?? data.config.agent}
-        </span>
-      </div>
+      <NodeCardContent
+        name={nodeName(data.config)}
+        runner={data.runner}
+        agent={data.agent?.name ?? data.config.agent}
+        logo={data.agent?.logo}
+        output={data.output}
+        invalid={data.invalid}
+        actions={data.actions}
+      />
       <div className="dag-canvas-node-add nodrag nopan">
         <IconButton
           label={t('dag.addNext')}
@@ -231,6 +226,9 @@ const CanvasInner = forwardRef<CanvasHandle, CanvasProps>(function CanvasInner(p
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
         ariaLabel: nodeName(config),
+        domAttributes: {
+          'aria-description': props.outputs.includes(config.id) ? t('dag.outputNode') : undefined,
+        },
         data: {
           config,
           runner: runnerName(config, props.runners, props.agents),

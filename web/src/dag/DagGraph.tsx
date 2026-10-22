@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import ELK, { type ElkNode } from 'elkjs/lib/elk-api'
 // @ts-expect-error Vite emits this worker as a separate local asset.
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url'
-import { List, GitBranch, Flag, CircleAlert, ChevronRight } from 'lucide-react'
+import { List, GitBranch, CircleAlert, ChevronRight } from 'lucide-react'
 import { t } from '../i18n'
 import { type DagNode, type DagRunNode, type Agent, type Runner } from '../api'
 import { IconButton } from '../ui'
@@ -12,6 +12,8 @@ import { AgentLogo } from '../AgentLogo'
 import { Status } from '../Status'
 import { nodeName, runnerName } from './identity'
 import { CanvasControls } from './CanvasControls'
+import { NodeCardContent, OutputBadge } from './NodeCard'
+import { NODE_HEIGHT, NODE_WIDTH } from './layout'
 import './dag.css'
 export type DagView = 'graph' | 'list'
 export function DagGraph({
@@ -127,7 +129,7 @@ export function DagGraph({
             'elk.layered.spacing.nodeNodeBetweenLayers': '48',
             'elk.padding': '[top=20,left=20,bottom=20,right=20]',
           },
-          children: nodes.map((n) => ({ id: n.id, width: 240, height: 'state' in n ? 116 : 96 })),
+          children: nodes.map((n) => ({ id: n.id, width: NODE_WIDTH, height: NODE_HEIGHT })),
           edges: nodes.flatMap((n) =>
             n.pre
               .filter((id) => nodes.some((p) => p.id === id))
@@ -210,15 +212,15 @@ export function DagGraph({
   function flags(n: DagNode) {
     return (
       <>
-        {outputIds.includes(n.id) && <Flag size={12} aria-label={t('dag.outputNode')} />}
+        {outputIds.includes(n.id) && <OutputBadge />}
         {invalid.includes(n.id) && <CircleAlert size={13} aria-label={t('dag.checkNode')} />}
       </>
     )
   }
+  const agentOf = (n: DagNode) =>
+    agents.find((a) => a.id === n.agent && (a.runner === n.runner || a.runner_id === n.runner))
   function metadata(n: DagNode, table = false) {
-    const agent = agents.find(
-      (a) => a.id === n.agent && (a.runner === n.runner || a.runner_id === n.runner),
-    )
+    const agent = agentOf(n)
     return (
       <>
         <span role={table ? 'cell' : undefined} title={runnerName(n, runners, agents)}>
@@ -426,7 +428,7 @@ export function DagGraph({
                             key={n.id}
                             disabled={disabled}
                             className={
-                              'dag-graph-node ' +
+                              'dag-graph-node dag-node-card ' +
                               (selected === n.id ? 'selected ' : '') +
                               (search && matches(n) ? 'matched' : '')
                             }
@@ -439,14 +441,20 @@ export function DagGraph({
                             aria-pressed={selected === n.id}
                             aria-invalid={invalid.includes(n.id) || undefined}
                             aria-label={nodeName(n)}
+                            aria-description={
+                              outputIds.includes(n.id) ? t('dag.outputNode') : undefined
+                            }
                             onClick={() => onSelect(n.id)}
                           >
-                            <span className="dag-node-title">
-                              <strong title={nodeName(n)}>{nodeName(n)}</strong>
-                              {flags(n)}
-                            </span>
-                            <span className="dag-node-meta">{metadata(n)}</span>
-                            {'state' in n && <Status state={n.state} />}
+                            <NodeCardContent
+                              name={nodeName(n)}
+                              runner={runnerName(n, runners, agents)}
+                              agent={agentOf(n)?.name || n.agent || '—'}
+                              logo={agentOf(n)?.logo}
+                              output={outputIds.includes(n.id)}
+                              invalid={invalid.includes(n.id)}
+                              status={'state' in n ? <Status state={n.state} /> : undefined}
+                            />
                           </button>
                         )
                       })}

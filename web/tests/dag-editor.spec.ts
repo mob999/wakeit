@@ -102,10 +102,10 @@ test('output selection allows an empty draft, marks actual leaves and blocks an 
   const f = await fixture(page)
   await page.goto(base + '?task=ux-fixture')
   await expect(page.locator('.dag-interactive-canvas')).toHaveAttribute('data-layout-ready', 'true')
-  await page.getByRole('button', { name: '结果设置', exact: true }).click()
+  await page.getByRole('button', { name: '输出设置', exact: true }).click()
   await expect(page.locator('.dag-output-rows')).toContainText('Write report')
-  await selectChoice(page, page, '结果选择', '指定节点')
-  await page.getByRole('combobox', { name: '结果节点', exact: true }).click()
+  await selectChoice(page, page, '输出选择', '指定节点')
+  await page.getByRole('combobox', { name: '输出节点', exact: true }).click()
   await page.getByRole('option', { name: /^Write report/ }).click()
   await expect(page.getByRole('option', { name: /^Write report/ })).toHaveAttribute(
     'aria-selected',
@@ -116,8 +116,8 @@ test('output selection allows an empty draft, marks actual leaves and blocks an 
   await page.getByRole('button', { name: '保存任务', exact: true }).click()
   await expect(page.locator('.dag-output-settings')).toBeVisible()
   expect(f.requests.filter((r) => r.method === 'PUT')).toHaveLength(0)
-  await selectChoice(page, page, '结果选择', '自动')
-  await expect(page.locator('.dag-canvas-node').getByLabel('结果节点')).toHaveCount(1)
+  await selectChoice(page, page, '输出选择', '自动')
+  await expect(page.locator('.dag-canvas-node').getByLabel('输出节点')).toHaveCount(1)
 })
 
 for (const count of [20, 100])

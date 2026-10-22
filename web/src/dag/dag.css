@@ -132,11 +132,6 @@
 }
 .dag-graph-node {
   position: absolute;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 7px;
-  padding: 10px 12px;
   text-align: left;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -159,14 +154,6 @@
   font-size: var(--ui-text);
   font-weight: 550;
 }
-.dag-graph-node .dag-node-title strong {
-  flex: 1;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 18px;
-}
 .dag-node-title > svg {
   flex-shrink: 0;
   color: var(--muted);
@@ -187,24 +174,6 @@
 .dag-graph-node[aria-invalid='true'] {
   border-color: var(--failure);
 }
-.dag-node-meta {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  font-size: var(--ui-text);
-  color: var(--muted);
-  min-width: 0;
-}
-.dag-node-meta > span {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.dag-node-meta > span:first-child {
-  flex: 1;
-}
-.dag-node-meta .agent-logo,
 .dag-node-columns .agent-logo {
   width: 12px;
   height: 12px;

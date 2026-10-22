@@ -8,6 +8,12 @@ test('floating editor and table share identity and column geometry without chang
   await page.goto(base + '?task=ux-fixture')
   await expect(page.locator('.dag-floating-panel')).toHaveCount(0)
   await expect(page.locator('.react-flow__node').first()).toContainText('Preview device')
+  const output = page.locator('.dag-canvas-node').filter({ hasText: 'Write report' })
+  await expect(output.locator('.dag-node-card-header')).toContainText('Preview device')
+  await expect(output.locator('.dag-node-card-header')).toContainText('Pi')
+  await expect(output.locator('.dag-node-card-footer').getByLabel('输出节点')).toHaveText('输出')
+  await expect(output).toHaveCSS('width', '240px')
+  await expect(output).toHaveCSS('height', '96px')
   const before = (await page.locator('.dag-interactive-canvas').boundingBox())!
   await editNode(page)
   const panel = (await page.locator('.dag-floating-panel').boundingBox())!
@@ -48,6 +54,12 @@ test('floating editor and table share identity and column geometry without chang
         document.documentElement.dataset.theme = theme
       },
       { language, theme },
+    )
+    const badge = page.locator('.dag-node-table .dag-output-badge')
+    await expect(badge).toHaveText(language === 'zh' ? '输出' : 'Output')
+    await expect(badge).toHaveCSS(
+      'color',
+      theme === 'dark' ? 'rgb(88, 166, 255)' : 'rgb(9, 105, 218)',
     )
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({
