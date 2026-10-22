@@ -725,5 +725,7 @@
   "recording.event_too_large": "单条 Agent 事件过大，未保存这条事件。",
   "recording.content_limit": "过程保存容量已用尽，之后的过程内容未保存；Agent 继续执行。",
   "recording.content_expired": "部分过程记录已按保留期限清理。",
-  "recording.unspecified": "记录不完整，但该记录未提供具体原因；可查看日志。"
+  "recording.unspecified": "记录不完整，但该记录未提供具体原因；可查看日志。",
+  "dag.selectOutput": "选择输出节点",
+  "dag.searchOutputs": "搜索输出节点"
 }

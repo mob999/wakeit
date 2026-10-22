@@ -51,4 +51,4 @@ Moments remains the workspace home and a separate completion-time timeline. Each
 
 过程工具栏的记录提示描述保存完整性，不是 Agent 失败。内容节选、解析失败、事件省略和过期等原因由结构化状态提供；普通诊断查看日志。旧记录没有原因时不推测，不能据此重新执行任务或把成功节点判为失败。
 
-Run output reading mode includes References for rendered local files, images and external links. Each DAG output uses its actual execution as the file source. Reference file previews retain the existing authorization; viewers may copy paths without file access. Raw mode does not show the reference index.
+Run output reading mode includes References for rendered local files, images and external links. Select an output explicitly in a DAG result card; one report is shown at a time, independently of the process node selection. Reading/raw mode is retained per output, and copying targets only the selected original report. Each DAG output uses its actual execution as the file source. Reference file previews retain the existing authorization; viewers may copy paths without file access. Raw mode does not show the reference index.

@@ -36,7 +36,7 @@ import { Status } from '../Status'
 import { ChoicePicker } from '../ChoicePicker'
 import { CopyValue } from '../runs/CopyValue'
 import { RunSection } from '../runs/RunSection'
-import { RunResult, RunResultActions } from '../runs/RunResult'
+import { RunResult } from '../runs/RunResult'
 import { RunTrace, useRunTrace } from '../runs/RunTrace'
 import { RunLogs, RunLogActions } from '../runs/RunLogs'
 import { RunDetails } from '../runs/RunDetails'
@@ -46,6 +46,7 @@ import { DagGraph, type DagView } from './DagGraph'
 import { useRunReading, TraceActions } from '../runs/RunReading'
 import { RunReason } from '../runs/RunReason'
 import { DagRunStatus } from './DagRunStatus'
+import { DagRunResult } from './DagRunResult'
 
 export function DagRunDetail({
   id,
@@ -72,7 +73,6 @@ export function DagRunDetail({
   const [tab, setTab] = useState<'execute' | 'details'>('execute')
   const [processOpen, setProcessOpen] = useState(!reading.highlighted || reading.resultReady)
   const [resultOpen, setResultOpen] = useState(reading.highlighted && !reading.resultReady)
-  const [raw, setRaw] = useState(false)
   const emptyShown = useRef(false)
   const resultTop = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
@@ -284,25 +284,16 @@ export function DagRunDetail({
               ))}
           </RunSection>
           <div ref={resultTop} />
-          <RunSection
-            title={t('结果')}
+          <DagRunResult
+            key={id}
+            runId={id}
+            result={r.result}
+            nodes={nodes}
             open={resultOpen}
-            onChange={setResultOpen}
+            onOpenChange={setResultOpen}
             hidden={!hasResult && !['succeeded', 'warning'].includes(r.state)}
-            actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
-          >
-            {hasResult ? (
-              <RunResult
-                result={r.result}
-                raw={raw}
-                toast={toast}
-                source={{ runId: id }}
-                executions={r.nodes}
-              />
-            ) : (
-              <p className="quiet dag-node-empty">{t('未返回结果')}</p>
-            )}
-          </RunSection>
+            toast={toast}
+          />
         </div>
         <div hidden={tab !== 'details'}>
           {nodes

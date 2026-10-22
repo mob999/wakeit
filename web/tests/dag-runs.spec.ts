@@ -212,7 +212,8 @@ test('DAG highlights output once, preserves trace expansion and uses only whole-
     'true',
   )
   await page.getByRole('button', { name: '原文', exact: true }).click()
-  await expect(page.locator('.result-raw')).toContainText('"type": "dag"')
+  await expect(page.locator('.result-raw')).toContainText('# Final report')
+  await expect(page.locator('.result-raw')).not.toContainText('"type": "dag"')
   await page.getByRole('button', { name: '阅读', exact: true }).click()
   await expect(page.locator('.trace-notice')).toHaveCount(0)
   await page.locator('.dag-run-page').evaluate((el) => (el.scrollTop = 0))
@@ -947,3 +948,122 @@ test('recording tooltips belong to the selected DAG execution, never another nod
   await page.getByRole('option', { name: /^Collect sources/ }).click()
   await expect(info).toHaveCount(1)
 })
+
+for (const [width, language, theme] of [
+  [1440, 'zh', 'light'],
+  [390, 'en', 'dark'],
+] as const) {
+  test(`DAG output switching keeps report, copy and independent view state together at ${width}px ${language}`, async ({
+    page,
+    context,
+  }, info) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.setViewportSize({ width, height: 900 })
+    const f = fixture()
+    finish(f)
+    const secondId = 'second-output-full-stable-id',
+      emptyId = 'empty-output-full-stable-id'
+    f.run.nodes.push(
+      {
+        ...f.run.nodes[0],
+        id: secondId,
+        name: f.run.nodes[0].name,
+        execution_id: '00000000-0000-4000-8000-000000000003',
+      },
+      {
+        ...f.run.nodes[0],
+        id: emptyId,
+        name: 'Empty output',
+        state: 'failed',
+        execution_id: '00000000-0000-4000-8000-000000000004',
+      },
+    )
+    const first = f.run.result.outputs[0],
+      second = {
+        ...first,
+        node_id: secondId,
+        name: first.name,
+        result: '# Second output\n\n[Second source](https://example.test/second)',
+      },
+      empty = {
+        node_id: emptyId,
+        name: 'Empty output',
+        state: 'failed',
+        reason: 'Synthetic output failure',
+        result: null,
+      }
+    f.run.result.outputs.push(second, empty)
+    const writes = await mock(page, f)
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    await page.evaluate(
+      async ({ language, theme }) => {
+        const module = await import('/src/i18n.ts')
+        await module.setLanguage(language)
+        document.documentElement.dataset.theme = theme
+      },
+      { language, theme },
+    )
+    const name = language === 'zh' ? '选择输出节点' : 'Select an output node'
+    const picker = page.getByRole('combobox', { name, exact: true })
+    const result = page.locator('.run-section').filter({ has: picker })
+    await expect(picker).toHaveAttribute('title', first.name)
+    await expect(result.getByRole('heading', { name: 'Final report', exact: true })).toBeVisible()
+    await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toHaveCount(0)
+    await result
+      .getByRole('button', { name: language === 'zh' ? '原文' : 'Raw', exact: true })
+      .click()
+    await expect(result.locator('.result-raw')).toContainText('# Final report')
+    await picker.press('ArrowDown')
+    const menu = page.locator('.dag-node-picker')
+    await menu.getByRole('combobox').fill(secondId)
+    await expect(menu.getByRole('option')).toHaveCount(1)
+    await menu.getByRole('combobox').press('Enter')
+    await expect(picker).toBeFocused()
+    await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toBeVisible()
+    await expect(result.locator('.result-references')).toContainText('Second source')
+    await expect(result.locator('.result-raw')).toHaveCount(0)
+    await result
+      .getByRole('button', { name: language === 'zh' ? '复制' : 'Copy', exact: true })
+      .click()
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(second.result)
+    await page
+      .getByRole('tab', { name: language === 'zh' ? '详情' : 'Details', exact: true })
+      .click()
+    await page
+      .getByRole('tab', { name: language === 'zh' ? '执行' : 'Execution', exact: true })
+      .click()
+    // Polling may reorder the data, but selection belongs to the stable node ID.
+    f.run.result.outputs = [empty, second, first]
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.querySelector('.dag-result-context .choice-selector')?.getAttribute('title'),
+        ),
+      )
+      .toBe(second.name)
+    await page.waitForTimeout(2300)
+    await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toBeVisible()
+    await picker.click()
+    await menu.getByRole('combobox').fill(first.node_id)
+    await menu.getByRole('combobox').press('End')
+    await menu.getByRole('combobox').press('Enter')
+    await expect(result.locator('.result-raw')).toContainText('# Final report')
+    await picker.click()
+    await menu.getByRole('combobox').fill(emptyId)
+    await menu.getByRole('combobox').press('Enter')
+    await expect(
+      result.getByText(language === 'zh' ? '未返回结果' : 'No result returned', { exact: true }),
+    ).toBeVisible()
+    await expect(result.locator('.dag-result-context .status')).toContainText(
+      language === 'zh' ? '失败' : 'Failed',
+    )
+    await expect(result.locator('.run-result-panel')).toHaveCount(0)
+    await expect(result.locator('.run-section-actions').getByRole('button')).toHaveCount(0)
+    await result.locator('.run-reason').focus()
+    await expect(page.getByRole('tooltip')).toContainText(empty.reason)
+    await page.keyboard.press('Escape')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: info.outputPath('output-switcher.png') })
+    expect(writes).toEqual([])
+  })
+}

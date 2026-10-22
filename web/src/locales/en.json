@@ -725,5 +725,7 @@
   "recording.event_too_large": "An Agent event was too large to save and was omitted.",
   "recording.content_limit": "Activity storage is full. Later activity was not saved; the Agent continues running.",
   "recording.content_expired": "Some activity records were removed under the retention policy.",
-  "recording.unspecified": "The recording is incomplete, but no specific cause was provided. Check the logs."
+  "recording.unspecified": "The recording is incomplete, but no specific cause was provided. Check the logs.",
+  "dag.selectOutput": "Select an output node",
+  "dag.searchOutputs": "Search output nodes"
 }
