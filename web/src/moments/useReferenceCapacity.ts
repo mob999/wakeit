@@ -11,7 +11,7 @@ export function useReferenceCapacity({
 }: {
   reading: RefObject<HTMLDivElement | null>
   context: RefObject<HTMLElement | null>
-  list: RefObject<HTMLDivElement | null>
+  list: RefObject<HTMLElement | null>
   toggle: RefObject<HTMLButtonElement | null>
   count: number
 }) {
@@ -37,7 +37,7 @@ export function useReferenceCapacity({
         ? heading.getBoundingClientRect().height +
           (parseFloat(getComputedStyle(heading).marginBottom) || 0)
         : 0
-      const beside = asideRect.left > bodyRect.left + bodyRect.width - 1
+      const beside = asideRect.left >= bodyRect.right - 1 || asideRect.right <= bodyRect.left + 1
       const available = Math.max(
         0,
         beside

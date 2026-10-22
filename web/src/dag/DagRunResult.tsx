@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DagRunNode } from '../api'
-import { ChoicePicker } from '../ChoicePicker'
-import { Status } from '../Status'
-import { RunReason } from '../runs/RunReason'
 import { RunSection } from '../runs/RunSection'
-import { RunResult, RunResultActions, dagOutputs, resultData } from '../runs/RunResult'
-import { shortId } from './identity'
+import { RunResult, RunResultActions, dagOutputs } from '../runs/RunResult'
 
 export function DagRunResult({
   runId,
@@ -52,48 +48,21 @@ export function DagRunResult({
         />
       }
     >
-      {output && (
-        <div className="dag-result-context">
-          {outputs!.length > 1 ? (
-            <ChoicePicker
-              label={t('dag.selectOutput')}
-              searchLabel={t('dag.searchOutputs')}
-              popoverClassName="dag-node-picker"
-              searchable
-              value={output.node_id}
-              options={outputs!.map((item) => ({
-                value: item.node_id,
-                label: item.name,
-                title: item.name,
-                keywords: item.node_id,
-                description: shortId(item.node_id),
-                status: <Status state={item.state} />,
-              }))}
-              onChange={setSelected}
-            />
-          ) : (
-            <strong>{output.name}</strong>
-          )}
-          <RunReason state={output.state} reason={output.reason}>
-            <Status state={output.state} />
-          </RunReason>
-        </div>
-      )}
-      {resultData(value).empty ? (
-        <p className="quiet dag-node-empty">{t('未返回结果')}</p>
-      ) : (
-        <RunResult
-          key={key}
-          result={value}
-          raw={raw}
-          toast={toast}
-          source={
-            execution
-              ? { runId: execution }
-              : { runId, ...(output ? { nodeId: output.node_id } : {}) }
-          }
-        />
-      )}
+      <RunResult
+        result={value}
+        raw={raw}
+        toast={toast}
+        outputs={outputs ?? []}
+        selectedOutput={output?.node_id}
+        onSelectOutput={setSelected}
+        identity={`${runId}:${output?.node_id ?? ''}:${execution ?? runId}`}
+        cwd={nodes.find((node) => node.id === output?.node_id)?.cwd}
+        source={
+          execution
+            ? { runId: execution }
+            : { runId, ...(output ? { nodeId: output.node_id } : {}) }
+        }
+      />
     </RunSection>
   )
 }

@@ -9,14 +9,13 @@ import {
   Check,
   GitBranch,
   RefreshCw,
-  FileText,
-  Image,
-  ExternalLink,
   Clock,
+  Maximize,
+  Minimize,
 } from 'lucide-react'
 import { t, locale } from '../i18n'
 import { api, type MomentEntry, type Run } from '../api'
-import { IconButton, Button, TooltipTarget } from '../ui'
+import { IconButton, TooltipTarget } from '../ui'
 import { Status } from '../Status'
 import { AgentLogo } from '../AgentLogo'
 import { MarkdownContent } from '../runs/MarkdownContent'
@@ -24,16 +23,9 @@ import { CodeContent, isJsonCode } from '../runs/CodeContent'
 import { dagOutputs, resultData } from '../runs/RunResult'
 import { RunReason } from '../runs/RunReason'
 import { ResumeRun } from '../sessions/ResumeRun'
-import {
-  duration,
-  retriedNodes,
-  reportIndex,
-  type ReportHeading,
-  type ReportLink,
-} from './reportModel'
+import { duration, retriedNodes } from './reportModel'
 import { PreviewActivity } from '../files/PreviewActivity'
-import { ResultFileLink } from '../files/ResultFileLink'
-import { useReferenceCapacity } from './useReferenceCapacity'
+import { ReportReader } from '../reports/ReportReader'
 import { VisitContext, manual } from './MomentsPage'
 
 export function MomentCard({
@@ -121,27 +113,10 @@ function MomentContent({
   const visit = useContext(VisitContext),
     client = useQueryClient()
   const expanded = visit.expanded.has(entry.id)
-  const report = useRef<HTMLDivElement>(null)
-  const reading = useRef<HTMLDivElement>(null),
-    context = useRef<HTMLElement>(null),
-    referenceList = useRef<HTMLDivElement>(null),
-    referenceToggle = useRef<HTMLButtonElement>(null)
-  const [overflow, setOverflow] = useState(false)
   const [output, setOutput] = useState(visit.outputs.current.get(entry.id))
-  const [headings, setHeadings] = useState<ReportHeading[]>([]),
-    [links, setLinks] = useState<ReportLink[]>([])
-  const [moreLinks, setMoreLinks] = useState(false),
-    [moreHeadings, setMoreHeadings] = useState(false)
+  const [overflow, setOverflow] = useState(false)
   const [copying, setCopying] = useState(false),
     [copied, setCopied] = useState(false)
-  const referenceCapacity = useReferenceCapacity({
-    reading,
-    context,
-    list: referenceList,
-    toggle: referenceToggle,
-    count: links.length,
-  })
-  const locate = useRef<number | null>(null)
   const queryKey = ['moments', 'report', entry.id]
   const full = useQuery({
     queryKey,
@@ -187,48 +162,9 @@ function MomentContent({
   const truncated = full.data
     ? data.truncated
     : data.truncated || (isDag ? preview?.truncated : entry.truncated)
-  const viewKey = `${entry.id}:${nodeId ?? ''}`
-  useLayoutEffect(() => {
-    const root = report.current
-    if (!root) return
-    const index = reportIndex(root)
-    setHeadings(index.headings)
-    setLinks(index.links)
-    const measure = () => setOverflow(root.scrollHeight > 138)
-    measure()
-    const observer = new ResizeObserver(measure)
-    if (root.firstElementChild) observer.observe(root.firstElementChild)
-    return () => observer.disconnect()
-  }, [text, json, viewKey])
-  useLayoutEffect(() => {
-    if (!expanded || incomplete || locate.current === null || !report.current) return
-    const target = report.current.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6')[locate.current]
-    if (target) {
-      target.tabIndex = -1
-      target.scrollIntoView({ block: 'nearest' })
-      target.focus({ preventScroll: true })
-    }
-    locate.current = null
-  }, [expanded, incomplete, text])
   function choose(id: string) {
     setOutput(id)
     visit.outputs.current.set(entry.id, id)
-    setMoreLinks(false)
-    setMoreHeadings(false)
-    locate.current = null
-  }
-  function heading(index: number) {
-    locate.current = index
-    if (!expanded) visit.setExpanded(entry.id, true)
-    else {
-      const target = report.current?.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6')[index]
-      if (target) {
-        target.tabIndex = -1
-        target.scrollIntoView({ block: 'nearest' })
-        target.focus({ preventScroll: true })
-      }
-      locate.current = null
-    }
   }
   async function copy() {
     setCopying(true)
@@ -255,13 +191,23 @@ function MomentContent({
   }
   const elapsed = duration(full.data?.started_at, full.data?.finished_at)
   const retries = retriedNodes(full.data)
-  const hasInfo = outputs.length > 1 || headings.length > 1 || links.length > 0
   const resumable = isDag
     ? !!full.data?.nodes?.find((n) => n.id === nodeId)?.continuation_available
     : entry.continuation_available
   return (
     <div className="content-card moment-card">
       <header className="card-header">
+        {(overflow || expanded || incomplete) && (
+          <IconButton
+            className="moment-read"
+            label={expanded ? t('收起') : t('阅读全文')}
+            aria-expanded={expanded}
+            loading={expanded && full.isFetching}
+            onClick={() => visit.setExpanded(entry.id, !expanded)}
+          >
+            {expanded ? <Minimize /> : <Maximize />}
+          </IconButton>
+        )}
         <h3>
           <Link to="/runs" search={{ run: entry.id }}>
             {entry.name}
@@ -318,6 +264,12 @@ function MomentContent({
               {copied ? <Check /> : <Copy />}
             </IconButton>
           )}
+
+          {full.error && (
+            <IconButton label={t('重试')} loading={full.isFetching} onClick={() => full.refetch()}>
+              <RefreshCw />
+            </IconButton>
+          )}
           <TooltipTarget label={t('查看运行')}>
             <Link
               className="button ghost icon-button"
@@ -330,157 +282,42 @@ function MomentContent({
           </TooltipTarget>
         </div>
       </header>
-      <div className={`moment-content ${hasInfo ? 'moment-with-context' : ''}`}>
-        <div className="moment-reading" ref={reading}>
-          {retries > 0 && (
-            <p className="moment-retries quiet">{t('moments.retried', { count: retries })}</p>
-          )}
-          {isDag && chosen && (
-            <div className="moment-output-context">
-              <span>{chosen.name}</span>
-              <RunReason state={chosen.state} reason={chosen.reason}>
-                <Status state={chosen.state} />
-              </RunReason>
-            </div>
-          )}
-          {truncated && <p className="quiet moment-notice">{t('结果已截断')}</p>}
-          <div
-            className={`moment-report ${expanded ? 'moment-report-expanded' : 'moment-report-preview'}`}
-            ref={report}
-          >
-            {!data.empty ? (
-              json ? (
-                <CodeContent text={text} json={isJsonCode(value)} className="result-raw" />
-              ) : (
-                <article className="markdown-result">
-                  <MarkdownContent text={text} source={fileSource} />
-                </article>
-              )
-            ) : incomplete ? (
-              <p className="quiet">{t('moments.loadOutput')}</p>
-            ) : (
-              <p className="quiet">{t('未返回结果')}</p>
+      <ReportReader
+        identity={`${entry.id}:${nodeId ?? ''}:${execution ?? entry.id}`}
+        indexKey={text}
+        markdown={!json && !data.empty}
+        source={fileSource}
+        cwd={full.data?.nodes?.find((node) => node.id === nodeId)?.cwd ?? full.data?.config.cwd}
+        outputs={isDag ? outputs : []}
+        selectedOutput={nodeId}
+        onSelectOutput={choose}
+        preview={!expanded}
+        incomplete={!!incomplete}
+        onExpand={() => visit.setExpanded(entry.id, true)}
+        notice={
+          <>
+            {retries > 0 && (
+              <p className="moment-retries quiet">{t('moments.retried', { count: retries })}</p>
             )}
-          </div>
-          <div className="moment-reading-actions">
-            {(overflow || expanded || incomplete) && (
-              <Button
-                className="moment-read"
-                loading={expanded && full.isFetching}
-                onClick={() => visit.setExpanded(entry.id, !expanded)}
-              >
-                {expanded ? t('收起') : t('阅读全文')}
-              </Button>
-            )}
-            {full.error && (
-              <Button onClick={() => full.refetch()}>
-                <RefreshCw size={13} />
-                {t('重试')}
-              </Button>
-            )}
-          </div>
-        </div>
-        {hasInfo && (
-          <aside ref={context} className="moment-context" aria-label={t('moments.related')}>
-            {outputs.length > 1 && (
-              <section className="moment-context-section">
-                <h4>{t('moments.outputTitle')}</h4>
-                <div className="moment-output-list">
-                  {outputs.map((o) => (
-                    <button
-                      key={o.node_id}
-                      className={nodeId === o.node_id ? 'selected' : ''}
-                      aria-pressed={nodeId === o.node_id}
-                      title={`${o.name} · ${o.node_id}`}
-                      aria-label={`${o.name} · ${o.node_id}`}
-                      onClick={() => choose(o.node_id)}
-                    >
-                      <span>
-                        {o.name}
-                        {outputs.some(
-                          (other) => other.node_id !== o.node_id && other.name === o.name,
-                        ) && <small className="moment-output-id">{o.node_id.slice(0, 8)}</small>}
-                      </span>
-                      <Status state={o.state} />
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-            {headings.length > 1 && (
-              <section className="moment-context-section">
-                <h4>
-                  {t('moments.outline')}
-                  {(incomplete || truncated) && (
-                    <span className="quiet">{t('moments.excerpt')}</span>
-                  )}
-                </h4>
-                <nav aria-label={t('moments.outline')}>
-                  {(moreHeadings ? headings : headings.slice(0, 3)).map((h) => (
-                    <button key={h.index} title={h.label} onClick={() => void heading(h.index)}>
-                      {h.label}
-                    </button>
-                  ))}
-                </nav>
-                {headings.length > 3 && (
-                  <button
-                    type="button"
-                    className="moment-more"
-                    aria-expanded={moreHeadings}
-                    onClick={() => setMoreHeadings((v) => !v)}
-                  >
-                    {moreHeadings ? t('收起') : t('moments.more', { count: headings.length - 3 })}
-                  </button>
-                )}
-              </section>
-            )}
-            {!!links.length && (
-              <section className="moment-context-section">
-                <h4>
-                  {t('moments.links')}
-                  {(incomplete || truncated) && (
-                    <span className="quiet">{t('moments.excerpt')}</span>
-                  )}
-                </h4>
-                <div className="moment-link-list" ref={referenceList}>
-                  {links.map((link, index) => (
-                    <div key={link.href} hidden={!moreLinks && index >= referenceCapacity}>
-                      {link.local ? (
-                        <ResultFileLink href={link.href} source={fileSource}>
-                          {link.image ? <Image size={13} /> : <FileText size={13} />}
-                          <span>{link.label}</span>
-                        </ResultFileLink>
-                      ) : (
-                        <a
-                          href={link.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={link.href}
-                        >
-                          <ExternalLink size={13} />
-                          <span>{link.label}</span>
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  ref={referenceToggle}
-                  className="moment-more"
-                  aria-expanded={moreLinks}
-                  hidden={!moreLinks && links.length <= referenceCapacity}
-                  onClick={() => setMoreLinks((v) => !v)}
-                >
-                  {moreLinks
-                    ? t('收起')
-                    : t('moments.more', { count: Math.max(0, links.length - referenceCapacity) })}
-                </button>
-              </section>
-            )}
-          </aside>
+            {truncated && <p className="quiet moment-notice">{t('结果已截断')}</p>}
+          </>
+        }
+        onOverflowChange={setOverflow}
+      >
+        {!data.empty ? (
+          json ? (
+            <CodeContent text={text} json={isJsonCode(value)} className="result-raw" />
+          ) : (
+            <article className="markdown-result">
+              <MarkdownContent text={text} source={fileSource} />
+            </article>
+          )
+        ) : incomplete ? (
+          <p className="quiet">{t('moments.loadOutput')}</p>
+        ) : (
+          <p className="quiet">{t('未返回结果')}</p>
         )}
-      </div>
+      </ReportReader>
     </div>
   )
 }

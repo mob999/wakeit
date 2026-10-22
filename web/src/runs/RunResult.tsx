@@ -1,13 +1,10 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { MarkdownContent } from './MarkdownContent'
-import { DetailBody } from '../Workbench'
 import { CopyValue } from './CopyValue'
 import type { FileSource } from '../files/links'
 import { CodeContent, isJsonCode } from './CodeContent'
-import { useLayoutEffect, useRef, useState } from 'react'
-import { reportIndex, type ReportLink } from '../moments/reportModel'
-import { ResultReferences } from './ResultReferences'
+import { ReportReader, type ReportOutput } from '../reports/ReportReader'
 export function resultData(result: unknown) {
   const truncated =
     result !== null &&
@@ -56,48 +53,54 @@ export function RunResult({
   result,
   raw,
   source,
+  cwd,
+  outputs = [],
+  selectedOutput,
+  onSelectOutput,
+  identity,
 }: {
   result: unknown
   raw: boolean
   toast?: (s: string) => void
   source?: FileSource
+  cwd?: string
+  outputs?: ReportOutput[]
+  selectedOutput?: string
+  onSelectOutput?: (id: string) => void
+  identity?: string
 }) {
   useTranslation()
   const { truncated, text, source: rawSource, empty } = resultData(result)
-  if (empty) return null
+  if (empty && !outputs.length) return null
   return (
     <div className="run-result-panel">
-      <DetailBody>
-        {truncated && <p className="quiet">{tr('结果已截断')}</p>}
-        {raw || typeof text !== 'string' ? (
+      <ReportReader
+        identity={
+          identity ?? `${source?.runId ?? ''}:${source?.nodeId ?? ''}:${source?.runId ?? ''}`
+        }
+        indexKey={rawSource ?? ''}
+        markdown={!raw && typeof text === 'string' && !empty}
+        source={source}
+        cwd={cwd}
+        outputs={outputs}
+        selectedOutput={selectedOutput}
+        onSelectOutput={onSelectOutput}
+        notice={truncated && <p className="quiet">{tr('结果已截断')}</p>}
+      >
+        {empty ? (
+          <p className="quiet">{tr('未返回结果')}</p>
+        ) : raw || typeof text !== 'string' ? (
           <CodeContent
             text={rawSource ?? ''}
             json={isJsonCode(result)}
             className="result result-raw"
           />
         ) : (
-          <ResultReading key={`${source?.runId}:${source?.nodeId}`} text={text} source={source} />
+          <article className="markdown-result result">
+            <MarkdownContent text={text} source={source} />
+          </article>
         )}
-      </DetailBody>
-    </div>
-  )
-}
-
-function ResultReading({ text, source }: { text: string; source?: FileSource }) {
-  const reading = useRef<HTMLDivElement>(null),
-    report = useRef<HTMLElement>(null)
-  const [links, setLinks] = useState<ReportLink[]>([])
-  useLayoutEffect(() => {
-    setLinks(report.current ? reportIndex(report.current).links : [])
-  }, [text])
-  return (
-    <div className={`result-reading-layout${links.length ? ' result-with-references' : ''}`}>
-      <div className="result-reading-body" ref={reading}>
-        <article className="markdown-result result" ref={report}>
-          <MarkdownContent text={text} source={source} />
-        </article>
-      </div>
-      {links.length > 0 && <ResultReferences links={links} reading={reading} source={source} />}
+      </ReportReader>
     </div>
   )
 }

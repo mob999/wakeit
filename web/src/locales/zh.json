@@ -655,6 +655,7 @@
   "moments.loadOutput": "加载完整结果后查看此输出",
   "moments.related": "报告相关信息",
   "moments.outputTitle": "输出",
+  "report.navigation": "输出与目录",
   "moments.outline": "目录",
   "moments.links": "引用",
   "moments.excerpt": "节选",

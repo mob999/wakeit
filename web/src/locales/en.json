@@ -655,6 +655,7 @@
   "moments.loadOutput": "Load the full result to read this output.",
   "moments.related": "Report context",
   "moments.outputTitle": "Outputs",
+  "report.navigation": "Outputs and outline",
   "moments.outline": "Outline",
   "moments.links": "References",
   "moments.excerpt": "Excerpt",

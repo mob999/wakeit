@@ -123,100 +123,6 @@
 .run-result-panel pre.result {
   background: transparent;
 }
-.run-result-panel {
-  container-type: inline-size;
-}
-.result-reading-layout {
-  display: grid;
-  min-width: 0;
-}
-.result-with-references {
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 16px;
-}
-.result-reading-body {
-  min-width: 0;
-  align-self: start;
-}
-.result-reading-body > .markdown-result > :first-child {
-  margin-top: 0;
-}
-.result-reading-body > .markdown-result > :last-child {
-  margin-bottom: 0;
-}
-.result-references {
-  border-left: 1px solid var(--border);
-  padding-left: 12px;
-  min-width: 0;
-  font-size: 11px;
-}
-.result-references h4 {
-  margin: 0 0 5px;
-  font-size: 11px;
-  font-weight: 550;
-  line-height: 18px;
-}
-.result-reference-list {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.result-reference-list > div {
-  min-width: 0;
-}
-.result-reference-list :is(a, button) {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-  min-width: 0;
-  color: var(--ink);
-  text-decoration: none;
-  text-align: left;
-  font-size: 11px;
-  line-height: 18px;
-}
-.result-reference-list span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.result-reference-list svg {
-  flex: none;
-  color: var(--muted);
-}
-.result-reference-list :is(a, button):hover span {
-  text-decoration: underline;
-}
-.result-references-more {
-  padding: 2px 0;
-  margin-top: 4px;
-  font-size: 11px;
-  line-height: 18px;
-  color: var(--muted);
-}
-.result-references-more:hover {
-  color: var(--ink);
-  text-decoration: underline;
-}
-@container (max-width: 740px) {
-  .result-with-references {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
-  .result-references {
-    border-left: 0;
-    border-top: 1px solid var(--border);
-    padding: 10px 0 0;
-  }
-  .result-reference-list {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 12px;
-  }
-}
 .trace-retention {
   margin: 0;
   padding: 10px 12px;
@@ -543,4 +449,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   text-align: right;
+}
+
+/* Put the initial inset in the scrolling flow: sticky bars must touch the
+   viewport edge so scrolled report/Trace content cannot appear above them. */
+.run-page:is(.run-execution-page, .dag-run-page) {
+  padding-top: 0;
+}
+.run-page:is(.run-execution-page, .dag-run-page)::before {
+  content: '';
+  display: block;
+  height: 18px;
+}
+@media (max-width: 720px) {
+  .run-page:is(.run-execution-page, .dag-run-page)::before {
+    height: 12px;
+  }
+}
+
+.run-page .run-section:has(> .run-section-body > .run-result-panel) > .run-section-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
 }

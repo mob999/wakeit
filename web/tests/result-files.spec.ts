@@ -230,13 +230,13 @@ test('local result links preview only on click and preview links do not expand f
   const reads = await fixture(page)
   await expect(
     page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true }),
   ).toBeVisible()
   expect(reads).toEqual([])
   expect(await page.locator('img[src="/workspace/picture.png"]').count()).toBe(0)
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -276,7 +276,7 @@ test('Viewer can copy result paths without file IO', async ({ page, context }) =
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const reads = await fixture(page, 'viewer')
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   await expect
@@ -296,7 +296,7 @@ test('file preview stays mounted through Run polling and SSE reconnects', async 
   })
   const reads = await fixture(page)
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -326,7 +326,7 @@ test('an in-flight preview survives background updates and retains loaded scroll
   const reads = await fixture(page, 'admin', { pending, preview: { format: 'markdown', content } })
   try {
     await page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true })
       .click()
     const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -358,7 +358,7 @@ test('closing a pending preview prevents late output from reopening it', async (
   await fixture(page, 'admin', { pending })
   try {
     await page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true })
       .click()
     const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -400,7 +400,7 @@ for (const item of [
         requests.push(apiPath(new URL(request.url()).pathname))
     })
     await page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true })
       .click()
     const dialog = page.getByRole('dialog', { name: item.href.split('/').at(-1), exact: true })
@@ -431,7 +431,7 @@ for (const item of [
 test('workspace permission revocation still closes an open preview', async ({ page }) => {
   await fixture(page)
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
