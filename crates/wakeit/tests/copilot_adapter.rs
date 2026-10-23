@@ -1,3 +1,6 @@
+mod support;
+use support::assert_single_report;
+
 use serde_json::json;
 use wakeit::{
     copilot_adapter::CopilotNormalizer,
@@ -24,8 +27,7 @@ fn cli_jsonl_tracks_public_messages_and_tools_and_emits_one_final_report() {
             .iter()
             .any(|r| matches!(r.record, RecordData::Result(_)))
     );
-    assert_eq!(n.finish().len(), 1);
-    assert!(matches!(&n.finish()[0].record,RecordData::Result(v) if v=="# Final report"));
+    assert_single_report(&n.finish(), json!("# Final report"));
 }
 #[test]
 fn missing_failed_or_incomplete_terminal_events_do_not_publish_reports() {
@@ -110,7 +112,7 @@ fn large_copilot_tool_payloads_are_previews_not_execution_failures() {
     }
     copilot_done(&mut n, false);
     assert!(!n.failed());
-    assert!(matches!(&n.finish()[0].record,RecordData::Result(v) if v=="Completed"));
+    assert_single_report(&n.finish(), json!("Completed"));
 }
 
 #[test]
@@ -123,7 +125,7 @@ fn copilot_large_message_deltas_preserve_native_success_and_authoritative_final_
     n.accept(json!({"type":"assistant.message","data":{"messageId":"large","content":text}}));
     n.accept(json!({"type":"result","exitCode":0}));
     assert!(!n.failed());
-    assert!(matches!(&n.finish()[0].record,RecordData::Result(v) if v==&text));
+    assert_single_report(&n.finish(), json!(text));
 }
 
 #[test]

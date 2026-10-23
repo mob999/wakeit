@@ -18,6 +18,7 @@ fn native_pipe_contract_is_jsonl_and_retains_native_permissions() {
             _ => None,
         })
         .collect();
+    // Exact argv rejects extra permission flags. No -p: it discards piped input.
     assert_eq!(
         args,
         [
@@ -31,9 +32,6 @@ fn native_pipe_contract_is_jsonl_and_retains_native_permissions() {
             "json"
         ]
     );
-    // No -p: upstream explicitly says -p would silently discard piped input.
-    assert!(!args.contains(&"-p") && !args.contains(&"--prompt"));
-    assert!(!args.contains(&"--allow-all") && !args.contains(&"--allow-all-tools"));
 }
 
 #[cfg(unix)]

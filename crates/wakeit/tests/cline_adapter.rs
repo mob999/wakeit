@@ -1,3 +1,6 @@
+mod support;
+use support::assert_single_report;
+
 use serde_json::{Value, json};
 use wakeit::{
     cline_adapter::ClineNormalizer,
@@ -42,8 +45,7 @@ fn cline_snapshots_tools_and_authoritative_report_are_separate() {
         tool.started_at.unwrap().to_rfc3339(),
         "2026-10-16T01:00:05+00:00"
     );
-    let result = n.finish();
-    assert!(matches!(&result[0].record, RecordData::Result(v) if v == "# 检查结果\n\n完成。"));
+    assert_single_report(&n.finish(), json!("# 检查结果\n\n完成。"));
 }
 
 #[test]

@@ -1,3 +1,6 @@
+mod support;
+use support::assert_single_report;
+
 use serde_json::{Value, json};
 use wakeit::qwen_cursor_adapter::{CursorNormalizer, QwenNormalizer, native_session_id};
 use wakeit::trace::{RECORD_LIMIT, RecordData, StreamRecord, TraceKind, TraceNode, TraceState};
@@ -13,12 +16,6 @@ fn nodes(records: &[StreamRecord]) -> Vec<&TraceNode> {
             _ => None,
         })
         .collect()
-}
-fn final_text(records: &[StreamRecord]) -> Option<&str> {
-    records.iter().find_map(|record| match &record.record {
-        RecordData::Result(value) => value.as_str(),
-        _ => None,
-    })
 }
 fn qwen_call() -> Value {
     json!({"type":"assistant","uuid":"tool1","message":{"id":"tool1","content":[{"type":"tool_use","id":"call1","name":"shell","input":{"command":"pwd"}}]}})
@@ -46,7 +43,7 @@ fn qwen_fixture_preserves_native_tool_identity_and_omits_thinking() {
     assert_eq!(traces[2].status, TraceState::Succeeded);
     assert_eq!(traces[1].started_at, traces[2].started_at);
     assert!(traces[0].started_at.is_none());
-    assert_eq!(final_text(&adapter.finish()), Some("Done."));
+    assert_single_report(&adapter.finish(), json!("Done."));
     assert!(
         !serde_json::to_string(&records)
             .unwrap()
@@ -67,7 +64,7 @@ fn qwen_tool_failure_can_be_recovered_by_a_successful_turn() {
     assert_eq!(nodes(&result)[0].status, TraceState::Failed);
     adapter.accept(success("Recovered"));
     assert!(!adapter.failed());
-    assert_eq!(final_text(&adapter.finish()), Some("Recovered"));
+    assert_single_report(&adapter.finish(), json!("Recovered"));
 }
 
 #[test]
@@ -132,7 +129,7 @@ fn cursor_fixture_uses_complete_messages_and_authoritative_result() {
     assert_eq!(traces[1].kind, TraceKind::Tool);
     assert_eq!(traces[2].status, TraceState::Succeeded);
     assert_eq!(traces[2].output["success"]["content"], "Fixture README");
-    assert_eq!(final_text(&adapter.finish()), Some("Reading.Done."));
+    assert_single_report(&adapter.finish(), json!("Reading.Done."));
 }
 
 #[test]
@@ -148,7 +145,7 @@ fn duplicate_tool_events_cannot_regress_completed_nodes() {
         json!({"type":"result","subtype":"error_during_execution","is_error":true,"error":"late"}),
     );
     assert!(!adapter.failed());
-    assert_eq!(final_text(&adapter.finish()), Some("Done"));
+    assert_single_report(&adapter.finish(), json!("Done"));
 }
 
 #[test]

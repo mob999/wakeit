@@ -12,6 +12,7 @@ Wakeit 当前版本为 0.3.1。产品与包版本随发布同步，配置和消�
 
 ```sh
 npm --prefix web ci
+npm --prefix web run test:unit
 npm --prefix web run build
 cargo build --locked
 cargo fmt --all --check
@@ -20,6 +21,8 @@ cargo test --locked --all-targets
 ```
 
 WebUI 资源嵌入 Rust 二进制，修改生产资源后需要重新构建 Rust。热重载见 [运维指南](docs/operations.md#webui-热重载)。
+
+前端单元测试直接使用 Node test runner，不需要 Gateway 或浏览器，随现有 OS 矩阵在 CI 中运行。测试分层与覆盖归属见 [测试策略](docs/test-strategy.md)；审查和重构测试时可使用 [Unit Test Review skill](.agents/skills/unit-test-review/SKILL.md)。
 
 ## 集成测试
 
