@@ -592,7 +592,7 @@ function TasksPage() {
                       loading={action.isPending && action.variables?.kind === 'toggle'}
                       onClick={() => action.mutate({ task, kind: 'toggle' })}
                     >
-                      <ActionIcon name={task.config.enabled ? 'pause' : 'schedule'} />
+                      <ActionIcon name={task.config.enabled ? 'pause' : 'play'} />
                     </IconButton>
                     <IconButton
                       label={tr('actions.editTask')}
