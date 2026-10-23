@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconCheck,
+  IconClockArrow,
   IconCopy,
   IconEllipsis,
   IconGear,
@@ -82,6 +83,7 @@ const icons = {
   archive: Archive,
   revoke: Ban,
   schedule: CalendarCheck,
+  resumeSchedule: IconClockArrow,
   collapseAll: ChevronsUp,
   reconcile: ClipboardCheck,
   graph: GitBranch,
