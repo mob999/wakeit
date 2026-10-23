@@ -573,10 +573,6 @@ function TasksPage() {
                     <IconButton
                       label={tr('立即执行')}
                       className="task-control-run"
-                      description={tr(
-                        task.config.dag ? 'actions.runDagDescription' : 'actions.runDescription',
-                      )}
-                      tooltip={`${tr('立即执行')} — ${tr(task.config.dag ? 'actions.runDagDescription' : 'actions.runDescription')}`}
                       disabled={action.isPending}
                       loading={action.isPending && action.variables?.kind === 'trigger'}
                       onClick={() => action.mutate({ task, kind: 'trigger' })}
@@ -585,7 +581,7 @@ function TasksPage() {
                     </IconButton>
                     <IconButton
                       label={tr(task.config.enabled ? 'actions.disableTask' : 'actions.enableTask')}
-                      className="task-control-schedule"
+                      className={`task-control-schedule ${task.config.enabled ? 'is-enabled' : 'is-disabled'}`}
                       disabled={action.isPending || !task.config.schedule}
                       disabledReason={!task.config.schedule ? tr('actions.noSchedule') : undefined}
                       loading={action.isPending && action.variables?.kind === 'toggle'}

@@ -145,8 +145,8 @@ export const Users = pierre(IconPeople, 'users', 0, false)
 export const Workflow = pierre(IconWorkflow, 'workflow', 0, false)
 export const Wrench = pierre(IconCode, 'wrench', 0, false)
 
-// These standard controls have no equivalent in Pierre. Match its 1.5px optical
-// weight; retain the four-corner expand/shrink shapes already used in Wakeit.
+// Match Pierre's 1.5px optical weight for app-specific controls; filled playback
+// and the two-position switches share the same 16px slot as the outline icons.
 function control(name: string, drawing: ReactNode) {
   return function ControlIcon({ size = 16, ...props }: IconProps) {
     return (
@@ -168,7 +168,24 @@ function control(name: string, drawing: ReactNode) {
     )
   }
 }
-export const Play = control('play', <path d="m4 2.5 9 5.5-9 5.5Z" />)
+export const Play = control(
+  'play',
+  <path d="m4 2.5 9 5.5-9 5.5Z" fill="currentColor" stroke="none" />,
+)
+export const ToggleOn = control(
+  'toggle-on',
+  <>
+    <rect x=".75" y="3.75" width="14.5" height="8.5" rx="4.25" />
+    <circle cx="11" cy="8" r="2" fill="currentColor" stroke="none" />
+  </>,
+)
+export const ToggleOff = control(
+  'toggle-off',
+  <>
+    <rect x=".75" y="3.75" width="14.5" height="8.5" rx="4.25" />
+    <circle cx="5" cy="8" r="2" fill="currentColor" stroke="none" />
+  </>,
+)
 export const Pause = control(
   'pause',
   <>

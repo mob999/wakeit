@@ -88,10 +88,13 @@
   color: var(--task-control-color);
 }
 .task-control-run {
+  --task-control-color: var(--ink);
+}
+.task-control-schedule.is-enabled {
   --task-control-color: var(--success);
 }
-.task-control-schedule {
-  --task-control-color: var(--control-schedule);
+.task-control-schedule.is-disabled {
+  --task-control-color: var(--failure);
 }
 .task-control-edit {
   --task-control-color: var(--control-edit);
