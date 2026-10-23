@@ -632,7 +632,7 @@ async fn update_user(
     }
     // Lock every workspace in the same order as member operations before checking
     // whether global deactivation would strand any organization without an Admin.
-    sqlx::query("SELECT id FROM workspaces ORDER BY id FOR UPDATE")
+    sqlx::query("SELECT id FROM workspaces ORDER BY id FOR NO KEY UPDATE")
         .fetch_all(&mut *tx)
         .await?;
     let current = sqlx::query("SELECT active,instance_admin FROM users WHERE id=$1 FOR UPDATE")
