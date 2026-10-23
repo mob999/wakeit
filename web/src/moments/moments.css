@@ -257,6 +257,10 @@
 .moment-identity > span {
   white-space: nowrap;
 }
+.moment-identity:has(.dag-agent-summary) {
+  flex: 0 1 auto;
+  max-width: min(340px, 42%);
+}
 @media (max-width: 720px) {
   .moment-card-host {
     grid-column: 2;

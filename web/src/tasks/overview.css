@@ -1,9 +1,3 @@
-.task-detail-tabs {
-  min-height: var(--card-header-height);
-}
-.task-detail-tabs > button {
-  height: calc(var(--card-header-height) - 1px);
-}
 .task-overview .task-overview-schedule {
   justify-content: flex-start;
   gap: 12px;

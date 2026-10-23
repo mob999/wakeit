@@ -1,33 +1,6 @@
-.run-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 12px;
-  min-height: var(--card-header-height);
-  padding: 0 18px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.run-tabs > .tabs {
-  min-height: calc(var(--card-header-height) - 1px);
-  padding: 0;
-  border: 0;
-}
-.run-tabs [role='tab'] {
-  height: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
 .run-output-ready {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
-}
-@media (max-width: 700px) {
-  .run-tabs {
-    padding-inline: 12px;
-  }
 }

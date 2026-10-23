@@ -782,5 +782,9 @@
   "taskOverview.retryCount": "最多 {{count}} 次",
   "taskOverview.otherParameters": "其他参数",
   "taskOverview.parameterCount": "{{count}} 项",
-  "taskOverview.noRetries": "不重试"
+  "taskOverview.noRetries": "不重试",
+  "task.content": "任务内容",
+  "dag.agentNodes": "{{agents}} 等 {{count}} 个节点",
+  "dag.agentNodes_one": "{{agents}} · {{count}} 个节点",
+  "dag.agentNodes_other": "{{agents}} 等 {{count}} 个节点"
 }

@@ -786,5 +786,9 @@
   "taskOverview.parameterCount_other": "{{count}} parameters",
   "taskOverview.retryCount_one": "Up to {{count}} retry",
   "taskOverview.retryCount_other": "Up to {{count}} retries",
-  "taskOverview.noRetries": "No retries"
+  "taskOverview.noRetries": "No retries",
+  "task.content": "Task content",
+  "dag.agentNodes": "{{agents}} · {{count}} nodes",
+  "dag.agentNodes_one": "{{agents}} · {{count}} node",
+  "dag.agentNodes_other": "{{agents}} · {{count}} nodes"
 }

@@ -5,6 +5,7 @@ import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { MomentsPage, MomentsVisit } from './moments/MomentsPage'
 import { ContentCard } from './ContentCard'
+import { DetailTabs } from './DetailTabs'
 import { Button, IconButton, Field, Modal, TooltipProvider } from './ui'
 import { CopyValue } from './runs/CopyValue'
 import { PageActions } from './PageHeader'
@@ -393,7 +394,7 @@ function TasksPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [editor, setEditor] = useState<Task | 'new' | null>(null)
   const [archiving, setArchiving] = useState<Task | null>(null)
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState<'overview' | 'runs' | 'config'>('overview')
   const u = useUser()
   const editable = u.role !== 'viewer'
   const toast = useToast()
@@ -624,22 +625,25 @@ function TasksPage() {
                 </ActionMenu>
               </div>
             </PageActions>
-            <div className="tabs task-detail-tabs">
-              {[
-                ['overview', tr('概览')],
-                ['runs', tr('执行历史')],
-                ['config', tr('配置')],
-              ].map(([key, label]) => (
-                <button
-                  key={key}
-                  className={tab === key ? 'active' : ''}
-                  onClick={() => setTab(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="detail-scroll">
+            <DetailTabs
+              className="task-detail-tabs"
+              idPrefix={`task-${task.id}`}
+              label={tr('task.content')}
+              tabs={[
+                { key: 'overview', label: tr('概览') },
+                { key: 'runs', label: tr('执行历史') },
+                { key: 'config', label: tr('配置') },
+              ]}
+              value={tab}
+              onChange={setTab}
+            />
+            <div
+              className="detail-scroll"
+              id={`task-${task.id}-${tab}-panel`}
+              role="tabpanel"
+              aria-labelledby={`task-${task.id}-${tab}-tab`}
+              tabIndex={0}
+            >
               {tab === 'overview' ? (
                 <TaskOverview
                   key={task.id}

@@ -5,7 +5,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState, useCallback }
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Monitor, GitBranch, Clock } from '../icons'
+import { Monitor, Clock } from '../icons'
 import { t, locale } from '../i18n'
 import { api, type MomentEntry, type Run } from '../api'
 import { IconButton, TooltipTarget } from '../ui'
@@ -21,6 +21,7 @@ import { PreviewActivity } from '../files/PreviewActivity'
 import { ReportReader } from '../reports/ReportReader'
 import { VisitContext, manual } from './MomentsPage'
 import { momentCollapseAnchor } from './collapsePosition'
+import { DagAgentSummary } from '../dag/DagAgentSummary'
 
 export function MomentCard({
   entry,
@@ -283,11 +284,10 @@ function MomentContent({
         </h3>
         <div className="moment-identity">
           {isDag ? (
-            <span>
-              <GitBranch size={12} />
-              DAG · {t('dag.nodeCount', { count: entry.node_count ?? 0 })} ·{' '}
-              {t('moments.outputs', { count: outputs.length })}
-            </span>
+            <DagAgentSummary
+              nodes={full.data?.config.dag?.nodes}
+              count={full.data?.config.dag?.nodes.length ?? entry.node_count ?? 0}
+            />
           ) : (
             <>
               <span title={entry.runner}>
