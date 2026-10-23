@@ -21,8 +21,8 @@ test('tool summaries prefer path or command without changing the payload', () =>
   assert.deepEqual(input, { path: '/workspace/report.md', text: 'body' })
   assert.equal(inputSummary({ command: 'echo\n hello' }), 'echo hello')
 })
-test('only the latest message automatically expands', () => {
-  const state = freshReading()
+test('latest expansion is opt-in after returning to the latest message', () => {
+  const state = { ...freshReading(), autoExpand: true }
   assert.equal(isExpanded(state, 'old', 'latest'), false)
   assert.equal(isExpanded(state, 'latest', 'latest'), true)
 })
@@ -35,8 +35,8 @@ test('explicit row choices survive automatic expansion and collapse-all', () => 
   assert.equal(isExpanded(state, 'old', 'latest'), true)
   assert.equal(isExpanded(state, 'new', 'new'), false)
 })
-test('reading history keeps its automatic row when a newer message arrives', () => {
-  const state = freshReading()
+test('reading history keeps its explicit latest row when a newer message arrives', () => {
+  const state = { ...freshReading(), autoExpand: true }
   state.autoId = 'old'
   state.follow = false
   assert.equal(isExpanded(state, 'old', 'new'), true)
@@ -67,4 +67,13 @@ test('explicit tabs survive result arrival, follow changes and unavailable outpu
     for (const follow of [true, false])
       for (const available of [true, false])
         assert.equal(runTab({ ...freshReading(), viewTab, follow }, available), viewTab)
+})
+
+test('first visit keeps all Trace entries collapsed, including the latest and new messages', () => {
+  const state = freshReading()
+  for (const latest of ['first', 'newest'])
+    for (const id of ['tool', 'first', 'newest']) assert.equal(isExpanded(state, id, latest), false)
+  state.expanded.first = true
+  assert.equal(isExpanded(state, 'first', 'newest'), true)
+  assert.equal(isExpanded(state, 'newest', 'newest'), false)
 })

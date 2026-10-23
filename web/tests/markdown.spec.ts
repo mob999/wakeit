@@ -155,6 +155,7 @@ test('Run results, trace messages and Moments share syntax, math, HTML and Merma
   await expect(diagram.contentFrame().locator('body')).toContainText('任务')
   await expect(diagram.contentFrame().locator('body')).toContainText('结果')
   await page.getByRole('tab', { name: '轨迹', exact: true }).click()
+  await page.locator('.trace-row[data-trace-id="message"] > summary').click()
   await assertReport(page.locator('.trace-message'))
   await page.goto(workspacePage('/'))
   await page.locator('.moment-card').getByRole('button', { name: '阅读全文', exact: true }).click()

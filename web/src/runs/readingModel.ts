@@ -51,7 +51,7 @@ export function freshReading(): ReadingState {
     expanded: {},
     payload: {},
     full: {},
-    autoExpand: true,
+    autoExpand: false,
     follow: true,
     unseen: [],
     jump: 0,

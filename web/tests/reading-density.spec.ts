@@ -199,7 +199,7 @@ test('compact history, empty messages, independent payload folds and full copy',
   const f = await fixture(page),
     trace = page.locator('.run-trace')
   await expect(trace.locator('.trace-row')).toHaveCount(101)
-  await expect(trace.locator('details[open]')).toHaveCount(1)
+  await expect(trace.locator('details[open]')).toHaveCount(0)
   await expect(trace.locator('[data-trace-id="message-0"] .trace-message')).toHaveCount(0)
   async function expectAlignedIcons() {
     const headings = await trace
@@ -321,6 +321,7 @@ test('new messages and ready results do not interrupt reading; tabs preserve the
     trace = page.locator('.run-trace'),
     pane = page.locator('.run-execution-page')
   await expect(trace.locator('.trace-row')).toHaveCount(101)
+  await page.getByRole('button', { name: '回到最新', exact: true }).click()
   await pane.evaluate((el) => (el.scrollTop = 0))
   await expect(trace).toHaveAttribute('data-follow', 'false')
   const before = await pane.evaluate((el) => el.scrollTop)

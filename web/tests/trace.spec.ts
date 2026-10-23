@@ -104,6 +104,8 @@ test('Trace history pages independently, merges duplicate and late events, and k
   const parallel = page.locator('.trace-row').filter({ hasText: '并行任务' })
   await expect(parallel.locator('.trace-state')).toHaveText('运行中')
   await expect(parallel.locator('.trace-duration')).toHaveCount(0)
+  await expect(page.locator('.trace-row[data-trace-id="message"]')).not.toHaveAttribute('open')
+  await page.locator('.trace-row[data-trace-id="message"] > summary').click()
   await expect(page.locator('.trace-message h1')).toHaveText('完成')
   await expect(page.locator('.trace-message strong')).toHaveText('中文报告')
   await expect(page.locator('.trace-row > summary')).toHaveCount(3)
