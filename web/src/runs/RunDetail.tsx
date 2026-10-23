@@ -27,7 +27,8 @@ import { ResumeRun } from '../sessions/ResumeRun'
 import { PageActions } from '../PageHeader'
 import { TaskEditor } from '../TaskEditor'
 import { DagRunDetail } from '../dag/DagRunDetail'
-import { useRunReading, TraceActions } from './RunReading'
+import { TraceActions } from './RunReading'
+import { RunTabs, RunPanel, useRunView } from './RunTabs'
 import { RunReason } from './RunReason'
 import { Status } from '../Status'
 function SingleRunDetail({
@@ -51,27 +52,18 @@ function SingleRunDetail({
     queryFn: () => api('/agents'),
     refetchInterval: 3000,
   })
-  const [reading, updateReading] = useRunReading(`execution:${id}`)
   const [events, setEvents] = useState<RunEvent[]>([])
-  const [tab, setTab] = useState<'execute' | 'details'>('execute')
-  const [resultOpen, setResultOpen] = useState(reading.highlighted && !reading.resultReady)
   const [raw, setRaw] = useState(false)
-  const [processOpen, setProcessOpen] = useState(!reading.highlighted || reading.resultReady)
   const [logsOpen, setLogsOpen] = useState(true)
   const [infoOpen, setInfoOpen] = useState(false)
   const [logError, setLogError] = useState(false)
   const [logAttempt, setLogAttempt] = useState(0)
   const execution = useRef<HTMLDivElement>(null)
   const hasResult = run.data?.result != null && run.data.result !== ''
-  useEffect(() => {
-    if (run.data?.state === 'succeeded' && hasResult && !reading.highlighted) {
-      updateReading({ highlighted: true, resultReady: !reading.follow })
-      if (!reading.follow) return
-      setResultOpen(true)
-      setProcessOpen(false)
-      if (tab === 'execute') execution.current?.scrollTo({ top: 0 })
-    }
-  }, [run.data?.state, hasResult, tab, reading.highlighted, reading.follow, updateReading])
+  const { reading, updateReading, tab, setTab } = useRunView(
+    `execution:${id}`,
+    hasResult || run.data?.state === 'succeeded',
+  )
   const trace = useRunTrace(id)
   const [follow, setFollow] = useState(true)
   useEffect(() => {
@@ -203,58 +195,36 @@ function SingleRunDetail({
           <CopyMenuItem label={tr('复制 Run ID')} value={id} toast={toast} />
         </ActionMenu>
       </PageActions>
-      <div className="tabs" role="tablist" aria-label={tr('运行内容')}>
-        {(
-          [
-            ['execute', tr('执行')],
-            ['details', tr('详情')],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? 'active' : ''}
-            onClick={() => setTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="run-page run-execution-page" ref={execution} hidden={tab !== 'execute'}>
+      <RunTabs id={id} tab={tab} onChange={setTab} outputReady={reading.resultReady} />
+      <RunPanel id={id} tab="output" active={tab} className="run-output-page">
+        <RunSection
+          title={tr('run.output')}
+          collapsible={false}
+          actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
+        >
+          {hasResult ? (
+            <RunResult result={r.result} raw={raw} source={{ runId: r.id }} cwd={r.config.cwd} />
+          ) : (
+            <p className="run-waiting quiet">
+              {tr(terminal(r.state) ? '未返回结果' : '等待执行输出…')}
+            </p>
+          )}
+        </RunSection>
+      </RunPanel>
+      <RunPanel id={id} tab="trace" active={tab} className="run-execution-page" ref={execution}>
         {['queued', 'starting'].includes(r.state) && (
           <p className="run-waiting quiet content-card">{tr('等待执行')}</p>
         )}
-        {r.state === 'succeeded' && !hasResult && (
-          <p className="run-waiting quiet content-card">{tr('未返回结果')}</p>
-        )}
         <RunSection
-          title={
-            r.execution_snapshot?.trace_supported === false ||
-            (!r.execution_snapshot?.trace_supported && !trace.state.nodes.size && !!logs)
-              ? tr('输出')
-              : tr('过程')
-          }
-          hidden={
-            ['queued', 'starting', 'skipped'].includes(r.state) &&
-            !r.reason &&
-            !trace.state.nodes.size &&
-            !logs
-          }
-          open={processOpen}
-          onChange={setProcessOpen}
+          title={tr('run.trace')}
+          collapsible={false}
           actions={
             <>
               {reading.resultReady && (
                 <button
                   type="button"
                   className="result-ready-inline"
-                  onClick={() => {
-                    updateReading({ resultReady: false })
-                    setProcessOpen(false)
-                    setResultOpen(true)
-                    execution.current?.scrollTo({ top: 0 })
-                  }}
+                  onClick={() => setTab('output')}
                 >
                   {tr('reading.resultReady')}
                 </button>
@@ -282,7 +252,7 @@ function SingleRunDetail({
               run={r}
               text={logs}
               follow={follow}
-              visible={tab === 'execute' && processOpen}
+              visible={tab === 'trace'}
               error={logError}
               retry={() => setLogAttempt((v) => v + 1)}
             />
@@ -292,21 +262,12 @@ function SingleRunDetail({
               run={r}
               trace={trace}
               viewport={execution}
-              active={tab === 'execute' && processOpen}
+              active={tab === 'trace'}
             />
           )}
         </RunSection>
-        <RunSection
-          title={tr('结果')}
-          open={resultOpen}
-          onChange={setResultOpen}
-          hidden={!hasResult}
-          actions={<RunResultActions result={r.result} raw={raw} onRaw={setRaw} toast={toast} />}
-        >
-          <RunResult result={r.result} raw={raw} source={{ runId: r.id }} cwd={r.config.cwd} />
-        </RunSection>
-      </div>
-      <div className="run-page run-diagnostic-page" hidden={tab !== 'details'}>
+      </RunPanel>
+      <RunPanel id={id} tab="details" active={tab} className="run-diagnostic-page">
         <RunSection
           title={tr('日志')}
           open={logsOpen}
@@ -325,7 +286,7 @@ function SingleRunDetail({
         <RunSection title={tr('执行信息')} open={infoOpen} onChange={setInfoOpen}>
           <RunDetails run={r} agents={agents.data} events={events} />
         </RunSection>
-      </div>
+      </RunPanel>
       {resolve && <ResolveDialog id={id} onClose={() => setResolve(false)} />}
       {createTask && settings.data && r.session?.ready && (
         <TaskEditor

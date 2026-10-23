@@ -89,7 +89,7 @@ test('Trace history pages independently, merges duplicate and late events, and k
     }),
   )
   await page.goto(`/runs?run=${run.id}`)
-  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -104,6 +104,8 @@ test('Trace history pages independently, merges duplicate and late events, and k
   const parallel = page.locator('.trace-row').filter({ hasText: '并行任务' })
   await expect(parallel.locator('.trace-state')).toHaveText('运行中')
   await expect(parallel.locator('.trace-duration')).toHaveCount(0)
+  await expect(page.locator('.trace-row[data-trace-id="message"]')).not.toHaveAttribute('open')
+  await page.locator('.trace-row[data-trace-id="message"] > summary').click()
   await expect(page.locator('.trace-message h1')).toHaveText('完成')
   await expect(page.locator('.trace-message strong')).toHaveText('中文报告')
   await expect(page.locator('.trace-row > summary')).toHaveCount(3)
@@ -131,8 +133,7 @@ test('Trace history pages independently, merges duplicate and late events, and k
     'true',
   )
   await expect(page.locator('.list-pane .status')).toHaveText('成功')
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
-  await page.getByRole('button', { name: '过程', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await expect(parallel.locator('.trace-state')).toHaveText('未记录结束')
 })
 test('unsupported, historic, waiting, truncated and expired process states stay distinct', async ({
@@ -154,7 +155,7 @@ test('unsupported, historic, waiting, truncated and expired process states stay 
     run.execution_snapshot.trace_supported = support as any
     rows = notice ? [event(1, { status: notice }, 'trace_status')] : []
     await page.goto(`/runs?run=${run.id}`)
-    await page.getByRole('tab', { name: '执行', exact: true }).click()
+    await page.getByRole('tab', { name: '轨迹', exact: true }).click()
     if (support === false)
       await expect(page.locator('.run-execution-page .logs')).toContainText(text)
     else if (notice === 'truncated') {
@@ -164,7 +165,7 @@ test('unsupported, historic, waiting, truncated and expired process states stay 
   }
 })
 
-test('successful results override an expanded process once, including delayed results', async ({
+test('output and trace are sibling tabs, preserve local folds and support keyboard navigation', async ({
   page,
 }) => {
   const run = await fixture(page)
@@ -175,48 +176,38 @@ test('successful results override an expanded process once, including delayed re
     route.fulfill({ contentType: 'text/event-stream', body: ': heartbeat\n\n' }),
   )
   await page.goto(`/runs?run=${run.id}`)
-  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+  const tabs = page.getByRole('tablist', { name: '运行内容' })
+  await expect(tabs.getByRole('tab')).toHaveText(['输出', '轨迹', '详情'])
+  await expect(tabs.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
-  await expect(page.getByRole('tablist', { name: '运行内容' }).getByRole('tab')).toHaveCount(2)
+  await expect(page.locator('.run-execution-page .run-section-heading')).toHaveText('轨迹')
+  await expect(page.locator('.run-execution-page .run-section-heading svg')).toHaveCount(0)
   await page.locator('.trace-operation > summary').click()
   run.state = 'succeeded'
-  await expect(page.getByText('未返回结果', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '过程', exact: true })).toHaveAttribute(
-    'aria-expanded',
+  await expect(page.getByRole('tab', { name: '输出', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true',
   )
+  await expect(page.getByText('未返回结果', { exact: true })).toBeVisible()
   run.result = '# 最终结果' as any
   await expect(page.locator('.run-result-panel h1')).toHaveText('最终结果')
-  expect(
-    await page
-      .locator('.run-execution-page > .run-section > .run-section-header > button')
-      .allTextContents(),
-  ).toEqual(['过程', '结果'])
-  await expect(page.getByRole('button', { name: '过程', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  )
-  await page.getByRole('button', { name: '过程', exact: true }).click()
+  await page.getByRole('tab', { name: '输出', exact: true }).press('ArrowRight')
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toBeFocused()
   await expect(page.locator('.trace-payload')).toBeVisible()
-  await page.getByRole('button', { name: '结果', exact: true }).click()
-  await expect(page.getByRole('button', { name: '结果', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  )
-  await page.getByRole('tab', { name: '详情', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).press('End')
+  await expect(page.getByRole('tab', { name: '详情', exact: true })).toBeFocused()
   await page.getByRole('button', { name: '执行信息', exact: true }).click()
+  await page.getByRole('tab', { name: '详情', exact: true }).press('Home')
+  await expect(page.getByRole('tab', { name: '输出', exact: true })).toBeFocused()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await page.waitForTimeout(2300)
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
-  await expect(page.getByRole('button', { name: '过程', exact: true })).toHaveAttribute(
-    'aria-expanded',
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true',
   )
-  await expect(page.getByRole('button', { name: '结果', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  )
+  await expect(page.locator('.trace-payload')).toBeVisible()
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   await expect(page.getByRole('button', { name: '执行信息', exact: true })).toHaveAttribute(
     'aria-expanded',
@@ -234,19 +225,19 @@ test('failure reasons, queued runs and non-Trace output do not become reports', 
   run.state = 'queued'
   run.started_at = null as any
   await page.goto(`/runs?run=${run.id}`)
-  await expect(page.locator('.run-waiting')).toHaveText('等待执行')
-  await expect(page.getByRole('button', { name: '过程', exact: true })).not.toBeVisible()
+  await expect(page.locator('.run-execution-page .run-waiting')).toHaveText('等待执行')
+  await expect(page.locator('.run-execution-page .run-section-heading')).toHaveText('轨迹')
   for (const state of ['failed', 'timed_out', 'cancelled', 'interrupted', 'unknown', 'skipped']) {
     run.state = state
     run.reason = `实际原因 ${state}`
     run.result = '# 部分输出' as any
     await page.reload()
-    await expect(page.locator('.run-outcome')).toHaveText(`实际原因 ${state}`)
-    await expect(page.getByRole('button', { name: '结果', exact: true })).toHaveAttribute(
-      'aria-expanded',
-      'false',
+    await page.getByRole('tab', { name: '轨迹', exact: true }).click()
+    await expect(page.locator('.run-context .run-reason')).toHaveAttribute(
+      'aria-label',
+      new RegExp(`实际原因 ${state}`),
     )
-    await page.getByRole('button', { name: '结果', exact: true }).click()
+    await page.getByRole('tab', { name: '输出', exact: true }).click()
     await expect(page.locator('.run-result-panel h1')).toHaveText('部分输出')
   }
   run.state = 'running'
@@ -260,12 +251,13 @@ test('failure reasons, queued runs and non-Trace output do not become reports', 
     }),
   )
   await page.reload()
-  await expect(page.getByRole('button', { name: '输出', exact: true })).toHaveAttribute(
-    'aria-expanded',
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true',
   )
   await expect(page.locator('.run-execution-page .logs')).toContainText('外部任务正在处理')
-  await expect(page.getByRole('button', { name: '结果', exact: true })).not.toBeVisible()
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
+  await expect(page.locator('.run-output-page .run-waiting')).toHaveText('等待执行输出…')
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   await expect(page.locator('.run-diagnostic-page .logs')).toContainText('外部任务正在处理')
 })
@@ -300,7 +292,7 @@ test('logs reconnect without duplicate output and keep follow and information fo
   await panel.getByRole('button', { name: '重新连接日志' }).click()
   await expect(panel.locator('.logs')).toContainText('second line')
   expect((await panel.locator('.logs').innerText()).match(/first line/g)).toHaveLength(1)
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   await expect(panel.getByLabel('跟随输出', { exact: true })).not.toBeChecked()
   await expect(page.getByRole('button', { name: '执行信息', exact: true })).toHaveAttribute(

@@ -2601,6 +2601,7 @@ input:disabled {
   margin-bottom: var(--card-gap);
 }
 .run-section-heading {
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -2616,7 +2617,7 @@ input:disabled {
   font-size: 13px;
   font-weight: 550;
 }
-.run-section-heading:hover {
+button.run-section-heading:hover {
   color: var(--ink);
   background: var(--surface);
 }

@@ -1,18 +1,3 @@
-.dag-run-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 12px;
-  min-height: 40px;
-  padding: 0 18px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.dag-run-tabs > .tabs {
-  padding: 0;
-  border: 0;
-}
 .dag-run-meta {
   display: flex;
   align-items: center;
@@ -105,9 +90,4 @@
   padding: 6px 12px;
   font-size: 11px;
   color: var(--muted);
-}
-@media (max-width: 700px) {
-  .dag-run-tabs {
-    padding-inline: 12px;
-  }
 }
