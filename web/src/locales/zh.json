@@ -770,5 +770,19 @@
   "actions.noSchedule": "未设置自动调度。",
   "actions.runDescription": "创建一次新执行。",
   "actions.runDagDescription": "执行整个 DAG。",
-  "actions.editTask": "编辑任务"
+  "actions.editTask": "编辑任务",
+  "taskOverview.every": "每 {{duration}}",
+  "taskOverview.noNodes": "暂无节点",
+  "taskOverview.nodeConfig": "节点配置",
+  "taskOverview.executionConfig": "执行配置",
+  "taskOverview.copyPrompt": "复制指令",
+  "taskOverview.allHistory": "查看全部执行历史",
+  "taskOverview.directory": "目录",
+  "taskOverview.default": "默认",
+  "taskOverview.nodeTimeout": "节点超时",
+  "taskOverview.autoRetry": "自动重试",
+  "taskOverview.retryCount": "最多 {{count}} 次",
+  "taskOverview.otherParameters": "其他参数",
+  "taskOverview.parameterCount": "{{count}} 项",
+  "taskOverview.noRetries": "不重试"
 }

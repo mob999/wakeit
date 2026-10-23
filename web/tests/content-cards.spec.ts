@@ -65,9 +65,9 @@ test('all workbenches share bordered containers, surface headers and responsive 
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       ).toBeTruthy()
       if (name === 'task') {
-        await expect(
-          page.locator('.detail-scroll > .content-card').nth(1).locator('.card-header'),
-        ).toHaveText('指令')
+        await expect(page.locator('.detail-scroll > .content-card')).toHaveCount(1)
+        await expect(page.locator('.task-overview .task-overview-prompt-title')).toHaveText('指令')
+        await expect(page.locator('.task-overview .content-card')).toHaveCount(0)
         await expect(page.locator('.task-prompt')).toHaveText(task.config.prompt)
         await expect(page.locator('.run-table-head')).toBeVisible()
         await expect(page.locator('.run-table > .card-header')).toHaveCount(0)

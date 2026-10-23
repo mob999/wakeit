@@ -56,7 +56,7 @@ test('Task overview uses the same three upper-right controls and fullscreen pres
   await expect(full).toHaveCount(0)
   expect((await graph.boundingBox())!.height).toBe(height)
   expect(await plane.evaluate((el) => el.style.transform)).toBe(scale)
-  await expect(page.locator('.dag-node-readonly')).toContainText('Write report')
+  await expect(page.locator('.task-overview-prompt-head')).toContainText('Write report')
   expect(f.requests.filter((r) => r.method !== 'GET')).toHaveLength(0)
 })
 

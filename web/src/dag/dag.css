@@ -566,13 +566,6 @@
 .dag-reference-table > div:last-child {
   border: 0;
 }
-.dag-node-readonly {
-  border-top: 1px solid var(--border);
-  padding: 0;
-}
-.dag-node-readonly .properties {
-  margin: 0;
-}
 .dag-node-empty {
   padding: 14px 16px;
   margin: 0;

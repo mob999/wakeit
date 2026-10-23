@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Monitor, ChevronRight, Clock, GitBranch } from '../icons'
 import { t } from '../i18n'
-import { type Agent, type Run, time } from '../api'
+import { type Agent, type Run, type Runner, time } from '../api'
 import { Status } from '../Status'
 import { AgentLogo } from '../AgentLogo'
 export function runAgent(run: Pick<Run, 'config'>, agents?: Agent[]) {
@@ -30,13 +30,26 @@ export function RunIdentity({ run, agents }: { run: Pick<Run, 'config'>; agents?
     </div>
   )
 }
-export function RunDevice({ run, agents }: { run: Pick<Run, 'config'>; agents?: Agent[] }) {
+export function RunDevice({
+  run,
+  agents,
+  runners,
+}: {
+  run: Pick<Run, 'config'>
+  agents?: Agent[]
+  runners?: Runner[]
+}) {
   useTranslation()
   const agent = runAgent(run, agents)
+  const name =
+    runners?.find((item) => item.id === run.config.runner || item.name === run.config.runner)
+      ?.name ??
+    agent?.runner ??
+    run.config.runner
   return (
-    <span className="run-device" title={agent?.runner ?? run.config.runner}>
+    <span className="run-device" title={name}>
       <Monitor size={13} />
-      <span>{agent?.runner ?? run.config.runner}</span>
+      <span>{name}</span>
     </span>
   )
 }

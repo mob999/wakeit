@@ -16,14 +16,15 @@ import { InstanceAccounts } from './settings/InstanceAccounts'
 import { DeviceAuthorization } from './onboarding/DeviceAuthorization'
 import { TaskEditor } from './TaskEditor'
 import { DagEditor } from './dag/DagEditor'
-import { DagTaskOverview } from './dag/DagTaskOverview'
+import { TaskOverview } from './tasks/TaskOverview'
+import { RunTable } from './runs/RunTable'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 import { SettingsPage } from './settings/SettingsPage'
 import { Split } from './Workbench'
 import { RunnersPage } from './runners/RunnersPage'
 import { Status } from './Status'
 import { RunDetail } from './runs/RunDetail'
-import { RunListRow, RunIdentity, RunDevice, RunAgent } from './runs/RunListRow'
+import { RunListRow, RunIdentity } from './runs/RunListRow'
 import { SearchProvider, useFilters, listPath, type PageResult } from './Search'
 import { Pagination } from './Pagination'
 import React, {
@@ -627,7 +628,7 @@ function TasksPage() {
                 </ActionMenu>
               </div>
             </PageActions>
-            <div className="tabs">
+            <div className="tabs task-detail-tabs">
               {[
                 ['overview', tr('概览')],
                 ['runs', tr('执行历史')],
@@ -644,69 +645,25 @@ function TasksPage() {
             </div>
             <div className="detail-scroll">
               {tab === 'overview' ? (
-                <>
-                  <ContentCard title={tr('调度')}>
-                    <div className="summary-grid">
-                      <div>
-                        <span className="quiet">{tr('下一次执行')}</span>
-                        <strong>
-                          {task.config.enabled ? time(task.next_at) : tr('actions.taskDisabled')}
-                        </strong>
-                        <small>{task.config.schedule?.timezone ?? tr('手动执行')}</small>
-                      </div>
-                      <div>
-                        <span className="quiet">{tr('上次结果')}</span>
-                        <strong>
-                          <Status state={task.last_run?.state ?? 'not_run'} />
-                        </strong>
-                        <small>{time(task.last_run?.created_at)}</small>
-                      </div>
-                    </div>
-                  </ContentCard>
-                  {task.config.dag ? (
-                    <DagTaskOverview config={task.config} agents={agents.data} />
-                  ) : (
-                    <>
-                      <ContentCard title={tr('指令')}>
-                        <pre className="task-prompt">{task.config.prompt}</pre>
-                      </ContentCard>
-                      <ContentCard title={tr('执行内容')}>
-                        <dl className="properties">
-                          <dt>{tr('Runner')}</dt>
-                          <dd>{task.config.runner}</dd>
-                          <dt>{tr('Agent')}</dt>
-                          <dd className="mono">{task.config.agent}</dd>
-                          <dt>{tr('工作目录')}</dt>
-                          <dd className="mono wrap">{task.config.cwd}</dd>
-                          <dt>{tr('参数')}</dt>
-                          <dd className="mono wrap">
-                            {Object.entries(task.config.parameters ?? {})
-                              .map(([key, value]) => `${key}: ${value}`)
-                              .join(' · ') || tr('默认配置')}
-                          </dd>
-                          <dt>{tr('会话')}</dt>
-                          <dd className={task.config.session ? 'mono wrap' : 'quiet'}>
-                            {task.config.session?.id ?? tr('每次新建')}
-                          </dd>
-                          <dt>{tr('执行时间')}</dt>
-                          <dd className="mono">
-                            {task.config.schedule
-                              ? (task.config.schedule.cron ??
-                                task.config.schedule.every ??
-                                time(task.config.schedule.at))
-                              : tr('手动执行')}
-                          </dd>
-                          <dt>{tr('超时')}</dt>
-                          <dd>{task.config.execution.timeout}</dd>
-                        </dl>
-                      </ContentCard>
-                    </>
-                  )}
-                  <RunTable title={tr('最近执行')} runs={history.data?.items.slice(0, 5) ?? []} />
-                </>
+                <TaskOverview
+                  key={task.id}
+                  task={task}
+                  agents={agents.data}
+                  runs={history.data?.items.slice(0, 5) ?? []}
+                  pending={history.isPending}
+                  error={history.error}
+                  onHistory={() => setTab('runs')}
+                  toast={toast}
+                />
               ) : tab === 'runs' ? (
                 <>
-                  <RunTable title={tr('执行历史')} runs={history.data?.items ?? []} />
+                  <RunTable
+                    title={tr('执行历史')}
+                    runs={history.data?.items ?? []}
+                    agents={agents.data}
+                    pending={history.isPending}
+                    error={history.error}
+                  />
                   <Pagination
                     page={historyPage}
                     total={history.data?.total ?? 0}
@@ -734,44 +691,6 @@ function TasksPage() {
         />
       )}
     </>
-  )
-}
-function RunTable({ runs, title }: { runs: Run[]; title: string }) {
-  useTranslation()
-  const agents = useList<Agent>('agents', '/agents')
-  return (
-    <section className="run-table content-card">
-      <div className="run-table-head run-table-row table-head">
-        <h3>{title}</h3>
-        <span>{tr('执行设备')}</span>
-        <span>{tr('Agent')}</span>
-        <span>{tr('执行时间')}</span>
-        <span />
-      </div>
-      {runs.length ? (
-        <>
-          {runs.map((r) => (
-            <Link to="/runs" search={{ run: r.id }} key={r.id} className="run-table-row">
-              <Status state={r.state} />
-              {r.config.dag ? (
-                <span className="dag-table-identity">
-                  <RunIdentity run={r} />
-                </span>
-              ) : (
-                <>
-                  <RunDevice run={r} agents={agents.data} />
-                  <RunAgent run={r} agents={agents.data} />
-                </>
-              )}
-              <span className="run-table-time">{time(r.started_at ?? r.created_at)}</span>
-              <ChevronRight size={13} />
-            </Link>
-          ))}
-        </>
-      ) : (
-        <p className="quiet card-state">{tr('暂无执行记录')}</p>
-      )}
-    </section>
   )
 }
 function RunsPage() {
