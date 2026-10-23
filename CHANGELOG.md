@@ -1,3 +1,22 @@
+## 0.3.3
+
+### Improved
+
+- Moments and Run outputs share a three-column reader with output selection and a Markdown outline on the left, the report in the center and references on the right. Both sidebars resize, fill the available reading height and stay beneath sticky headers.
+- Run pages separate Output, Trace and Details into peer tabs. Messages stay collapsed by default, while output selection and reading positions survive tab changes.
+- Task overview uses one dense table-card for scheduling, instructions, execution settings and recent runs. DAG node selection keeps instructions and settings in sync; empty parameters retain a placeholder.
+- Actions use consistent icons, transparent buttons and clearer selection states. Task controls combine a solid playback triangle, a green/red sliding switch and a settings gear; Agent Prompt opens a copyable preview.
+
+### Fixed
+
+- Image references no longer appear twice through equivalent image/file paths. Long outlines and reference lists keep readable row heights, scroll correctly and open image previews.
+- Expanded Moments cards return to their original position when collapsed within the same report, while preserving the visible position after moving into another card. Sticky headers and sidebars no longer expose content above them or leave premature blank areas.
+- Archiving tasks during execution writes no longer causes workspace-guard PostgreSQL deadlocks; workspace mutations remain serialized.
+
+### Upgrade
+
+- No new database migration is required from 0.3.2. Preserve existing service data, Runner identities, native sessions and Agent credentials. Update the Gateway/CLI and restart the Gateway for the new interface and workspace-lock fix; configuration and message protocols remain version 1. See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.3/docs/operations.md#upgrading-from-032).
+
 ## 0.3.2
 
 ### Added
