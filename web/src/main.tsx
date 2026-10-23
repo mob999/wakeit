@@ -529,7 +529,7 @@ function TasksPage() {
                     </div>
                     <div className="row-meta next">
                       <Clock size={12} />
-                      {t.config.enabled ? time(t.next_at) : tr('已暂停')}
+                      {t.config.enabled ? time(t.next_at) : tr('actions.taskDisabled')}
                       <ChevronRight size={13} />
                     </div>
                   </button>
@@ -583,16 +583,14 @@ function TasksPage() {
                       <ActionIcon name="play" />
                     </IconButton>
                     <IconButton
-                      label={tr(
-                        task.config.enabled ? 'actions.pauseSchedule' : 'actions.resumeSchedule',
-                      )}
+                      label={tr(task.config.enabled ? 'actions.disableTask' : 'actions.enableTask')}
                       className="task-control-schedule"
                       disabled={action.isPending || !task.config.schedule}
                       disabledReason={!task.config.schedule ? tr('actions.noSchedule') : undefined}
                       loading={action.isPending && action.variables?.kind === 'toggle'}
                       onClick={() => action.mutate({ task, kind: 'toggle' })}
                     >
-                      <ActionIcon name={task.config.enabled ? 'pause' : 'resumeSchedule'} />
+                      <ActionIcon name={task.config.enabled ? 'disableTask' : 'enableTask'} />
                     </IconButton>
                     <IconButton
                       label={tr('actions.editTask')}
@@ -651,7 +649,9 @@ function TasksPage() {
                     <div className="summary-grid">
                       <div>
                         <span className="quiet">{tr('下一次执行')}</span>
-                        <strong>{task.config.enabled ? time(task.next_at) : tr('已暂停')}</strong>
+                        <strong>
+                          {task.config.enabled ? time(task.next_at) : tr('actions.taskDisabled')}
+                        </strong>
                         <small>{task.config.schedule?.timezone ?? tr('手动执行')}</small>
                       </div>
                       <div>
