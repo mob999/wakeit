@@ -164,7 +164,7 @@ wakeit gateway migrate --config gateway.yaml
 
 For an existing known pre-device baseline, stop Gateway writers, preserve Runner processes, and explicitly run `WAKEIT_DATABASE_URL=... python3 scripts/upgrade-unreleased-device-auth.py --backup /private/path/backup.dump`. It creates a private backup, checks the exact prior SQLx checksum, adds grant/limit/registration tables in one transaction and updates the single initial migration checksum. Unknown baselines are refused. Normal migration validation remains enabled. Older archive/session upgrade scripts also create the final device-authorization schema.
 
-The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.3.2. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
+The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.3.3. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
 
 ## Upgrading from 0.3.0
 
@@ -177,6 +177,10 @@ Existing Task/Run IDs, results, Runner identities, API Keys and native sessions 
 0.3.2 adds `0007_dag_manual_retry.sql` for manual node recovery, structured stop causes, independent recovery windows and idempotent requests. Back up PostgreSQL, stop all Gateway writers and run `wakeit gateway migrate --config gateway.yaml` with 0.3.2 before restarting every Gateway on this version. Verify `/health/ready`; keep existing Run IDs, successful executions, NATS state, Runner journals, device identities and Agent credentials. Do not reregister Runners. Existing explicit DAG total timeouts remain; new DAGs default to no total limit, while ordinary tasks and individual nodes still default to 1h.
 
 Update Runners for bounded observations that do not interrupt healthy Agent execution, local-image thumbnails and chunked originals. Protocol/configuration version remains 1, and existing Runner identities continue working. The WebUI shows one selected DAG output at a time; raw view, references and copying target that output. See [DAG recovery](dag.md#manual-node-retry-and-recovery) and [current-file previews](#result-file-previews).
+
+## Upgrading from 0.3.2
+
+0.3.3 requires no new database migration and retains the published `0007_dag_manual_retry.sql` baseline. Back up service data, replace the Gateway/CLI binary and restart the Gateway to load the updated WebUI and workspace-lock fix; verify `/health/ready`. Keep existing PostgreSQL and NATS data, Runner journals, device identities, native sessions and Agent credentials. Existing Runners remain compatible; do not reregister devices. Configuration and message protocols remain version 1.
 
 ## Browser session terminals
 
