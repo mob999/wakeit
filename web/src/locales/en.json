@@ -768,8 +768,6 @@
   "actions.enableTask": "Enable",
   "actions.taskDisabled": "Disabled",
   "actions.noSchedule": "No automatic schedule is configured.",
-  "actions.runDescription": "Start a new run.",
-  "actions.runDagDescription": "Run the entire DAG.",
   "actions.editTask": "Edit task",
   "taskOverview.every": "Every {{duration}}",
   "taskOverview.noNodes": "No nodes",

@@ -768,8 +768,6 @@
   "actions.enableTask": "启用",
   "actions.taskDisabled": "已禁用",
   "actions.noSchedule": "未设置自动调度。",
-  "actions.runDescription": "创建一次新执行。",
-  "actions.runDagDescription": "执行整个 DAG。",
   "actions.editTask": "编辑任务",
   "taskOverview.every": "每 {{duration}}",
   "taskOverview.noNodes": "暂无节点",

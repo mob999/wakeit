@@ -573,10 +573,6 @@ function TasksPage() {
                     <IconButton
                       label={tr('立即执行')}
                       className="task-control-run"
-                      description={tr(
-                        task.config.dag ? 'actions.runDagDescription' : 'actions.runDescription',
-                      )}
-                      tooltip={`${tr('立即执行')} — ${tr(task.config.dag ? 'actions.runDagDescription' : 'actions.runDescription')}`}
                       disabled={action.isPending}
                       loading={action.isPending && action.variables?.kind === 'trigger'}
                       onClick={() => action.mutate({ task, kind: 'trigger' })}
