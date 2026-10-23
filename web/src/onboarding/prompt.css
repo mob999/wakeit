@@ -1,0 +1,45 @@
+.modal.agent-prompt-modal {
+  width: min(880px, calc(100vw - 32px));
+  max-height: 85dvh;
+}
+.agent-prompt-modal .agent-prompt-body {
+  padding: 16px;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+.agent-prompt-preview {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.agent-prompt-preview > .icon-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+}
+.agent-prompt-preview > pre {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(58dvh, 520px);
+  margin: 0;
+  padding: 12px calc(var(--action-size) + 18px) 12px 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.7;
+  user-select: text;
+}
+.agent-prompt-preview > pre:focus-visible {
+  outline-offset: -2px;
+}

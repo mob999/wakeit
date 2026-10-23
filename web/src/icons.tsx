@@ -16,7 +16,6 @@ import {
   IconClockArrow,
   IconCode,
   IconCollapsedRow,
-  IconComment,
   IconConvo,
   IconDesktop,
   IconExpandRow,
@@ -122,7 +121,10 @@ export const ListTree = pierre(IconFileTree, 'list-tree', 0, false)
 export const Loader2 = pierre(IconInProgress, 'loader2', 0, false)
 export const LoaderCircle = pierre(IconInProgress, 'loader-circle', 0, false)
 export const LogOut = pierre(IconSignOut, 'log-out', 0, false)
-export const MessageSquare = pierre(IconComment, 'message-square', 0, false)
+export const MessageSquare = control(
+  'message-square',
+  <path d="M4 2.75h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H6l-3 2v-2.27A2 2 0 0 1 2 8.75v-4a2 2 0 0 1 2-2Z" />,
+)
 export const MessagesSquare = pierre(IconConvo, 'messages-square', 0, false)
 export const Minus = pierre(IconMinus, 'minus', 0, false)
 export const Monitor = pierre(IconDesktop, 'monitor', 0, false)
@@ -168,11 +170,6 @@ function control(name: string, drawing: ReactNode) {
     )
   }
 }
-// A flatter single bubble keeps continuation visually level with adjacent actions.
-export const ContinuationBubble = control(
-  'resume-session',
-  <path d="M8 2.75c-3.59 0-6.5 1.96-6.5 4.38 0 1.3.84 2.47 2.2 3.27L2.25 13l4-1.7c.56.13 1.14.2 1.75.2 3.59 0 6.5-1.96 6.5-4.37S11.59 2.75 8 2.75Z" />,
-)
 export const Play = control('play', <path d="m4 2.5 9 5.5-9 5.5Z" />)
 export const Pause = control(
   'pause',

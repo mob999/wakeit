@@ -13,7 +13,7 @@ import {
   IconX,
 } from '@pierre/icons'
 import {
-  ContinuationBubble,
+  Terminal,
   LogOut,
   PanelTopClose,
   PanelTopOpen,
@@ -90,7 +90,7 @@ const icons = {
   loading: LoaderCircle,
   expand: Maximize,
   shrink: Minimize,
-  resumeSession: ContinuationBubble,
+  resumeSession: Terminal,
   pause: Pause,
   play: Play,
   redo: Redo2,

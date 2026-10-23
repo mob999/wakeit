@@ -757,5 +757,8 @@
   "actions.displaySettings": "显示偏好",
   "actions.toLight": "切换到浅色主题",
   "actions.toDark": "切换到深色主题",
-  "actions.copyEnrollment": "复制设备注册命令"
+  "actions.copyEnrollment": "复制设备注册命令",
+  "agentPrompt.open": "打开 Agent Prompt",
+  "agentPrompt.help": "复制以下提示词给 Agent，完成 Wakeit 配置。",
+  "agentPrompt.preview": "提示词预览"
 }

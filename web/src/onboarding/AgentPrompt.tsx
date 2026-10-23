@@ -1,10 +1,12 @@
-import { useCopy } from '../actions/useCopy'
 import { ActionIcon } from '../actions/ActionIcon'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Workspace } from '../api'
-import { IconButton, Modal, Button } from '../ui'
+import { IconButton, Modal } from '../ui'
+import { CopyValue } from '../runs/CopyValue'
+import { useToast } from '../Toast'
+import './prompt.css'
 export type GatewayMeta = {
   version: string
   public_url: string
@@ -32,31 +34,38 @@ ${JSON.stringify({ gateway: meta.public_url, workspace: { id: workspace.id, name
 }
 export function AgentPrompt({ meta, workspace }: { meta?: GatewayMeta; workspace?: Workspace }) {
   useTranslation()
-  const [manual, setManual] = useState(false)
+  const [open, setOpen] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const toast = useToast()
   const prompt = meta?.public_url && meta.install && workspace ? agentPrompt(meta, workspace) : ''
-  const { copied, copy } = useCopy(() => setManual(true), tr('复制 Agent Prompt'))
   return (
     <>
       <IconButton
-        label={tr('复制 Agent Prompt')}
-        tooltip={copied ? tr('已复制') : tr('复制 Agent Prompt')}
+        ref={trigger}
+        label={tr('agentPrompt.open')}
         disabled={!prompt}
-        onClick={() => void copy(prompt)}
+        onClick={() => setOpen(true)}
       >
-        {copied ? <ActionIcon name="check" /> : <ActionIcon name="agentPrompt" />}
+        <ActionIcon name="agentPrompt" />
       </IconButton>
-      <Modal open={manual} onOpenChange={setManual} title="Agent Prompt">
-        <div className="modal-body">
-          <textarea
-            aria-label="Agent Prompt"
-            readOnly
-            value={prompt}
-            rows={16}
-            onFocus={(e) => e.currentTarget.select()}
-          />
-        </div>
-        <div className="modal-footer">
-          <Button onClick={() => setManual(false)}>{tr('关闭')}</Button>
+      <Modal
+        open={open}
+        onOpenChange={setOpen}
+        title="Agent Prompt"
+        description={tr('agentPrompt.help')}
+        className="agent-prompt-modal"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          trigger.current?.focus()
+        }}
+      >
+        <div className="modal-body agent-prompt-body">
+          <div className="agent-prompt-preview">
+            <CopyValue value={prompt} label={tr('复制 Agent Prompt')} toast={toast} />
+            <pre role="region" aria-label={tr('agentPrompt.preview')} tabIndex={0}>
+              {prompt}
+            </pre>
+          </div>
         </div>
       </Modal>
     </>
