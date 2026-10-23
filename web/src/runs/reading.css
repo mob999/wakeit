@@ -341,10 +341,10 @@
 .result-ready-inline:hover {
   text-decoration: underline;
 }
-.run-execution-page .run-section {
+:is(.run-execution-page, .run-output-page) .run-section {
   overflow: clip;
 }
-.run-execution-page .run-section-header {
+:is(.run-execution-page, .run-output-page) .run-section-header {
   position: sticky;
   top: 0;
   z-index: 3;
@@ -453,16 +453,16 @@
 
 /* Put the initial inset in the scrolling flow: sticky bars must touch the
    viewport edge so scrolled report/Trace content cannot appear above them. */
-.run-page:is(.run-execution-page, .dag-run-page) {
+.run-page:is(.run-execution-page, .dag-run-page, .run-output-page) {
   padding-top: 0;
 }
-.run-page:is(.run-execution-page, .dag-run-page)::before {
+.run-page:is(.run-execution-page, .dag-run-page, .run-output-page)::before {
   content: '';
   display: block;
   height: 18px;
 }
 @media (max-width: 720px) {
-  .run-page:is(.run-execution-page, .dag-run-page)::before {
+  .run-page:is(.run-execution-page, .dag-run-page, .run-output-page)::before {
     height: 12px;
   }
 }

@@ -92,10 +92,23 @@ test('successful Markdown results render headings, tables and code; metadata liv
 }) => {
   const run = await fixture(page)
   await page.goto(`/runs?run=${run.id}`)
-  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '输出', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
+  await expect(page.getByRole('tablist', { name: '运行内容' }).getByRole('tab')).toHaveText([
+    '输出',
+    '轨迹',
+    '详情',
+  ])
+  const edges = await page
+    .locator('.list-pane .pane-heading, .run-tabs')
+    .evaluateAll((headers) => headers.map((header) => header.getBoundingClientRect().bottom))
+  expect(edges).toHaveLength(2)
+  expect(Math.abs(edges[0] - edges[1])).toBeLessThan(1)
+  await expect(page.locator('.run-output-page .run-section-heading')).toHaveText('输出')
+  await expect(page.locator('.run-output-page .run-section-heading svg')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '输出', exact: true })).toHaveCount(0)
   await expect(page.locator('.markdown-result h1')).toHaveText('检查报告')
   await expect(page.locator('.markdown-result strong')).toHaveText('已完成')
   await expect(page.locator('.markdown-result table')).toContainText('通过')
@@ -109,7 +122,7 @@ test('successful Markdown results render headings, tables and code; metadata liv
   await page.getByRole('button', { name: '原文', exact: true }).click()
   await expect(page.locator('.result-raw')).toContainText('| 项目 | 结果 |')
   await page.getByRole('tab', { name: '详情', exact: true }).click()
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
   await expect(page.locator('.result-raw')).toBeVisible()
   await page.getByRole('button', { name: '阅读', exact: true }).click()
   await page.screenshot({ path: 'test-results/runs-result-light.png', fullPage: true })
@@ -133,9 +146,9 @@ test('JSON, empty and truncated results keep their actual form', async ({ page }
   await expect(page.locator('.markdown-result')).toHaveCount(0)
   run.result = null as any
   await page.reload()
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
   await expect(page.getByText('未返回结果', { exact: true })).toBeVisible()
-  await expect(page.locator('.run-result-panel')).toHaveCount(0)
+  await expect(page.getByRole('tabpanel', { name: '输出', exact: true })).toBeVisible()
   run.result = { truncated: true, preview: '# 截断预览' } as any
   await page.reload()
   await expect(page.getByText('结果已截断', { exact: true })).toBeVisible()
@@ -188,7 +201,7 @@ test('polling preserves a chosen tab and mobile results do not overflow the page
   run.state = 'running'
   run.result = null as any
   await page.goto(`/runs?run=${run.id}`)
-  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -201,18 +214,22 @@ test('polling preserves a chosen tab and mobile results do not overflow the page
     'true',
   )
   await page.setViewportSize({ width: 390, height: 840 })
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
   await expect(page.locator('.markdown-result h1')).toHaveText('完成')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   await page.screenshot({ path: 'test-results/runs-result-mobile.png', fullPage: true })
   run.state = 'unknown'
   run.reason = '外部任务状态需要核对' as any
   await page.reload()
-  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '输出', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
-  await expect(page.locator('.run-outcome')).toContainText('外部任务状态需要核对')
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
+  await expect(page.locator('.run-context .run-reason')).toHaveAttribute(
+    'aria-label',
+    /外部任务状态需要核对/,
+  )
   await page.getByRole('button', { name: '页面操作', exact: true }).click()
   await expect(page.getByRole('button', { name: '核对状态', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '取消', exact: true })).toHaveCount(0)

@@ -200,23 +200,25 @@ test('DAG highlights output once, preserves trace expansion and uses only whole-
   await expect(page.getByText('Primary sources', { exact: true })).toBeVisible()
   finish(f)
   await expect(page.getByRole('heading', { name: 'Final report', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '过程', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  )
-  await page.getByRole('button', { name: '过程', exact: true }).click()
-  await expect(page.getByText('Primary sources', { exact: true })).toBeVisible()
-  await page.waitForTimeout(2300)
-  await expect(page.getByRole('button', { name: '过程', exact: true })).toHaveAttribute(
-    'aria-expanded',
+  await expect(page.getByRole('tab', { name: '输出', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true',
   )
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
+  await expect(page.getByText('Primary sources', { exact: true })).toBeVisible()
+  await page.waitForTimeout(2300)
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(page.locator('.dag-run-page:visible .run-section-heading svg')).toHaveCount(0)
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
   await page.getByRole('button', { name: '原文', exact: true }).click()
   await expect(page.locator('.result-raw')).toContainText('# Final report')
   await expect(page.locator('.result-raw')).not.toContainText('"type": "dag"')
   await page.getByRole('button', { name: '阅读', exact: true }).click()
   await expect(page.locator('.trace-notice')).toHaveCount(0)
-  await page.locator('.dag-run-page').evaluate((el) => (el.scrollTop = 0))
+  await page.locator('.run-output-page').evaluate((el) => (el.scrollTop = 0))
   for (const [width, theme] of [
     [1440, 'light'],
     [390, 'dark'],
@@ -241,7 +243,7 @@ test('DAG completion does not leave details; Moments previews reports and resume
     'aria-selected',
     'true',
   )
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Final report', exact: true })).toBeVisible()
   await page.goto(`/w/${workspace}/`)
   await expect(page.getByRole('heading', { name: 'Preview report', exact: true })).toBeVisible()
@@ -277,7 +279,7 @@ test('DAG node details has one card header, embedded folds and preserved follow/
   )
   await details.getByLabel('跟随输出', { exact: true }).uncheck()
   await details.getByRole('button', { name: '执行信息', exact: true }).click()
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   await expect(details.getByLabel('跟随输出', { exact: true })).not.toBeChecked()
   await expect(details.getByRole('button', { name: '执行信息', exact: true })).toHaveAttribute(
@@ -342,7 +344,7 @@ test('DAG multi-node details switches context without duplicate titles and keeps
   await details.getByRole('button', { name: '核对状态', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click()
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await expect(
     page
       .locator('.dag-node-process:visible')
@@ -374,26 +376,21 @@ test('DAG skipped nodes retain their real reason and Viewer cannot reconcile, re
   await expect(page.getByRole('button', { name: '取消执行', exact: true })).toHaveCount(0)
 })
 
-test('an empty successful result is explicit and its fold choice survives tab changes', async ({
-  page,
-}) => {
+test('empty successful output keeps a static header across tab changes', async ({ page }) => {
   const f = fixture()
   f.run.state = 'succeeded'
   f.run.finished_at = at
   f.run.nodes[0].state = 'succeeded'
   await mock(page, f)
   await page.goto(`/w/${workspace}/runs?run=${id}`)
-  const result = page
-    .locator('.run-section')
-    .filter({ has: page.getByRole('button', { name: '结果', exact: true }) })
+  const result = page.getByRole('tabpanel', { name: '输出', exact: true })
   await expect(result).toContainText('未返回结果')
-  await result.getByRole('button', { name: '结果', exact: true }).click()
+  await expect(result.locator('.run-section-heading')).toHaveText('输出')
+  await expect(result.getByRole('button', { name: '输出', exact: true })).toHaveCount(0)
   await page.getByRole('tab', { name: '详情', exact: true }).click()
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
-  await expect(result.getByRole('button', { name: '结果', exact: true })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  )
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
+  await expect(result).toBeVisible()
+  await expect(result.locator('.run-section-body')).not.toHaveAttribute('hidden')
 })
 
 test('Run graph shares the overview canvas controls and fullscreen is read-only', async ({
@@ -570,7 +567,7 @@ test('issue navigation restores the current attempt without resetting reading or
   )
   await page.getByRole('button', { name: '异常节点 1', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Collect sources 失败 collect', exact: true }).click()
-  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -740,7 +737,7 @@ test('manual retry uses the current guard, preserves selection and requires expl
   await page.goto(`/w/${workspace}/runs?run=${id}`)
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 })
-    for (const tab of ['执行', '详情']) {
+    for (const tab of ['轨迹', '详情']) {
       await page.getByRole('tab', { name: tab, exact: true }).click()
       const context = page.locator('.dag-node-context:visible')
       await expect(
@@ -763,7 +760,7 @@ test('manual retry uses the current guard, preserves selection and requires expl
       expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(1)
     }
   }
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await page.getByRole('button', { name: '重试节点', exact: true }).first().click()
   await expect(page.getByRole('alert')).toContainText('当前执行已变更，请刷新后重试。')
   expect(requests[0]).toEqual({ execution_id: child, resume_stopped: false })
@@ -1070,7 +1067,7 @@ for (const [width, language, theme] of [
       .getByRole('tab', { name: language === 'zh' ? '详情' : 'Details', exact: true })
       .click()
     await page
-      .getByRole('tab', { name: language === 'zh' ? '执行' : 'Execution', exact: true })
+      .getByRole('tab', { name: language === 'zh' ? '输出' : 'Output', exact: true })
       .click()
     f.run.result.outputs = [empty, second, first]
     await page.waitForTimeout(2300)

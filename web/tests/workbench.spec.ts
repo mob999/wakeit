@@ -87,7 +87,7 @@ test('create, edit, pause, trigger and inspect a real Agent run', async ({ page 
   await expect(page.locator('.run-diagnostic-page .logs')).toContainText(
     'Updated WebUI end-to-end result',
   )
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '输出', exact: true }).click()
   await expect(page.locator('.result')).toContainText('Updated WebUI end-to-end result')
   await page.screenshot({ path: 'test-results/wakeit-run-result.png', fullPage: true })
 })

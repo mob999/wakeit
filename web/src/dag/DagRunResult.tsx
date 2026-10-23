@@ -8,17 +8,13 @@ export function DagRunResult({
   runId,
   result,
   nodes,
-  open,
-  onOpenChange,
-  hidden,
+  pending,
   toast,
 }: {
   runId: string
   result: unknown
   nodes: DagRunNode[]
-  open: boolean
-  onOpenChange: (value: boolean) => void
-  hidden: boolean
+  pending: boolean
   toast: (message: string) => void
 }) {
   const { t } = useTranslation()
@@ -35,10 +31,8 @@ export function DagRunResult({
   const execution = nodes.find((node) => node.id === output?.node_id)?.execution_id
   return (
     <RunSection
-      title={t('结果')}
-      open={open}
-      onChange={onOpenChange}
-      hidden={hidden}
+      title={t('run.output')}
+      collapsible={false}
       actions={
         <RunResultActions
           result={value}
@@ -48,21 +42,25 @@ export function DagRunResult({
         />
       }
     >
-      <RunResult
-        result={value}
-        raw={raw}
-        toast={toast}
-        outputs={outputs ?? []}
-        selectedOutput={output?.node_id}
-        onSelectOutput={setSelected}
-        identity={`${runId}:${output?.node_id ?? ''}:${execution ?? runId}`}
-        cwd={nodes.find((node) => node.id === output?.node_id)?.cwd}
-        source={
-          execution
-            ? { runId: execution }
-            : { runId, ...(output ? { nodeId: output.node_id } : {}) }
-        }
-      />
+      {!outputs?.length && (value == null || value === '') ? (
+        <p className="run-waiting quiet">{t(pending ? '等待执行输出…' : '未返回结果')}</p>
+      ) : (
+        <RunResult
+          result={value}
+          raw={raw}
+          toast={toast}
+          outputs={outputs ?? []}
+          selectedOutput={output?.node_id}
+          onSelectOutput={setSelected}
+          identity={`${runId}:${output?.node_id ?? ''}:${execution ?? runId}`}
+          cwd={nodes.find((node) => node.id === output?.node_id)?.cwd}
+          source={
+            execution
+              ? { runId: execution }
+              : { runId, ...(output ? { nodeId: output.node_id } : {}) }
+          }
+        />
+      )}
     </RunSection>
   )
 }

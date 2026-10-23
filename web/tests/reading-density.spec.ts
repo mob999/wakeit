@@ -170,7 +170,7 @@ test('recording causes stay in the toolbar tooltip, with history and diagnostics
   await page.keyboard.press('Escape')
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   await expect(page.locator('.logs')).toContainText('Ordinary adapter diagnostic')
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await (await languageAction(page, '切换到英文')).click()
   const english = page.getByRole('button', { name: 'Activity recording info', exact: true })
   await english.focus()
@@ -338,11 +338,11 @@ test('new messages and ready results do not interrupt reading; tabs preserve the
   f.run.state = 'succeeded'
   f.run.result = '# Final report'
   f.run.finished_at = '2026-10-20T01:01:00Z'
-  const ready = page.getByRole('button', { name: '结果已就绪', exact: true })
+  const ready = page.getByRole('button', { name: '输出已就绪', exact: true })
   await expect(ready).toBeInViewport()
   await expect(trace).toBeVisible()
   await page.getByRole('tab', { name: '详情', exact: true }).click()
-  await page.getByRole('tab', { name: '执行', exact: true }).click()
+  await page.getByRole('tab', { name: '轨迹', exact: true }).click()
   await expect(trace).toHaveAttribute('data-follow', 'false')
   expect(Math.abs((await pane.evaluate((el) => el.scrollTop)) - before)).toBeLessThan(2)
   await ready.click()
@@ -532,7 +532,7 @@ test('run-level issues stay outside reports and prioritize current failures over
   await expect(trigger).toBeFocused()
   await trigger.click()
   await menu.getByRole('menuitem').first().click()
-  await expect(page.getByRole('tab', { name: '执行', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: '轨迹', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -590,7 +590,7 @@ for (const [width, language, theme] of [
     await expect(trigger).toContainText('2')
     await expect(page.getByRole('heading', { name: 'Synthetic report', exact: true })).toBeVisible()
     await expect(page.locator('.dag-outcome')).toHaveCount(0)
-    await expect(page.locator('.dag-run-tabs > .dag-run-meta .status')).toContainText(
+    await expect(page.locator('.run-tabs > .dag-run-meta .status')).toContainText(
       language === 'en' ? 'Warning' : '警告',
     )
     await trigger.click()

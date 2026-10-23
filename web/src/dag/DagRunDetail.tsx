@@ -35,7 +35,8 @@ import { RunDetails } from '../runs/RunDetails'
 import { ResolveDialog } from '../runs/RunDetail'
 import { ResumeRun } from '../sessions/ResumeRun'
 import { DagGraph, type DagView } from './DagGraph'
-import { useRunReading, TraceActions } from '../runs/RunReading'
+import { TraceActions } from '../runs/RunReading'
+import { RunTabs, RunPanel, useRunView } from '../runs/RunTabs'
 import { RunReason } from '../runs/RunReason'
 import { DagRunStatus } from './DagRunStatus'
 import { DagRunResult } from './DagRunResult'
@@ -54,7 +55,10 @@ export function DagRunDetail({
   useTranslation()
   const nodes: DagRunNode[] =
     r.nodes ?? r.config.dag!.nodes.map((n) => ({ ...n, state: 'waiting' }))
-  const [reading, updateReading] = useRunReading(`dag:${id}`)
+  const { reading, updateReading, tab, setTab } = useRunView(
+    `dag:${id}`,
+    (r.result != null && r.result !== '') || ['succeeded', 'warning'].includes(r.state),
+  )
   const [structureOpen, setStructureOpen] = useState(true)
   const [view, setView] = useState<DagView>('graph')
   const [search, setSearch] = useState('')
@@ -62,11 +66,6 @@ export function DagRunDetail({
   const [memory, setMemory] = useState<Record<string, EditorMemory>>({})
   const runners = useQuery<Runner[]>({ queryKey: ['runners'], queryFn: () => api('/runners') })
   const [visited, setVisited] = useState(new Set([nodes[0]?.id]))
-  const [tab, setTab] = useState<'execute' | 'details'>('execute')
-  const [processOpen, setProcessOpen] = useState(!reading.highlighted || reading.resultReady)
-  const [resultOpen, setResultOpen] = useState(reading.highlighted && !reading.resultReady)
-  const emptyShown = useRef(false)
-  const resultTop = useRef<HTMLDivElement>(null)
   const viewport = useRef<HTMLDivElement>(null)
   const client = useQueryClient()
   const navigate = useNavigate()
@@ -88,45 +87,18 @@ export function DagRunDetail({
   }
   function selectIssue(id: string) {
     setMemory((previous) => ({ ...previous, [id]: { ...previous[id], attempt: null } }))
-    setTab('execute')
-    setProcessOpen(true)
+    setTab('trace')
     select(id, true)
   }
   const setFollowing = useCallback(
     (follow: boolean) => updateReading((old) => (old.follow === follow ? old : { ...old, follow })),
     [updateReading],
   )
-  const showResult = useCallback(() => {
-    updateReading({ resultReady: false })
-    setProcessOpen(false)
-    setResultOpen(true)
-    requestAnimationFrame(() => resultTop.current?.scrollIntoView({ block: 'start' }))
-  }, [updateReading])
   const resultAction = reading.resultReady ? (
-    <button type="button" className="result-ready-inline" onClick={showResult}>
+    <button type="button" className="result-ready-inline" onClick={() => setTab('output')}>
       {t('reading.resultReady')}
     </button>
   ) : null
-  const hasResult = r.result != null && r.result !== ''
-  useEffect(() => {
-    if (['succeeded', 'warning'].includes(r.state) && !hasResult && !emptyShown.current) {
-      emptyShown.current = true
-      setResultOpen(true)
-      return
-    }
-    if (['succeeded', 'warning'].includes(r.state) && hasResult && !reading.highlighted) {
-      updateReading({ highlighted: true, resultReady: !reading.follow })
-      if (!reading.follow) return
-      setProcessOpen(false)
-      setResultOpen(true)
-      if (tab === 'execute')
-        requestAnimationFrame(() => {
-          const pane = viewport.current,
-            target = resultTop.current
-          if (pane && target) pane.scrollTo({ top: target.offsetTop - pane.offsetTop })
-        })
-    }
-  }, [r.state, hasResult, tab, reading.highlighted, reading.follow, updateReading])
   const action = useMutation({
     mutationFn: (type: string) => api<{ id?: string }>(`/runs/${id}/${type}`, 'POST', {}),
     onSuccess: (v) => {
@@ -166,138 +138,87 @@ export function DagRunDetail({
           <CopyMenuItem label={t('复制 Run ID')} value={id} toast={toast} />
         </ActionMenu>
       </PageActions>
-      <div className="dag-run-tabs">
-        <div className="tabs" role="tablist" aria-label={t('运行内容')}>
-          {(['execute', 'details'] as const).map((key) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={tab === key}
-              className={tab === key ? 'active' : ''}
-              onClick={() => setTab(key)}
-            >
-              {t(key === 'execute' ? '执行' : '详情')}
-            </button>
-          ))}
-        </div>
-        <DagRunStatus run={r} nodes={nodes} onSelect={selectIssue} />
-      </div>
-      <div className="run-page dag-run-page" ref={viewport}>
-        <div hidden={tab !== 'execute'}>
-          <RunSection
-            title={t('过程')}
-            open={processOpen}
-            onChange={setProcessOpen}
-            actions={
-              <div className="dag-reading-tools">
-                <IconButton
-                  label={t('dag.graph')}
-                  aria-pressed={view === 'graph'}
-                  onClick={() => {
-                    setView('graph')
-                    setStructureOpen(true)
-                  }}
-                >
-                  <ActionIcon name="graph" />
-                </IconButton>
-                <IconButton
-                  label={t('dag.list')}
-                  aria-pressed={view === 'list'}
-                  onClick={() => {
-                    setView('list')
-                    setStructureOpen(true)
-                  }}
-                >
-                  <ActionIcon name="list" />
-                </IconButton>
-                {structureOpen && (
-                  <input
-                    aria-label={t('dag.search')}
-                    placeholder={t('dag.search')}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
+      <RunTabs
+        id={id}
+        tab={tab}
+        onChange={setTab}
+        outputReady={reading.resultReady}
+        status={<DagRunStatus run={r} nodes={nodes} onSelect={selectIssue} />}
+      />
+      <RunPanel id={id} tab="output" active={tab} className="run-output-page">
+        <DagRunResult
+          key={id}
+          runId={id}
+          result={r.result}
+          nodes={nodes}
+          pending={!terminal(r.state)}
+          toast={toast}
+        />
+      </RunPanel>
+      <RunPanel id={id} tab="trace" active={tab} className="dag-run-page" ref={viewport}>
+        <RunSection
+          title={t('run.trace')}
+          collapsible={false}
+          actions={
+            <div className="dag-reading-tools">
+              <IconButton
+                label={t('dag.graph')}
+                aria-pressed={view === 'graph'}
+                onClick={() => {
+                  setView('graph')
+                  setStructureOpen(true)
+                }}
+              >
+                <ActionIcon name="graph" />
+              </IconButton>
+              <IconButton
+                label={t('dag.list')}
+                aria-pressed={view === 'list'}
+                onClick={() => {
+                  setView('list')
+                  setStructureOpen(true)
+                }}
+              >
+                <ActionIcon name="list" />
+              </IconButton>
+              {structureOpen && (
+                <input
+                  aria-label={t('dag.search')}
+                  placeholder={t('dag.search')}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              )}
+              <IconButton
+                label={t(structureOpen ? 'reading.hideStructure' : 'reading.showStructure')}
+                aria-expanded={structureOpen}
+                onClick={() => setStructureOpen((v) => !v)}
+              >
+                {structureOpen ? (
+                  <ActionIcon name="hideStructure" />
+                ) : (
+                  <ActionIcon name="showStructure" />
                 )}
-                <IconButton
-                  label={t(structureOpen ? 'reading.hideStructure' : 'reading.showStructure')}
-                  aria-expanded={structureOpen}
-                  onClick={() => setStructureOpen((v) => !v)}
-                >
-                  {structureOpen ? (
-                    <ActionIcon name="hideStructure" />
-                  ) : (
-                    <ActionIcon name="showStructure" />
-                  )}
-                </IconButton>
-              </div>
-            }
-          >
-            <div className="dag-run-structure" hidden={!structureOpen}>
-              <DagGraph
-                compact
-                hideHeader
-                view={view}
-                onViewChange={setView}
-                search={search}
-                onSearchChange={setSearch}
-                runners={runners.data}
-                outputIds={outputs(r.config.dag!)}
-                nodes={nodes}
-                agents={agents.data}
-                selected={selected}
-                onSelect={select}
-              />
+              </IconButton>
             </div>
-            {nodes
-              .filter((n) => visited.has(n.id))
-              .map((n) => (
-                <EditorMemoryContext.Provider
-                  key={n.id}
-                  value={{
-                    value: memory[n.id] ?? {},
-                    update: (update) =>
-                      setMemory((previous) => ({
-                        ...previous,
-                        [n.id]:
-                          typeof update === 'function' ? update(previous[n.id] ?? {}) : update,
-                      })),
-                  }}
-                >
-                  <NodeExecution
-                    nodes={nodes}
-                    onSelect={select}
-                    parent={id}
-                    node={n.id}
-                    name={n.name}
-                    state={n.state}
-                    reason={n.reason}
-                    executionId={n.execution_id}
-                    active={selected === n.id && processOpen && tab === 'execute'}
-                    hidden={selected !== n.id}
-                    mode="trace"
-                    viewport={viewport}
-                    onFollowChange={setFollowing}
-                    resultAction={resultAction}
-                    user={user}
-                    toast={toast}
-                    agents={agents.data}
-                  />
-                </EditorMemoryContext.Provider>
-              ))}
-          </RunSection>
-          <div ref={resultTop} />
-          <DagRunResult
-            key={id}
-            runId={id}
-            result={r.result}
-            nodes={nodes}
-            open={resultOpen}
-            onOpenChange={setResultOpen}
-            hidden={!hasResult && !['succeeded', 'warning'].includes(r.state)}
-            toast={toast}
-          />
-        </div>
-        <div hidden={tab !== 'details'}>
+          }
+        >
+          <div className="dag-run-structure" hidden={!structureOpen}>
+            <DagGraph
+              compact
+              hideHeader
+              view={view}
+              onViewChange={setView}
+              search={search}
+              onSearchChange={setSearch}
+              runners={runners.data}
+              outputIds={outputs(r.config.dag!)}
+              nodes={nodes}
+              agents={agents.data}
+              selected={selected}
+              onSelect={select}
+            />
+          </div>
           {nodes
             .filter((n) => visited.has(n.id))
             .map((n) => (
@@ -321,17 +242,54 @@ export function DagRunDetail({
                   state={n.state}
                   reason={n.reason}
                   executionId={n.execution_id}
-                  active={selected === n.id && tab === 'details'}
+                  active={selected === n.id && tab === 'trace'}
                   hidden={selected !== n.id}
-                  mode="details"
+                  mode="trace"
+                  viewport={viewport}
+                  onFollowChange={setFollowing}
+                  resultAction={resultAction}
                   user={user}
                   toast={toast}
                   agents={agents.data}
                 />
               </EditorMemoryContext.Provider>
             ))}
-        </div>
-      </div>
+        </RunSection>
+      </RunPanel>
+      <RunPanel id={id} tab="details" active={tab} className="dag-run-page">
+        {nodes
+          .filter((n) => visited.has(n.id))
+          .map((n) => (
+            <EditorMemoryContext.Provider
+              key={n.id}
+              value={{
+                value: memory[n.id] ?? {},
+                update: (update) =>
+                  setMemory((previous) => ({
+                    ...previous,
+                    [n.id]: typeof update === 'function' ? update(previous[n.id] ?? {}) : update,
+                  })),
+              }}
+            >
+              <NodeExecution
+                nodes={nodes}
+                onSelect={select}
+                parent={id}
+                node={n.id}
+                name={n.name}
+                state={n.state}
+                reason={n.reason}
+                executionId={n.execution_id}
+                active={selected === n.id && tab === 'details'}
+                hidden={selected !== n.id}
+                mode="details"
+                user={user}
+                toast={toast}
+                agents={agents.data}
+              />
+            </EditorMemoryContext.Provider>
+          ))}
+      </RunPanel>
     </>
   )
 }

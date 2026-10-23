@@ -28,7 +28,9 @@ export function previewLines(text: string, full: boolean) {
   const lines = text.split('\n')
   return { text: full ? text : lines.slice(0, 12).join('\n'), truncated: lines.length > 12 }
 }
+export type RunTab = 'output' | 'trace' | 'details'
 export type ReadingState = {
+  viewTab?: RunTab
   expanded: Record<string, boolean>
   payload: Record<string, boolean>
   full: Record<string, boolean>
@@ -40,6 +42,9 @@ export type ReadingState = {
   anchor?: { id: string; offset: number }
   highlighted: boolean
   resultReady: boolean
+}
+export function runTab(state: ReadingState, outputAvailable: boolean): RunTab {
+  return state.viewTab ?? (outputAvailable && state.follow ? 'output' : 'trace')
 }
 export function freshReading(): ReadingState {
   return {

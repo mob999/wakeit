@@ -7,6 +7,7 @@ import {
   previewLines,
   isExpanded,
   followingTail,
+  runTab,
 } from '../../src/runs/readingModel.ts'
 
 test('message summaries use the first visible paragraph', () => {
@@ -52,4 +53,18 @@ test('payload preview truncates only beyond twelve lines and full mode preserves
 test('tail following includes 48 pixels and stops immediately above that distance', () => {
   assert.equal(followingTail(48), true)
   assert.equal(followingTail(49), false)
+})
+
+test('run tabs default to Trace while waiting and Output when available', () => {
+  const state = freshReading()
+  assert.equal(runTab(state, false), 'trace')
+  assert.equal(runTab(state, true), 'output')
+  state.follow = false
+  assert.equal(runTab(state, true), 'trace')
+})
+test('explicit tabs survive result arrival, follow changes and unavailable output', () => {
+  for (const viewTab of ['output', 'trace', 'details'] as const)
+    for (const follow of [true, false])
+      for (const available of [true, false])
+        assert.equal(runTab({ ...freshReading(), viewTab, follow }, available), viewTab)
 })
