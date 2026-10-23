@@ -43,7 +43,7 @@ pub fn expired(config: &TaskConfig, window: Option<DateTime<Utc>>, now: DateTime
                 .is_ok_and(|limit| (now - start).to_std().is_ok_and(|elapsed| elapsed >= limit))
         })
 }
-pub fn input_executions(prompt: &str, rows: &[PgRow]) -> anyhow::Result<Value> {
+pub fn input_executions(prompt: &dag::Prompt, rows: &[PgRow]) -> anyhow::Result<Value> {
     Ok(json!(
         dag::references(prompt)?
             .into_iter()
@@ -57,7 +57,7 @@ pub fn input_executions(prompt: &str, rows: &[PgRow]) -> anyhow::Result<Value> {
             .collect::<Vec<_>>()
     ))
 }
-pub fn source_snapshot(prompt: &str, rows: &[PgRow]) -> anyhow::Result<Value> {
+pub fn source_snapshot(prompt: &dag::Prompt, rows: &[PgRow]) -> anyhow::Result<Value> {
     Ok(
         json!({"input_sources":dag::references(prompt)?,"input_executions":input_executions(prompt, rows)?}),
     )

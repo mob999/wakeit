@@ -73,7 +73,9 @@ pub async fn validation(
     let mut tx = pool.begin().await?;
     if let Some(d) = &c.dag {
         for n in &d.nodes {
-            if let Err(e) = runner(&mut tx, workspace, &n.execution(c, n.prompt.clone())).await {
+            if let Err(e) =
+                runner(&mut tx, workspace, &n.execution(c, n.prompt.display_text())).await
+            {
                 result.push(ValidationIssue {
                     path: format!("dag.nodes.{}.runner", n.id),
                     node_id: Some(n.id.clone()),
@@ -104,7 +106,7 @@ pub async fn save_nodes(
         .await?;
     if let Some(d) = &c.dag {
         for n in &d.nodes {
-            let runner = runner(tx, workspace, &n.execution(c, n.prompt.clone())).await?;
+            let runner = runner(tx, workspace, &n.execution(c, n.prompt.display_text())).await?;
             sqlx::query(
                 "INSERT INTO dag_nodes(workspace_id,task_id,node_id,runner_id) VALUES($1,$2,$3,$4)",
             )
