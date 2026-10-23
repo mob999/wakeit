@@ -4,7 +4,6 @@ import {
   IconCopy,
   IconEllipsis,
   IconGear,
-  IconComment,
   IconThemes,
   IconInfo,
   IconPlus,
@@ -14,6 +13,7 @@ import {
   IconX,
 } from '@pierre/icons'
 import {
+  ContinuationBubble,
   LogOut,
   PanelTopClose,
   PanelTopOpen,
@@ -90,7 +90,7 @@ const icons = {
   loading: LoaderCircle,
   expand: Maximize,
   shrink: Minimize,
-  resumeSession: IconComment,
+  resumeSession: ContinuationBubble,
   pause: Pause,
   play: Play,
   redo: Redo2,

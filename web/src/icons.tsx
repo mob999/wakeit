@@ -168,6 +168,11 @@ function control(name: string, drawing: ReactNode) {
     )
   }
 }
+// A flatter single bubble keeps continuation visually level with adjacent actions.
+export const ContinuationBubble = control(
+  'resume-session',
+  <path d="M8 2.75c-3.59 0-6.5 1.96-6.5 4.38 0 1.3.84 2.47 2.2 3.27L2.25 13l4-1.7c.56.13 1.14.2 1.75.2 3.59 0 6.5-1.96 6.5-4.37S11.59 2.75 8 2.75Z" />,
+)
 export const Play = control('play', <path d="m4 2.5 9 5.5-9 5.5Z" />)
 export const Pause = control(
   'pause',
