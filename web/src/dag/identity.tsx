@@ -1,8 +1,8 @@
-import { type DagNode, type DagRunNode, type Runner, type Agent } from '../api'
+import { type DagNode, type Runner, type Agent } from '../api'
 import { t } from '../i18n'
 export const nodeName = (node: Pick<DagNode, 'name'>) => node.name || t('dag.unnamed')
 export const shortId = (id: string) => (id.length > 16 ? id.slice(0, 16) : id)
-export function runnerName(node: DagNode | DagRunNode, runners: Runner[], agents: Agent[]) {
+export function runnerName(node: Pick<DagNode, 'runner'>, runners: Runner[], agents: Agent[]) {
   return (
     runners.find((r) => r.id === node.runner || r.name === node.runner)?.name ??
     agents.find((a) => a.runner_id === node.runner || a.runner === node.runner)?.runner ??
