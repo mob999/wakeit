@@ -18,6 +18,7 @@ import { TaskEditor } from '../TaskEditor'
 import { RunnerOverview } from './RunnerOverview'
 import { RunnerAgents } from './RunnerAgents'
 import { EnrollDialog } from './EnrollDialog'
+import { DetailTabs } from '../DetailTabs'
 
 export function RunnersPage({ user, toast }: { user: User; toast: (message: string) => void }) {
   useTranslation()
@@ -183,36 +184,39 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
                 </Dropdown.Root>
               )}
             </PageActions>
-            <div className="tabs" role="tablist" aria-label={tr('设备详情')}>
-              {[
-                ['overview', tr('概览')],
-                ['agents', tr('Agents')],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={section === id}
-                  className={section === id ? 'active' : ''}
-                  onClick={() => choose(runner.id, id)}
-                >
-                  {label}
-                </button>
-              ))}
+            <DetailTabs
+              className="runner-detail-tabs"
+              idPrefix={`runner-${runner.id}`}
+              label={tr('设备详情')}
+              tabs={[
+                { key: 'overview', label: tr('概览') },
+                { key: 'agents', label: tr('Agents') },
+              ]}
+              value={section}
+              onChange={(value) => choose(runner.id, value)}
+            />
+            <div
+              className="detail-tab-panel"
+              id={`runner-${runner.id}-${section}-panel`}
+              role="tabpanel"
+              aria-labelledby={`runner-${runner.id}-${section}-tab`}
+              tabIndex={0}
+            >
+              {section === 'agents' ? (
+                <RunnerAgents
+                  runner={runner}
+                  filters={filteringAgents ? agentFilters : {}}
+                  expanded={search.agent}
+                  onExpand={(id) => choose(runner.id, 'agents', id)}
+                  onCreate={
+                    editable ? (agent) => setEditor({ runner: runner.name, agent }) : undefined
+                  }
+                  createReady={!!settings.data}
+                />
+              ) : (
+                <RunnerOverview runner={runner} />
+              )}
             </div>
-            {section === 'agents' ? (
-              <RunnerAgents
-                runner={runner}
-                filters={filteringAgents ? agentFilters : {}}
-                expanded={search.agent}
-                onExpand={(id) => choose(runner.id, 'agents', id)}
-                onCreate={
-                  editable ? (agent) => setEditor({ runner: runner.name, agent }) : undefined
-                }
-                createReady={!!settings.data}
-              />
-            ) : (
-              <RunnerOverview runner={runner} />
-            )}
           </>
         ) : (
           <div className="empty">

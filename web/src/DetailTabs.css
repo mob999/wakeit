@@ -27,6 +27,14 @@
   align-self: center;
   flex: none;
 }
+.detail-tab-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 @media (max-width: 700px) {
   .detail-tabs {
     padding-inline: 12px;
