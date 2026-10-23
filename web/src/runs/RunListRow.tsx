@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { Monitor, ChevronRight, Clock, GitBranch } from '../icons'
+import { Monitor, ChevronRight, Clock } from '../icons'
 import { t } from '../i18n'
 import { type Agent, type Run, type Runner, time } from '../api'
 import { Status } from '../Status'
 import { AgentLogo } from '../AgentLogo'
+import { DagAgentSummary } from '../dag/DagAgentSummary'
 export function runAgent(run: Pick<Run, 'config'>, agents?: Agent[]) {
   return agents?.find(
     (a) =>
@@ -16,11 +17,7 @@ export function RunIdentity({ run, agents }: { run: Pick<Run, 'config'>; agents?
   if (run.config.dag)
     return (
       <span className="run-identity">
-        <span className="run-device">
-          <GitBranch size={13} />
-          DAG
-        </span>
-        <span className="quiet">{t('dag.nodeCount', { count: run.config.dag.nodes.length })}</span>
+        <DagAgentSummary nodes={run.config.dag.nodes} agents={agents} />
       </span>
     )
   return (

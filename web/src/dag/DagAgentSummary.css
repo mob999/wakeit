@@ -1,0 +1,14 @@
+.dag-agent-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.dag-agent-summary > svg {
+  flex: none;
+}
+.dag-agent-summary > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
