@@ -175,6 +175,8 @@ def main():
         def sql(query): return command([pg / 'psql', database, '-At', '-v', 'ON_ERROR_STOP=1', '-c', query]).strip()
         dag_runs, file_run = {}, None
         if not args.prepare_only:
+            from workspace_lock_checks import verify as verify_workspace_locks
+            verify_workspace_locks(api, a, sql, cli_env, check)
             if args.files_only:
                 from result_file_checks import verify as verify_files
                 file_run = verify_files(api,a,b,check,dict(other=other))
