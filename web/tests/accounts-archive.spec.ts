@@ -224,7 +224,7 @@ test('archive and restore preserves history, exposes read-only tasks and respect
   await expect(
     page.locator('.header-page-actions').getByText('已归档', { exact: true }),
   ).toBeVisible()
-  for (const action of ['编辑', '归档任务', '立即执行', '恢复任务'])
+  for (const action of ['编辑任务', '归档任务', '立即执行', '启用'])
     await expect(page.getByRole('button', { name: action, exact: true })).toHaveCount(0)
   await expect
     .poll(async () => (await (await page.request.get(`/api/v1/runs/${run.id}`)).json()).state)
@@ -251,7 +251,7 @@ test('archive and restore preserves history, exposes read-only tasks and respect
   expect(result.next_at).toBeNull()
   expect(result.config.schedule).toMatchObject(config.schedule)
   await page.goto(`/tasks?task=${id}`)
-  await expect(page.getByRole('button', { name: '恢复任务', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '启用', exact: true })).toBeVisible()
   // Keep the shared fixture list clean, without deleting its Run history.
   await page.request.post(`/api/v1/tasks/${id}/archive`, {
     headers,

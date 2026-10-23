@@ -454,7 +454,7 @@ function ReportNavigation({
                 key={heading.key}
                 aria-current={state.activeHeading === heading.key ? 'location' : undefined}
                 title={heading.label}
-                style={{ paddingInlineStart: `${Math.min(3, heading.depth - depth) * 10}px` }}
+                style={{ paddingInlineStart: `${6 + Math.min(3, heading.depth - depth) * 10}px` }}
                 onClick={() => onHeading(heading.key)}
               >
                 {heading.label}

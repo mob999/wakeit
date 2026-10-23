@@ -61,20 +61,18 @@ type IconProps = ComponentPropsWithoutRef<'svg'> & { size?: number | string }
 // Preserve native Pierre outlines, proportions and currentColor at every UI scale.
 function pierre(Icon: ComponentType<PierreIconProps>, name: string, rotation = 0, mirror = false) {
   return function AppIcon({ size = 16, strokeWidth: _strokeWidth, style, ...props }: IconProps) {
-    const transform = [
-      rotation && `rotate(${rotation}deg)`,
-      mirror && 'scaleX(-1)',
-      style?.transform,
-    ]
-      .filter(Boolean)
-      .join(' ')
     return (
       <Icon
         aria-hidden="true"
         {...props}
         size={size}
         data-icon={name}
-        style={{ ...style, ...(transform ? { transform } : {}) }}
+        // Base orientation composes with CSS transforms used by disclosure state and animation.
+        style={{
+          ...(rotation ? { rotate: `${rotation}deg` } : {}),
+          ...(mirror ? { scale: '-1 1' } : {}),
+          ...style,
+        }}
       />
     )
   }

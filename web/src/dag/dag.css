@@ -157,15 +157,16 @@
 .dag-node-title > [data-icon='circle-alert'] {
   color: var(--failure);
 }
-.dag-graph-node.selected,
 .dag-list-node.selected {
-  background: var(--hover);
+  background: var(--item-selected);
 }
 .dag-graph-node.selected {
-  border-color: var(--muted);
-}
-.dag-graph-node.matched {
+  background: var(--item-selected-surface);
   border-color: var(--ink);
+}
+.dag-graph-node.matched .dag-node-card-name strong {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
 }
 .dag-graph-node[aria-invalid='true'] {
   border-color: var(--failure);
@@ -224,6 +225,16 @@
 }
 .dag-list-node {
   cursor: pointer;
+}
+.dag-list-node:hover {
+  background: var(--item-hover);
+}
+.dag-list-node.selected:hover {
+  background: var(--item-selected-hover);
+}
+.dag-list-node:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -3px;
 }
 .dag-list-node > * {
   min-width: 0;

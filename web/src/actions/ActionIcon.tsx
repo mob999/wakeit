@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import {
   IconCheck,
+  IconBan,
+  IconCheckCircle,
   IconCopy,
   IconEllipsis,
   IconGear,
@@ -29,7 +31,6 @@ import {
   ArrowUpRight,
   Archive,
   Ban,
-  CalendarCheck,
   ChevronsUp,
   ClipboardCheck,
   GitBranch,
@@ -81,7 +82,8 @@ const icons = {
   sidebar: IconSidebarLeft,
   archive: Archive,
   revoke: Ban,
-  schedule: CalendarCheck,
+  disableTask: IconBan,
+  enableTask: IconCheckCircle,
   collapseAll: ChevronsUp,
   reconcile: ClipboardCheck,
   graph: GitBranch,

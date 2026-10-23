@@ -215,14 +215,19 @@
   color: var(--ink);
 }
 .dag-canvas-node.selected {
-  background: var(--hover);
-  border-color: var(--muted);
-}
-.dag-canvas-node.matched {
+  background: var(--item-selected-surface);
   border-color: var(--ink);
+}
+.dag-canvas-node.matched .dag-node-card-name strong {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
 }
 .dag-canvas-node.invalid {
   border-color: var(--failure);
+}
+.react-flow__node:focus-visible .dag-canvas-node {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 .dag-canvas-node .react-flow__handle {
   width: 9px;

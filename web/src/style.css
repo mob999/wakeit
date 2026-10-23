@@ -19,8 +19,13 @@
   --canvas: #fff;
   --surface: #f5f5f5;
   --list-surface: #fafafa;
-  --list-hover: #f5f5f5;
-  --list-selected: #ffffff;
+  --item-hover: color-mix(in srgb, var(--ink) 4%, transparent);
+  --item-selected: color-mix(in srgb, var(--ink) 10%, transparent);
+  --item-selected-surface: color-mix(in srgb, var(--ink) 10%, var(--canvas));
+  --item-selected-hover: color-mix(in srgb, var(--ink) 14%, transparent);
+  --reading-current: color-mix(in srgb, var(--ink) 6%, transparent);
+  --list-hover: var(--item-hover);
+  --list-selected: var(--item-selected);
   --raised: #ffffff;
   --border: #e5e5e5;
   --ink: #0a0a0a;
@@ -28,6 +33,8 @@
   --faint: #737373;
   --success: #1f883d;
   --pending: #bf8700;
+  --control-schedule: #9a6700;
+  --control-edit: #0969da;
   --failure: #cf222e;
   --neutral: #8c959f;
   --accent-hover: #333333;
@@ -40,8 +47,11 @@
   --canvas: #0a0a0a;
   --surface: #171717;
   --list-surface: #121212;
-  --list-hover: #191919;
-  --list-selected: #1f1f1f;
+  --item-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+  --item-selected: color-mix(in srgb, var(--ink) 18%, transparent);
+  --item-selected-surface: color-mix(in srgb, var(--ink) 18%, var(--canvas));
+  --item-selected-hover: color-mix(in srgb, var(--ink) 22%, transparent);
+  --reading-current: color-mix(in srgb, var(--ink) 12%, transparent);
   --raised: #1f1f1f;
   --border: #262626;
   --ink: #fafafa;
@@ -49,6 +59,8 @@
   --faint: #787878;
   --success: #3fb950;
   --pending: #d29922;
+  --control-schedule: #d29922;
+  --control-edit: #58a6ff;
   --failure: #f85149;
   --neutral: #6e7681;
   --accent-hover: #d4d4d4;
@@ -287,13 +299,13 @@ pre {
   font-size: 12px;
 }
 .nav-item:hover {
-  background: var(--hover);
+  background: var(--item-hover);
+  color: var(--ink);
 }
 .nav-item.selected {
   background: var(--raised);
   color: var(--ink);
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--border);
+  font-weight: 550;
 }
 .nav-bottom {
   margin-top: auto;
@@ -382,7 +394,7 @@ pre {
   outline: none;
 }
 .dropdown [data-highlighted] {
-  background: var(--hover);
+  background: var(--item-hover);
 }
 .main {
   flex: 1;
@@ -511,10 +523,13 @@ pre {
 }
 .task-row.active {
   background: var(--list-selected);
-  border-color: var(--border);
+  color: var(--ink);
+}
+.task-row.active:hover {
+  background: var(--item-selected-hover);
 }
 .task-row:focus-visible {
-  outline: 1px solid var(--ink);
+  outline: 2px solid var(--ink);
   outline-offset: -3px;
 }
 .task-row > * {
@@ -2218,7 +2233,8 @@ input:disabled {
 }
 .result-mode button.active {
   color: var(--ink);
-  background: var(--surface);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 .result-raw {
   max-width: 100%;
@@ -2551,7 +2567,7 @@ input:disabled {
   outline: none;
 }
 .choice-popover .model-options > button[data-active] {
-  background: var(--hover);
+  background: var(--item-hover);
 }
 .choice-empty {
   padding: 8px;
@@ -2649,11 +2665,6 @@ input:disabled {
 }
 .run-section-actions[hidden] {
   display: none;
-}
-.run-page .result-mode button.active {
-  background: transparent;
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 .run-page .code {
   border: 0;

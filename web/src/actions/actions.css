@@ -71,6 +71,38 @@
 .action-group + .action-group {
   margin-left: calc(var(--action-group-gap) - var(--action-gap));
 }
+/* Task controls share a single shell; each action keeps its own focus and state. */
+.task-control-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  flex: none;
+  margin-right: 8px;
+}
+.task-control-group .button.icon-button {
+  border-radius: 999px;
+  color: var(--task-control-color);
+}
+.task-control-run {
+  --task-control-color: var(--success);
+}
+.task-control-schedule {
+  --task-control-color: var(--control-schedule);
+}
+.task-control-edit {
+  --task-control-color: var(--control-edit);
+}
+.task-control-group
+  .button.icon-button:is(:hover, :active):not(:disabled):not([aria-disabled='true']) {
+  color: color-mix(in srgb, var(--task-control-color) 80%, var(--ink));
+}
+.task-control-group .action-narrow-label {
+  display: none;
+}
 .action-menu {
   min-width: 176px;
   max-width: min(340px, calc(100vw - 24px));
@@ -160,6 +192,12 @@
   :root {
     --action-size: 44px;
   }
+  .task-control-group {
+    padding: 0;
+    border: 0;
+    outline: 1px solid var(--border);
+    outline-offset: -1px;
+  }
   .action-menu-item {
     min-height: 44px;
   }
@@ -197,6 +235,19 @@
     color: inherit;
   }
   .page-actions-buttons .button.icon-button::after {
+    display: none;
+  }
+  .page-actions-buttons .task-control-group {
+    align-self: flex-start;
+    flex-direction: row;
+    margin: 0 0 6px;
+  }
+  .page-actions-buttons .task-control-group .button.icon-button {
+    width: var(--action-size);
+    padding: 0;
+    justify-content: center;
+  }
+  .page-actions-buttons .task-control-group .action-narrow-label {
     display: none;
   }
 }

@@ -348,7 +348,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
                   >
                     <option value="">{tr('全部')}</option>
                     <option value="true">{tr('已启用')}</option>
-                    <option value="false">{tr('已暂停')}</option>
+                    <option value="false">{tr('actions.taskDisabled')}</option>
                   </select>
                 </Field>
               )}
