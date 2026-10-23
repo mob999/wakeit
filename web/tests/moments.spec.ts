@@ -354,7 +354,7 @@ test('empty state, request retry, JSON and truncated reports remain distinct', a
   await page.getByRole('button', { name: '刷新动态', exact: true }).click()
   await expect(page.locator('.moment-report code')).toContainText('\"ok\": true')
 })
-test('inline images preserve copyable references, and open previews pin their source card', async ({
+test('image references open previews, and open previews pin their source card', async ({
   page,
   context,
 }) => {
@@ -369,10 +369,12 @@ test('inline images preserve copyable references, and open previews pin their so
     .locator('.moment-link-list')
     .getByRole('button', { name: 'Rendered picture', exact: true })
     .click()
-  await expect
-    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toBe('/workspace/render.png')
-  expect(calls.filter((p) => p.endsWith('/files/preview'))).toHaveLength(1)
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('dialog').getByRole('img')).toBeVisible()
+  expect(calls.filter((p) => p.endsWith('/files/preview'))).toHaveLength(2)
+  await page.locator('button[aria-label="刷新动态"]').dispatchEvent('click')
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await card
     .locator('.moment-link-list')
     .getByRole('button', { name: 'Report', exact: true })
@@ -385,6 +387,35 @@ test('inline images preserve copyable references, and open previews pin their so
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await expect(card.locator('.moment-placeholder')).toHaveCount(1)
+})
+
+test('a long outline keeps readable rows and scrolls to every heading after expansion', async ({
+  page,
+}) => {
+  const { runs } = await momentsFixture(page, { count: 1 })
+  runs[0].result = Array.from(
+    { length: 68 },
+    (_, n) => `## Section ${n + 1}\n\nSynthetic section ${n + 1}.`,
+  ).join('\n\n')
+  await page.goto(workspacePage('/'))
+  const card = page.locator('.moment-card')
+  const outline = card.getByRole('navigation', { name: '目录', exact: true })
+  const more = outline.locator('..').getByRole('button', { name: '另外 65 项', exact: true })
+  await more.click()
+  await expect(outline.getByRole('button')).toHaveCount(68)
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
+  expect(
+    await outline
+      .getByRole('button')
+      .evaluateAll((rows) => Math.min(...rows.map((row) => row.getBoundingClientRect().height))),
+  ).toBeGreaterThanOrEqual(20)
+  expect(await outline.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
+  await outline.getByRole('button', { name: 'Section 68', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.textContent))
+    .toBe('Section 68')
+  await outline.locator('..').getByRole('button', { name: '收起', exact: true }).click()
+  await expect(outline.getByRole('button')).toHaveCount(3)
 })
 
 test('device and Agent stay together on the right of the card header', async ({ page }) => {

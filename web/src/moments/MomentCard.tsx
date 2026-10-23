@@ -10,11 +10,12 @@ import {
   GitBranch,
   RefreshCw,
   FileText,
+  Image,
   ExternalLink,
   Clock,
 } from 'lucide-react'
 import { t, locale } from '../i18n'
-import { api, type MomentEntry, type Run, type User } from '../api'
+import { api, type MomentEntry, type Run } from '../api'
 import { IconButton, Button, TooltipTarget } from '../ui'
 import { Status } from '../Status'
 import { AgentLogo } from '../AgentLogo'
@@ -31,6 +32,7 @@ import {
   type ReportLink,
 } from './reportModel'
 import { PreviewActivity } from '../files/PreviewActivity'
+import { ResultFileLink } from '../files/ResultFileLink'
 import { useReferenceCapacity } from './useReferenceCapacity'
 import { VisitContext, manual } from './MomentsPage'
 
@@ -118,8 +120,6 @@ function MomentContent({
   useTranslation()
   const visit = useContext(VisitContext),
     client = useQueryClient()
-  const me = useQuery<User>({ queryKey: ['me'], queryFn: () => api('/session'), enabled: false })
-  const writable = me.data?.role !== 'viewer' && !me.data?.workspace?.is_demo
   const expanded = visit.expanded.has(entry.id)
   const report = useRef<HTMLDivElement>(null)
   const reading = useRef<HTMLDivElement>(null),
@@ -158,6 +158,9 @@ function MomentContent({
   const chosen = outputs.find((o) => o.node_id === output) ?? outputs[0]
   const nodeId = chosen?.node_id
   const execution = full.data?.nodes?.find((node) => node.id === nodeId)?.execution_id
+  const fileSource = execution
+    ? { runId: execution }
+    : { runId: entry.id, ...(nodeId ? { nodeId } : {}) }
   useEffect(() => {
     if (nodeId) visit.outputs.current.set(entry.id, nodeId)
   }, [entry.id, nodeId, visit.outputs])
@@ -350,14 +353,7 @@ function MomentContent({
                 <CodeContent text={text} json={isJsonCode(value)} className="result-raw" />
               ) : (
                 <article className="markdown-result">
-                  <MarkdownContent
-                    text={text}
-                    source={
-                      execution
-                        ? { runId: execution }
-                        : { runId: entry.id, ...(nodeId ? { nodeId } : {}) }
-                    }
-                  />
+                  <MarkdownContent text={text} source={fileSource} />
                 </article>
               )
             ) : incomplete ? (
@@ -427,7 +423,12 @@ function MomentContent({
                   ))}
                 </nav>
                 {headings.length > 3 && (
-                  <button className="moment-more" onClick={() => setMoreHeadings((v) => !v)}>
+                  <button
+                    type="button"
+                    className="moment-more"
+                    aria-expanded={moreHeadings}
+                    onClick={() => setMoreHeadings((v) => !v)}
+                  >
                     {moreHeadings ? t('收起') : t('moments.more', { count: headings.length - 3 })}
                   </button>
                 )}
@@ -442,50 +443,32 @@ function MomentContent({
                   )}
                 </h4>
                 <div className="moment-link-list" ref={referenceList}>
-                  {links.map((link, index) =>
-                    link.local ? (
-                      <button
-                        key={link.href}
-                        hidden={!moreLinks && index >= referenceCapacity}
-                        title={
-                          link.image || !writable
-                            ? `${t('filePreview.copyPath')}: ${link.href}`
-                            : link.href
-                        }
-                        onClick={() =>
-                          link.image
-                            ? navigator.clipboard
-                                .writeText(link.href)
-                                .catch(() => toast(t('请选中文本后复制')))
-                            : report.current
-                                ?.querySelectorAll<HTMLElement>(
-                                  'a[href],[data-result-file-href],[data-result-image-href]',
-                                )
-                                [link.index]?.click()
-                        }
-                      >
-                        <FileText size={13} />
-                        <span>{link.label}</span>
-                        {(link.image || !writable) && <Copy size={12} />}
-                      </button>
-                    ) : (
-                      <a
-                        key={link.href}
-                        hidden={!moreLinks && index >= referenceCapacity}
-                        href={link.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={link.href}
-                      >
-                        <ExternalLink size={13} />
-                        <span>{link.label}</span>
-                      </a>
-                    ),
-                  )}
+                  {links.map((link, index) => (
+                    <div key={link.href} hidden={!moreLinks && index >= referenceCapacity}>
+                      {link.local ? (
+                        <ResultFileLink href={link.href} source={fileSource}>
+                          {link.image ? <Image size={13} /> : <FileText size={13} />}
+                          <span>{link.label}</span>
+                        </ResultFileLink>
+                      ) : (
+                        <a
+                          href={link.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={link.href}
+                        >
+                          <ExternalLink size={13} />
+                          <span>{link.label}</span>
+                        </a>
+                      )}
+                    </div>
+                  ))}
                 </div>
                 <button
+                  type="button"
                   ref={referenceToggle}
                   className="moment-more"
+                  aria-expanded={moreLinks}
                   hidden={!moreLinks && links.length <= referenceCapacity}
                   onClick={() => setMoreLinks((v) => !v)}
                 >
