@@ -69,7 +69,9 @@ pub async fn authorize(
     }))
 }
 pub async fn lock(tx: &mut Transaction<'_, Postgres>, workspace: Uuid) -> Result<()> {
-    sqlx::query("SELECT id FROM workspaces WHERE id=$1 FOR UPDATE")
+    // Serialize workspace mutations without blocking FK key-share checks from
+    // execution writers that already hold a task or Run row. IDs never change.
+    sqlx::query("SELECT id FROM workspaces WHERE id=$1 FOR NO KEY UPDATE")
         .bind(workspace)
         .fetch_optional(&mut **tx)
         .await?
