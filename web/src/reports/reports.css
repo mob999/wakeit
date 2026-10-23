@@ -127,6 +127,7 @@
   scrollbar-gutter: stable;
 }
 .report-output-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
@@ -154,14 +155,22 @@
 .report-output-row .status {
   font-size: 11px;
 }
-.report-output-row:has(button):hover {
-  background: var(--hover);
+.report-output-row:has(.report-output-select):hover {
+  background: var(--item-hover);
 }
 .report-output-row.selected {
-  border-color: var(--border);
-  background: var(--hover);
+  background: var(--item-selected);
+}
+.report-output-row.selected:hover {
+  background: var(--item-selected-hover);
+}
+.report-output-row:has(.report-output-select:focus-visible) {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
 }
 .report-output-row .run-reason {
+  position: relative;
+  z-index: 1;
   margin: 0;
   min-height: 18px;
 }
@@ -170,6 +179,18 @@
   text-align: left;
   font-size: inherit;
   padding: 0;
+}
+.report-output-select::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.report-output-select:focus-visible {
+  outline: none;
+}
+.report-output-row.selected .report-output-select {
+  font-weight: 550;
 }
 .report-output-select > span {
   display: block;
@@ -194,7 +215,8 @@
   flex: none;
   min-width: 0;
   min-height: 24px;
-  padding: 3px 0;
+  padding: 3px 6px;
+  border-radius: 4px;
   line-height: 18px;
   text-align: left;
   font-size: 11px;
@@ -205,11 +227,19 @@
 }
 .report-outline-list button:hover {
   color: var(--ink);
-  text-decoration: underline;
+  background: var(--item-hover);
 }
 .report-outline-list button[aria-current] {
   color: var(--ink);
+  background: var(--reading-current);
   font-weight: 550;
+}
+.report-outline-list button[aria-current]:hover {
+  background: var(--item-selected);
+}
+.report-outline-list button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
 }
 .report-more {
   flex: none;

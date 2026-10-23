@@ -33,12 +33,13 @@
   min-width: 0;
 }
 .directory-quick-row:hover {
-  background: var(--hover);
+  background: var(--item-hover);
 }
 .directory-quick-row.selected {
-  background: var(--hover);
-  outline: 1px solid var(--border);
-  outline-offset: -1px;
+  background: var(--item-selected);
+}
+.directory-quick-row.selected:hover {
+  background: var(--item-selected-hover);
 }
 .directory-quick-row > button[role='option'] {
   flex: 1;

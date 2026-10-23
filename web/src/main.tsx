@@ -565,35 +565,38 @@ function TasksPage() {
               {editable && !task.archived_at && (
                 <>
                   <div
-                    className="action-group"
+                    className="task-control-group"
                     role="group"
-                    aria-label={tr('actions.taskExecution')}
+                    aria-label={tr('actions.taskControls')}
                   >
                     <IconButton
                       label={tr('立即执行')}
-                      text={tr('立即执行')}
+                      className="task-control-run"
+                      description={tr(
+                        task.config.dag ? 'actions.runDagDescription' : 'actions.runDescription',
+                      )}
+                      tooltip={`${tr('立即执行')} — ${tr(task.config.dag ? 'actions.runDagDescription' : 'actions.runDescription')}`}
                       disabled={action.isPending}
                       loading={action.isPending && action.variables?.kind === 'trigger'}
                       onClick={() => action.mutate({ task, kind: 'trigger' })}
                     >
                       <ActionIcon name="play" />
                     </IconButton>
-                  </div>
-                </>
-              )}
-              <div className="action-group" role="group" aria-label={tr('actions.taskEditing')}>
-                {editable && !task.archived_at && (
-                  <>
                     <IconButton
-                      label={task.config.enabled ? tr('暂停任务') : tr('task.resume')}
-                      disabled={action.isPending}
+                      label={tr(
+                        task.config.enabled ? 'actions.pauseSchedule' : 'actions.resumeSchedule',
+                      )}
+                      className="task-control-schedule"
+                      disabled={action.isPending || !task.config.schedule}
+                      disabledReason={!task.config.schedule ? tr('actions.noSchedule') : undefined}
                       loading={action.isPending && action.variables?.kind === 'toggle'}
                       onClick={() => action.mutate({ task, kind: 'toggle' })}
                     >
                       <ActionIcon name={task.config.enabled ? 'pause' : 'schedule'} />
                     </IconButton>
                     <IconButton
-                      label={tr('编辑')}
+                      label={tr('actions.editTask')}
+                      className="task-control-edit"
                       onClick={() =>
                         task.config.dag
                           ? navigate({ to: '/tasks/dag', search: { task: task.id } })
@@ -602,8 +605,10 @@ function TasksPage() {
                     >
                       <ActionIcon name="edit" />
                     </IconButton>
-                  </>
-                )}
+                  </div>
+                </>
+              )}
+              <div className="action-group" role="group" aria-label={tr('actions.taskEditing')}>
                 <ActionMenu label={tr('actions.taskMenu')}>
                   <CopyMenuItem label={tr('复制 Task ID')} value={task.id} toast={toast} />
                   {editable && !task.archived_at && (

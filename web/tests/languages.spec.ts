@@ -193,7 +193,7 @@ test('all main pages and account categories render English without translating t
 test('switching language preserves the task editor draft and its step', async ({ page }) => {
   const calls = await fixture(page)
   await page.goto('/tasks?task=fixture-task')
-  await page.getByRole('button', { name: '编辑', exact: true }).click()
+  await page.getByRole('button', { name: '编辑任务', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('任务名称', { exact: true }).fill('保留草稿')
   await dialog.getByLabel('指令', { exact: true }).fill('Keep the draft 原文')

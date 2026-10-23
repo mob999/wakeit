@@ -760,5 +760,12 @@
   "actions.copyEnrollment": "Copy device enrollment command",
   "agentPrompt.open": "Open Agent Prompt",
   "agentPrompt.help": "Copy this prompt to your Agent to configure Wakeit.",
-  "agentPrompt.preview": "Prompt preview"
+  "agentPrompt.preview": "Prompt preview",
+  "actions.taskControls": "Task controls",
+  "actions.pauseSchedule": "Pause scheduling",
+  "actions.resumeSchedule": "Resume scheduling",
+  "actions.noSchedule": "No automatic schedule is configured.",
+  "actions.runDescription": "Start a new run.",
+  "actions.runDagDescription": "Run the entire DAG.",
+  "actions.editTask": "Edit task"
 }

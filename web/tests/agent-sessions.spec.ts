@@ -245,7 +245,7 @@ async function fixture(
 }
 async function edit(page: Page) {
   await page.goto(workspacePage('/tasks'))
-  await page.getByRole('button', { name: '编辑', exact: true }).click()
+  await page.getByRole('button', { name: '编辑任务', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '编辑任务', exact: true })
   await dialog.locator('summary:visible').filter({ hasText: '高级设置' }).click()
   return dialog
