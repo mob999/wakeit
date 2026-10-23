@@ -1,8 +1,8 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
-import { Copy, Check } from 'lucide-react'
 import { IconButton } from '../ui'
+import { ActionIcon } from '../actions/ActionIcon'
+import { useCopy } from '../actions/useCopy'
 export function CopyValue({
   value,
   toast,
@@ -13,22 +13,14 @@ export function CopyValue({
   label?: string
 }) {
   useTranslation()
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useCopy(toast, label)
   return (
     <IconButton
       label={label}
       tooltip={copied ? tr('已复制') : label}
-      onClick={() =>
-        navigator.clipboard
-          .writeText(value)
-          .then(() => {
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-          })
-          .catch(() => toast(tr('请选中文本后复制')))
-      }
+      onClick={() => void copy(value)}
     >
-      {copied ? <Check size={14} /> : <Copy size={14} />}
+      <ActionIcon name={copied ? 'check' : 'copy'} />
     </IconButton>
   )
 }

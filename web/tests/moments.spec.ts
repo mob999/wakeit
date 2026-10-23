@@ -476,7 +476,7 @@ test('references fill the reading height, adapt to expansion and narrow columns,
   })
   expect(room.spare).toBeGreaterThanOrEqual(-1)
   expect(room.spare).toBeLessThan(room.row)
-  await expect(list.locator('.lucide-arrow-up-right')).toHaveCount(0)
+  await expect(list.locator('[data-icon=arrow-up-right]')).toHaveCount(0)
   await more.click()
   await expect(references).toHaveCount(30)
   await more.click()
@@ -619,7 +619,7 @@ test('three-column report uses the container width and merges image aliases with
   await expect(nav).toBeVisible()
   await expect(refs.locator('.result-reference-list > div')).toHaveCount(101)
   await expect(refs.getByRole('button', { name: '引用: Chart', exact: true })).toHaveCount(1)
-  await expect(refs.locator('.lucide-image')).toHaveCount(1)
+  await expect(refs.locator('[data-icon=image]')).toHaveCount(1)
   const n = await nav.boundingBox(),
     b = await body.boundingBox(),
     r = await refs.boundingBox()

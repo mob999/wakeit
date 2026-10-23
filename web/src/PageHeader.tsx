@@ -1,3 +1,4 @@
+import { ActionIcon } from './actions/ActionIcon'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import {
@@ -10,7 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { MoreHorizontal } from 'lucide-react'
+
 import { IconButton } from './ui'
 
 export const PageHeaderContext = createContext<{
@@ -92,7 +93,9 @@ export function PageActions({ children }: { children?: ReactNode }) {
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Element
+      if (!ref.current?.contains(target) && !target.closest('[data-radix-popper-content-wrapper]'))
+        setOpen(false)
     }
     document.addEventListener('pointerdown', outside)
     return () => document.removeEventListener('pointerdown', outside)
@@ -118,12 +121,12 @@ export function PageActions({ children }: { children?: ReactNode }) {
         aria-controls={id}
         onClick={() => setOpen((value) => !value)}
       >
-        <MoreHorizontal />
+        <ActionIcon name="more" />
       </IconButton>
       <div
         id={id}
         className={`page-actions-buttons ${open ? 'is-open' : ''}`}
-        role="toolbar"
+        role="group"
         aria-label={tr('页面操作')}
       >
         {children}

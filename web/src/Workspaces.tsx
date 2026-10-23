@@ -1,17 +1,9 @@
+import { ActionIcon } from './actions/ActionIcon'
 import { ErrorToast } from './Toast'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import {
-  Building2,
-  Check,
-  ChevronDown,
-  Plus,
-  LogOut,
-  ArrowUpRight,
-  FileCog,
-  Users,
-} from 'lucide-react'
+import { Building2, Check, ChevronDown, LogOut, ArrowUpRight, Users } from './icons'
 import { useTranslation } from 'react-i18next'
 import { t as tr, roleName } from './i18n'
 import { api, workspaceId, type User, type WorkspaceList } from './api'
@@ -190,7 +182,7 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
             className="workspace-signout"
             onClick={() => api('/session', 'DELETE').then(() => location.assign('/'))}
           >
-            <LogOut />
+            <ActionIcon name="signOut" />
           </IconButton>
         </div>
       </header>
@@ -205,7 +197,7 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
                 setCreate(true)
               }}
             >
-              <Plus />
+              <ActionIcon name="add" />
             </IconButton>
           </div>
           {error && <ErrorToast>{error}</ErrorToast>}
@@ -300,7 +292,7 @@ export function WorkspaceManagement({
                   setOpen(true)
                 }}
               >
-                <FileCog />
+                <ActionIcon name="edit" />
               </IconButton>
             )}
             {!user.workspace?.is_demo && (
@@ -314,7 +306,7 @@ export function WorkspaceManagement({
                   }
                 }}
               >
-                <LogOut />
+                <ActionIcon name="signOut" />
               </IconButton>
             )}
           </div>
@@ -325,7 +317,7 @@ export function WorkspaceManagement({
             if (await controls.requestLeave()) setCreate(true)
           }}
         >
-          <Plus />
+          <ActionIcon name="add" />
         </IconButton>,
       )}
       {create && <CreateWorkspace onClose={() => setCreate(false)} />}

@@ -1,9 +1,10 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { MoreHorizontal, Plus } from 'lucide-react'
+
 import { api, type Member, type User } from '../api'
 import { t as tr } from '../i18n'
 import { Button, IconButton, Modal } from '../ui'
@@ -46,12 +47,13 @@ function AccountRow({
         <Dropdown.Root>
           <Dropdown.Trigger asChild>
             <IconButton label={tr('{{v0}} 操作', { v0: account.username })}>
-              <MoreHorizontal />
+              <ActionIcon name="more" />
             </IconButton>
           </Dropdown.Trigger>
           <Dropdown.Portal>
             <Dropdown.Content className="dropdown" align="end">
               <Dropdown.Item
+                className={account.active ? 'danger' : undefined}
                 disabled={account.active && account.instance_admin && activeAdmins === 1}
                 onSelect={() => {
                   change.reset()
@@ -122,11 +124,6 @@ export function InstanceAccounts({ user }: { user: User }) {
         </nav>
         <div className="top-actions">
           <LanguageSwitch />
-          {local && (
-            <IconButton label={tr('新建账号')} onClick={() => setCreate(true)}>
-              <Plus />
-            </IconButton>
-          )}
         </div>
       </header>
       <main className="instance-accounts-body">
@@ -144,7 +141,14 @@ export function InstanceAccounts({ user }: { user: User }) {
                 <span>{tr('账号')}</span>
                 <span>{tr('权限')}</span>
                 <span>{tr('状态')}</span>
-                <span>{tr('操作')}</span>
+                <div className="settings-header-actions">
+                  <span className="sr-only">{tr('操作')}</span>
+                  {local && (
+                    <IconButton label={tr('新建账号')} onClick={() => setCreate(true)}>
+                      <ActionIcon name="add" />
+                    </IconButton>
+                  )}
+                </div>
               </div>
               {query.data.items.map((account) => (
                 <AccountRow

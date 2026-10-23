@@ -1,3 +1,4 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
@@ -7,7 +8,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { ChevronRight, MoreHorizontal, Plus, Gauge } from 'lucide-react'
+import { ChevronRight, Gauge } from '../icons'
 import { api, type Runner, type User, type WorkspaceSettings } from '../api'
 import { useFilters, runnerMatches, agentMatches } from '../Search'
 import { Split } from '../Workbench'
@@ -110,7 +111,7 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               <h1>{tr('Runners')}</h1>
               {editable && (
                 <IconButton label={tr('连接设备')} onClick={() => setEnroll(true)}>
-                  <Plus />
+                  <ActionIcon name="add" />
                 </IconButton>
               )}
             </div>
@@ -158,22 +159,23 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               {editable && (
                 <IconButton
                   label={tr('创建任务')}
+                  text={tr('创建任务')}
                   disabled={runner.revoked || !settings.data}
                   onClick={() => setEditor({ runner: runner.name })}
                 >
-                  <Plus />
+                  <ActionIcon name="add" />
                 </IconButton>
               )}
               {admin && !runner.revoked && (
                 <Dropdown.Root>
                   <Dropdown.Trigger asChild>
                     <IconButton label={tr('设备操作')}>
-                      <MoreHorizontal />
+                      <ActionIcon name="more" />
                     </IconButton>
                   </Dropdown.Trigger>
                   <Dropdown.Portal>
                     <Dropdown.Content className="dropdown" align="end">
-                      <Dropdown.Item onSelect={() => setRevokeTarget(runner)}>
+                      <Dropdown.Item className="danger" onSelect={() => setRevokeTarget(runner)}>
                         {tr('吊销设备')}
                       </Dropdown.Item>
                     </Dropdown.Content>

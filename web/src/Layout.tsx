@@ -1,15 +1,16 @@
+import { ActionIcon } from './actions/ActionIcon'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ListTodo, Rss, History, Monitor, Settings2, Sun, Moon, PanelLeft } from 'lucide-react'
+import { ListTodo, Rss, History, Monitor, Settings2 } from './icons'
 import { api, type User } from './api'
 import { IconButton, TooltipTarget } from './ui'
 import { SearchLauncher } from './Search'
 import { PaneResizeHandle } from './PaneResizeHandle'
 import { PageHeaderContext } from './PageHeader'
-import { LanguageSwitch } from './LanguageSwitch'
+import { DisplayPreferences } from './actions/DisplayPreferences'
 import { BrandMark } from './BrandMark'
 import { WorkspaceAccountMenu } from './Workspaces'
 import { AgentPrompt, type GatewayMeta } from './onboarding/AgentPrompt'
@@ -97,7 +98,7 @@ export function Layout({
                   aria-expanded={true}
                   onClick={toggle}
                 >
-                  <PanelLeft />
+                  <ActionIcon name="sidebar" />
                 </IconButton>
               </>
             )}
@@ -107,13 +108,8 @@ export function Layout({
             <div className="header-page-actions" ref={setActions} />
             <div className="top-actions">
               <Changelog version={meta.data?.version} />
-              <LanguageSwitch />
-              {!user.workspace?.is_demo && (
-                <AgentPrompt meta={meta.data} workspace={user.workspace} />
-              )}
-              <IconButton label={tr('切换主题')} onClick={onTheme}>
-                {dark ? <Sun /> : <Moon />}
-              </IconButton>
+              <AgentPrompt meta={meta.data} workspace={user.workspace} />
+              <DisplayPreferences dark={dark} onTheme={onTheme} />
               <WorkspaceAccountMenu user={user} onLogout={onLogout} />
             </div>
           </div>

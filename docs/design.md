@@ -2,16 +2,16 @@
 
 视觉基准为 [ghdiff](https://github.com/GalvinGao/ghdiff)，主要对照 src/globals.css、ReviewHeader、ReviewSidebar、PullRow 与 ui/buttonClass。wakeit 的组件独立实现，使用同一组中性色和控件尺度。
 
-| 项目                 | Light    | Dark     |
-| -------------------- | -------- | -------- |
-| 主画布               | #ffffff  | #0a0a0a  |
+| 项目               | Light    | Dark     |
+| ------------------ | -------- | -------- |
+| 主画布             | #ffffff  | #0a0a0a  |
 | 顶栏、一级导航底色 | #f5f5f5  | #171717  |
-| 第二侧栏底色 | #fafafa | #121212 |
-| 选中行、菜单         | #ffffff  | #1f1f1f  |
-| 细边框               | #e5e5e5  | #262626  |
-| 正文                 | #0a0a0a  | #fafafa  |
-| 次要文字             | #525252  | #a3a3a3  |
-| 主按钮               | 黑底白字 | 白底黑字 |
+| 第二侧栏底色       | #fafafa  | #121212  |
+| 选中行、菜单       | #ffffff  | #1f1f1f  |
+| 细边框             | #e5e5e5  | #262626  |
+| 正文               | #0a0a0a  | #fafafa  |
+| 次要文字           | #525252  | #a3a3a3  |
+| 主按钮             | 黑底白字 | 白底黑字 |
 
 使用系统无衬线字体；命令、配置、Cron、路径、日志使用平台等宽字体。顶栏 44px，小按钮 28px，圆角 6px，图标保持单色。状态使用与 ghdiff 一致的 GitHub Primer 成功、等待、失败颜色。
 
@@ -23,7 +23,7 @@
 
 ## 0.1.0 工作台更新
 
-顶栏左区展示 Logo、Wakeit 与折叠按钮；中间展示当前页面面包屑及透明图标操作，右区展示弱化等宽 Gateway 版本号、主题按钮和用户菜单。删除工作区圆点/文字、顶栏标语和侧栏重复版本。侧栏图标为 ListTodo、History、Monitor、Settings2（搜索范围 Agents 使用 Bot），保持单色和 16px 尺寸。
+顶栏左区展示 Logo、Wakeit 与折叠按钮；中间展示当前页面面包屑及透明图标操作，右区展示弱化等宽 Gateway 版本号、Agent Prompt、显示偏好和用户菜单；显示偏好包含主题和语言，Agent Prompt 保留顶栏直达入口。删除工作区圆点/文字、顶栏标语和侧栏重复版本。侧栏采用 Pierre 清单、历史时钟、设备和齿轮图形（搜索范围 Agents 使用 Sparkles），保持单色和 16px 尺寸。
 
 目录选择器使用同一套 Radix 弹窗与紧凑行。先选 Runner 和目录再查询模型，适配能力决定是否提供搜索下拉，失败、空列表和无接口时采用手填，不显示静态或旧结果。模型、目录、任务编辑器和布局独立为组件。
 
@@ -67,13 +67,19 @@ Runner 的 Agent 表格占满详情内容宽度，采用细边框、6px 圆角�
 
 ## 按钮与工作台边缘
 
-工具栏和行内操作统一使用 28×28px 透明图标按钮，图标 16px，圆角 6px，无可见边框、底色和阴影。默认次要颜色，悬停时出现轻灰背景；取消执行、撤销 API Key 的图标悬停时使用失败色。图标始终可见，通过可访问名称和 Radix Tooltip 标识操作；悬停延迟 400ms，键盘聚焦立即显示。
+工具栏和行内操作统一使用 28×28px 透明图标按钮，图标槽16px、圆角6px。默认、悬停、按下、展开和选中均无底色、常态边框或阴影；悬停加深前景，展开/选中用2px短线，键盘使用2px焦点框。触屏实际操作区44×44px，图形保持16px，不用重叠伪元素扩大命中区。表单文字主按钮、输入框、菜单及选中列表保留各自外观。
+
+操作、导航与辅助信息统一采用与ghdiff同源的Pierre图形；ActionIcon管理动作词典，图标适配层保留一致比例。Pierre没有对应图形的播放、暂停、停止、缩放、扁平消息图标和四角展开/收起采用同为1.5px光学线条的基础图形，不再混用Lucide。编辑采用配置齿轮，续聊采用Pierre终端窗口，消息条目采用扁平单气泡，保持16px图标槽与28px按钮范围，显示偏好采用主题图标。撤销/重做只用于编辑历史；刷新使用双向循环箭头，节点重试使用单向循环箭头，整图重跑使用往返循环形状并明确写出范围；回到最新使用无托盘向下箭头。动态展开与画布全屏保留四角图形，位置和可访问名称区分作用域。输出蓝旗、Agent Logo与执行状态色不受操作配色影响。
+
+操作组内间距4px、组间12px；页面、卡片、节点与内容块各管理自己的动作。高频或范围敏感操作可显示12px图标加短文字，低频复制ID、整图重跑与归档进入对应更多菜单。DAG编辑器分为视图、构图、编辑历史和全图设置四组；节点重试与续聊保留在同一上下文行。动态设备/Agent继续位于表头右侧，查看运行箭头收入更多。
+
+所有动作具有稳定的中英文名称，阻塞原因和跟随状态通过独立描述提供；关键不可用动作保留键盘焦点，用aria-disabled并拦截点击、Enter及Space。只有发起动作在固定图标槽显示等待；复制成功原位显示Check约1.5秒，并提供polite读屏通知，失败使用Toast。诊断与失败原因既支持400ms悬停Tooltip，也支持点击/键盘打开Popover固定阅读；打开时不重复Tooltip，Escape返回来源。普通操作组使用group与自然Tab顺序，窄屏页面操作为图标加文字单列。危险操作保持明确名称、末组位置和红色前景；退出登录保留红色。
 
 新建、创建、连接设备和邀请成员统一使用 Plus，不使用带设备、成员或列表的组合加号。重新执行 Run 使用 Redo2（向右弯箭头），刷新数据、读取重试和日志重连使用 RefreshCw（双向循环箭头），区分是否会启动新的执行。按钮的名称、权限、确认流程及提交状态保持原有行为。
 
 公共 Button 使用 ghost、solid 两种外观；弹窗和表单的提交保留文字主按钮，次要操作使用透明文字按钮。目录、模型等输入控件保留边框，刷新等辅助操作采用图标。导航、页签、搜索范围和角色菜单保留文字。
 
-移除 Tasks、Runs、Runners 侧栏标题计数、Runs 装饰波形、执行历史及 Agents 页签计数。Task、Run 顶栏操作区分别提供复制真实 Task ID、Run ID 的图标，复制成功仅短暂显示 Check；Task 标题不再重复打印 ID。分页总数继续放在列表底部。
+移除 Tasks、Runs、Runners 侧栏标题计数、Runs 装饰波形、执行历史及 Agents 页签计数。Task、Run 顶栏对应更多菜单分别提供复制真实 Task ID、Run ID，复制完成由共享读屏状态通知；Task 标题不再重复打印 ID。分页总数继续放在列表底部。
 
 分隔线参考 [ghdiff PaneResizeHandle](https://github.com/GalvinGao/ghdiff/blob/21902f4cdd153b749787c5bff7a6c01a4b9521c8/src/components/PaneResizeHandle.tsx)：列表自身的 1px 边框是可见分界，8px 的透明拖拽区域覆盖其边缘，不占额外布局列。悬停、聚焦、拖拽时出现细高亮；支持方向键调整、双击恢复默认宽度，保留用户宽度设置。
 
@@ -95,7 +101,7 @@ Agent 过程采用细分隔线的纵向列表，显示类型图标、标题、�
 
 Runner概览、工作区设置、成员/Token表格和搜索结果分组共用相同边框、表头与行样式。登录与全部弹窗统一6px边框及标题/内容/操作区域；任务编辑高级分组、目录和选择器沿用相同控件语言。报告与过程共用页面滚动，长日志保留跟随与独立滚动。
 
-Settings 新增归档任务分类，Admin、Operator 可见；保持原默认分类。成员表格为成员/角色/状态/操作四列，标题提供 Plus 新建账号与邀请图标，行内使用角色菜单及 MoreHorizontal 操作菜单。归档表格展示任务、Runner、Agent、归档时间、恢复图标；均使用现有容器和分页。任务详情提供 Archive 图标及确认；已归档任务只读，恢复后保持暂停。
+Settings 新增归档任务分类，Admin、Operator 可见；保持原默认分类。成员表格为成员/角色/状态/操作四列，标题提供 Plus 新建账号与邀请图标，行内使用角色菜单及 MoreHorizontal 操作菜单。归档表格展示任务、Runner、Agent、归档时间、恢复图标；均使用现有容器和分页。任务详情更多菜单提供归档及原有确认；已归档任务只读，恢复后保持暂停。
 
 ### Moments
 
@@ -181,7 +187,7 @@ DAG 运行的节点上下文行使用 12px 名称、11px 状态和耗时，耗�
 
 父 Run 状态与异常节点入口固定在“执行 / 详情”页签行右侧，不随页签、结果或选中节点移动。状态悬停或聚焦显示完整运行原因，过程和结果正文不增加独立诊断行。异常节点菜单使用对齐的名称／状态列，只统计当前失败、超时、中断或待核对的节点；跳过节点单独分组，自动重试等待和恢复后的旧失败不计入。选择后打开过程并定位到目标节点的当前执行，保留结构视图与各执行阅读状态。取消不虚构节点异常，没有匹配节点时隐藏入口；键盘关闭菜单返回触发器。
 
-DAG 过程使用上下分区。图/表切换、搜索和结构折叠位于过程表头，节点表最大高度与图高为 min(280px,35dvh)，窄屏上限 220px；表头固定、结构独立滚动。收起结构不隐藏消息。选中节点上下文在阅读区吸顶，名称、实际尝试、状态、原因、耗时和已有操作对齐；点击节点只在上下文不可见时定位，不因状态刷新跳动。状态、耗时和操作靠右对齐；失败状态支持悬停或键盘聚焦，通过右对齐 Tooltip 查看完整原因，不在上下文栏平铺原因或增加展开行；历史原因、耗时、结果和续聊来自同一实际 execution。操作错误使用右上 Toast，持久原因留在内容中。
+DAG 过程使用上下分区。图/表切换、搜索和结构折叠位于过程表头，节点表最大高度与图高为 min(280px,35dvh)，窄屏上限 220px；表头固定、结构独立滚动。收起结构不隐藏消息。选中节点上下文在阅读区吸顶，名称、实际尝试、状态、原因、耗时和已有操作对齐；点击节点只在上下文不可见时定位，不因状态刷新跳动。状态、耗时和操作靠右对齐；失败状态支持悬停或键盘聚焦，通过右对齐 Tooltip 或点击 Popover 查看完整原因，不在上下文栏平铺原因或增加展开行；历史原因、耗时、结果和续聊来自同一实际 execution。操作错误使用右上 Toast，持久原因留在内容中。
 
 Trace 内部行最小 36px，正文 12px、状态和耗时 11px，采用细分隔线。历史消息默认摘要，最新非空消息默认展开；空消息不生成正文。工具输入/输出分别折叠，标签和代码统一 12px、20px 行高，以 8px 间距分组；代码与标签文字对齐，只保留 Trace 条目最外层分隔线。长内容先预览 12 行，完整内容可展开和复制。保留真实 ID、父子关系与事件顺序，不从日志补造 Trace。阅读页负责主纵向滚动，代码区只承担自身横向滚动。
 
@@ -195,10 +201,12 @@ Tasks、Runs、Runners、Settings 共用独立的第二侧栏语义底色与细�
 
 Trace 工具名称完整显示，不压缩为省略号；只有后面的命令、路径等摘要单行省略。极长工具名在窄屏允许换行，状态及耗时保持原列对齐。
 
-DAG manual recovery keeps the selected node context and reading state. Show Retry node, Retry now or Resume node as the same transparent context action, only on the latest attempt; disabled actions expose the server blocking reason through a Tooltip. Confirm stopped recovery in a compact three-column table (node / state / action) and retain the dialog and reading position after errors. Successful nodes remain unchanged. The DAG Time step uses the existing execution-policy table row for an optional total-limit switch; new drafts default off, while existing explicit limits remain visible. Errors use top-right Toasts.
+DAG manual recovery keeps the selected node context and reading state. Show Retry node, Retry now or Resume node as the same transparent context action, only on the latest attempt; disabled actions retain their stable action name and expose the server blocking reason through a Tooltip and accessible description. Confirm stopped recovery in a compact three-column table (node / state / action) and retain the dialog and reading position after errors. Successful nodes remain unchanged. The DAG Time step uses the existing execution-policy table row for an optional total-limit switch; new drafts default off, while existing explicit limits remain visible. Errors use top-right Toasts.
 
-过程记录完整性使用过程表头或 DAG 当前节点工具栏中的 Info 图标与 Tooltip 展示，按实际执行隔离。提示区分输入/输出节选、事件数量限制、不支持的事件、解析失败、单条事件过大、保存容量和保留过期；普通诊断只留在日志，不根据文案推测缺失。历史记录没有结构化原因时明确提示原因未提供。消息列表前不插入完整性提示段落；没有消息时保留加载、等待、不支持、未记录或全部过期的空状态。Tooltip 中英文同步，支持悬停和键盘聚焦，去重显示所有已知原因，不影响消息折叠、跟随或运行状态。
+过程记录完整性使用过程表头或 DAG 当前节点工具栏中的 Info 图标、Tooltip 和可点击 Popover 展示，按实际执行隔离。提示区分输入/输出节选、事件数量限制、不支持的事件、解析失败、单条事件过大、保存容量和保留过期；普通诊断只留在日志，不根据文案推测缺失。历史记录没有结构化原因时明确提示原因未提供。消息列表前不插入完整性提示段落；没有消息时保留加载、等待、不支持、未记录或全部过期的空状态。Tooltip 中英文同步，支持悬停和键盘聚焦，去重显示所有已知原因，不影响消息折叠、跟随或运行状态。
 
 运行输出阅读模式复用动态页的已净化 Markdown 引用索引，按出现顺序去重收录文件、图片和外部链接，代码示例及被拒绝的 URL 不收录。引用在正文右侧以 11px 紧凑行展示，用细竖线分区，不另套卡片；可用宽度不足 740px 时移至正文下方，以细横线分隔。行数随正文高度调整，额外引用通过“更多”展开；无引用、空输出和原文模式不留空区域。每份 DAG 输出独立归属实际执行，引用文件复用现有权限及预览，保持轮询期间弹窗稳定；只读成员仅复制路径。
 
 DAG 结果选择与过程节点选择独立，按稳定节点 ID 保留，轮询及执行/详情切页不重置。状态、失败原因 Tooltip、正文、引用、原文和复制统一来自当前输出；原文及复制针对该份原始输出，不包含整图聚合封装。每个输出分别保留阅读/原文模式，选择器支持名称与 ID 搜索、状态列、键盘和窄屏；输出不存在或为空时保留明确空状态。
+
+Agent Prompt 顶栏入口先打开弹窗，不直接访问剪贴板。弹窗顶部提示“复制以下提示词给 Agent，完成 Wakeit 配置。”，下方为可选择、内部滚动的完整原文预览；复制按钮内嵌于预览右上角，复制内容与预览一致。复制失败使用Toast并保留预览供手动复制，关闭后焦点回到入口。中英文界面同步，提示词本身沿用原有安装与工作区内容。

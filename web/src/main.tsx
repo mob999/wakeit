@@ -1,3 +1,5 @@
+import { ActionMenu, ActionMenuItem, ActionMenuSeparator, CopyMenuItem } from './actions/ActionMenu'
+import { ActionIcon } from './actions/ActionIcon'
 import { ToastContext, useToast, ErrorToast } from './Toast'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
@@ -48,19 +50,12 @@ import {
 import {
   AlarmClock,
   Plus,
-  Play,
-  Pause,
   ChevronRight,
-  Terminal,
-  X,
   RefreshCw,
   ArrowUpRight,
-  FileCog,
-  CalendarCheck,
   Clock,
   AlertCircle,
-  Archive,
-} from 'lucide-react'
+} from './icons'
 import YAML from 'yaml'
 import {
   api,
@@ -226,7 +221,7 @@ function App() {
               <AlertCircle size={15} />
               <div className="toast-content">{toast.content}</div>
               <IconButton label={tr('关闭提示')} onClick={() => setToast(null)}>
-                <X />
+                <ActionIcon name="close" />
               </IconButton>
             </div>
           )}
@@ -492,7 +487,7 @@ function TasksPage() {
                 <Dropdown.Root>
                   <Dropdown.Trigger asChild>
                     <IconButton label={tr('新建任务')} disabled={!settings.data}>
-                      <Plus />
+                      <ActionIcon name="add" />
                     </IconButton>
                   </Dropdown.Trigger>
                   <Dropdown.Portal>
@@ -566,46 +561,68 @@ function TasksPage() {
         ) : (
           <>
             <PageActions>
-              <CopyValue label={tr('复制 Task ID')} value={task.id} toast={toast} />
               {task.archived_at && <span className="quiet">{tr('已归档')}</span>}
               {editable && !task.archived_at && (
                 <>
-                  <IconButton
-                    label={tr('编辑')}
-                    onClick={() =>
-                      task.config.dag
-                        ? navigate({ to: '/tasks/dag', search: { task: task.id } })
-                        : setEditor(task)
-                    }
+                  <div
+                    className="action-group"
+                    role="group"
+                    aria-label={tr('actions.taskExecution')}
                   >
-                    <FileCog />
-                  </IconButton>
-                  <IconButton
-                    label={task.config.enabled ? tr('暂停任务') : tr('task.resume')}
-                    disabled={action.isPending}
-                    onClick={() => action.mutate({ task, kind: 'toggle' })}
-                  >
-                    {task.config.enabled ? <Pause /> : <CalendarCheck />}
-                  </IconButton>
-                  <IconButton
-                    label={tr('立即执行')}
-                    disabled={action.isPending}
-                    onClick={() => action.mutate({ task, kind: 'trigger' })}
-                  >
-                    <Play />
-                  </IconButton>
-                  <IconButton
-                    label={tr('task.archive')}
-                    disabled={action.isPending}
-                    onClick={() => {
-                      archive.reset()
-                      setArchiving(task)
-                    }}
-                  >
-                    <Archive />
-                  </IconButton>
+                    <IconButton
+                      label={tr('立即执行')}
+                      text={tr('立即执行')}
+                      disabled={action.isPending}
+                      loading={action.isPending && action.variables?.kind === 'trigger'}
+                      onClick={() => action.mutate({ task, kind: 'trigger' })}
+                    >
+                      <ActionIcon name="play" />
+                    </IconButton>
+                  </div>
                 </>
               )}
+              <div className="action-group" role="group" aria-label={tr('actions.taskEditing')}>
+                {editable && !task.archived_at && (
+                  <>
+                    <IconButton
+                      label={task.config.enabled ? tr('暂停任务') : tr('task.resume')}
+                      disabled={action.isPending}
+                      loading={action.isPending && action.variables?.kind === 'toggle'}
+                      onClick={() => action.mutate({ task, kind: 'toggle' })}
+                    >
+                      <ActionIcon name={task.config.enabled ? 'pause' : 'schedule'} />
+                    </IconButton>
+                    <IconButton
+                      label={tr('编辑')}
+                      onClick={() =>
+                        task.config.dag
+                          ? navigate({ to: '/tasks/dag', search: { task: task.id } })
+                          : setEditor(task)
+                      }
+                    >
+                      <ActionIcon name="edit" />
+                    </IconButton>
+                  </>
+                )}
+                <ActionMenu label={tr('actions.taskMenu')}>
+                  <CopyMenuItem label={tr('复制 Task ID')} value={task.id} toast={toast} />
+                  {editable && !task.archived_at && (
+                    <>
+                      <ActionMenuSeparator />
+                      <ActionMenuItem
+                        icon="archive"
+                        disabled={action.isPending}
+                        onSelect={() => {
+                          archive.reset()
+                          setArchiving(task)
+                        }}
+                      >
+                        {tr('task.archive')}
+                      </ActionMenuItem>
+                    </>
+                  )}
+                </ActionMenu>
+              </div>
             </PageActions>
             <div className="tabs">
               {[

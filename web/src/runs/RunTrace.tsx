@@ -2,15 +2,7 @@ import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useLayoutEffect, useState, useRef, type RefObject } from 'react'
-import {
-  MessageSquare,
-  Terminal,
-  Wrench,
-  ChevronRight,
-  RefreshCw,
-  Check,
-  Minus,
-} from 'lucide-react'
+import { MessageSquare, Terminal, Wrench, ChevronRight, RefreshCw, Check, Minus } from '../icons'
 import { MarkdownContent } from './MarkdownContent'
 import { api, terminal, type Run, type RunEvent, type TraceNode, stateNames } from '../api'
 import { Button } from '../ui'
@@ -444,7 +436,7 @@ function TracePayload({
               {tr(full ? 'reading.less' : 'reading.full')}
             </button>
           )}
-          <CopyValue value={text} label={tr('复制')} toast={toast} />
+          <CopyValue value={text} label={tr('复制{{v0}}', { v0: label })} toast={toast} />
         </span>
       </div>
       {open && <CodeContent text={preview.text} json={isJsonCode(value)} />}

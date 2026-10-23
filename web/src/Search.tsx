@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Search, ListTodo, History, Monitor, Bot, Settings2, ArrowUpRight } from 'lucide-react'
+import { Search, ListTodo, History, Monitor, Bot, Settings2, ArrowUpRight } from './icons'
 import {
   api,
   type Task,

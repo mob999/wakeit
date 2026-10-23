@@ -1,18 +1,11 @@
+import { ActionMenu, ActionMenuItem } from '../actions/ActionMenu'
+import { useCopy } from '../actions/useCopy'
+import { ActionIcon } from '../actions/ActionIcon'
 import { useContext, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link } from '@tanstack/react-router'
-import {
-  ArrowUpRight,
-  Monitor,
-  Copy,
-  Check,
-  GitBranch,
-  RefreshCw,
-  Clock,
-  Maximize,
-  Minimize,
-} from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { Monitor, GitBranch, Clock } from '../icons'
 import { t, locale } from '../i18n'
 import { api, type MomentEntry, type Run } from '../api'
 import { IconButton, TooltipTarget } from '../ui'
@@ -191,8 +184,9 @@ function MomentContent({
   const expanded = visit.expanded.has(entry.id)
   const [output, setOutput] = useState(visit.outputs.current.get(entry.id))
   const [overflow, setOverflow] = useState(false)
-  const [copying, setCopying] = useState(false),
-    [copied, setCopied] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const { copied, copy: copyOutput } = useCopy(toast, t('actions.copyOutput'))
+  const navigate = useNavigate()
   const queryKey = ['moments', 'report', entry.id]
   const full = useQuery({
     queryKey,
@@ -256,9 +250,7 @@ function MomentContent({
       const result = isDag
         ? dagOutputs(current.result)?.find((o) => o.node_id === nodeId)?.result
         : current.result
-      await navigator.clipboard.writeText(resultData(result).source ?? '')
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      await copyOutput(resultData(result).source ?? '')
     } catch (e) {
       toast((e as Error).message)
     } finally {
@@ -281,7 +273,7 @@ function MomentContent({
             loading={expanded && full.isFetching}
             onClick={() => onExpandedChange(!expanded)}
           >
-            {expanded ? <Minimize /> : <Maximize />}
+            {expanded ? <ActionIcon name="shrink" /> : <ActionIcon name="expand" />}
           </IconButton>
         )}
         <h3>
@@ -322,6 +314,15 @@ function MomentContent({
           <RunReason state={entry.state} reason={entry.reason}>
             <Status state={entry.state} />
           </RunReason>
+          {full.error && (
+            <IconButton
+              label={t('actions.reloadResult')}
+              loading={full.isFetching}
+              onClick={() => full.refetch()}
+            >
+              <ActionIcon name="refresh" />
+            </IconButton>
+          )}
           <ResumeRun
             id={entry.id}
             available={resumable}
@@ -332,30 +333,23 @@ function MomentContent({
           />
           {(!data.empty || isDag) && (
             <IconButton
-              label={t('复制结果')}
-              tooltip={copied ? t('已复制') : t('复制结果')}
+              label={t('actions.copyOutput')}
+              tooltip={copied ? t('已复制') : t('actions.copyOutput')}
               loading={copying}
               onClick={copy}
             >
-              {copied ? <Check /> : <Copy />}
+              {copied ? <ActionIcon name="check" /> : <ActionIcon name="copy" />}
             </IconButton>
           )}
 
-          {full.error && (
-            <IconButton label={t('重试')} loading={full.isFetching} onClick={() => full.refetch()}>
-              <RefreshCw />
-            </IconButton>
-          )}
-          <TooltipTarget label={t('查看运行')}>
-            <Link
-              className="button ghost icon-button"
-              to="/runs"
-              search={{ run: entry.id }}
-              aria-label={t('查看运行')}
+          <ActionMenu label={t('actions.reportMenu')}>
+            <ActionMenuItem
+              icon="open"
+              onSelect={() => navigate({ to: '/runs', search: { run: entry.id } })}
             >
-              <ArrowUpRight size={16} />
-            </Link>
-          </TooltipTarget>
+              {t('查看运行')}
+            </ActionMenuItem>
+          </ActionMenu>
         </div>
       </header>
       <ReportReader

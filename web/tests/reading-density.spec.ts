@@ -1,3 +1,4 @@
+import { languageAction } from './actions'
 import { test, expect, type Page } from '@playwright/test'
 import { mockWorkspace, workspacePage, apiPath } from './workspace'
 const id = '00000000-0000-4000-8000-000000000001',
@@ -170,7 +171,7 @@ test('recording causes stay in the toolbar tooltip, with history and diagnostics
   await page.getByRole('tab', { name: '详情', exact: true }).click()
   await expect(page.locator('.logs')).toContainText('Ordinary adapter diagnostic')
   await page.getByRole('tab', { name: '执行', exact: true }).click()
-  await page.getByRole('button', { name: '切换到英文', exact: true }).click()
+  await (await languageAction(page, '切换到英文')).click()
   const english = page.getByRole('button', { name: 'Activity recording info', exact: true })
   await english.focus()
   await expect(tip).toContainText('saved as excerpts')

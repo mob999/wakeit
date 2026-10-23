@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import React, { type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { LoaderCircle, X } from 'lucide-react'
+import { ActionIcon } from './actions/ActionIcon'
+import './actions/actions.css'
+import { actionStatusEvent } from './actions/announcements'
 type ButtonProps = React.ComponentPropsWithoutRef<'button'> & {
   variant?: 'ghost' | 'solid'
   danger?: boolean
@@ -32,15 +34,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       aria-busy={loading || undefined}
       className={['button', variant, danger && 'danger', className].filter(Boolean).join(' ')}
     >
-      {loading && <LoaderCircle size={16} className="spin" aria-hidden="true" />}
+      {loading && <ActionIcon name="loading" className="spin" />}
       {children}
     </button>
   )
 })
-type IconButtonProps = Omit<ButtonProps, 'variant' | 'children' | 'aria-label'> & {
+export type IconButtonProps = Omit<ButtonProps, 'variant' | 'children' | 'aria-label'> & {
   label: string
   tooltip?: string
   children: React.ReactElement
+  text?: string
+  description?: string
+  disabledReason?: string
+  tooltipEnabled?: boolean
 }
 export function TooltipTarget({
   label,
@@ -65,25 +71,81 @@ export function TooltipTarget({
   )
 }
 export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { label, tooltip = label, children, className, loading = false, ...props },
+  {
+    label,
+    tooltip = label,
+    children,
+    text,
+    description,
+    disabledReason,
+    tooltipEnabled = true,
+    className,
+    loading = false,
+    disabled,
+    onClick,
+    onKeyDown,
+    ...props
+  },
   ref,
 ) {
   useTranslation()
+  const id = React.useId()
+  const blocked = !!disabled && !!disabledReason
+  const details = [description, blocked && disabledReason].filter(Boolean).join(' ')
   return (
-    <TooltipTarget label={tooltip}>
-      <Button
-        {...props}
-        ref={ref}
-        aria-label={label}
-        className={['icon-button', className].filter(Boolean).join(' ')}
-        loading={loading}
+    <>
+      <TooltipTarget
+        label={blocked ? `${label} — ${disabledReason}` : tooltip}
+        enabled={tooltipEnabled}
       >
-        {!loading &&
-          React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
-            'aria-hidden': true,
-          })}
-      </Button>
-    </TooltipTarget>
+        <Button
+          {...props}
+          ref={ref}
+          aria-label={label}
+          aria-describedby={
+            [props['aria-describedby'], details && id].filter(Boolean).join(' ') || undefined
+          }
+          aria-disabled={blocked || undefined}
+          disabled={disabled && !blocked}
+          className={['icon-button', text && 'has-action-text', className]
+            .filter(Boolean)
+            .join(' ')}
+          loading={loading}
+          onClick={(event) => {
+            if (blocked) {
+              event.preventDefault()
+              event.stopPropagation()
+              return
+            }
+            onClick?.(event)
+          }}
+          onKeyDown={(event) => {
+            if (blocked && ['Enter', ' '].includes(event.key)) {
+              event.preventDefault()
+              event.stopPropagation()
+              return
+            }
+            onKeyDown?.(event)
+          }}
+        >
+          {!loading &&
+            React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+              'aria-hidden': true,
+            })}
+          {text && <span className="action-label">{text}</span>}
+          {!text && (
+            <span className="action-narrow-label" aria-hidden="true">
+              {label}
+            </span>
+          )}
+        </Button>
+      </TooltipTarget>
+      {details && (
+        <span className="sr-only" id={id}>
+          {details}
+        </span>
+      )}
+    </>
   )
 })
 export function TooltipProvider({ children }: { children: ReactNode }) {
@@ -91,7 +153,29 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
     <Tooltip.Provider delayDuration={400} skipDelayDuration={0}>
       {children}
+      <ActionAnnouncements />
     </Tooltip.Provider>
+  )
+}
+function ActionAnnouncements() {
+  const [message, setMessage] = React.useState('')
+  React.useEffect(() => {
+    let frame = 0
+    const receive = (event: Event) => {
+      setMessage('')
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => setMessage((event as CustomEvent<string>).detail))
+    }
+    window.addEventListener(actionStatusEvent, receive)
+    return () => {
+      window.removeEventListener(actionStatusEvent, receive)
+      cancelAnimationFrame(frame)
+    }
+  }, [])
+  return (
+    <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {message}
+    </span>
   )
 }
 export function Modal({
@@ -107,6 +191,7 @@ export function Modal({
   className,
   terminal = false,
   hideTitle = false,
+  closePending = false,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -118,6 +203,7 @@ export function Modal({
   className?: string
   terminal?: boolean
   hideTitle?: boolean
+  closePending?: boolean
   onOpenAutoFocus?: (event: Event) => void
   onCloseAutoFocus?: (event: Event) => void
 }) {
@@ -164,8 +250,11 @@ export function Modal({
             <div className="modal-heading-actions">
               {actions}
               <Dialog.Close asChild>
-                <IconButton label={tr('关闭')}>
-                  <X />
+                <IconButton
+                  label={closePending ? tr('terminal.closing') : tr('关闭')}
+                  loading={closePending}
+                >
+                  <ActionIcon name="close" />
                 </IconButton>
               </Dialog.Close>
             </div>

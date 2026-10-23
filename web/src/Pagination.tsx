@@ -1,6 +1,7 @@
+import { ActionIcon } from './actions/ActionIcon'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+
 import { IconButton } from './ui'
 export function Pagination({
   page,
@@ -26,7 +27,7 @@ export function Pagination({
           disabled={page <= 1 || pending}
           onClick={() => onChange(page - 1)}
         >
-          <ChevronLeft size={14} />
+          <ActionIcon name="previous" />
         </IconButton>
         <span>
           {page} / {pages}
@@ -36,7 +37,7 @@ export function Pagination({
           disabled={page >= pages || pending}
           onClick={() => onChange(page + 1)}
         >
-          <ChevronRight size={14} />
+          <ActionIcon name="next" />
         </IconButton>
       </div>
     </nav>

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CircleAlert, Flag, Monitor } from 'lucide-react'
+import { CircleAlert, Flag, Monitor } from '../icons'
 import { AgentLogo } from '../AgentLogo'
 import { TooltipTarget } from '../ui'
 import { t } from '../i18n'

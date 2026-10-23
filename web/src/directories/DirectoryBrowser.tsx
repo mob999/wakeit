@@ -1,9 +1,10 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState, useRef, useEffect, useId, type KeyboardEvent } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { Folder, FolderRoot, ArrowUp, RefreshCw, Eye, EyeOff, ChevronRight } from 'lucide-react'
+import { Folder, ArrowUp } from '../icons'
 import { api, type Runner, type DirectoryListing } from '../api'
 import { Button, IconButton } from '../ui'
 import { directoryInput, directoryPath } from './paths'
@@ -179,14 +180,14 @@ export function DirectoryBrowser({
       <div className="modal-body directory-quick-picker">
         <div className="directory-quick-toolbar">
           <IconButton label={tr('允许的根目录')} disabled={selecting} onClick={() => browse(null)}>
-            <FolderRoot />
+            <ActionIcon name="rootDirectory" />
           </IconButton>
           <IconButton
             label={tr('上一级')}
             disabled={!data?.parent || selecting || listing.isFetching}
             onClick={() => browse(data?.parent ?? null)}
           >
-            <ArrowUp />
+            <ActionIcon name="up" />
           </IconButton>
           <input
             ref={input}
@@ -219,7 +220,7 @@ export function DirectoryBrowser({
               setActive(-1)
             }}
           >
-            {hidden ? <EyeOff /> : <Eye />}
+            {hidden ? <ActionIcon name="hideHidden" /> : <ActionIcon name="showHidden" />}
           </IconButton>
           <IconButton
             label={tr('刷新目录')}
@@ -227,7 +228,7 @@ export function DirectoryBrowser({
             disabled={selecting || listing.isFetching}
             onClick={() => listing.refetch()}
           >
-            <RefreshCw />
+            <ActionIcon name="refresh" />
           </IconButton>
         </div>
         <div className="directory-quick-results" aria-busy={busy}>
@@ -275,7 +276,7 @@ export function DirectoryBrowser({
                     disabled={selecting}
                     onClick={() => browse(entry.path)}
                   >
-                    <ChevronRight />
+                    <ActionIcon name="next" />
                   </IconButton>
                 </div>
               ))}

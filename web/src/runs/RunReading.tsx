@@ -1,5 +1,7 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { useCallback, useSyncExternalStore } from 'react'
-import { ArrowDown, ChevronsUp, Info } from 'lucide-react'
+
+import { InfoTrigger } from '../actions/InfoTrigger'
 import { useTranslation } from 'react-i18next'
 import { workspaceId } from '../api'
 import { t } from '../i18n'
@@ -58,17 +60,21 @@ export function TraceActions({
     .filter((reason) => issues?.has(reason))
     .map((reason) => t(`recording.${reason}`))
   return (
-    <>
+    <div className="action-group trace-actions" role="group" aria-label={t('actions.reading')}>
       {messages.length > 0 && (
-        <IconButton label={t('recording.info')} tooltip={messages.join(' ')}>
-          <Info />
-        </IconButton>
+        <InfoTrigger
+          label={t('recording.info')}
+          tooltip={messages.join(' ')}
+          content={messages.map((message) => (
+            <p key={message}>{message}</p>
+          ))}
+        />
       )}
       <IconButton
         label={t('reading.collapseAll')}
         onClick={() => update({ expanded: {}, autoExpand: false, follow: false })}
       >
-        <ChevronsUp />
+        <ActionIcon name="collapseAll" />
       </IconButton>
       {reading.unseen.length > 0 && (
         <button
@@ -89,6 +95,7 @@ export function TraceActions({
       )}
       <IconButton
         label={t('reading.latest')}
+        description={t(reading.follow ? 'actions.following' : 'actions.followPaused')}
         onClick={() =>
           update((old) => ({
             ...old,
@@ -99,8 +106,8 @@ export function TraceActions({
           }))
         }
       >
-        <ArrowDown />
+        <ActionIcon name="latest" />
       </IconButton>
-    </>
+    </div>
   )
 }

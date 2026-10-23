@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent } from 'react'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Search } from '../icons'
 import type { Runner } from '../api'
 import { t } from '../i18n'
 import { AgentLogo } from '../AgentLogo'

@@ -1,3 +1,4 @@
+import { languageAction } from './actions'
 import { test, expect, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -142,9 +143,9 @@ test('language changes in place, is beside version, persists, and leaves result 
   await page.goto('/')
   await expect(page.getByRole('link', { name: '动态', exact: true })).toBeVisible()
   await expect(page.getByText('1 次执行', { exact: true })).toBeVisible()
-  const button = page.getByRole('button', { name: '切换到英文' })
+  const button = await languageAction(page, '切换到英文')
   const version = await page.locator('.brand-version').boundingBox()
-  const bounds = await button.boundingBox()
+  const bounds = await page.getByRole('button', { name: '显示偏好' }).boundingBox()
   expect(bounds!.x).toBeGreaterThan(version!.x + version!.width)
   await button.click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
@@ -154,8 +155,8 @@ test('language changes in place, is beside version, persists, and leaves result 
   await expect(page.getByText('Original output.')).toBeVisible()
   expect(calls.filter((c) => c.startsWith('POST') || c.startsWith('PUT'))).toEqual([])
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Switch to Chinese' })).toBeVisible()
-  await page.getByRole('button', { name: 'Switch to Chinese' }).click()
+  await expect(await languageAction(page, 'Switch to Chinese')).toBeVisible()
+  await (await languageAction(page, 'Switch to Chinese')).click()
   await expect(page.getByRole('link', { name: '任务', exact: true })).toBeVisible()
 })
 
@@ -174,7 +175,7 @@ test('all main pages and account categories render English without translating t
     '/settings?section=archived',
   ]) {
     await page.goto(url)
-    await expect(page.getByRole('button', { name: 'Switch to Chinese' })).toBeVisible()
+    await expect(await languageAction(page, 'Switch to Chinese')).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await expect(async () => {
       const text = await page.locator('body').innerText()
@@ -221,7 +222,7 @@ test('login and narrow topbar switch languages without overflow in either theme'
 }) => {
   await fixture(page, false)
   await page.goto('/')
-  await page.getByRole('button', { name: '切换到英文' }).click()
+  await (await languageAction(page, '切换到英文')).click()
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
   await expect(page.getByLabel('Username', { exact: true })).toBeVisible()
   await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
@@ -231,14 +232,14 @@ test('login and narrow topbar switch languages without overflow in either theme'
     await page.addInitScript((t) => localStorage.setItem('wakeit-theme', t), theme)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/')
-    await expect(page.getByRole('button', { name: 'Switch to Chinese' })).toBeVisible()
-    const button = await page.getByRole('button', { name: 'Switch to Chinese' }).boundingBox()
+    await expect(await languageAction(page, 'Switch to Chinese')).toBeVisible()
+    const button = await (await languageAction(page, 'Switch to Chinese')).boundingBox()
     expect(button!.x).toBeGreaterThanOrEqual(0)
     expect(button!.x + button!.width).toBeLessThanOrEqual(390)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await page.getByRole('button', { name: 'Switch to Chinese' }).click()
-    await expect(page.getByRole('button', { name: '切换到英文' })).toBeVisible()
-    await page.getByRole('button', { name: '切换到英文' }).click()
+    await (await languageAction(page, 'Switch to Chinese')).click()
+    await expect(await languageAction(page, '切换到英文')).toBeVisible()
+    await (await languageAction(page, '切换到英文')).click()
   }
 })
 
@@ -251,7 +252,7 @@ test('a new browser uses its preferred language until the user chooses one', asy
     await fixture(page, false)
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
-    await page.getByRole('button', { name: 'Switch to Chinese' }).click()
+    await (await languageAction(page, 'Switch to Chinese')).click()
     await page.reload()
     await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
   } finally {

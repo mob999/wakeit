@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '../icons'
 export function RunSection({
   title,
   open,

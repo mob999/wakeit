@@ -10,7 +10,7 @@ import {
   type RefObject,
 } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { ListTree } from 'lucide-react'
+import { ListTree } from '../icons'
 import { useTranslation } from 'react-i18next'
 import { workspaceId } from '../api'
 import { Button } from '../ui'

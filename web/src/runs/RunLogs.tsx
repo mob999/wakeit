@@ -1,8 +1,9 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef } from 'react'
-import { RefreshCw } from 'lucide-react'
+
 import { terminal, type Run } from '../api'
 import { IconButton } from '../ui'
 import { CopyValue } from './CopyValue'
@@ -32,7 +33,7 @@ export function RunLogs({
         <div className="log-connection" role="status">
           <ErrorToast error={tr('日志连接已中断，正在重连')} />
           <IconButton label={tr('重新连接日志')} onClick={retry}>
-            <RefreshCw />
+            <ActionIcon name="refresh" />
           </IconButton>
         </div>
       )}
@@ -63,7 +64,7 @@ export function RunLogActions({
         <input type="checkbox" checked={follow} onChange={(e) => onFollow(e.target.checked)} />
         {tr('跟随输出')}
       </label>
-      <CopyValue value={text} toast={toast} />
+      <CopyValue label={tr('actions.copyLogs')} value={text} toast={toast} />
     </>
   )
 }

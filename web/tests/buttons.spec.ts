@@ -15,7 +15,7 @@ test('transparent actions expose tooltips and retain textual form submission', a
   const create = page
     .locator('.pane-heading')
     .getByRole('button', { name: '新建任务', exact: true })
-  await expect(create).toHaveText('')
+  await expect(create).toHaveAccessibleName('新建任务')
   const style = await create.evaluate((el) => {
     const s = getComputedStyle(el)
     return {
@@ -79,15 +79,19 @@ test('title copy actions copy the exact Task and Run IDs without exposing them a
   await page.goto(`/tasks?task=${task.id}`)
   await expect(page.locator('.header-breadcrumbs [role="heading"]')).toHaveText(task.config.name)
   await expect(page.locator('.detail-heading .eyebrow')).toHaveCount(0)
-  const copyTask = page.getByRole('button', { name: '复制 Task ID', exact: true })
+  await page.getByRole('button', { name: '任务操作', exact: true }).click()
+  const copyTask = page.getByRole('menuitem', { name: '复制 Task ID', exact: true })
   await copyTask.click()
   await expect.poll(() => page.evaluate(() => (window as any).copiedValue)).toBe(task.id)
-  await expect(copyTask.locator('.lucide-check')).toBeVisible()
+  await expect(
+    page.locator('[aria-live=polite]').filter({ hasText: '复制 Task ID' }),
+  ).toContainText('已完成')
   await expect(page.getByRole('button', { name: '执行历史', exact: true })).toHaveText('执行历史')
   const run = (await (await page.request.get('/api/v1/runs?page=1&page_size=1')).json()).items[0]
   await page.goto(`/runs?run=${run.id}`)
   await expect(page.locator('.header-breadcrumbs [role="heading"]')).toHaveText(run.config.name)
-  await page.getByRole('button', { name: '复制 Run ID', exact: true }).click()
+  await page.getByRole('button', { name: '运行操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '复制 Run ID', exact: true }).click()
   await expect.poll(() => page.evaluate(() => (window as any).copiedValue)).toBe(run.id)
   await expect(page.locator('.detail-heading .status')).toHaveCount(0)
   for (const name of ['任务', '运行', '设备', '设置']) {

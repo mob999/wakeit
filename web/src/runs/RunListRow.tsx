@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Monitor, ChevronRight, Clock, GitBranch } from 'lucide-react'
+import { Monitor, ChevronRight, Clock, GitBranch } from '../icons'
 import { t } from '../i18n'
 import { type Agent, type Run, time } from '../api'
 import { Status } from '../Status'

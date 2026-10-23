@@ -45,7 +45,9 @@ async function fixture(page: Page, role = 'operator', loggedIn = true) {
       return route.fulfill({
         json: {
           gateway: meta.public_url,
-          workspace_id: fixtureWorkspace, workspace: 'Default', role,
+          workspace_id: fixtureWorkspace,
+          workspace: 'Default',
+          role,
           state: 'pending',
           intent: {
             workspace_id: fixtureWorkspace,
@@ -61,7 +63,7 @@ async function fixture(page: Page, role = 'operator', loggedIn = true) {
   })
   return calls
 }
-test('topbar Prompt copies configured Gateway and verified public installation instructions without secrets', async ({
+test('topbar Prompt previews before copying the complete workspace setup instructions', async ({
   page,
 }) => {
   await fixture(page)
@@ -75,8 +77,15 @@ test('topbar Prompt copies configured Gateway and verified public installation i
     })
   })
   await page.goto(workspacePage('/'))
-  await page.getByRole('button', { name: '复制 Agent Prompt' }).click()
+  const open = page.getByRole('button', { name: '打开 Agent Prompt', exact: true })
+  await open.click()
+  const dialog = page.getByRole('dialog', { name: 'Agent Prompt', exact: true })
+  await expect(dialog).toContainText('复制以下提示词给 Agent，完成 Wakeit 配置。')
+  expect(await page.evaluate(() => (window as any).copiedPrompt)).toBeUndefined()
+  const preview = await dialog.getByRole('region', { name: '提示词预览' }).textContent()
+  await dialog.getByRole('button', { name: '复制 Agent Prompt', exact: true }).click()
   const text = await page.evaluate(() => (window as any).copiedPrompt as string)
+  expect(text).toBe(preview)
   expect(text).toContain(meta.public_url)
   expect(text).toContain('wakeit setup --gateway')
   expect(text).toContain('SHA-256')
@@ -85,7 +94,9 @@ test('topbar Prompt copies configured Gateway and verified public installation i
   expect(text).not.toMatch(/[\u3400-\u9fff]/)
   expect(text).not.toContain('access_token')
   const version = await page.locator('.brand-version').boundingBox()
-  const icon = await page.getByRole('button', { name: '复制 Agent Prompt' }).boundingBox()
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(open).toBeFocused()
+  const icon = await open.boundingBox()
   expect(icon!.x).toBeGreaterThan(version!.x)
 })
 test('clipboard rejection has manual copy without changing Prompt content', async ({ page }) => {
@@ -100,9 +111,14 @@ test('clipboard rejection has manual copy without changing Prompt content', asyn
     }),
   )
   await page.goto(workspacePage('/'))
-  await page.getByRole('button', { name: '复制 Agent Prompt' }).click()
-  await expect(page.getByRole('dialog', { name: 'Agent Prompt' })).toBeVisible()
-  await expect(page.getByRole('textbox', { name: 'Agent Prompt' })).toContainText(meta.public_url)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: '打开 Agent Prompt', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Agent Prompt', exact: true })
+  await dialog.getByRole('button', { name: '复制 Agent Prompt', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('请选中文本后复制')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('region', { name: '提示词预览' })).toContainText(meta.public_url)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })
 test('device consent requires explicit action and preserves verification after login', async ({
   page,
@@ -117,7 +133,9 @@ test('device consent requires explicit action and preserves verification after l
   await expect(page.getByText('/projects/中文 workspace', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '授权', exact: true }).click()
   expect(calls).toEqual(['/device-authorizations/ABCD2345/approve'])
-  await expect(page.getByRole('status')).toHaveText('已授权，可以返回终端')
+  await expect(page.getByRole('status').filter({ hasText: '已授权，可以返回终端' })).toHaveText(
+    '已授权，可以返回终端',
+  )
 })
 test('Viewer cannot consent to Runner registration and can reject', async ({ page }) => {
   const calls = await fixture(page, 'viewer')

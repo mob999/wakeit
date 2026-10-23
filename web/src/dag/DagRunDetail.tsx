@@ -1,3 +1,5 @@
+import { ActionMenu, ActionMenuItem, CopyMenuItem } from '../actions/ActionMenu'
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { EditorMemoryContext, useEditorValue, type EditorMemory } from '../EditorMemory'
 import { shortId } from './identity'
@@ -5,16 +7,7 @@ import { outputs } from './model'
 import { useEffect, useRef, useState, useCallback, type RefObject, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  Square,
-  Redo2,
-  ClipboardCheck,
-  RefreshCw,
-  GitBranch,
-  List,
-  PanelTopClose,
-  PanelTopOpen,
-} from 'lucide-react'
+import { RefreshCw } from '../icons'
 import { useTranslation } from 'react-i18next'
 import { t, locale } from '../i18n'
 import { apiErrorText } from '../apiErrorText'
@@ -34,7 +27,6 @@ import { IconButton, Button, Modal } from '../ui'
 import { PageActions } from '../PageHeader'
 import { Status } from '../Status'
 import { ChoicePicker } from '../ChoicePicker'
-import { CopyValue } from '../runs/CopyValue'
 import { RunSection } from '../runs/RunSection'
 import { RunResult } from '../runs/RunResult'
 import { RunTrace, useRunTrace } from '../runs/RunTrace'
@@ -146,27 +138,33 @@ export function DagRunDetail({
   return (
     <>
       <PageActions>
-        <CopyValue label={t('复制 Run ID')} value={id} toast={toast} />
         {user.role !== 'viewer' && !terminal(r.state) && (
           <IconButton
             label={t('取消执行')}
             danger
             disabled={r.cancel_requested}
+            disabledReason={r.cancel_requested ? t('取消已请求') : undefined}
             loading={action.isPending}
             onClick={() => action.mutate('cancel')}
           >
-            <Square />
+            <ActionIcon name="stop" />
           </IconButton>
         )}
-        {user.role !== 'viewer' && terminal(r.state) && !r.task_archived && (
-          <IconButton
-            label={t('重试')}
-            loading={action.isPending}
-            onClick={() => action.mutate('retry')}
-          >
-            <Redo2 />
-          </IconButton>
-        )}
+        <ActionMenu
+          label={t('actions.runMenu')}
+          loading={action.isPending && action.variables === 'retry'}
+        >
+          {user.role !== 'viewer' && terminal(r.state) && !r.task_archived && (
+            <ActionMenuItem
+              icon="rerun"
+              disabled={action.isPending}
+              onSelect={() => action.mutate('retry')}
+            >
+              {t('actions.rerunGraph')}
+            </ActionMenuItem>
+          )}
+          <CopyMenuItem label={t('复制 Run ID')} value={id} toast={toast} />
+        </ActionMenu>
       </PageActions>
       <div className="dag-run-tabs">
         <div className="tabs" role="tablist" aria-label={t('运行内容')}>
@@ -200,7 +198,7 @@ export function DagRunDetail({
                     setStructureOpen(true)
                   }}
                 >
-                  <GitBranch />
+                  <ActionIcon name="graph" />
                 </IconButton>
                 <IconButton
                   label={t('dag.list')}
@@ -210,7 +208,7 @@ export function DagRunDetail({
                     setStructureOpen(true)
                   }}
                 >
-                  <List />
+                  <ActionIcon name="list" />
                 </IconButton>
                 {structureOpen && (
                   <input
@@ -225,7 +223,11 @@ export function DagRunDetail({
                   aria-expanded={structureOpen}
                   onClick={() => setStructureOpen((v) => !v)}
                 >
-                  {structureOpen ? <PanelTopClose /> : <PanelTopOpen />}
+                  {structureOpen ? (
+                    <ActionIcon name="hideStructure" />
+                  ) : (
+                    <ActionIcon name="showStructure" />
+                  )}
                 </IconButton>
               </div>
             }
@@ -466,7 +468,7 @@ function NodeExecution({
         <>
           <ErrorToast error={t('日志连接已中断，正在重连')} />
           <IconButton label={t('重新连接日志')} onClick={() => setAttempt((v) => v + 1)}>
-            <RefreshCw />
+            <ActionIcon name="refresh" />
           </IconButton>
         </>
       )}
@@ -545,45 +547,62 @@ function NodeExecution({
           {mode === 'trace' && executionId && (
             <TraceActions id={executionId} issues={trace.state.issues} />
           )}
-          {!chosen && user.role !== 'viewer' && execution.data?.retry && (
-            <IconButton
-              label={
-                execution.data.retry.reason
-                  ? apiErrorText(
-                      execution.data.retry.reason,
-                      t,
-                      (state) => stateNames[state] ?? state,
-                    )
-                  : t(
-                      execution.data.retry.action === 'accelerate'
-                        ? 'retry.now'
-                        : execution.data.retry.action === 'resume'
-                          ? 'retry.resume'
-                          : 'retry.node',
-                    )
-              }
-              disabled={!execution.data.retry.action}
-              loading={retry.isPending}
-              onClick={() =>
-                execution.data?.retry?.action === 'resume' ? setResume(true) : retry.mutate(false)
-              }
-            >
-              <Redo2 />
-            </IconButton>
-          )}
-          {run && (
-            <ResumeRun
-              run={run}
-              id={run.id}
-              available={terminal(run.state) && !!run.session?.ready}
-              toast={toast}
-            />
-          )}
-          {!chosen && state === 'unknown' && user.role !== 'viewer' && (
-            <IconButton label={t('核对状态')} onClick={() => setResolve(true)}>
-              <ClipboardCheck />
-            </IconButton>
-          )}
+          <div className="action-group" role="group" aria-label={t('actions.execution')}>
+            {!chosen && user.role !== 'viewer' && execution.data?.retry && (
+              <IconButton
+                label={t(
+                  execution.data.retry.action === 'accelerate'
+                    ? 'retry.now'
+                    : execution.data.retry.action === 'resume'
+                      ? 'retry.resume'
+                      : 'retry.node',
+                )}
+                text={t(
+                  execution.data.retry.action === 'accelerate'
+                    ? 'retry.now'
+                    : execution.data.retry.action === 'resume'
+                      ? 'retry.resume'
+                      : 'retry.node',
+                )}
+                disabledReason={
+                  execution.data.retry.reason
+                    ? apiErrorText(
+                        execution.data.retry.reason,
+                        t,
+                        (state) => stateNames[state] ?? state,
+                      )
+                    : undefined
+                }
+                disabled={!execution.data.retry.action}
+                loading={retry.isPending}
+                onClick={() =>
+                  execution.data?.retry?.action === 'resume' ? setResume(true) : retry.mutate(false)
+                }
+              >
+                <ActionIcon
+                  name={
+                    execution.data.retry.action === 'accelerate' ||
+                    execution.data.retry.action === 'resume'
+                      ? 'play'
+                      : 'retry'
+                  }
+                />
+              </IconButton>
+            )}
+            {run && (
+              <ResumeRun
+                run={run}
+                id={run.id}
+                available={terminal(run.state) && !!run.session?.ready}
+                toast={toast}
+              />
+            )}
+            {!chosen && state === 'unknown' && user.role !== 'viewer' && (
+              <IconButton label={t('核对状态')} onClick={() => setResolve(true)}>
+                <ActionIcon name="reconcile" />
+              </IconButton>
+            )}
+          </div>
         </div>
       </div>
       {!executionId ? (

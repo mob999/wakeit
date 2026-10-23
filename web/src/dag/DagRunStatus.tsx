@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import * as Menu from '@radix-ui/react-dropdown-menu'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '../icons'
 import { t } from '../i18n'
 import { stateNames, type Run, type DagRunNode } from '../api'
 import { Status } from '../Status'

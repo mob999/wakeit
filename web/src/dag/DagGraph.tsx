@@ -1,10 +1,11 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { useEffect, useLayoutEffect, useRef, useState, useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import ELK, { type ElkNode } from 'elkjs/lib/elk-api'
 // @ts-expect-error Vite emits this worker as a separate local asset.
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url'
-import { List, GitBranch, CircleAlert, ChevronRight } from 'lucide-react'
+import { CircleAlert, ChevronRight } from '../icons'
 import { t } from '../i18n'
 import { type DagNode, type DagRunNode, type Agent, type Runner } from '../api'
 import { IconButton } from '../ui'
@@ -250,14 +251,14 @@ export function DagGraph({
               aria-pressed={view === 'graph'}
               onClick={() => changeView('graph')}
             >
-              <GitBranch />
+              <ActionIcon name="graph" />
             </IconButton>
             <IconButton
               label={t('dag.list')}
               aria-pressed={view === 'list'}
               onClick={() => changeView('list')}
             >
-              <List />
+              <ActionIcon name="list" />
             </IconButton>
             <input
               aria-label={t('dag.search')}

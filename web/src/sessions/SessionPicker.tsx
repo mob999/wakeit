@@ -1,10 +1,11 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { EditorMemoryContext, useEditorValue } from '../EditorMemory'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useContext, useEffect, useId, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { ArrowLeft, LoaderCircle, RefreshCw } from 'lucide-react'
+import { LoaderCircle } from '../icons'
 import { api, type Agent, type Runner, type SessionCatalog } from '../api'
 import { ChoicePicker } from '../ChoicePicker'
 import { Button, IconButton } from '../ui'
@@ -162,7 +163,7 @@ export function SessionPicker({
                   disabled={disabled}
                   onClick={() => setManual(false)}
                 >
-                  <ArrowLeft />
+                  <ActionIcon name="back" />
                 </IconButton>
                 <label htmlFor={`${controlId}-manual`}>{tr('会话 ID')}</label>
               </div>
@@ -218,7 +219,7 @@ export function SessionPicker({
                 loading={catalog.isRefetching}
                 onClick={() => catalog.refetch()}
               >
-                <RefreshCw />
+                <ActionIcon name="refresh" />
               </IconButton>
             )}
             {canQuery && catalog.hasNextPage && !catalog.isError && (

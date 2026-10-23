@@ -1,3 +1,4 @@
+import { ActionIcon } from './actions/ActionIcon'
 import { ErrorToast } from './Toast'
 import { EditorMemoryContext, useEditorValue } from './EditorMemory'
 import { useContext } from 'react'
@@ -5,7 +6,7 @@ import { t as tr, parameterLabel } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { useId, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { RefreshCw, ChevronDown, Loader2 } from 'lucide-react'
+import { ChevronDown, Loader2 } from './icons'
 import { api, type Agent, type Runner, type ModelCatalog } from './api'
 import { IconButton, Field } from './ui'
 import { ChoicePicker } from './ChoicePicker'
@@ -145,13 +146,14 @@ export function ModelPicker({
           <IconButton
             type="button"
             label={tr('刷新模型')}
+            loading={catalog.isFetching}
             disabled={submitting || !ready}
             onClick={() => {
               setCustom(false)
               catalog.refetch()
             }}
           >
-            <RefreshCw size={14} />
+            <ActionIcon name="refresh" />
           </IconButton>
         )}
         {custom && models.length > 0 && (
@@ -161,7 +163,7 @@ export function ModelPicker({
             disabled={submitting}
             onClick={() => setCustom(false)}
           >
-            <ChevronDown size={14} />
+            <ActionIcon name="list" />
           </IconButton>
         )}
       </div>

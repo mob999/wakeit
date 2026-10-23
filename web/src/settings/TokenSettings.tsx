@@ -1,10 +1,10 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { PageActions } from '../PageHeader'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Ban } from 'lucide-react'
+
 import { api, type ApiKey } from '../api'
 import { type PageResult } from '../Search'
 import { Pagination } from '../Pagination'
@@ -158,55 +158,57 @@ export function TokenSettings() {
   })
   return (
     <>
-      <PageActions>
-        <IconButton label={tr('创建 API Key')} onClick={() => setCreate(true)}>
-          <Plus />
-        </IconButton>
-      </PageActions>
       <DetailBody limited>
-        {query.error || query.isPending ? (
-          <RequestState
-            pending={query.isPending}
-            error={query.error}
-            retry={() => query.refetch()}
-          />
-        ) : !query.data.items.length ? (
-          <div className="settings-request content-card">{tr('暂无 API Key')}</div>
-        ) : (
-          <div className="settings-table settings-table-keys content-card">
-            <div className="settings-token-row settings-table-head table-head">
-              <span>{tr('名称')}</span>
-              <span>{tr('到期时间')}</span>
-              <span>{tr('操作')}</span>
+        <div className="settings-table settings-table-keys content-card">
+          <div className="settings-token-row settings-table-head table-head">
+            <span>{tr('名称')}</span>
+            <span>{tr('到期时间')}</span>
+            <div className="settings-header-actions">
+              <span className="sr-only">{tr('操作')}</span>
+              <IconButton label={tr('创建 API Key')} onClick={() => setCreate(true)}>
+                <ActionIcon name="add" />
+              </IconButton>
             </div>
-            {query.data.items.map((token) => (
-              <div className="settings-token-row" key={token.id}>
-                <span className="settings-token-name">
-                  {token.name}
-                  {token.expires_at && new Date(token.expires_at).getTime() < Date.now() && (
-                    <small className="quiet">{tr('已过期')}</small>
-                  )}
-                </span>
-                <span className="mono quiet">
-                  {token.expires_at
-                    ? new Date(token.expires_at).toLocaleString(locale())
-                    : tr('不过期')}
-                </span>
-                <IconButton
-                  label={tr('撤销')}
-                  tooltip={tr('撤销 {{v0}}', { v0: token.name })}
-                  danger
-                  onClick={() => {
-                    revoke.reset()
-                    setSelected(token)
-                  }}
-                >
-                  <Ban />
-                </IconButton>
-              </div>
-            ))}
           </div>
-        )}
+          {query.error || query.isPending ? (
+            <RequestState
+              pending={query.isPending}
+              error={query.error}
+              retry={() => query.refetch()}
+            />
+          ) : !query.data.items.length ? (
+            <div className="settings-request content-card">{tr('暂无 API Key')}</div>
+          ) : (
+            <>
+              {query.data.items.map((token) => (
+                <div className="settings-token-row" key={token.id}>
+                  <span className="settings-token-name">
+                    {token.name}
+                    {token.expires_at && new Date(token.expires_at).getTime() < Date.now() && (
+                      <small className="quiet">{tr('已过期')}</small>
+                    )}
+                  </span>
+                  <span className="mono quiet">
+                    {token.expires_at
+                      ? new Date(token.expires_at).toLocaleString(locale())
+                      : tr('不过期')}
+                  </span>
+                  <IconButton
+                    label={tr('撤销')}
+                    tooltip={tr('撤销 {{v0}}', { v0: token.name })}
+                    danger
+                    onClick={() => {
+                      revoke.reset()
+                      setSelected(token)
+                    }}
+                  >
+                    <ActionIcon name="revoke" />
+                  </IconButton>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
         {query.data && (
           <Pagination
             page={page}

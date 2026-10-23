@@ -1,6 +1,7 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ChoicePicker } from '../ChoicePicker'
 import { IconButton } from '../ui'
-import { X } from 'lucide-react'
+
 import { t } from '../i18n'
 export type NodeOption = {
   id: string
@@ -65,7 +66,7 @@ export function MultiPicker({
                 disabled={disabled || value.length <= minimum}
                 onClick={() => toggle(id)}
               >
-                <X />
+                <ActionIcon name="close" />
               </IconButton>
             </div>
           ))}

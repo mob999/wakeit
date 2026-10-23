@@ -1,11 +1,11 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr, roleName } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { PageActions } from '../PageHeader'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { ChevronDown, RefreshCw, Plus, MoreHorizontal } from 'lucide-react'
+import { ChevronDown, RefreshCw } from '../icons'
 import { api, type Member, type User } from '../api'
 import { type PageResult } from '../Search'
 import { Pagination } from '../Pagination'
@@ -110,12 +110,13 @@ function MemberRow({
               label={tr('{{v0}} 操作', { v0: member.username })}
               disabled={change.isPending || update.isPending}
             >
-              <MoreHorizontal />
+              <ActionIcon name="more" />
             </IconButton>
           </Dropdown.Trigger>
           <Dropdown.Portal>
             <Dropdown.Content className="dropdown" align="end">
               <Dropdown.Item
+                className={member.active ? 'danger' : undefined}
                 disabled={lastAdmin}
                 onSelect={() => {
                   update.reset()
@@ -125,6 +126,7 @@ function MemberRow({
                 {member.active ? tr('停用成员') : tr('启用成员')}
               </Dropdown.Item>
               <Dropdown.Item
+                className="danger"
                 disabled={lastAdmin}
                 onSelect={() => {
                   update.reset()
@@ -281,38 +283,40 @@ export function MembersSettings({ user }: { user: User }) {
   }, [query.data, page])
   return (
     <>
-      <PageActions>
-        <IconButton label={tr('邀请成员')} onClick={() => setInvite(true)}>
-          <Plus />
-        </IconButton>
-      </PageActions>
       <DetailBody limited>
-        {query.error || query.isPending ? (
-          <RequestState
-            pending={query.isPending}
-            error={query.error}
-            retry={() => query.refetch()}
-          />
-        ) : !query.data.items.length ? (
-          <div className="settings-request content-card">{tr('暂无成员')}</div>
-        ) : (
-          <div className="settings-table settings-table-members content-card">
-            <div className="settings-member-row settings-table-head table-head">
-              <span>{tr('成员')}</span>
-              <span>{tr('角色')}</span>
-              <span>{tr('状态')}</span>
-              <span>{tr('操作')}</span>
+        <div className="settings-table settings-table-members content-card">
+          <div className="settings-member-row settings-table-head table-head">
+            <span>{tr('成员')}</span>
+            <span>{tr('角色')}</span>
+            <span>{tr('状态')}</span>
+            <div className="settings-header-actions">
+              <span className="sr-only">{tr('操作')}</span>
+              <IconButton label={tr('邀请成员')} onClick={() => setInvite(true)}>
+                <ActionIcon name="add" />
+              </IconButton>
             </div>
-            {query.data.items.map((member) => (
-              <MemberRow
-                key={member.id}
-                member={member}
-                activeAdmins={query.data.active_admins}
-                user={user}
-              />
-            ))}
           </div>
-        )}
+          {query.error || query.isPending ? (
+            <RequestState
+              pending={query.isPending}
+              error={query.error}
+              retry={() => query.refetch()}
+            />
+          ) : !query.data.items.length ? (
+            <div className="settings-request content-card">{tr('暂无成员')}</div>
+          ) : (
+            <>
+              {query.data.items.map((member) => (
+                <MemberRow
+                  key={member.id}
+                  member={member}
+                  activeAdmins={query.data.active_admins}
+                  user={user}
+                />
+              ))}
+            </>
+          )}
+        </div>
         {query.data && (
           <Pagination
             page={page}

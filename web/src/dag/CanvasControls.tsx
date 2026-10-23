@@ -1,5 +1,6 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { type CSSProperties } from 'react'
-import { Maximize, Minimize, ZoomIn, ZoomOut } from 'lucide-react'
+
 import { IconButton } from '../ui'
 import { t } from '../i18n'
 import './controls.css'
@@ -22,16 +23,16 @@ export function CanvasControls({
   return (
     <div
       className="dag-canvas-controls"
-      role="toolbar"
+      role="group"
       aria-label={t('dag.canvasControls')}
       hidden={hidden}
       style={style}
     >
       <IconButton label={t('dag.zoomOut')} disabled={disabled} onClick={() => onZoom(-1)}>
-        <ZoomOut />
+        <ActionIcon name="zoomOut" />
       </IconButton>
       <IconButton label={t('dag.zoomIn')} disabled={disabled} onClick={() => onZoom(1)}>
-        <ZoomIn />
+        <ActionIcon name="zoomIn" />
       </IconButton>
       <IconButton
         label={t(fullscreen ? 'dag.exitFullscreen' : 'dag.fullscreen')}
@@ -39,7 +40,7 @@ export function CanvasControls({
         disabled={disabled}
         onClick={onToggleFullscreen}
       >
-        {fullscreen ? <Minimize /> : <Maximize />}
+        {fullscreen ? <ActionIcon name="shrink" /> : <ActionIcon name="expand" />}
       </IconButton>
     </div>
   )

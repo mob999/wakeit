@@ -1,3 +1,4 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import {
   forwardRef,
   memo,
@@ -25,7 +26,7 @@ import {
   type FinalConnectionState,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Plus } from 'lucide-react'
+
 import type { Agent, DagNode, EditorLayout, Runner } from '../api'
 import { IconButton } from '../ui'
 import { t } from '../i18n'
@@ -83,7 +84,7 @@ const AgentNode = memo(function AgentNode({ data, selected }: NodeProps<CanvasNo
             data.onAdd()
           }}
         >
-          <Plus />
+          <ActionIcon name="add" />
         </IconButton>
       </div>
       <Handle type="source" position={Position.Right} aria-label={t('dag.outputPort')} />
