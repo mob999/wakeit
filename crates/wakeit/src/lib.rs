@@ -7,6 +7,7 @@ pub mod changelog;
 pub mod cline_adapter;
 pub mod config;
 pub mod dag;
+pub mod dag_prompt;
 pub mod dag_retry;
 pub mod dag_store;
 pub mod demo;
@@ -33,6 +34,7 @@ pub mod session_catalog;
 pub mod sessions;
 pub mod store;
 pub mod stream_adapter;
+pub mod task_templates;
 pub mod trace;
 pub mod update;
 

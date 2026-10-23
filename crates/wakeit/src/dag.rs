@@ -1,5 +1,6 @@
 //! Complete, inline AND graphs. This module contains no scheduling side effects.
 use crate::config::{Execution, SessionBinding, TaskConfig, duration, validate_id};
+pub use crate::dag_prompt::{Prompt, PromptPart, PromptSource};
 use anyhow::{Result, bail, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,7 @@ pub struct Node {
     pub runner: String,
     pub agent: String,
     pub cwd: String,
-    pub prompt: String,
+    pub prompt: Prompt,
     #[serde(default)]
     pub parameters: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -152,7 +153,7 @@ impl Dag {
                 ("runner", node.runner.trim().is_empty()),
                 ("agent", node.agent.is_empty()),
                 ("cwd", node.cwd.trim().is_empty()),
-                ("prompt", node.prompt.trim().is_empty()),
+                ("prompt", node.prompt.is_blank()),
             ] {
                 if missing {
                     push(Some(node), field, format!("{field} is required"), vec![]);
@@ -172,7 +173,7 @@ impl Dag {
                     vec![],
                 );
             }
-            if node.prompt.len() > 1024 * 1024 {
+            if node.prompt.source_len() > 1024 * 1024 {
                 push(Some(node), "prompt", "Prompt exceeds 1 MiB".into(), vec![]);
             }
             if let Some(session) = &node.session
@@ -269,43 +270,19 @@ impl Dag {
     }
 }
 
-/// Only the reserved nodes namespace is interpreted. Literal template examples remain literal.
-fn segments(prompt: &str) -> Result<Vec<(&str, Option<String>)>> {
-    let mut rest = prompt;
-    let mut result = vec![];
-    while let Some(start) = rest.find("{{") {
-        let (before, tail) = rest.split_at(start);
-        let Some(end) = tail.find("}}") else {
-            ensure!(
-                !tail[2..].trim_start().starts_with("nodes."),
-                "Unclosed result reference"
-            );
-            break;
-        };
-        let key = tail[2..end].trim();
-        if let Some(key) = key.strip_prefix("nodes.") {
-            let id = key
-                .strip_suffix(".result")
-                .ok_or_else(|| anyhow::anyhow!("Invalid result reference: {key}"))?;
-            validate_id(id)?;
-            result.push((before, Some(id.to_owned())));
-        } else {
-            result.push((&rest[..start + end + 2], None));
-        }
-        rest = &tail[end + 2..];
-    }
-    result.push((rest, None));
-    Ok(result)
-}
-pub fn references(prompt: &str) -> Result<Vec<String>> {
-    Ok(segments(prompt)?
+pub fn references(prompt: &(impl PromptSource + ?Sized)) -> Result<Vec<String>> {
+    Ok(prompt
+        .fragments()?
         .into_iter()
         .filter_map(|(_, id)| id)
         .collect())
 }
-pub fn render(prompt: &str, results: &BTreeMap<String, Value>) -> Result<String> {
+pub fn render(
+    prompt: &(impl PromptSource + ?Sized),
+    results: &BTreeMap<String, Value>,
+) -> Result<String> {
     let mut output = String::new();
-    for (text, id) in segments(prompt)? {
+    for (text, id) in prompt.fragments()? {
         output.push_str(text);
         if let Some(id) = id {
             let value = results
