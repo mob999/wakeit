@@ -1,6 +1,7 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { t as tr, parameterLabel } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight } from '../icons'
 import { type Runner } from '../api'
 import { agentMatches, type Filters } from '../Search'
 import { DetailBody } from '../Workbench'
@@ -62,11 +63,11 @@ export function RunnerAgents({
                   {onCreate && (
                     <IconButton
                       className="agent-create-button"
-                      label={tr('创建任务')}
+                      label={tr('actions.createAgentTask')}
                       disabled={runner.revoked || !createReady}
                       onClick={() => onCreate(agent.id)}
                     >
-                      <Plus />
+                      <ActionIcon name="add" />
                     </IconButton>
                   )}
                 </div>

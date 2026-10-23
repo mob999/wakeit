@@ -1,5 +1,5 @@
 import { useRef, useState, useLayoutEffect } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '../icons'
 import { type Dag, type DagNode, type Runner, type DagIssue } from '../api'
 import { t } from '../i18n'
 import { Field } from '../ui'

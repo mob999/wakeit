@@ -1,8 +1,10 @@
+import { useCopy } from '../actions/useCopy'
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
-import { Check, Copy, RefreshCw } from 'lucide-react'
+import { RefreshCw } from '../icons'
 import { Button, IconButton } from '../ui'
 export function RequestState({
   pending,
@@ -34,8 +36,11 @@ export function RequestState({
 }
 export function SecretValue({ label, value }: { label: string; value: string }) {
   useTranslation()
-  const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
+  const { copied, copy } = useCopy(
+    () => setError(tr('复制失败，请手动复制')),
+    tr('复制{{v0}}', { v0: label }),
+  )
   return (
     <>
       <div className="secret-result">
@@ -49,18 +54,12 @@ export function SecretValue({ label, value }: { label: string; value: string }) 
         <IconButton
           label={tr('复制{{v0}}', { v0: label })}
           tooltip={copied ? tr('已复制') : tr('复制{{v0}}', { v0: label })}
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(value)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1500)
-              setError('')
-            } catch {
-              setError(tr('复制失败，请手动复制'))
-            }
+          onClick={() => {
+            setError('')
+            void copy(value)
           }}
         >
-          {copied ? <Check /> : <Copy />}
+          {copied ? <ActionIcon name="check" /> : <ActionIcon name="copy" />}
         </IconButton>
       </div>
       {error && <ErrorToast>{error}</ErrorToast>}

@@ -1,4 +1,4 @@
-import { Languages } from 'lucide-react'
+import { ActionIcon } from './actions/ActionIcon'
 import { useTranslation } from 'react-i18next'
 import { setLanguage, t } from './i18n'
 import { IconButton } from './ui'
@@ -12,7 +12,7 @@ export function LanguageSwitch({ className }: { className?: string }) {
       className={className}
       onClick={() => void setLanguage(next)}
     >
-      <Languages />
+      <ActionIcon name="language" />
     </IconButton>
   )
 }

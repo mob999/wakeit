@@ -1,8 +1,9 @@
+import { useCopy } from '../actions/useCopy'
+import { ActionIcon } from '../actions/ActionIcon'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import type { Workspace } from '../api'
-import { Braces, Check } from 'lucide-react'
 import { IconButton, Modal, Button } from '../ui'
 export type GatewayMeta = {
   version: string
@@ -31,27 +32,18 @@ ${JSON.stringify({ gateway: meta.public_url, workspace: { id: workspace.id, name
 }
 export function AgentPrompt({ meta, workspace }: { meta?: GatewayMeta; workspace?: Workspace }) {
   useTranslation()
-  const [copied, setCopied] = useState(false)
   const [manual, setManual] = useState(false)
   const prompt = meta?.public_url && meta.install && workspace ? agentPrompt(meta, workspace) : ''
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(prompt)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      setManual(true)
-    }
-  }
+  const { copied, copy } = useCopy(() => setManual(true), tr('复制 Agent Prompt'))
   return (
     <>
       <IconButton
         label={tr('复制 Agent Prompt')}
         tooltip={copied ? tr('已复制') : tr('复制 Agent Prompt')}
         disabled={!prompt}
-        onClick={copy}
+        onClick={() => void copy(prompt)}
       >
-        {copied ? <Check /> : <Braces />}
+        {copied ? <ActionIcon name="check" /> : <ActionIcon name="agentPrompt" />}
       </IconButton>
       <Modal open={manual} onOpenChange={setManual} title="Agent Prompt">
         <div className="modal-body">

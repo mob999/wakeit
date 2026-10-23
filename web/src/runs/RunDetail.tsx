@@ -1,3 +1,5 @@
+import { ActionMenu, ActionMenuItem, CopyMenuItem } from '../actions/ActionMenu'
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { apiUrl } from '../api'
 import { t as tr } from '../i18n'
@@ -5,11 +7,10 @@ import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Square, Redo2, RefreshCw, ClipboardCheck, Plus } from 'lucide-react'
+import { RefreshCw } from '../icons'
 import {
   api,
   terminal,
-  stateNames,
   type Agent,
   type Run,
   type RunEvent,
@@ -17,7 +18,6 @@ import {
   type WorkspaceSettings,
 } from '../api'
 import { Button, IconButton, Field, Modal } from '../ui'
-import { CopyValue } from './CopyValue'
 import { RunResult, RunResultActions } from './RunResult'
 import { RunDetails } from './RunDetails'
 import { RunTrace, useRunTrace } from './RunTrace'
@@ -149,47 +149,59 @@ function SingleRunDetail({
   return (
     <>
       <PageActions>
-        <CopyValue label={tr('复制 Run ID')} value={id} toast={toast} />
         <ResumeRun
           run={r}
           id={id}
           available={terminal(r.state) && !!r.session?.ready}
           toast={toast}
         />
-        {editable && terminal(r.state) && r.session?.ready && (
-          <IconButton
-            label={tr('从此会话创建任务')}
-            loading={createTask && settings.isPending}
-            onClick={() => setCreateTask(true)}
-          >
-            <Plus />
-          </IconButton>
-        )}
-        {editable && ['queued', 'starting', 'running'].includes(r.state) && (
-          <IconButton
-            label={tr('取消')}
-            tooltip={r.cancel_requested ? tr('取消已请求') : tr('取消执行')}
-            danger
-            disabled={!cancellable || r.cancel_requested || action.isPending}
-            onClick={() => action.mutate('cancel')}
-          >
-            <Square />
-          </IconButton>
-        )}
-        {editable && !r.task_archived && terminal(r.state) && (
-          <IconButton
-            label={tr('重试')}
-            onClick={() => action.mutate('retry')}
-            loading={action.isPending}
-          >
-            <Redo2 />
-          </IconButton>
-        )}
-        {editable && r.state === 'unknown' && (
-          <IconButton label={tr('核对状态')} onClick={() => setResolve(true)}>
-            <ClipboardCheck />
-          </IconButton>
-        )}
+        <div className="action-group" role="group" aria-label={tr('actions.execution')}>
+          {editable && ['queued', 'starting', 'running'].includes(r.state) && (
+            <IconButton
+              label={tr('取消执行')}
+              danger
+              disabled={!cancellable || r.cancel_requested || action.isPending}
+              disabledReason={
+                r.cancel_requested
+                  ? tr('取消已请求')
+                  : !cancellable
+                    ? tr('actions.cancelUnavailable')
+                    : undefined
+              }
+              loading={action.isPending && action.variables === 'cancel'}
+              onClick={() => action.mutate('cancel')}
+            >
+              <ActionIcon name="stop" />
+            </IconButton>
+          )}
+          {editable && !r.task_archived && terminal(r.state) && (
+            <IconButton
+              label={tr('actions.rerun')}
+              text={tr('actions.rerun')}
+              onClick={() => action.mutate('retry')}
+              loading={action.isPending}
+            >
+              <ActionIcon name="retry" />
+            </IconButton>
+          )}
+          {editable && r.state === 'unknown' && (
+            <IconButton label={tr('核对状态')} onClick={() => setResolve(true)}>
+              <ActionIcon name="reconcile" />
+            </IconButton>
+          )}
+        </div>
+        <ActionMenu label={tr('actions.runMenu')}>
+          {editable && terminal(r.state) && r.session?.ready && (
+            <ActionMenuItem
+              icon="add"
+              disabled={createTask && settings.isPending}
+              onSelect={() => setCreateTask(true)}
+            >
+              {tr('从此会话创建任务')}
+            </ActionMenuItem>
+          )}
+          <CopyMenuItem label={tr('复制 Run ID')} value={id} toast={toast} />
+        </ActionMenu>
       </PageActions>
       <div className="tabs" role="tablist" aria-label={tr('运行内容')}>
         {(

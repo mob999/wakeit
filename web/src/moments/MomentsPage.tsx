@@ -1,3 +1,4 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +13,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw } from '../icons'
 import { api, type MomentDays, type MomentEntries } from '../api'
 import { IconButton, Button } from '../ui'
 import './moments.css'
@@ -147,7 +148,7 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
           loading={refreshing}
           disabled={days.isFetching}
         >
-          <RefreshCw />
+          <ActionIcon name="refresh" />
         </IconButton>
       </PageActions>
       {days.isPending && <p className="quiet moments-state">{tr('正在加载…')}</p>}

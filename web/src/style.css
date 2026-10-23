@@ -1082,7 +1082,7 @@ input:disabled {
 }
 .toast .icon-button:hover:not(:disabled) {
   color: var(--canvas);
-  background: var(--muted);
+  background: transparent;
 }
 .login-wrap {
   height: 100dvh;
@@ -2370,7 +2370,7 @@ input:disabled {
   color: var(--ink);
 }
 .icon-button.danger {
-  color: var(--muted);
+  color: var(--failure);
 }
 .icon-button.danger:hover:not(:disabled) {
   color: var(--failure);

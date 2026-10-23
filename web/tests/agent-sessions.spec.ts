@@ -182,7 +182,11 @@ async function fixture(
       return route.fulfill({ json: { ...task, config: request.postDataJSON().config } })
     }
     if (path === '/runs') return route.fulfill({ json: list([run]) })
-    if (path.endsWith('/terminals')) return route.fulfill({ status: 409, json: { error: 'Runner does not support web terminals' } })
+    if (path.endsWith('/terminals'))
+      return route.fulfill({
+        status: 409,
+        json: { error: 'Runner does not support web terminals' },
+      })
     if (path === `/runs/${runId}`) {
       resumed.push(path)
       return route.fulfill({ json: run })
@@ -653,12 +657,12 @@ test('page context and actions live only in the topbar across workbenches and na
   await fixture(page)
   for (const [url, label, action] of [
     ['/', '动态', '刷新动态'],
-    [`/tasks?task=${configuration.id}`, configuration.name, '复制 Task ID'],
-    [`/runs?run=${runId}`, configuration.name, '复制 Run ID'],
+    [`/tasks?task=${configuration.id}`, configuration.name, '任务操作'],
+    [`/runs?run=${runId}`, configuration.name, '运行操作'],
     [`/runners?runner=${runnerId}&section=overview`, 'dev-mac', '创建任务'],
     ['/settings?section=workspace', '工作区', null],
-    ['/settings?section=members', '成员', '邀请成员'],
-    ['/settings?section=tokens', 'API Key', '创建 API Key'],
+    ['/settings?section=members', '成员', null],
+    ['/settings?section=tokens', 'API Key', null],
   ] as const) {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 })

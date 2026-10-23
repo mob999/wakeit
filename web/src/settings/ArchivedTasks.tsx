@@ -1,10 +1,11 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { RotateCcw } from 'lucide-react'
+
 import { api, type Task, type Agent, type Runner } from '../api'
 import { type PageResult } from '../Search'
 import { Pagination } from '../Pagination'
@@ -98,7 +99,7 @@ export function ArchivedTasks() {
                       setSelected(task)
                     }}
                   >
-                    <RotateCcw />
+                    <ActionIcon name="restore" />
                   </IconButton>
                 </div>
               )

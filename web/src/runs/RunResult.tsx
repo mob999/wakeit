@@ -45,7 +45,7 @@ export function RunResultActions({
           </button>
         </div>
       )}
-      {!empty && <CopyValue value={source ?? ''} toast={toast} />}
+      {!empty && <CopyValue label={tr('actions.copyOutput')} value={source ?? ''} toast={toast} />}
     </>
   )
 }

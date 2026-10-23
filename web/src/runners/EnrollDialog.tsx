@@ -40,7 +40,7 @@ export function EnrollDialog({
           <>
             <div className="section-heading">
               {tr('在设备上运行')}
-              <CopyValue value={command} toast={toast} />
+              <CopyValue label={tr('actions.copyEnrollment')} value={command} toast={toast} />
             </div>
             <pre className="code wrap">{command}</pre>
             <small className="quiet">

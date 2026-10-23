@@ -1,7 +1,8 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { useLayoutEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Menu from '@radix-ui/react-dropdown-menu'
-import { Braces, ArrowUpRight, Maximize2, X } from 'lucide-react'
+
 import { t } from '../i18n'
 import { IconButton } from '../ui'
 import { useEditorValue } from '../EditorMemory'
@@ -69,7 +70,7 @@ export function NodePrompt({
       <Menu.Root open={referenceOpen && !disabled} onOpenChange={setReferenceOpen}>
         <Menu.Trigger asChild>
           <IconButton label={t('dag.insertResult')} disabled={disabled || !upstream.size}>
-            <Braces />
+            <ActionIcon name="insertResult" />
           </IconButton>
         </Menu.Trigger>
         <Menu.Portal>
@@ -129,7 +130,7 @@ export function NodePrompt({
               setExpanded(true)
             }}
           >
-            <Maximize2 />
+            <ActionIcon name="expand" />
           </IconButton>
         </div>
       </div>
@@ -148,7 +149,7 @@ export function NodePrompt({
                   disabled={disabled || !dag.nodes.some((n) => n.id === id)}
                   onClick={() => onLocate(id)}
                 >
-                  <ArrowUpRight />
+                  <ActionIcon name="open" />
                 </IconButton>
               </div>
             ))}
@@ -187,7 +188,7 @@ export function NodePrompt({
               {expanded && references()}
               <Dialog.Close asChild>
                 <IconButton label={t('关闭')} disabled={disabled}>
-                  <X />
+                  <ActionIcon name="close" />
                 </IconButton>
               </Dialog.Close>
             </header>

@@ -293,7 +293,6 @@ test('API Key expiry options, custom validation and settings headings', async ({
   await expect(page.getByRole('heading', { name: 'API Key', exact: true })).toBeVisible()
   await expect(page.locator('.detail-heading .count')).toHaveCount(0)
   const create = page.getByRole('button', { name: '创建 API Key', exact: true })
-  await expect(create.locator('.lucide-plus')).toBeVisible()
   const dialog = page.getByRole('dialog', { name: '创建 API Key', exact: true })
   for (const choice of ['不过期', '7 天', '自定义时间']) {
     await create.click()

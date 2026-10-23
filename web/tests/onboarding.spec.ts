@@ -45,7 +45,9 @@ async function fixture(page: Page, role = 'operator', loggedIn = true) {
       return route.fulfill({
         json: {
           gateway: meta.public_url,
-          workspace_id: fixtureWorkspace, workspace: 'Default', role,
+          workspace_id: fixtureWorkspace,
+          workspace: 'Default',
+          role,
           state: 'pending',
           intent: {
             workspace_id: fixtureWorkspace,
@@ -117,7 +119,9 @@ test('device consent requires explicit action and preserves verification after l
   await expect(page.getByText('/projects/中文 workspace', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '授权', exact: true }).click()
   expect(calls).toEqual(['/device-authorizations/ABCD2345/approve'])
-  await expect(page.getByRole('status')).toHaveText('已授权，可以返回终端')
+  await expect(page.getByRole('status').filter({ hasText: '已授权，可以返回终端' })).toHaveText(
+    '已授权，可以返回终端',
+  )
 })
 test('Viewer cannot consent to Runner registration and can reject', async ({ page }) => {
   const calls = await fixture(page, 'viewer')

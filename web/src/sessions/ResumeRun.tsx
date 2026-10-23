@@ -1,8 +1,9 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useRef, useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { MessagesSquare } from 'lucide-react'
+
 import { api, terminal, type Run, type Runner, type User } from '../api'
 import { IconButton, Modal } from '../ui'
 import { CopyValue } from '../runs/CopyValue'
@@ -123,7 +124,7 @@ export function ResumeRun({
   return (
     <>
       <IconButton ref={trigger} label={tr('续聊')} loading={loading && !graph} onClick={open}>
-        <MessagesSquare />
+        <ActionIcon name="resumeSession" />
       </IconButton>
       {(selected || graph) && (
         <Modal
@@ -131,6 +132,7 @@ export function ResumeRun({
           title={tr('续聊')}
           hideTitle
           terminal
+          closePending={closing}
           className="terminal-modal"
           onOpenChange={(open) => {
             if (!open) void close()

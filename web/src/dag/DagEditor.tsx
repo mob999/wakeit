@@ -1,3 +1,4 @@
+import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast, useToast } from '../Toast'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -5,20 +6,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBlocker } from '@tanstack/react-router'
 import * as Menu from '@radix-ui/react-dropdown-menu'
 import * as Popover from '@radix-ui/react-popover'
-import {
-  Plus,
-  MoreHorizontal,
-  GitBranch,
-  List,
-  Search,
-  ArrowUpRight,
-  X,
-  PanelLeft,
-  Undo2,
-  Redo2,
-  Workflow,
-  Flag,
-} from 'lucide-react'
 import {
   api,
   type Task,
@@ -577,7 +564,7 @@ export function DagEditor({
       <Menu.Root>
         <Menu.Trigger asChild>
           <IconButton label={t('dag.nodeActions')} disabled={busy}>
-            <MoreHorizontal />
+            <ActionIcon name="more" />
           </IconButton>
         </Menu.Trigger>
         <Menu.Portal>
@@ -668,98 +655,106 @@ export function DagEditor({
         </div>
         <div className="dag-toolbar" hidden={step !== 'task'}>
           <div className="dag-toolbar-actions">
-            {desktop && view === 'graph' && (
-              <IconButton
-                label={t('dag.toggleAgents')}
-                aria-pressed={paletteOpen}
-                disabled={busy}
-                onClick={() => setPaletteOpen((v) => !v)}
-              >
-                <PanelLeft />
-              </IconButton>
-            )}
-            <IconButton
-              label={t('dag.graph')}
-              aria-pressed={view === 'graph'}
-              disabled={busy}
-              onClick={() => setView('graph')}
-            >
-              <GitBranch />
-            </IconButton>
-            <IconButton
-              label={t('dag.list')}
-              aria-pressed={view === 'list'}
-              disabled={busy}
-              onClick={() => setView('list')}
-            >
-              <List />
-            </IconButton>
-            <IconButton label={t('dag.addNode')} disabled={busy} onClick={() => setPicker({})}>
-              <Plus />
-            </IconButton>
-            <Popover.Root>
-              <Popover.Trigger asChild>
-                <IconButton label={t('dag.search')} disabled={busy}>
-                  <Search />
+            <div className="action-group" role="group" aria-label={t('actions.view')}>
+              {desktop && view === 'graph' && (
+                <IconButton
+                  label={t('dag.toggleAgents')}
+                  aria-pressed={paletteOpen}
+                  disabled={busy}
+                  onClick={() => setPaletteOpen((v) => !v)}
+                >
+                  <ActionIcon name="sidebar" />
                 </IconButton>
-              </Popover.Trigger>
-              <Popover.Portal>
-                <Popover.Content className="dag-search-popover" align="end" sideOffset={6}>
-                  <input
-                    aria-label={t('dag.search')}
-                    placeholder={t('dag.search')}
-                    disabled={busy}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                  {search && (
-                    <div className="dag-search-results">
-                      {dag.nodes
-                        .filter((n) =>
-                          (nodeName(n) + ' ' + n.id).toLowerCase().includes(search.toLowerCase()),
-                        )
-                        .map((n) => (
-                          <Popover.Close asChild key={n.id}>
-                            <button disabled={busy} onClick={() => locateNode(n.id)}>
-                              {nodeName(n)}
-                              <small className="mono">{shortId(n.id)}</small>
-                            </button>
-                          </Popover.Close>
-                        ))}
-                    </div>
-                  )}
-                </Popover.Content>
-              </Popover.Portal>
-            </Popover.Root>
-            <IconButton
-              label={t('dag.undo')}
-              disabled={busy || !history.current.past.length}
-              onClick={() => travel('undo')}
-            >
-              <Undo2 />
-            </IconButton>
-            <IconButton
-              label={t('dag.redo')}
-              disabled={busy || !history.current.future.length}
-              onClick={() => travel('redo')}
-            >
-              <Redo2 />
-            </IconButton>
-            <IconButton
-              label={t('dag.organize')}
-              disabled={busy || !dag.nodes.length}
-              onClick={organize}
-            >
-              <Workflow />
-            </IconButton>
-            <IconButton
-              label={t('dag.outputSettings')}
-              aria-pressed={panel?.kind === 'outputs'}
-              disabled={busy}
-              onClick={() => setPanel({ kind: 'outputs' })}
-            >
-              <Flag />
-            </IconButton>
+              )}
+              <IconButton
+                label={t('dag.graph')}
+                aria-pressed={view === 'graph'}
+                disabled={busy}
+                onClick={() => setView('graph')}
+              >
+                <ActionIcon name="graph" />
+              </IconButton>
+              <IconButton
+                label={t('dag.list')}
+                aria-pressed={view === 'list'}
+                disabled={busy}
+                onClick={() => setView('list')}
+              >
+                <ActionIcon name="list" />
+              </IconButton>
+            </div>
+            <div className="action-group" role="group" aria-label={t('actions.construction')}>
+              <IconButton label={t('dag.addNode')} disabled={busy} onClick={() => setPicker({})}>
+                <ActionIcon name="add" />
+              </IconButton>
+              <Popover.Root>
+                <Popover.Trigger asChild>
+                  <IconButton label={t('dag.search')} disabled={busy}>
+                    <ActionIcon name="search" />
+                  </IconButton>
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content className="dag-search-popover" align="end" sideOffset={6}>
+                    <input
+                      aria-label={t('dag.search')}
+                      placeholder={t('dag.search')}
+                      disabled={busy}
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {search && (
+                      <div className="dag-search-results">
+                        {dag.nodes
+                          .filter((n) =>
+                            (nodeName(n) + ' ' + n.id).toLowerCase().includes(search.toLowerCase()),
+                          )
+                          .map((n) => (
+                            <Popover.Close asChild key={n.id}>
+                              <button disabled={busy} onClick={() => locateNode(n.id)}>
+                                {nodeName(n)}
+                                <small className="mono">{shortId(n.id)}</small>
+                              </button>
+                            </Popover.Close>
+                          ))}
+                      </div>
+                    )}
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
+            </div>
+            <div className="action-group" role="group" aria-label={t('actions.editHistory')}>
+              <IconButton
+                label={t('dag.undo')}
+                disabled={busy || !history.current.past.length}
+                onClick={() => travel('undo')}
+              >
+                <ActionIcon name="undo" />
+              </IconButton>
+              <IconButton
+                label={t('dag.redo')}
+                disabled={busy || !history.current.future.length}
+                onClick={() => travel('redo')}
+              >
+                <ActionIcon name="redo" />
+              </IconButton>
+            </div>
+            <div className="action-group" role="group" aria-label={t('actions.graphSettings')}>
+              <IconButton
+                label={t('dag.organize')}
+                disabled={busy || !dag.nodes.length}
+                onClick={organize}
+              >
+                <ActionIcon name="organize" />
+              </IconButton>
+              <IconButton
+                label={t('dag.outputSettings')}
+                aria-pressed={panel?.kind === 'outputs'}
+                disabled={busy}
+                onClick={() => setPanel({ kind: 'outputs' })}
+              >
+                <ActionIcon name="outputs" />
+              </IconButton>
+            </div>
           </div>
         </div>
       </div>
@@ -921,7 +916,7 @@ export function DagEditor({
                   <strong>{t('dag.outputSettings')}</strong>
                 )}
                 <IconButton label={t('关闭')} disabled={busy} onClick={() => setPanel(null)}>
-                  <X />
+                  <ActionIcon name="close" />
                 </IconButton>
               </div>
               <div
@@ -1029,7 +1024,7 @@ export function DagEditor({
                               disabled={busy || !n}
                               onClick={() => locateNode(id)}
                             >
-                              <ArrowUpRight />
+                              <ActionIcon name="open" />
                             </IconButton>
                           </div>
                         )
@@ -1183,7 +1178,7 @@ export function DagEditor({
                     locate(issue)
                   }}
                 >
-                  <ArrowUpRight />
+                  <ActionIcon name="open" />
                 </IconButton>
               </div>
             ))}

@@ -1,3 +1,4 @@
+import { languageAction } from './actions'
 import { expect, test, type Page } from '@playwright/test'
 import { apiPath, fixtureWorkspace, workspacePage } from './workspace'
 
@@ -98,7 +99,7 @@ for (const [role, label, english] of [
     await expect(page.getByRole('alert')).toHaveText('必须至少保留一名有效管理员')
     await expect(leave).toBeVisible()
     await leave.getByRole('button', { name: '取消', exact: true }).click()
-    await page.getByRole('button', { name: '切换到英文', exact: true }).click()
+    await (await languageAction(page, '切换到英文')).click()
     await page.getByRole('button', { name: 'User menu', exact: true }).click()
     await expect(
       page.getByRole('menuitemradio', { name: 'Workspace Preview', exact: true }),
@@ -178,7 +179,7 @@ for (const width of [390, 1440]) {
       await page.keyboard.press('Escape')
       await expect(trigger).toBeFocused()
     }
-    await page.getByRole('button', { name: '切换到英文', exact: true }).click()
+    await (await languageAction(page, '切换到英文')).click()
     await page.getByRole('button', { name: 'User menu', exact: true }).click()
     await expect(
       page.getByRole('menuitem', { name: 'Account management', exact: true }),

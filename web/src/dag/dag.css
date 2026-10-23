@@ -24,10 +24,6 @@
   margin-left: auto;
   padding-right: 18px;
 }
-.dag-editor-tools [aria-pressed='true'] {
-  background: var(--hover);
-  color: var(--ink);
-}
 .dag-editor-scroll {
   min-height: 0;
   flex: 1;
@@ -158,7 +154,7 @@
   flex-shrink: 0;
   color: var(--muted);
 }
-.dag-node-title > .lucide-circle-alert {
+.dag-node-title > [data-icon='circle-alert'] {
   color: var(--failure);
 }
 .dag-graph-node.selected,

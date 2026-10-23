@@ -3,7 +3,7 @@ import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState, type ReactNode, type KeyboardEvent } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { Check, ChevronDown, Search } from 'lucide-react'
+import { Check, ChevronDown, Search } from './icons'
 export type Choice = {
   value: string
   label: string
