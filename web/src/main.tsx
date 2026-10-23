@@ -585,7 +585,7 @@ function TasksPage() {
                     </IconButton>
                     <IconButton
                       label={tr(task.config.enabled ? 'actions.disableTask' : 'actions.enableTask')}
-                      className="task-control-schedule"
+                      className={`task-control-schedule ${task.config.enabled ? 'is-enabled' : 'is-disabled'}`}
                       disabled={action.isPending || !task.config.schedule}
                       disabledReason={!task.config.schedule ? tr('actions.noSchedule') : undefined}
                       loading={action.isPending && action.variables?.kind === 'toggle'}

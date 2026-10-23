@@ -1,8 +1,6 @@
 import type { ComponentType } from 'react'
 import {
   IconCheck,
-  IconBan,
-  IconCheckCircle,
   IconCopy,
   IconEllipsis,
   IconGear,
@@ -41,6 +39,8 @@ import {
   Minimize,
   Pause,
   Play,
+  ToggleOn,
+  ToggleOff,
   Redo2,
   RotateCw,
   SlidersHorizontal,
@@ -82,8 +82,8 @@ const icons = {
   sidebar: IconSidebarLeft,
   archive: Archive,
   revoke: Ban,
-  disableTask: IconBan,
-  enableTask: IconCheckCircle,
+  disableTask: ToggleOn,
+  enableTask: ToggleOff,
   collapseAll: ChevronsUp,
   reconcile: ClipboardCheck,
   graph: GitBranch,
