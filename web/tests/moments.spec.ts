@@ -1,5 +1,13 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Locator } from '@playwright/test'
 import { workspacePage, mockWorkspace, apiPath } from './workspace'
+async function navigation(page: Page, card: Locator) {
+  const trigger = card.locator('.report-navigation-trigger')
+  if (await trigger.isVisible()) {
+    await trigger.click()
+    return page.locator('.report-navigation-popup')
+  }
+  return card.locator('.report-navigation')
+}
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 export async function momentsFixture(
   page: Page,
@@ -139,16 +147,18 @@ test('timeline cards expose real outline and links, short reports shrink and cod
   const first = page.locator(`[data-moment-id="${id(1)}"]`)
   await expect(first.getByRole('navigation', { name: '目录', exact: true })).toBeVisible()
   await expect(
-    first.locator('.moment-link-list').getByRole('button', { name: 'Local report', exact: true }),
+    first
+      .locator('.result-reference-list')
+      .getByRole('button', { name: '引用: Local report', exact: true }),
   ).toBeVisible()
   const short = page.locator(`[data-moment-id="${id(2)}"]`)
-  await expect(short.locator('.moment-report')).toContainText('A short report.')
-  await expect(short.locator('.moment-context')).toHaveCount(0)
+  await expect(short.locator('.report-content')).toContainText('A short report.')
+  await expect(short.locator('.result-references')).toHaveCount(0)
   expect(
-    await short.locator('.moment-report').evaluate((el) => el.getBoundingClientRect().height),
+    await short.locator('.report-content').evaluate((el) => el.getBoundingClientRect().height),
   ).toBeLessThan(40)
   const safety = page.locator(`[data-moment-id="${id(3)}"]`)
-  await expect(safety.locator('.moment-link-list')).toHaveCount(0)
+  await expect(safety.locator('.result-reference-list')).toHaveCount(0)
   await first
     .getByRole('navigation', { name: '目录', exact: true })
     .getByRole('button', { name: 'References', exact: true })
@@ -165,8 +175,8 @@ test('context file previews survive manual refresh, and Viewer copies paths with
   const { calls } = await momentsFixture(page, { count: 1 })
   await page.goto(workspacePage('/'))
   await page
-    .locator('.moment-link-list')
-    .getByRole('button', { name: 'Local report', exact: true })
+    .locator('.result-reference-list')
+    .getByRole('button', { name: '引用: Local report', exact: true })
     .click()
   await expect(page.getByRole('dialog')).toContainText('Synthetic preview')
   await page.locator('button[aria-label="刷新动态"]').dispatchEvent('click')
@@ -189,8 +199,8 @@ test('context file previews survive manual refresh, and Viewer copies paths with
   )
   await page.reload()
   await page
-    .locator('.moment-link-list')
-    .getByRole('button', { name: 'Local report', exact: true })
+    .locator('.result-reference-list')
+    .getByRole('button', { name: '引用: Local report', exact: true })
     .click()
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
@@ -244,15 +254,17 @@ test('DAG output switching selects the actual report and preserves empty-preview
   await page.goto(workspacePage('/'))
   const card = page.locator('.moment-card')
   await expect(card.getByRole('heading', { name: 'First report', exact: true })).toBeVisible()
-  await card
-    .locator('.moment-output-list')
+  await (
+    await navigation(page, card)
+  )
+    .locator('.report-output-list')
     .getByRole('button', { name: /Second output/ })
     .click()
   await expect(card.getByRole('heading', { name: 'Second report', exact: true })).toBeVisible()
   await expect(card.locator('.moment-retries')).toContainText('1 个节点')
   await card
-    .locator('.moment-link-list')
-    .getByRole('button', { name: 'Second file', exact: true })
+    .locator('.result-reference-list')
+    .getByRole('button', { name: '引用: Second file', exact: true })
     .click()
   await expect(page.getByRole('dialog')).toBeVisible()
   expect(calls).toContain('/actual-node')
@@ -265,16 +277,16 @@ test('only nearby cards hydrate full reports; failures preserve an already loade
   const { calls } = await momentsFixture(page, { count: 60, daySize: 20 })
   await page.goto(workspacePage('/'))
   await expect(page.locator('.moment-entry')).toHaveCount(60)
-  await expect(page.locator('.moment-context').first()).toBeVisible()
+  await expect(page.locator('.result-references').first()).toBeVisible()
   await page.waitForTimeout(500)
   expect(new Set(calls.filter((p) => /^\/runs\/[^/]+$/.test(p))).size).toBeLessThan(10)
-  expect(await page.locator('.moment-report').count()).toBeLessThan(10)
+  expect(await page.locator('.report-content').count()).toBeLessThan(10)
   await page.route(`**/runs/${id(1)}`, (route) =>
     route.fulfill({ status: 503, json: { error: 'Synthetic refresh failure' } }),
   )
   await page.getByRole('button', { name: '刷新动态', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('Synthetic refresh failure')
-  await expect(page.locator(`[data-moment-id="${id(1)}"] .moment-report`)).toContainText(
+  await expect(page.locator(`[data-moment-id="${id(1)}"] .report-content`)).toContainText(
     'Research 1',
   )
   await expect(
@@ -349,10 +361,10 @@ test('empty state, request retry, JSON and truncated reports remain distinct', a
   failure.fail = false
   await page.getByRole('button', { name: '重试', exact: true }).click()
   await expect(page.locator('.moment-notice')).toContainText('结果已截断')
-  await expect(page.locator('.moment-report')).toContainText('Retained text')
+  await expect(page.locator('.report-content')).toContainText('Retained text')
   runs[0].result = { ok: true, count: 3 }
   await page.getByRole('button', { name: '刷新动态', exact: true }).click()
-  await expect(page.locator('.moment-report code')).toContainText('\"ok\": true')
+  await expect(page.locator('.report-content code')).toContainText('\"ok\": true')
 })
 test('image references open previews, and open previews pin their source card', async ({
   page,
@@ -364,10 +376,10 @@ test('image references open previews, and open previews pin their source card', 
     '# Images\n\n![Rendered picture](/workspace/render.png)\n\n[Report](/workspace/report.md)'
   await page.goto(workspacePage('/'))
   const card = page.locator(`[data-moment-id="${id(1)}"]`)
-  await expect(card.getByRole('img', { name: 'Rendered picture', exact: true })).toBeVisible()
+  await expect(card.getByRole('img', { name: '引用: Rendered picture', exact: true })).toBeVisible()
   await card
-    .locator('.moment-link-list')
-    .getByRole('button', { name: 'Rendered picture', exact: true })
+    .locator('.result-reference-list')
+    .getByRole('button', { name: '引用: Rendered picture', exact: true })
     .click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByRole('dialog').getByRole('img')).toBeVisible()
@@ -376,8 +388,8 @@ test('image references open previews, and open previews pin their source card', 
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await card
-    .locator('.moment-link-list')
-    .getByRole('button', { name: 'Report', exact: true })
+    .locator('.result-reference-list')
+    .getByRole('button', { name: '引用: Report', exact: true })
     .click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.locator('.moments-page').evaluate((el) => {
@@ -443,20 +455,20 @@ test('references fill the reading height, adapt to expansion and narrow columns,
   ).join('\n\n')
   await page.goto(workspacePage('/'))
   const card = page.locator('.moment-card')
-  const list = card.locator('.moment-link-list')
+  const list = card.locator('.result-reference-list')
   const references = list.locator('a:visible')
   const section = list.locator('..')
-  const more = section.locator('.moment-more')
+  const more = section.locator('.result-references-more')
   await expect(section.locator('h4')).toHaveText('引用')
   await expect(list.locator('a')).toHaveCount(30)
   await expect.poll(() => references.count()).toBeGreaterThan(3)
   const collapsed = await references.count()
   expect(collapsed).toBeLessThan(30)
   const room = await card.evaluate((element) => {
-    const reading = element.querySelector('.moment-reading')!.getBoundingClientRect()
-    const context = element.querySelector('.moment-context')!
-    const toggle = context.querySelector('.moment-more')!.getBoundingClientRect()
-    const row = context.querySelector('.moment-link-list a')!.getBoundingClientRect()
+    const reading = element.querySelector('.report-reading-body')!.getBoundingClientRect()
+    const context = element.querySelector('.result-references')!
+    const toggle = context.querySelector('.result-references-more')!.getBoundingClientRect()
+    const row = context.querySelector('.result-reference-list a')!.getBoundingClientRect()
     return {
       spare: reading.bottom - toggle.bottom - parseFloat(getComputedStyle(context).paddingBottom),
       row: row.height,
@@ -469,16 +481,10 @@ test('references fill the reading height, adapt to expansion and narrow columns,
   await expect(references).toHaveCount(30)
   await more.click()
   await expect(references).toHaveCount(collapsed)
-  await card
-    .locator('.moment-reading-actions')
-    .getByRole('button', { name: '阅读全文', exact: true })
-    .click()
+  await card.locator('.card-header').getByRole('button', { name: '阅读全文', exact: true }).click()
   await expect(references).toHaveCount(30)
   await expect(more).toBeHidden()
-  await card
-    .locator('.moment-reading-actions')
-    .getByRole('button', { name: '收起', exact: true })
-    .click()
+  await card.locator('.card-header').getByRole('button', { name: '收起', exact: true }).click()
   await expect(references).toHaveCount(collapsed)
   await page.setViewportSize({ width: 390, height: 900 })
   await expect.poll(() => references.count()).toBeGreaterThan(collapsed)
@@ -511,11 +517,11 @@ test('late report hydration above the reading position preserves the visible anc
   await page.goto(workspacePage('/'))
   const target = page.locator(`[data-moment-id="${id(10)}"]`)
   await target.evaluate((el) => el.scrollIntoView({ block: 'start' }))
-  await expect(target.locator('.moment-report')).toBeVisible()
+  await expect(target.locator('.report-content')).toBeVisible()
   await page.waitForTimeout(300)
   const top = await target.evaluate((el) => el.getBoundingClientRect().top)
   release()
-  await expect(page.locator(`[data-moment-id="${id(9)}"] .moment-context`)).toContainText(
+  await expect(page.locator(`[data-moment-id="${id(9)}"] .report-navigation`)).toContainText(
     'Heading 0',
   )
   await expect
@@ -581,10 +587,201 @@ test('a DAG output whose shared preview budget ran out loads as pending rather t
     }),
   )
   await page.goto(workspacePage('/'))
-  await page.getByRole('button', { name: 'Same name · b', exact: true }).click()
-  await expect(page.locator('.moment-report')).toContainText('加载完整结果')
-  await expect(page.locator('.moment-report')).not.toContainText('未返回结果')
-  await expect(page.locator('.moment-output-id')).toHaveText(['a', 'b'])
+  await (
+    await navigation(page, page.locator('.moment-card'))
+  )
+    .getByRole('button', { name: 'Same name · b', exact: true })
+    .click()
+  await expect(page.locator('.report-content')).toContainText('加载完整结果')
+  await expect(page.locator('.report-content')).not.toContainText('未返回结果')
+  await expect(page.locator('.report-output-row small')).toHaveText(['a', 'b'])
   release()
   await expect(page.getByRole('heading', { name: 'B report', exact: true })).toBeVisible()
+})
+
+test('three-column report uses the container width and merges image aliases without changing the preview target', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  const { runs, calls } = await momentsFixture(page, { count: 1 })
+  runs[0].result =
+    '# Synthetic report\n\n[File](file:///workspace/render.png)\n\n![Chart](./render.png)\n\n[Duplicate](/workspace/render.png)\n\n' +
+    Array.from(
+      { length: 100 },
+      (_, n) =>
+        `## Section ${n + 1}\n\nSynthetic finding. [Source ${n + 1}](https://example.test/${n + 1})`,
+    ).join('\n\n')
+  await page.goto(workspacePage('/'))
+  const card = page.locator('.moment-card')
+  const nav = card.locator('.report-navigation')
+  const refs = card.locator('.result-references')
+  const body = card.locator('.report-reading-body')
+  await expect(nav).toBeVisible()
+  await expect(refs.locator('.result-reference-list > div')).toHaveCount(101)
+  await expect(refs.getByRole('button', { name: '引用: Chart', exact: true })).toHaveCount(1)
+  await expect(refs.locator('.lucide-image')).toHaveCount(1)
+  const n = await nav.boundingBox(),
+    b = await body.boundingBox(),
+    r = await refs.boundingBox()
+  expect(n!.x + n!.width).toBeLessThanOrEqual(b!.x + 1)
+  expect(b!.x + b!.width).toBeLessThanOrEqual(r!.x + 1)
+  expect(n!.height).toBeLessThanOrEqual(b!.height + 1)
+  expect(r!.height).toBeLessThanOrEqual(b!.height + 1)
+  const lines = await card.locator('.report-grid').evaluate((grid) => ({
+    left: parseFloat(getComputedStyle(grid, '::before').height),
+    right: parseFloat(getComputedStyle(grid, '::after').height),
+  }))
+  expect(lines.left).toBeCloseTo(b!.height, 0)
+  expect(lines.right).toBeCloseTo(b!.height, 0)
+  await refs.getByRole('button', { name: '引用: Chart', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  expect(calls.some((path) => path.endsWith(`/runs/${id(1)}/files/preview`))).toBe(true)
+  await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
+  await card.getByRole('button', { name: '阅读全文', exact: true }).click()
+  await expect(nav.locator('.report-outline-list > button')).toHaveCount(101)
+  await expect(refs.locator('.result-reference-list > div:visible')).toHaveCount(101)
+  const fullLines = await card.locator('.report-grid').evaluate((grid) => ({
+    left: parseFloat(getComputedStyle(grid, '::before').height),
+    right: parseFloat(getComputedStyle(grid, '::after').height),
+    body: grid.querySelector('.report-reading-body')!.getBoundingClientRect().height,
+  }))
+  expect(fullLines.left).toBeCloseTo(fullLines.body, 0)
+  expect(fullLines.right).toBeCloseTo(fullLines.body, 0)
+  expect(await card.evaluate((el) => getComputedStyle(el).overflowY)).toBe('clip')
+  expect(
+    await page.locator('.moments-page').evaluate((el) => getComputedStyle(el).paddingTop),
+  ).toBe('0px')
+  await page.locator('.moments-page').evaluate((el) => {
+    el.scrollTop += 700
+  })
+  const headerBottom = await card
+    .locator('.card-header')
+    .evaluate((el) => el.getBoundingClientRect().bottom)
+  await expect.poll(async () => (await nav.boundingBox())!.y).toBeCloseTo(headerBottom, 0)
+  await expect.poll(async () => (await refs.boundingBox())!.y).toBeCloseTo(headerBottom, 0)
+  async function expectFilledRails() {
+    const viewport = (await page.locator('.moments-page').boundingBox())!
+    const bottom = viewport.y + viewport.height
+    for (const rail of [nav, refs]) {
+      await expect
+        .poll(async () => {
+          const rect = (await rail.boundingBox())!
+          return rect.y + rect.height
+        })
+        .toBeCloseTo(bottom, 0)
+    }
+    for (const list of [
+      nav.locator('.report-outline-list'),
+      refs.locator('.result-reference-list'),
+    ]) {
+      await expect
+        .poll(async () => {
+          const rect = (await list.boundingBox())!
+          return rect.y + rect.height
+        })
+        .toBeCloseTo(bottom - 12, 0)
+    }
+  }
+  await expectFilledRails()
+  const outlineHeight = (await nav.locator('.report-outline-list').boundingBox())!.height
+  await page.setViewportSize({ width: 1920, height: 1200 })
+  await expectFilledRails()
+  expect((await nav.locator('.report-outline-list').boundingBox())!.height).toBeGreaterThan(
+    outlineHeight + 250,
+  )
+  await page.setViewportSize({ width: 1024, height: 900 })
+  await expect(card.locator('.report-navigation-trigger')).toBeVisible()
+  await expect(nav).toBeHidden()
+  await card.locator('.report-navigation-trigger').click()
+  await expect(page.locator('.report-navigation-popup .report-outline-list > button')).toHaveCount(
+    101,
+  )
+  await page
+    .locator('.report-navigation-popup')
+    .getByRole('button', { name: 'Section 60', exact: true })
+    .click()
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.textContent))
+    .toBe('Section 60')
+  for (const width of [390, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
+
+test('report rails resize independently, reset and share widths with Run results in the same visit', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await momentsFixture(page)
+  await page.goto(workspacePage('/'))
+  const card = page.locator('.moment-card').first()
+  const left = card.getByRole('separator', { name: '调整输出与目录宽度' })
+  const right = card.getByRole('separator', { name: '调整引用宽度' })
+  const drag = async (handle: Locator, delta: number) => {
+    const rect = (await handle.boundingBox())!
+    await page.mouse.move(rect.x + rect.width / 2, rect.y + 60)
+    await page.mouse.down()
+    await page.mouse.move(rect.x + rect.width / 2 + delta, rect.y + 60, { steps: 10 })
+    await page.mouse.up()
+  }
+  await drag(left, 80)
+  await expect(left).toHaveAttribute('aria-valuenow', '280')
+  await drag(right, -80)
+  await expect(right).toHaveAttribute('aria-valuenow', '320')
+  await left.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(left).toHaveAttribute('aria-valuenow', '290')
+  await right.focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect(right).toHaveAttribute('aria-valuenow', '330')
+  await card.getByRole('button', { name: '阅读全文', exact: true }).click()
+  await card.getByRole('link', { name: '查看运行', exact: true }).click()
+  await expect(
+    page.locator('.run-result-panel').getByRole('separator', { name: '调整输出与目录宽度' }),
+  ).toHaveAttribute('aria-valuenow', '290')
+  await expect(
+    page.locator('.run-result-panel').getByRole('separator', { name: '调整引用宽度' }),
+  ).toHaveAttribute('aria-valuenow', '330')
+  await page.getByRole('link', { name: '动态', exact: true }).click()
+  await left.dblclick()
+  await right.dblclick()
+  await expect(left).toHaveAttribute('aria-valuenow', '200')
+  await expect(right).toHaveAttribute('aria-valuenow', '240')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(left).toBeHidden()
+  await expect(right).toBeHidden()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('collapse restores the expanded moment, but anchors another moment after reading into it', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 900 })
+  await momentsFixture(page, { count: 8 })
+  await page.goto(workspacePage('/'))
+  const viewport = page.locator('.moments-page')
+  const first = page.locator('[data-moment-id]').first()
+  const originalTop = (await first.boundingBox())!.y
+  await first.getByRole('button', { name: '阅读全文', exact: true }).click()
+  await viewport.evaluate((el) => {
+    el.scrollTop += 600
+  })
+  await first.getByRole('button', { name: '收起', exact: true }).click()
+  await expect.poll(async () => (await first.boundingBox())!.y).toBeCloseTo(originalTop, 0)
+  const next = page.locator('[data-moment-id]').nth(1)
+  for (const offset of [80, 800]) {
+    await first.getByRole('button', { name: '阅读全文', exact: true }).click()
+    await next.evaluate((el, offset) => {
+      const viewport = el.closest('.moments-page')!
+      viewport.scrollTop +=
+        el.getBoundingClientRect().top - viewport.getBoundingClientRect().top + offset
+    }, offset)
+    const nextTop = (await next.boundingBox())!.y
+    // Invoke the original DOM action without scrolling its offscreen control back into view.
+    await first
+      .getByRole('button', { name: '收起', exact: true })
+      .evaluate((el: HTMLButtonElement) => el.click())
+    await expect.poll(async () => (await next.boundingBox())!.y).toBeCloseTo(nextTop, 0)
+  }
 })

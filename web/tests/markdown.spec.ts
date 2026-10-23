@@ -158,8 +158,8 @@ test('Run results, trace messages and Moments share syntax, math, HTML and Merma
   await assertReport(page.locator('.trace-message'))
   await page.goto(workspacePage('/'))
   await page.locator('.moment-card').getByRole('button', { name: '阅读全文', exact: true }).click()
-  await assertReport(page.locator('.moment-report'))
-  await expect(page.locator('.moment-report iframe')).toBeVisible()
+  await assertReport(page.locator('.report-content'))
+  await expect(page.locator('.report-content iframe')).toBeVisible()
 })
 
 test('raw HTML and diagram input cannot inject scripts, links or layout CSS; raw view stays literal', async ({

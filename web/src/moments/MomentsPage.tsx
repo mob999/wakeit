@@ -17,6 +17,7 @@ import { api, type MomentDays, type MomentEntries } from '../api'
 import { IconButton, Button } from '../ui'
 import './moments.css'
 import { MomentCard } from './MomentCard'
+import { ReportVisit } from '../reports/ReportVisit'
 
 // This state lives only for the authenticated app visit, including trips to Run details.
 export const VisitContext = createContext<{
@@ -33,23 +34,25 @@ export function MomentsVisit({ children }: { children: ReactNode }) {
   const heights = useRef(new Map<string, number>())
   const outputs = useRef(new Map<string, string>())
   return (
-    <VisitContext.Provider
-      value={{
-        expanded,
-        scroll,
-        outputs,
-        heights,
-        setExpanded: (id, value) =>
-          setExpanded((previous) => {
-            const next = new Set(previous)
-            if (value) next.add(id)
-            else next.delete(id)
-            return next
-          }),
-      }}
-    >
-      {children}
-    </VisitContext.Provider>
+    <ReportVisit>
+      <VisitContext.Provider
+        value={{
+          expanded,
+          scroll,
+          outputs,
+          heights,
+          setExpanded: (id, value) =>
+            setExpanded((previous) => {
+              const next = new Set(previous)
+              if (value) next.add(id)
+              else next.delete(id)
+              return next
+            }),
+        }}
+      >
+        {children}
+      </VisitContext.Provider>
+    </ReportVisit>
   )
 }
 export const manual = {

@@ -230,13 +230,13 @@ test('local result links preview only on click and preview links do not expand f
   const reads = await fixture(page)
   await expect(
     page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true }),
   ).toBeVisible()
   expect(reads).toEqual([])
   expect(await page.locator('img[src="/workspace/picture.png"]').count()).toBe(0)
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -276,7 +276,7 @@ test('Viewer can copy result paths without file IO', async ({ page, context }) =
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   const reads = await fixture(page, 'viewer')
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   await expect
@@ -296,7 +296,7 @@ test('file preview stays mounted through Run polling and SSE reconnects', async 
   })
   const reads = await fixture(page)
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -326,7 +326,7 @@ test('an in-flight preview survives background updates and retains loaded scroll
   const reads = await fixture(page, 'admin', { pending, preview: { format: 'markdown', content } })
   try {
     await page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true })
       .click()
     const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -358,7 +358,7 @@ test('closing a pending preview prevents late output from reopening it', async (
   await fixture(page, 'admin', { pending })
   try {
     await page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true })
       .click()
     const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -400,7 +400,7 @@ for (const item of [
         requests.push(apiPath(new URL(request.url()).pathname))
     })
     await page
-      .locator('.moment-report, .run-result-panel')
+      .locator('.report-content, .run-result-panel')
       .getByRole('button', { name: 'Report', exact: true })
       .click()
     const dialog = page.getByRole('dialog', { name: item.href.split('/').at(-1), exact: true })
@@ -431,7 +431,7 @@ for (const item of [
 test('workspace permission revocation still closes an open preview', async ({ page }) => {
   await fixture(page)
   await page
-    .locator('.moment-report, .run-result-panel')
+    .locator('.report-content, .run-result-panel')
     .getByRole('button', { name: 'Report', exact: true })
     .click()
   const dialog = page.getByRole('dialog', { name: 'report.md', exact: true })
@@ -876,3 +876,53 @@ test('multiple DAG outputs keep separate reference lists and execution ownership
   await references.getByRole('button', { name: '引用: First file', exact: true }).click()
   expect(requests.at(-1)).toContain(`/runs/${child}/files/preview`)
 })
+
+for (const surface of ['run', 'dag'] as const) {
+  test(`${surface} full report rails fill the real reading viewport and resize with it`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1920, height: 900 })
+    await fixture(page, 'admin', {
+      surface,
+      result:
+        '# Full report\n\n' +
+        Array.from(
+          { length: 100 },
+          (_, n) =>
+            `## Section ${n + 1}\n\nSynthetic finding ${n + 1}. [Reference ${n + 1}](https://example.test/${n + 1})`,
+        ).join('\n\n'),
+    })
+    const reader = page.locator('.report-reader')
+    const viewport = page.locator('.run-page:visible')
+    const section = page.locator('.run-section').filter({ has: reader })
+    await expect(reader.locator('.report-navigation')).toBeVisible()
+    await viewport.evaluate((el) => {
+      el.scrollTop = 700
+    })
+    for (const height of [900, 1200, 700]) {
+      await page.setViewportSize({ width: 1920, height })
+      const frame = (await viewport.boundingBox())!
+      const header = (await section.locator('.run-section-header').boundingBox())!
+      for (const selector of ['.report-navigation', '.result-references']) {
+        const rail = reader.locator(selector)
+        await expect
+          .poll(async () => (await rail.boundingBox())!.y)
+          .toBeCloseTo(header.y + header.height, 0)
+        await expect
+          .poll(async () => {
+            const box = (await rail.boundingBox())!
+            return box.y + box.height
+          })
+          .toBeCloseTo(frame.y + frame.height, 0)
+      }
+      for (const selector of ['.report-outline-list', '.result-reference-list']) {
+        await expect
+          .poll(async () => {
+            const box = (await reader.locator(selector).boundingBox())!
+            return box.y + box.height
+          })
+          .toBeCloseTo(frame.y + frame.height - 12, 0)
+      }
+    }
+  })
+}

@@ -1038,22 +1038,27 @@ for (const [width, language, theme] of [
       },
       { language, theme },
     )
-    const name = language === 'zh' ? '选择输出节点' : 'Select an output node'
-    const picker = page.getByRole('combobox', { name, exact: true })
-    const result = page.locator('.run-section').filter({ has: picker })
-    await expect(picker).toHaveAttribute('title', first.name)
+    const result = page.locator('.run-section').filter({ has: page.locator('.report-reader') })
+    async function selectOutput(nodeId: string) {
+      const trigger = result.locator('.report-navigation-trigger')
+      if (await trigger.isVisible()) await trigger.click()
+      const navigation = (await page.locator('.report-navigation-popup').isVisible())
+        ? page.locator('.report-navigation-popup')
+        : result.locator('.report-navigation')
+      await navigation
+        .getByRole('button', {
+          name: `${nodeId === emptyId ? empty.name : first.name} · ${nodeId}`,
+          exact: true,
+        })
+        .click()
+    }
     await expect(result.getByRole('heading', { name: 'Final report', exact: true })).toBeVisible()
     await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toHaveCount(0)
     await result
       .getByRole('button', { name: language === 'zh' ? '原文' : 'Raw', exact: true })
       .click()
     await expect(result.locator('.result-raw')).toContainText('# Final report')
-    await picker.press('ArrowDown')
-    const menu = page.locator('.dag-node-picker')
-    await menu.getByRole('combobox').fill(secondId)
-    await expect(menu.getByRole('option')).toHaveCount(1)
-    await menu.getByRole('combobox').press('Enter')
-    await expect(picker).toBeFocused()
+    await selectOutput(secondId)
     await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toBeVisible()
     await expect(result.locator('.result-references')).toContainText('Second source')
     await expect(result.locator('.result-raw')).toHaveCount(0)
@@ -1067,34 +1072,23 @@ for (const [width, language, theme] of [
     await page
       .getByRole('tab', { name: language === 'zh' ? '执行' : 'Execution', exact: true })
       .click()
-    // Polling may reorder the data, but selection belongs to the stable node ID.
     f.run.result.outputs = [empty, second, first]
-    await expect
-      .poll(() =>
-        page.evaluate(() =>
-          document.querySelector('.dag-result-context .choice-selector')?.getAttribute('title'),
-        ),
-      )
-      .toBe(second.name)
     await page.waitForTimeout(2300)
     await expect(result.getByRole('heading', { name: 'Second output', exact: true })).toBeVisible()
-    await picker.click()
-    await menu.getByRole('combobox').fill(first.node_id)
-    await menu.getByRole('combobox').press('End')
-    await menu.getByRole('combobox').press('Enter')
+    await selectOutput(first.node_id)
     await expect(result.locator('.result-raw')).toContainText('# Final report')
-    await picker.click()
-    await menu.getByRole('combobox').fill(emptyId)
-    await menu.getByRole('combobox').press('Enter')
+    await selectOutput(emptyId)
     await expect(
       result.getByText(language === 'zh' ? '未返回结果' : 'No result returned', { exact: true }),
     ).toBeVisible()
-    await expect(result.locator('.dag-result-context .status')).toContainText(
-      language === 'zh' ? '失败' : 'Failed',
-    )
-    await expect(result.locator('.run-result-panel')).toHaveCount(0)
-    await expect(result.locator('.run-section-actions').getByRole('button')).toHaveCount(0)
-    await result.locator('.run-reason').focus()
+    const trigger = result.locator('.report-navigation-trigger')
+    if (await trigger.isVisible()) await trigger.click()
+    const nav = (await page.locator('.report-navigation-popup').isVisible())
+      ? page.locator('.report-navigation-popup')
+      : result.locator('.report-navigation')
+    const emptyRow = nav.locator('.report-output-row').filter({ hasText: 'Empty output' })
+    await expect(emptyRow.locator('.status')).toContainText(language === 'zh' ? '失败' : 'Failed')
+    await emptyRow.locator('.run-reason').focus()
     await expect(page.getByRole('tooltip')).toContainText(empty.reason)
     await page.keyboard.press('Escape')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

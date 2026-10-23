@@ -616,38 +616,6 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.dag-result-context {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  min-height: 44px;
-  padding: 8px 16px;
-  gap: 12px;
-  background: var(--canvas);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 2;
-}
-.dag-result-context > :is(strong, .choice-selector) {
-  min-width: 0;
-  max-width: min(480px, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 550;
-}
-.dag-result-context > .choice-selector {
-  width: fit-content;
-  min-height: 28px;
-  background: transparent;
-  border-color: transparent;
-  padding: 0;
-}
-.dag-result-context .status {
-  font-size: 11px;
-}
 .dag-selected-caption {
   display: flex;
   align-items: center;
@@ -763,9 +731,6 @@
   }
   .dag-fold-row {
     padding-right: 12px;
-  }
-  .dag-result-context {
-    padding: 8px 12px;
   }
   .dag-node-details .run-properties {
     grid-template-columns: 100px minmax(0, 1fr);

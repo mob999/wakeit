@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react'
+import { useLayoutEffect, useRef, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, FileText, Image } from 'lucide-react'
 import { ResultFileLink } from '../files/ResultFileLink'
@@ -10,23 +10,47 @@ export function ResultReferences({
   links,
   reading,
   source,
+  expanded,
+  onExpandedChange,
+  scroll,
+  onScroll,
+  identity,
+  preview,
 }: {
   links: ReportLink[]
   reading: RefObject<HTMLDivElement | null>
   source?: FileSource
+  expanded: boolean
+  onExpandedChange: (value: boolean) => void
+  scroll: number
+  onScroll: (value: number) => void
+  identity: string
+  preview: boolean
 }) {
   const { t } = useTranslation()
   const context = useRef<HTMLElement>(null),
     list = useRef<HTMLDivElement>(null),
     toggle = useRef<HTMLButtonElement>(null)
-  const [expanded, setExpanded] = useState(false)
-  const capacity = useReferenceCapacity({ reading, context, list, toggle, count: links.length })
+  const capacity = useReferenceCapacity({
+    reading,
+    context,
+    list,
+    toggle,
+    count: preview ? links.length : 0,
+  })
+  useLayoutEffect(() => {
+    if (list.current) list.current.scrollTop = scroll
+  }, [identity])
   return (
     <aside className="result-references" ref={context} aria-label={t('moments.links')}>
       <h4>{t('moments.links')}</h4>
-      <div className="result-reference-list" ref={list}>
+      <div
+        className="result-reference-list"
+        ref={list}
+        onScroll={(event) => onScroll(event.currentTarget.scrollTop)}
+      >
         {links.map((link, index) => (
-          <div key={link.href} hidden={!expanded && index >= capacity}>
+          <div key={link.href} hidden={preview && !expanded && index >= capacity}>
             {link.local ? (
               <ResultFileLink
                 href={link.href}
@@ -49,8 +73,9 @@ export function ResultReferences({
         type="button"
         className="result-references-more"
         ref={toggle}
-        hidden={!expanded && links.length <= capacity}
-        onClick={() => setExpanded((value) => !value)}
+        hidden={!preview || (!expanded && links.length <= capacity)}
+        aria-expanded={expanded}
+        onClick={() => onExpandedChange(!expanded)}
       >
         {expanded ? t('收起') : t('moments.more', { count: links.length - capacity })}
       </button>
