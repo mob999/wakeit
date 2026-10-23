@@ -1,3 +1,6 @@
+mod support;
+use support::assert_single_report;
+
 use serde_json::{Value, json};
 use wakeit::{
     gemini_adapter::GeminiNormalizer,
@@ -37,12 +40,7 @@ fn native_fixture_preserves_chunks_and_tool_lifecycle() {
             .iter()
             .any(|r| matches!(&r.record, RecordData::Result(_)))
     );
-    assert!(
-        normalizer
-            .finish()
-            .iter()
-            .all(|r| matches!(&r.record, RecordData::Result(v) if v == "测试通过。"))
-    );
+    assert_single_report(&normalizer.finish(), json!("测试通过。"));
     assert!(
         !records
             .iter()
@@ -63,9 +61,7 @@ fn warning_and_recoverable_tool_failure_do_not_fail_a_successful_turn() {
         normalizer.accept(event);
     }
     assert!(!normalizer.failed());
-    assert!(
-        matches!(&normalizer.finish()[0].record, RecordData::Result(v) if v == "File unavailable")
-    );
+    assert_single_report(&normalizer.finish(), json!("File unavailable"));
 }
 
 #[test]
@@ -116,9 +112,7 @@ fn snapshot_messages_replace_text_and_unknown_events_are_diagnostic_only() {
             .is_empty()
     );
     normalizer.accept(json!({"type":"result","status":"success"}));
-    assert!(
-        matches!(&normalizer.finish()[0].record, RecordData::Result(v) if v == "snapshot + delta")
-    );
+    assert_single_report(&normalizer.finish(), json!("snapshot + delta"));
 }
 
 #[test]
@@ -159,7 +153,7 @@ fn duplicate_tool_events_do_not_regress_a_completed_call() {
     normalizer.accept(json!({"type":"tool_use","tool_name":"read_file","tool_id":"late"}));
     normalizer.accept(json!({"type":"result","status":"error"}));
     assert!(!normalizer.failed());
-    assert!(matches!(&normalizer.finish()[0].record, RecordData::Result(v) if v == "done"));
+    assert_single_report(&normalizer.finish(), json!("done"));
 }
 
 #[test]

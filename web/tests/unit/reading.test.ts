@@ -8,32 +8,48 @@ import {
   isExpanded,
   followingTail,
 } from '../../src/runs/readingModel.ts'
-test('summaries retain real text and command/path inputs without changing the original payload', () => {
+
+test('message summaries use the first visible paragraph', () => {
   assert.equal(visibleSummary('# **Report**\n\n[More](./report.md)'), 'Report')
   assert.equal(visibleSummary(' \n\n 中文 **内容**'), '中文 内容')
-  assert.equal(inputSummary({ path: '/workspace/report.md', text: 'body' }), '/workspace/report.md')
-  assert.equal(inputSummary({ command: 'echo\n hello' }), 'echo hello')
   assert.equal(visibleSummary(null), '')
 })
-test('only the latest message automatically expands and explicit folding always wins', () => {
+test('tool summaries prefer path or command without changing the payload', () => {
+  const input = { path: '/workspace/report.md', text: 'body' }
+  assert.equal(inputSummary(input), '/workspace/report.md')
+  assert.deepEqual(input, { path: '/workspace/report.md', text: 'body' })
+  assert.equal(inputSummary({ command: 'echo\n hello' }), 'echo hello')
+})
+test('only the latest message automatically expands', () => {
   const state = freshReading()
   assert.equal(isExpanded(state, 'old', 'latest'), false)
   assert.equal(isExpanded(state, 'latest', 'latest'), true)
+})
+test('explicit row choices survive automatic expansion and collapse-all', () => {
+  const state = freshReading()
   state.expanded.latest = false
+  state.expanded.old = true
   assert.equal(isExpanded(state, 'latest', 'latest'), false)
   state.autoExpand = false
+  assert.equal(isExpanded(state, 'old', 'latest'), true)
   assert.equal(isExpanded(state, 'new', 'new'), false)
-  state.autoExpand = true
+})
+test('reading history keeps its automatic row when a newer message arrives', () => {
+  const state = freshReading()
   state.autoId = 'old'
   state.follow = false
   assert.equal(isExpanded(state, 'old', 'new'), true)
   assert.equal(isExpanded(state, 'new', 'new'), false)
 })
-test('preview is twelve lines, full output remains exact, following threshold includes 48 pixels', () => {
-  const text = Array.from({ length: 20 }, (_, i) => 'line ' + i).join('\n')
-  assert.equal(previewLines(text, false).text.split('\n').length, 12)
+test('payload preview truncates only beyond twelve lines and full mode preserves bytes', () => {
+  const lines = Array.from({ length: 13 }, (_, i) => 'line ' + i)
+  const boundary = lines.slice(0, 12).join('\n')
+  assert.deepEqual(previewLines(boundary, false), { text: boundary, truncated: false })
+  const text = lines.join('\n')
+  assert.deepEqual(previewLines(text, false), { text: boundary, truncated: true })
   assert.equal(previewLines(text, true).text, text)
-  assert.equal(previewLines(text, false).truncated, true)
+})
+test('tail following includes 48 pixels and stops immediately above that distance', () => {
   assert.equal(followingTail(48), true)
   assert.equal(followingTail(49), false)
 })

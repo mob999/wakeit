@@ -1,3 +1,6 @@
+mod support;
+use support::assert_single_report;
+
 use serde_json::{Value, json};
 use wakeit::{
     goose_adapter::GooseNormalizer,
@@ -52,9 +55,7 @@ fn official_stream_shape_produces_incremental_messages_and_tool_lifecycle() {
             .iter()
             .any(|r| matches!(r.record, RecordData::Result(_)))
     );
-    let result = normalizer.finish();
-    assert_eq!(result.len(), 1);
-    assert!(matches!(&result[0].record, RecordData::Result(v) if v == "测试通过。"));
+    assert_single_report(&normalizer.finish(), json!("测试通过。"));
     let serialized = serde_json::to_string(&records).unwrap();
     for hidden in [
         "private reasoning",
@@ -104,7 +105,7 @@ fn failed_tool_can_recover_and_duplicates_do_not_regress_its_terminal_state() {
     normalizer.accept(json!({"type":"complete"}));
     normalizer.accept(json!({"type":"error","error":"late error"}));
     assert!(!normalizer.failed());
-    assert!(matches!(&normalizer.finish()[0].record, RecordData::Result(v) if v == "Recovered"));
+    assert_single_report(&normalizer.finish(), json!("Recovered"));
 }
 
 #[test]

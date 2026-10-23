@@ -16,3 +16,5 @@ Codex 可通过 `$skill-installer` 指定 `mob999/wakeit` 的 `skills/wakeit` �
 Skill 自包含，安装后无需保留 Wakeit 源码仓库；需要源码构建时按连接指南获取仓库。安装包及 skill 由正式 Release 工作流一同交付，也可直接使用仓库中的 skill 目录。
 
 README 的维护技能另存于 `.agents/skills/readme-crafter-skill/`，用于仓库文档写作，不是产品的 Wakeit skill。
+
+测试审查与重构使用 [.agents/skills/unit-test-review/SKILL.md](../.agents/skills/unit-test-review/SKILL.md)。该开发技能按行为与边界识别冗余，保留必要的集成保护；覆盖归属与命令见 [测试策略](test-strategy.md)。复制整个目录到 Agent 的 skills 目录后可使用 `$unit-test-review`。

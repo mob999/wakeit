@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unit Test Review"
+  short_description: "Review behavioral coverage and refactor redundant tests"
+  default_prompt: "Use $unit-test-review to audit this test suite and refactor redundant coverage while preserving meaningful regressions."
