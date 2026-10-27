@@ -1,16 +1,31 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import * as Menu from '@radix-ui/react-dropdown-menu'
 import { t } from '../i18n'
-import { IconButton, Button } from '../ui'
+import { IconButton, Button, TooltipTarget } from '../ui'
 import { ActionIcon } from '../actions/ActionIcon'
 import { DirectoryPicker } from '../DirectoryPicker'
 import { ChoicePicker } from '../ChoicePicker'
 import type { Runner } from '../api'
 import type { InputSchema, Json, Overrides, TemplateIssue } from './types'
 import { emptyValue, types } from './document'
-import { issueText } from './utils'
 
 const owns = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key)
+function fieldHint(schema: InputSchema) {
+  return [
+    schema.description,
+    schema.minimum != null || schema.maximum != null
+      ? t('creation.range', { min: schema.minimum ?? '−∞', max: schema.maximum ?? '∞' })
+      : '',
+    schema.minItems != null || schema.maxItems != null
+      ? t('creation.listRange', { min: schema.minItems ?? 0, max: schema.maxItems ?? '∞' })
+      : '',
+    schema.minLength != null || schema.maxLength != null
+      ? t('creation.textRange', { min: schema.minLength ?? 0, max: schema.maxLength ?? '∞' })
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
 export function InputEditor({
   schema,
   value,
@@ -110,6 +125,7 @@ type ValueProps = {
   badge?: string
   actions?: React.ReactNode
   compact?: boolean
+  hideLabel?: boolean
 }
 function ValueField({
   schema,
@@ -123,29 +139,19 @@ function ValueField({
   badge,
   actions,
   compact,
+  hideLabel,
 }: ValueProps) {
   const id = useId()
-  const errors = issues.filter((issue) => issue.path === path)
   const kind = types(schema).find((type) => type !== 'null')
-  const constraint = [
-    schema.minimum != null || schema.maximum != null
-      ? t('creation.range', { min: schema.minimum ?? '−∞', max: schema.maximum ?? '∞' })
-      : '',
-    schema.minItems != null || schema.maxItems != null
-      ? t('creation.listRange', { min: schema.minItems ?? 0, max: schema.maxItems ?? '∞' })
-      : '',
-    schema.minLength != null || schema.maxLength != null
-      ? t('creation.textRange', { min: schema.minLength ?? 0, max: schema.maxLength ?? '∞' })
-      : '',
-  ]
+  const label = schema.title || path.replace(/^inputs\./, '')
+  const hint = [fieldHint(schema), kind === 'array' && schema.items ? fieldHint(schema.items) : '']
     .filter(Boolean)
-    .join(' · ')
+    .join('\n')
   const controlProps = {
     id,
     'aria-required': required,
-    'aria-invalid': !!errors.length,
-    'aria-describedby': `${id}-hint`,
-    'aria-label': schema.title || path,
+    'aria-describedby': hint ? `${id}-hint` : undefined,
+    'aria-label': label,
   }
   let control: React.ReactNode
   if (value === null)
@@ -296,6 +302,7 @@ function ValueField({
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Content className="dropdown" align="end">
+          {badge && <Menu.Label className="template-value-state">{badge}</Menu.Label>}
           {actions}
           {types(schema).includes('null') && (
             <Menu.Item disabled={value === null} onSelect={() => onChange(null)}>
@@ -320,30 +327,35 @@ function ValueField({
   ) : null
   return (
     <section
-      className={`template-value-field ${compact ? 'is-compact' : ''}`}
+      className={['template-value-field', compact && 'is-compact', hideLabel && 'is-unlabeled']
+        .filter(Boolean)
+        .join(' ')}
       data-input-path={path}
     >
       <div className="template-input-heading">
         <label htmlFor={id}>
-          {schema.title || path.replace(/^inputs\./, '')}
+          {label}
           {required && <span aria-label={t('taskTemplate.required')}> *</span>}
         </label>
-        {badge && <small className="quiet">{badge}</small>}
-        {!compact && menu}
+        {hint && !hideLabel && (
+          <IconButton
+            className="template-field-info"
+            label={`${label} — ${t('taskTemplate.details')}`}
+            tooltip={hint}
+          >
+            <ActionIcon name="info" />
+          </IconButton>
+        )}
       </div>
       <div className="template-field-control">
         {control}
-        {compact && menu}
+        {menu}
       </div>
-      <div id={`${id}-hint`} className="template-field-hint">
-        {!compact && schema.description && <small className="quiet">{schema.description}</small>}
-        {!compact && constraint && <small className="quiet">{constraint}</small>}
-        {errors.map((issue, index) => (
-          <small role="alert" className="template-field-error" key={index}>
-            {issueText(issue)}
-          </small>
-        ))}
-      </div>
+      {hint && (
+        <span id={`${id}-hint`} className="sr-only">
+          {hint}
+        </span>
+      )}
     </section>
   )
 }
@@ -398,32 +410,32 @@ function DirectoryField({
   runners: Runner[]
 }) {
   const [selected, setSelected] = useState('')
-  const browserRunner = runner ?? runners.find((item) => item.id === selected)
+  const browserRunner =
+    runner ?? (runners.length === 1 ? runners[0] : runners.find((item) => item.id === selected))
   return (
     <div className="template-directory-field">
-      {!runner && (
-        <ChoicePicker
-          label={t('taskTemplate.browseOn')}
-          value={selected}
-          placeholder={t('选择设备')}
-          searchable
-          onChange={setSelected}
-          options={runners.map((item) => ({
-            value: item.id,
-            label: item.name || item.id,
-            status: item.online ? undefined : t('离线'),
-          }))}
-        />
+      {!runner && runners.length > 1 && (
+        <TooltipTarget label={t('creation.directoryDevice')}>
+          <div className="template-directory-device">
+            <ChoicePicker
+              label={t('设备')}
+              value={selected}
+              placeholder={t('设备')}
+              searchable
+              onChange={setSelected}
+              options={runners.map((item) => ({
+                value: item.id,
+                label: item.name || item.id,
+                status: item.online ? undefined : t('离线'),
+              }))}
+            />
+          </div>
+        </TooltipTarget>
       )}
       <div className="template-directory-path">
         <input {...props} value={value} onChange={(event) => onChange(event.target.value)} />
         <DirectoryPicker compact runner={browserRunner} value={value} onChange={onChange} />
       </div>
-      {browserRunner && (
-        <small className="quiet">
-          {t('creation.browseDevice', { name: browserRunner.name || browserRunner.id })}
-        </small>
-      )}
     </div>
   )
 }
@@ -448,6 +460,7 @@ function ArrayField({
   if (rows.current.value !== value)
     rows.current = { value, ids: value.map(() => crypto.randomUUID()) }
   const dragging = useRef<number | null>(null)
+  const [draggedId, setDraggedId] = useState<string | null>(null)
   const itemSchema = schema.items ?? { type: 'string' }
   const properties =
     types(itemSchema).includes('object') &&
@@ -463,7 +476,9 @@ function ArrayField({
         Number(!itemSchema.required?.includes(a)) - Number(!itemSchema.required?.includes(b)),
     )
     .slice(0, 3)
-  const extra = properties.filter(([name]) => !columns.some(([column]) => column === name))
+  const extra = columns.length
+    ? properties.filter(([name]) => !columns.some(([column]) => column === name))
+    : []
   const change = (next: Json[], ids = rows.current.ids) => {
     rows.current = { value: next, ids }
     onChange(next)
@@ -489,7 +504,9 @@ function ArrayField({
         columns.length
           ? ({
               '--template-columns': columns
-                .map(([, spec]) => (types(spec).includes('boolean') ? '44px' : 'minmax(72px, 1fr)'))
+                .map(([, spec]) =>
+                  types(spec).includes('boolean') ? 'minmax(76px, 0.6fr)' : 'minmax(100px, 1fr)',
+                )
                 .join(' '),
             } as React.CSSProperties)
           : undefined
@@ -497,22 +514,14 @@ function ArrayField({
     >
       {columns.length > 0 && (
         <div className="template-array-columns">
-          <span>#</span>
+          <span aria-hidden="true" />
           {columns.map(([name, spec]) => (
-            <span
-              key={name}
-              title={[
-                spec.description,
-                spec.minLength != null
-                  ? t('creation.textRange', { min: spec.minLength, max: spec.maxLength ?? '∞' })
-                  : '',
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            >
-              {spec.title || name}
-              {itemSchema.required?.includes(name) ? ' *' : ''}
-            </span>
+            <TooltipTarget key={name} label={fieldHint(spec)} enabled={!!fieldHint(spec)}>
+              <span tabIndex={fieldHint(spec) ? 0 : undefined}>
+                {spec.title || name}
+                {itemSchema.required?.includes(name) ? ' *' : ''}
+              </span>
+            </TooltipTarget>
           ))}
           <span />
         </div>
@@ -535,28 +544,44 @@ function ArrayField({
           <div
             className="template-array-row"
             key={rows.current.ids[index]}
+            data-dragging={draggedId === rows.current.ids[index] || undefined}
             data-input-path={`${path}[${index}]`}
-            onDragOver={(event) => event.preventDefault()}
+            onDragOver={(event) => {
+              if (dragging.current === null) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+            }}
             onDrop={(event) => {
               event.preventDefault()
               if (dragging.current !== null) move(dragging.current, index)
               dragging.current = null
+              setDraggedId(null)
             }}
           >
             <div className="template-array-main">
-              <span
-                className="template-array-index"
+              <IconButton
+                label={t('creation.reorderItem')}
+                className="template-array-grip"
                 draggable
+                aria-keyshortcuts="ArrowUp ArrowDown"
+                onKeyDown={(event) => {
+                  if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return
+                  event.preventDefault()
+                  move(index, index + (event.key === 'ArrowUp' ? -1 : 1))
+                }}
                 onDragStart={(event) => {
                   dragging.current = index
+                  setDraggedId(rows.current.ids[index])
+                  event.dataTransfer.effectAllowed = 'move'
                   event.dataTransfer.setData('text/plain', rows.current.ids[index])
                 }}
                 onDragEnd={() => {
                   dragging.current = null
+                  setDraggedId(null)
                 }}
               >
-                {index + 1}
-              </span>
+                <span className="template-array-grip-dots" />
+              </IconButton>
               {columns.length ? (
                 columns.map(([name, spec]) => (
                   <ValueField
@@ -576,7 +601,8 @@ function ArrayField({
               ) : (
                 <ValueField
                   compact
-                  schema={itemSchema}
+                  hideLabel
+                  schema={{ ...itemSchema, title: itemSchema.title || schema.title || path }}
                   value={item}
                   path={`${path}[${index}]`}
                   onChange={(next) => update(index, next)}
@@ -587,7 +613,10 @@ function ArrayField({
               )}
               <Menu.Root>
                 <Menu.Trigger asChild>
-                  <IconButton label={t('creation.itemActions', { count: index + 1 })}>
+                  <IconButton
+                    className="template-array-actions"
+                    label={t('creation.itemActions', { count: index + 1 })}
+                  >
                     <ActionIcon name="more" />
                   </IconButton>
                 </Menu.Trigger>
@@ -655,26 +684,19 @@ function ArrayField({
                 ))}
               </details>
             )}
-            {issues
-              .filter((issue) => issue.path === `${path}[${index}]`)
-              .map((issue, i) => (
-                <small className="template-field-error" key={i}>
-                  {issueText(issue)}
-                </small>
-              ))}
           </div>
         )
       })}
       <div className="template-array-footer">
-        <small className="quiet">{t('creation.itemCount', { count: value.length })}</small>
-        <Button
+        <IconButton
+          label={t('taskTemplate.addItem')}
           disabled={schema.maxItems != null && value.length >= schema.maxItems}
           onClick={() =>
             change([...value, emptyValue(itemSchema)], [...rows.current.ids, crypto.randomUUID()])
           }
         >
-          {t('taskTemplate.addItem')}
-        </Button>
+          <ActionIcon name="add" />
+        </IconButton>
       </div>
     </div>
   )

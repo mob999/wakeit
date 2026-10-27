@@ -961,5 +961,11 @@
   "creation.emptyObject": "设为空对象",
   "creation.setYes": "设为是",
   "creation.setNo": "设为否",
-  "creation.agentDefaults": "使用 Agent 默认参数"
+  "creation.agentDefaults": "使用 Agent 默认参数",
+  "creation.reorderItem": "拖动调整顺序，也可使用上移／下移菜单",
+  "creation.directoryDevice": "选择用于查找目录的设备",
+  "creation.resizeParameters": "调整参数区宽度",
+  "creation.businessInputs": "业务参数",
+  "creation.resizeConfiguration": "调整执行配置宽度",
+  "creation.parameterError": "{{name}}：{{message}}"
 }

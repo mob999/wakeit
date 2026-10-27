@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { t } from '../i18n'
 import { ChoicePicker } from '../ChoicePicker'
 import { ModelPicker, ParameterFields } from '../ModelPicker'
 import { Field, Button } from '../ui'
 import type { Runner } from '../api'
 import type { Binding, TemplateIssue } from './types'
-import { issueText } from './utils'
 
 export function BindingFields({
   title,
@@ -14,7 +13,6 @@ export function BindingFields({
   value,
   runners,
   directories,
-  issues,
   onChange,
 }: {
   title: string
@@ -35,25 +33,24 @@ export function BindingFields({
     parameters = value.parameters ?? defaults.parameters ?? {}
   const runner = runners.find((runner) => runner.id === runnerId || runner.name === runnerId),
     agent = runner?.agents.find((agent) => agent.id === agentId)
-  const errors = issues.filter(
-    (issue) => issue.path === `bindings.${slot}` || issue.path.startsWith(`bindings.${slot}.`),
-  )
-  const details = useRef<HTMLDetailsElement>(null)
-  useEffect(() => {
-    if (errors.length && details.current) details.current.open = true
-  }, [errors.length])
   return (
     <details
-      ref={details}
       open={!runner || !agent ? true : undefined}
       className="template-binding"
       data-input-path={`bindings.${slot}`}
     >
       <summary>
         <span>{title}</span>
-        <small className="quiet">
-          {runner?.name || t('选择设备')} · {agent?.name || t('选择 Agent')}
-        </small>
+        <span className="template-binding-summary">
+          <span>
+            <span className="quiet">{t('设备')}</span>
+            <span>{runner?.name || t('选择设备')}</span>
+          </span>
+          <span>
+            <span className="quiet">Agent</span>
+            <span>{agent?.name || t('选择 Agent')}</span>
+          </span>
+        </span>
       </summary>
       <div className="template-binding-body">
         {Object.keys(value).length > 0 && (
@@ -128,11 +125,6 @@ export function BindingFields({
             />
           </details>
         </div>
-        {errors.map((issue, index) => (
-          <small className="template-field-error" role="alert" key={index}>
-            {issueText(issue)}
-          </small>
-        ))}
       </div>
     </details>
   )

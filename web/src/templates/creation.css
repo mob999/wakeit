@@ -44,55 +44,178 @@
   min-height: 0;
   overflow: hidden;
 }
-.creation-task-form > form > .modal-body {
-  flex: 1;
-  padding: 12px;
-}
-.creation-task-form .editor-fields {
-  width: 100%;
-  margin: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
-  grid-template-rows: repeat(5, max-content) minmax(max-content, 1fr);
-  min-height: 100%;
-  height: 100%;
-  gap: 10px 24px;
-  align-content: start;
-}
-.creation-task-content,
-.creation-task-form .task-core {
-  display: contents;
-}
-.creation-task-form .task-core > .field:first-child {
-  grid-column: 1 / -1;
-}
-.creation-task-form .task-core > .field:nth-child(2) {
-  grid-column: 1;
-  grid-row: 2 / span 5;
+.creation-task-fields {
   display: flex;
   flex-direction: column;
-  margin-bottom: 0;
-}
-.creation-task-form .task-core > .field:nth-child(2) textarea {
   flex: 1;
-  min-height: 380px;
-}
-.creation-task-form .task-core > .form-grid,
-.creation-task-form .task-core > .field:not(:first-child):not(:nth-child(2)),
-.creation-task-form .editor-fields > .creation-schedule,
-.creation-task-content > .advanced-settings {
-  grid-column: 2;
+  min-height: 0;
   min-width: 0;
-  align-self: start;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
 }
-.creation-task-form .editor-fields .field {
-  margin-bottom: 0;
+.creation-name-row,
+.creation-dag-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
-.creation-task-form .editor-fields .advanced-settings {
-  margin-top: 0;
+.creation-name-row > .field {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
 }
-.creation-task-form .creation-schedule > summary {
-  flex-wrap: wrap;
+.creation-name-row label,
+.creation-dag-name > label {
+  flex: 0 0 96px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.creation-name-row input,
+.creation-dag-name > input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.creation-workspace {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--creation-side-width, 380px);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.creation-main-pane,
+.creation-side-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.creation-side-pane {
+  border-left: 1px solid var(--border);
+}
+.creation-pane-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.creation-pane-body,
+.creation-section-body,
+.creation-task-properties {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px;
+  min-width: 0;
+}
+.creation-task-form .creation-side-pane .field,
+.creation-field-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  min-height: 30px;
+  margin: 0;
+  font-size: 12px;
+}
+.creation-task-form .creation-side-pane .field > label,
+.creation-field-row > label {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.creation-task-form .creation-side-pane .field > :not(label),
+.creation-field-row > :not(label) {
+  min-width: 0;
+  grid-column: 2;
+}
+.creation-task-form .creation-side-pane .form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.creation-task-instruction {
+  padding: 12px 16px;
+}
+.creation-task-instruction > .field {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+  height: 100%;
+  min-height: 240px;
+  margin: 0;
+}
+.creation-task-instruction > .field > label {
+  padding-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.creation-task-instruction textarea {
+  height: 100%;
+  min-height: 240px;
+  min-width: 0;
+}
+.creation-section,
+.creation-task-form .creation-side-pane .advanced-settings {
+  margin: 0;
+  border-top: 1px solid var(--border);
+}
+.creation-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 16px;
+  font-size: 12px;
+}
+.creation-task-form .creation-section-body > .advanced-settings > summary {
+  padding: 8px 0;
+}
+.creation-task-form .creation-section-body > .advanced-settings > .advanced-body {
+  display: grid;
+  gap: 12px;
+  padding-top: 8px;
+}
+.creation-task-form .creation-section-body > .preview {
+  margin: 0;
+}
+.creation-pane-resizer {
+  width: 8px;
+  z-index: 6;
+}
+.creation-modal .creation-footer,
+.creation-modal .modal-footer,
+.creation-modal .dag-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 44px;
+  padding: 7px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--raised);
+  flex-shrink: 0;
 }
 .creation-schedule-summary {
   display: inline-flex;
@@ -103,22 +226,6 @@
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-.creation-dag-form .dag-stepbar > .creation-schedule-summary {
-  margin-left: auto;
-}
-.creation-task-form .creation-schedule .form-grid {
-  grid-template-columns: 1fr;
-}
-.creation-task-form .creation-schedule[open] > summary {
-  margin-bottom: 12px;
-}
-.creation-task-form .modal-footer {
-  padding: 8px 12px;
-  min-height: 44px;
-}
-.creation-schedule {
-  margin-top: 12px;
-}
 .creation-dag-form {
   flex: 1;
   min-height: 0 !important;
@@ -126,22 +233,6 @@
 }
 .creation-dag-form:not(.is-fullscreen) {
   height: auto;
-}
-.creation-dag-name {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.creation-dag-name label {
-  font-size: 12px;
-  flex-shrink: 0;
-}
-.creation-dag-name input {
-  width: min(460px, 100%);
-  font-size: 12px;
 }
 .creation-dag-sections {
   display: flex;
@@ -155,10 +246,6 @@
   border: 0;
   min-height: 36px;
   cursor: pointer;
-}
-.creation-dag-form .dag-editor-footer {
-  padding: 8px 12px;
-  min-height: 44px;
 }
 .creation-dag-form .dag-toolbar {
   gap: 8px;
@@ -180,6 +267,11 @@
   padding: 4px 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+.preset-choice-heading.creation-name-row {
+  min-height: 44px;
+  padding: 7px 16px;
+  flex-wrap: nowrap;
 }
 .preset-choice-heading > strong {
   min-width: 0;
@@ -210,8 +302,6 @@
   min-width: 0;
 }
 .preset-creation .modal-footer {
-  padding: 8px 12px;
-  min-height: 44px;
   flex-wrap: wrap;
 }
 .creation-validation {
@@ -226,11 +316,33 @@
   min-height: 0;
   flex: 1;
 }
-.preset-catalog > input {
-  margin: 12px;
-  width: calc(100% - 24px);
-  font-size: 12px;
+.preset-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px;
+  padding: 0 8px;
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   flex-shrink: 0;
+  color: var(--muted);
+}
+.preset-search-field:focus-within {
+  border-color: var(--muted);
+}
+.preset-search-field > .action-icon,
+.preset-search-field > svg {
+  flex-shrink: 0;
+}
+.preset-search-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  font-size: 12px;
 }
 .preset-catalog-list {
   flex: 1;
@@ -310,34 +422,102 @@
 }
 
 @container creation (max-width: 799px) {
-  .creation-task-form .editor-fields {
-    display: block;
-    min-height: auto;
-    height: auto;
+  .creation-workspace {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
   }
-  .creation-task-content,
-  .creation-task-form .task-core {
-    display: block;
+  .creation-main-pane,
+  .creation-side-pane {
+    flex: none;
+    overflow: visible;
   }
-  .creation-task-form .editor-fields .field {
-    margin-bottom: 12px;
+  .creation-side-pane {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
-  .creation-task-form .task-core > .field:nth-child(2) textarea {
+  .creation-task-instruction > .field,
+  .creation-task-instruction textarea {
     min-height: 180px;
   }
-  .creation-task-form .editor-fields .advanced-settings {
-    margin-top: 12px;
-  }
-  .creation-task-form .creation-schedule .form-grid {
-    grid-template-columns: 1fr 1fr;
+  .creation-pane-resizer {
+    display: none;
   }
   .creation-dag-form .dag-stepbar {
     flex-wrap: wrap;
   }
-  .creation-dag-form .dag-stepbar > .creation-schedule-summary {
-    flex-basis: 100%;
-    margin: 0;
-    padding: 0 12px 8px;
-    order: 2;
+}
+@container creation (max-width: 499px) {
+  .creation-name-row,
+  .creation-dag-name {
+    padding: 7px 12px;
   }
+  .creation-name-row > .field,
+  .creation-task-form .creation-side-pane .field,
+  .creation-task-instruction > .field,
+  .creation-field-row {
+    grid-template-columns: 72px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+  .creation-name-row label,
+  .creation-dag-name > label {
+    flex-basis: 72px;
+  }
+  .creation-task-instruction,
+  .creation-pane-body,
+  .creation-section-body,
+  .creation-task-properties {
+    padding: 12px;
+  }
+  .creation-section > summary {
+    padding: 8px 12px;
+  }
+}
+.creation-dag-form .dag-floating-panel {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+.creation-dag-form .dag-floating-header {
+  min-height: 36px;
+  padding: 4px 16px;
+  border-radius: 0;
+}
+.creation-dag-form .dag-floating-body {
+  border-radius: 0;
+}
+.creation-dag-form .dag-config-body .field,
+.creation-dag-form .dag-settings-rows > .field {
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px 12px;
+  padding: 8px 16px;
+  min-height: 44px;
+}
+.creation-dag-form .dag-environment-fields {
+  display: block;
+}
+.creation-dag-form .dag-environment-fields .field + .field {
+  border-left: 0;
+}
+.creation-dag-form .dag-environment-fields .field > label {
+  margin: 0;
+  padding: 0;
+}
+.creation-dag-form .dag-time-scroll {
+  padding: 12px 16px;
+}
+.creation-dag-form .dag-time-page > .content-card {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+.creation-dag-form .dag-time-page .card-header {
+  min-height: 36px;
+  padding: 4px 16px;
 }

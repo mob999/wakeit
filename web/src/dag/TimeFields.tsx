@@ -1,4 +1,3 @@
-import { ErrorToast } from '../Toast'
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, time, type TaskConfig, type DagIssue } from '../api'
@@ -43,8 +42,7 @@ export function TimeFields({
       config.schedule?.timezone || timezone,
     ),
   }))
-  const [editing, setEditing] = useState(false),
-    [settled, setSettled] = useState('')
+  const [settled, setSettled] = useState('')
   const zones = useQuery<string[]>({
     queryKey: ['timezones'],
     queryFn: () => api('/timezones'),
@@ -179,10 +177,7 @@ export function TimeFields({
                   type={kind === 'at' ? 'datetime-local' : 'text'}
                   step={kind === 'at' ? 1 : undefined}
                   value={drafts[kind as keyof typeof drafts]}
-                  onFocus={() => setEditing(true)}
-                  onBlur={() => setEditing(false)}
                   onChange={(e) => {
-                    setEditing(true)
                     apply(kind, { ...drafts, [kind]: e.target.value })
                   }}
                 />
@@ -202,9 +197,6 @@ export function TimeFields({
                   {preview.error && <Button onClick={() => preview.refetch()}>{t('重试')}</Button>}
                 </div>
               </div>
-              {active && !editing && (localError || preview.error) && (
-                <ErrorToast>{localError || preview.error!.message}</ErrorToast>
-              )}
             </>
           )}
         </div>

@@ -90,6 +90,7 @@ export function AgentPalette({
                   className="dag-agent-entry"
                   disabled={disabled}
                   aria-label={t('dag.agentOnDevice', { agent: agent.name, runner: r.name })}
+                  onDragStart={(event) => event.preventDefault()}
                   onPointerDown={(event) => {
                     if (disabled || event.button !== 0) return
                     event.currentTarget.setPointerCapture(event.pointerId)
@@ -103,6 +104,7 @@ export function AgentPalette({
                   onPointerMove={(e) => pointer(e, 'move')}
                   onPointerUp={(e) => pointer(e, 'drop')}
                   onPointerCancel={(e) => pointer(e, 'cancel')}
+                  onLostPointerCapture={(e) => pointer(e, 'cancel')}
                   onClick={(e) => {
                     if (e.detail === 0 && !disabled) onChoose({ runner: r, agent })
                   }}

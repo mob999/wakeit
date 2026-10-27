@@ -10,7 +10,13 @@ export function AgentLogo({ name, logo }: { name: string; logo?: string | null }
   return (
     <span className="agent-logo" aria-hidden="true">
       {source && failed !== source ? (
-        <img src={source} alt="" referrerPolicy="no-referrer" onError={() => setFailed(source)} />
+        <img
+          src={source}
+          alt=""
+          draggable={false}
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(source)}
+        />
       ) : (
         <span>{Array.from(name.trim())[0]?.toLocaleUpperCase() ?? '?'}</span>
       )}

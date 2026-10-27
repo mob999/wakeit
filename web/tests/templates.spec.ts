@@ -191,7 +191,8 @@ test('one plus opens Task/DAG/Preset tabs, preserves drafts and confirms cancell
   await expect(dialog.getByRole('tab')).toHaveText(['任务', 'DAG', '预设'])
   await dialog.getByRole('textbox', { name: '任务名称', exact: true }).fill('Synthetic task draft')
   await dialog.getByRole('textbox', { name: '指令', exact: true }).fill('Preserve this instruction')
-  await expect(dialog.locator('.creation-schedule > summary')).toContainText('0 9 * * *')
+  await expect(dialog.locator('.creation-schedule > summary')).toHaveText('调度设置')
+  await dialog.locator('.creation-schedule > summary').click()
   await page.screenshot({ path: test.info().outputPath('creation-task-wide.png') })
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
@@ -234,9 +235,10 @@ test('required parameters are editable, numeric drafts and defaults survive tab/
   const session = dialog.locator('.preset-session:visible')
   const input = session.getByLabel('仓库地址', { exact: true })
   await expect(input).toBeVisible()
-  await expect(session.getByRole('button', { name: '创建', exact: true })).toBeDisabled()
-  await expect(session.locator('.template-issues')).toContainText('inputs.repository')
-  await session.locator('.template-issues button').first().click()
+  await expect(session.locator('.template-issues, .template-field-error')).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await session.getByRole('button', { name: '创建', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('仓库地址')
   await expect(input).toBeFocused()
   await input.fill('https://example.com/first')
   await session.getByLabel('比例', { exact: true }).fill('')
@@ -359,7 +361,21 @@ test('preset catalog is read-only, invalid links show errors, and use opens acce
   await loginSession(page, stack.username, password)
   const def = await seed(page, dagDefinition('Read-only preset'))
   await page.goto(`/w/${workspace}/presets?template=${def.id}`)
-  await expect(page.locator('.preset-readonly')).toContainText(def.description)
+  await expect(page.locator('.preset-overview')).toContainText(def.description)
+  const overview = page.locator('.preset-overview')
+  await expect(overview.locator('.task-overview-primary')).toContainText('仓库')
+  await expect(overview.locator('.task-overview-context dt')).toContainText(['设备', 'Agent'])
+  await expect(overview.locator('.task-overview-context')).not.toContainText('·')
+  await expect(page.locator('.preset-source')).toHaveCount(0)
+  await expect(page.locator('.preset-row .row-meta')).toHaveCount(0)
+  await page.screenshot({ path: test.info().outputPath('preset-overview-wide.png') })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(overview).toHaveAttribute('data-size', 'small')
+  expect(await overview.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  )
+  await page.screenshot({ path: test.info().outputPath('preset-overview-narrow.png') })
+  await page.setViewportSize({ width: 1440, height: 900 })
   await expect(page.getByRole('button', { name: '新建预设', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '预设操作', exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '使用预设', exact: true }).click()
@@ -400,7 +416,7 @@ test('preset catalog is read-only, invalid links show errors, and use opens acce
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
   await page.goto(`/w/${workspace}/presets?template=missing-preset`)
   await expect(page.getByRole('alert')).toBeVisible()
-  await expect(page.locator('.preset-readonly')).toHaveCount(0)
+  await expect(page.locator('.preset-overview')).toHaveCount(0)
 })
 
 test('parameter updates keep the graph view and model input; a new preset revision requires explicit loading', async ({
@@ -498,10 +514,11 @@ test('conditional environments remain editable with an old preview, and missing/
   await page.getByRole('menuitem', { name: '设为空列表', exact: true }).click()
   await session.getByRole('button', { name: '空布尔值 的参数操作', exact: true }).click()
   await page.getByRole('menuitem', { name: '设为否', exact: true }).click()
-  await session.getByRole('switch', { name: 'inputs.summarize', exact: true }).check()
+  await session.getByRole('switch', { name: 'summarize', exact: true }).check()
   const binding = session.locator('[data-input-path="bindings.summary"]')
   await expect(binding).toBeVisible()
-  await expect(create).toBeDisabled()
+  await create.click()
+  await expect(page.getByRole('alert')).toBeVisible()
   await selectChoice(page, binding, '汇总环境 的设备', stack.runner_name)
   await selectChoice(page, binding, '汇总环境 的 Agent', 'Mock Events')
   await expect(create).toBeEnabled()
@@ -532,12 +549,120 @@ test('a failed initial preview still allows correcting model parameters without 
   await choosePreset(page, dialog, def.name)
   const session = dialog.locator('.preset-session:visible')
   const create = session.getByRole('button', { name: '创建', exact: true })
-  await expect(session.locator('.template-issues')).toBeVisible()
-  await expect(create).toBeDisabled()
+  await expect(session.locator('.template-issues, .template-field-error')).toHaveCount(0)
+  await expect(create).toBeEnabled()
+  await create.click()
+  await expect(page.getByRole('alert')).toBeVisible()
   const model = session.getByRole('textbox', { name: '模型', exact: true })
   await model.fill('')
   await model.pressSequentially('fixed-model', { delay: 120 })
   await expect(model).toBeFocused()
   await expect(model).toHaveValue('fixed-model')
   await expect(create).toBeEnabled()
+})
+
+test('adding an unfinished repository stays silent; submit reports once and focuses it', async ({
+  page,
+}) => {
+  await loginSession(page, stack.username, password)
+  const def = ordinaryDefinition('Repository list') as any
+  def.inputs.properties.repository = {
+    type: 'array',
+    title: '仓库地址',
+    minItems: 1,
+    description: 'Each entry is a repository address.',
+    items: { type: 'string', title: '仓库地址', minLength: 1, format: 'repository-url' },
+    default: ['https://github.com/example/project'],
+  }
+  def.task.name = 'Repository review'
+  def.task.prompt = { template: 'Review [[ inputs.repository | join(", ") ]]' }
+  await seed(page, def)
+  const dialog = await openCreation(page, '预设')
+  await choosePreset(page, dialog, def.name)
+  const session = dialog.locator('.preset-session:visible')
+  await expect(session.locator('.template-preview-pane').getByRole('status')).toContainText(
+    '可以创建',
+  )
+  const list = session.locator('[data-input-path="inputs.repository"]').first()
+  const response = page.waitForResponse((response) =>
+    response.url().endsWith(`/task-templates/${def.id}/preview`),
+  )
+  await list.getByRole('button', { name: '添加一项', exact: true }).click()
+  await response
+  const empty = list.locator('input').nth(1)
+  await expect(empty).toHaveValue('')
+  await expect(
+    session.locator('[aria-invalid=true], .template-field-error, .template-issues'),
+  ).toHaveCount(0)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(list.locator('.template-array-footer > :not(button)')).toHaveCount(0)
+  await expect(list.locator('.template-array-footer button svg')).toBeVisible()
+  await session.getByRole('button', { name: '创建', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveCount(1)
+  await expect(page.getByRole('alert')).toContainText('仓库地址')
+  await expect(empty).toBeFocused()
+  await page.screenshot({ path: test.info().outputPath('repository-submit-toast.png') })
+  await empty.fill('https://github.com/example/another')
+  const splitter = session.getByRole('separator', { name: '调整参数区宽度' })
+  const before = Number(await splitter.getAttribute('aria-valuenow'))
+  await splitter.focus()
+  await splitter.press('ArrowRight')
+  await expect(splitter).toHaveAttribute('aria-valuenow', String(before + 10))
+  await page.screenshot({ path: test.info().outputPath('repository-parameters.png') })
+})
+
+test('DAG palette drag uses viewport coordinates and canvas supports node movement and panning', async ({
+  page,
+}) => {
+  await loginSession(page, stack.username, password)
+  const dialog = await openCreation(page, 'DAG')
+  const entry = dialog.getByRole('button', {
+    name: `${stack.runner_name} 上的 Mock Events`,
+    exact: true,
+  })
+  const logo = await entry.locator('.agent-logo').boundingBox()
+  const canvas = dialog.locator('.react-flow__pane')
+  const rect = await canvas.boundingBox()
+  expect(logo).toBeTruthy()
+  expect(rect).toBeTruthy()
+  const x = rect!.x + rect!.width * 0.45,
+    y = rect!.y + rect!.height * 0.4
+  await page.mouse.move(logo!.x + 6, logo!.y + 6)
+  await page.mouse.down()
+  await page.mouse.move(x, y, { steps: 12 })
+  const ghost = page.locator('body > .dag-agent-ghost')
+  await expect(ghost).toBeVisible()
+  const shadow = await ghost.boundingBox()
+  expect(Math.abs(shadow!.x + shadow!.width / 2 - x)).toBeLessThan(3)
+  expect(Math.abs(shadow!.y + shadow!.height / 2 - y)).toBeLessThan(3)
+  await page.mouse.up()
+  await expect(ghost).toHaveCount(0)
+  const node = dialog.locator('.react-flow__node').first()
+  await expect(node).toBeVisible()
+  await dialog
+    .locator('.dag-floating-panel')
+    .getByRole('button', { name: '关闭', exact: true })
+    .click()
+  const position = await node.boundingBox()
+  await page.mouse.move(position!.x + 70, position!.y + 48)
+  await page.mouse.down()
+  await page.mouse.move(position!.x + 170, position!.y + 108, { steps: 12 })
+  const moved = await node.boundingBox()
+  expect(moved!.x - position!.x).toBeGreaterThan(60)
+  // A real Runner refresh must not reset a node still being dragged.
+  await page.waitForResponse((response) => response.url().endsWith('/runners'))
+  const refreshed = await node.boundingBox()
+  expect(Math.abs(refreshed!.x - moved!.x)).toBeLessThan(3)
+  await page.mouse.up()
+  const viewport = dialog.locator('.react-flow__viewport')
+  const transform = await viewport.getAttribute('style')
+  await page.mouse.move(rect!.x + rect!.width - 30, rect!.y + rect!.height - 40)
+  await page.mouse.down()
+  await page.mouse.move(rect!.x + rect!.width - 110, rect!.y + rect!.height - 100, { steps: 10 })
+  await page.mouse.up()
+  await expect(viewport).not.toHaveAttribute('style', transform!)
+  await page.screenshot({ path: test.info().outputPath('dag-creation-drag.png') })
+  await dialog.getByRole('button', { name: '调度设置', exact: true }).click()
+  await expect(dialog.locator('.dag-stepbar')).not.toContainText('Cron')
+  await page.screenshot({ path: test.info().outputPath('dag-creation-schedule.png') })
 })

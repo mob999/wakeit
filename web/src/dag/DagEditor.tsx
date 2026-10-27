@@ -1,8 +1,8 @@
-import { ScheduleSummary } from '../ScheduleSummary'
 import { promptBlank } from './prompt'
 import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast, useToast } from '../Toast'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBlocker } from '@tanstack/react-router'
@@ -691,7 +691,6 @@ export function DagEditor({
             </button>
           ))}
         </div>
-        {embedded && <ScheduleSummary schedule={config.schedule} enabled={config.enabled} />}
         <div className="dag-toolbar" hidden={step !== 'task'}>
           <div className="dag-toolbar-actions">
             <div className="action-group" role="group" aria-label={t('actions.view')}>
@@ -1238,16 +1237,19 @@ export function DagEditor({
           </Button>
         </div>
       </Modal>
-      {ghost && (
-        <div
-          className="dag-agent-ghost"
-          style={{ left: ghost.point.x - 120, top: ghost.point.y - 48 }}
-        >
-          <AgentLogo name={ghost.choice.agent.name} logo={ghost.choice.agent.logo} />
-          <strong>{ghost.choice.agent.name}</strong>
-          <span>{ghost.choice.runner.name}</span>
-        </div>
-      )}
+      {ghost &&
+        createPortal(
+          <div
+            className="dag-agent-ghost"
+            aria-hidden="true"
+            style={{ left: ghost.point.x - NODE_WIDTH / 2, top: ghost.point.y - NODE_HEIGHT / 2 }}
+          >
+            <AgentLogo name={ghost.choice.agent.name} logo={ghost.choice.agent.logo} />
+            <strong>{ghost.choice.agent.name}</strong>
+            <span>{ghost.choice.runner.name}</span>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

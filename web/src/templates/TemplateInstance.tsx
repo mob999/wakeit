@@ -1,4 +1,3 @@
-import { ScheduleSummary } from '../ScheduleSummary'
 import YAML from 'yaml'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -8,7 +7,6 @@ import { t } from '../i18n'
 import { Button } from '../ui'
 import { CopyValue } from '../runs/CopyValue'
 import { useToast } from '../Toast'
-import { ErrorToast } from '../Toast'
 import { DagGraph } from '../dag/DagGraph'
 import { promptText } from '../dag/prompt'
 import { outputs } from '../dag/model'
@@ -16,10 +14,20 @@ import { InputEditor } from './InputEditor'
 import { BindingFields } from './BindingFields'
 import { parseOverrides } from './document'
 import { issueText } from './utils'
+import { PaneResizeHandle } from '../PaneResizeHandle'
+import type { CSSProperties } from 'react'
 import type { Binding, Overrides, Preview, Request, TemplateIssue, TemplateRecord } from './types'
 import './templates.css'
 
 const blank: Overrides = { values: {}, unset: [] }
+
+export class TemplateValidationError extends Error {
+  constructor(public issues: TemplateIssue[]) {
+    super(issueText(issues[0]))
+  }
+}
+
+export type IssueFocus = { issue: TemplateIssue; token: number }
 
 export type InstanceResult = { task_id: string; run_id: string | null }
 
@@ -128,9 +136,12 @@ export function useTemplateInstance({
           )
       } catch (error) {
         if (!controller.signal.aborted && seq === generation.current) {
-          setFailure((error as Error).message)
-          if (error instanceof ApiError)
-            setActionIssues((error.body as { issues?: TemplateIssue[] })?.issues ?? [])
+          const issues =
+            error instanceof ApiError
+              ? ((error.body as { issues?: TemplateIssue[] })?.issues ?? [])
+              : []
+          setActionIssues(issues)
+          if (!issues.length) setFailure((error as Error).message)
         }
       } finally {
         if (!controller.signal.aborted && seq === generation.current) setPendingPreview(false)
@@ -161,15 +172,35 @@ export function useTemplateInstance({
   }
 
   async function create(run_now = false): Promise<InstanceResult> {
-    if (pendingPreview) throw new Error(t('taskTemplate.updating'))
-    if (!record || !current || !preview?.config) throw new Error(t('taskTemplate.stale'))
-    const body = { ...request, run_now },
-      keySignature = JSON.stringify(body)
-    if (operation.current?.signature !== keySignature)
-      operation.current = { signature: keySignature, key: crypto.randomUUID() }
+    if (valueError) throw new Error(t(valueError))
+    if (record.archived_at) throw new Error(t('已归档'))
     setPending(true)
     setActionIssues([])
     try {
+      // Submission validates exactly this snapshot, even while a debounced preview is pending.
+      let validated = fresh ? preview : null
+      if (!validated) {
+        const seq = ++generation.current
+        setPendingPreview(true)
+        try {
+          validated = await api<Preview>(
+            `/task-templates/${encodeURIComponent(record.id)}/preview`,
+            'POST',
+            { ...request, request_id: String(seq) },
+          )
+          setPreview(validated)
+          setPreviewSignature(signature)
+          setFailure('')
+        } finally {
+          setPendingPreview(false)
+        }
+      }
+      if (validated.issues.length) throw new TemplateValidationError(validated.issues)
+      if (!validated.config) throw new Error(t('taskTemplate.fillInputs'))
+      const body = { ...request, run_now },
+        keySignature = JSON.stringify(body)
+      if (operation.current?.signature !== keySignature)
+        operation.current = { signature: keySignature, key: crypto.randomUUID() }
       const result = await api<InstanceResult>(
         `/task-templates/${encodeURIComponent(record.id)}/instantiate`,
         'POST',
@@ -180,8 +211,10 @@ export function useTemplateInstance({
       client.invalidateQueries({ queryKey: ['runs'] })
       return result
     } catch (error) {
-      if (error instanceof ApiError)
-        setActionIssues((error.body as { issues?: TemplateIssue[] })?.issues ?? [])
+      if (error instanceof ApiError) {
+        const issues = (error.body as { issues?: TemplateIssue[] })?.issues ?? []
+        if (issues.length) throw new TemplateValidationError(issues)
+      }
       throw error
     } finally {
       setPending(false)
@@ -222,13 +255,19 @@ export function useTemplateInstance({
 
 export function TemplateInstanceView({
   instance,
-  issueRequest = 0,
+  issueRequest,
+  active = true,
 }: {
   instance: ReturnType<typeof useTemplateInstance>
-  issueRequest?: number
+  issueRequest?: IssueFocus
+  active?: boolean
 }) {
   useTranslation()
-  const runners = useQuery<Runner[]>({ queryKey: ['runners'], queryFn: () => api('/runners') })
+  const runners = useQuery<Runner[]>({
+    queryKey: ['runners'],
+    queryFn: () => api('/runners'),
+    enabled: active,
+  })
   const {
     definition,
     current,
@@ -245,10 +284,30 @@ export function TemplateInstanceView({
     changeRaw,
     selected,
     setSelected,
-    issues,
   } = instance
+  const toast = useToast()
+  const reportedFailure = useRef('')
+  useEffect(() => {
+    const message = failure || runners.error?.message || ''
+    if (!active || !message) return
+    if (reportedFailure.current !== message) {
+      reportedFailure.current = message
+      toast(message)
+    }
+  }, [active, failure, runners.error, toast])
   const [pane, setPane] = useState<'parameters' | 'preview'>('parameters')
   const root = useRef<HTMLDivElement>(null)
+  const [parameterWidth, setParameterWidth] = useState(560)
+  const [availableWidth, setAvailableWidth] = useState(0)
+  useEffect(() => {
+    const element = root.current
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => setAvailableWidth(entry.contentRect.width))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  const maxWidth = Math.max(320, availableWidth - 360)
+  const paneWidth = Math.min(parameterWidth, maxWidth)
   const lastPreview = useRef<Preview | null>(null)
   if (instance.preview?.config) lastPreview.current = instance.preview
   const preview = lastPreview.current
@@ -320,17 +379,32 @@ export function TemplateInstanceView({
         field.scrollIntoView({ block: 'nearest' })
         target?.focus({ preventScroll: true })
       } else {
-        const summary = root.current?.querySelector<HTMLElement>('.template-issues')
-        summary?.scrollIntoView({ block: 'nearest' })
-        summary?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
+        root.current?.querySelector<HTMLTextAreaElement>('.template-raw-values textarea')?.focus()
       }
     })
   }
   useEffect(() => {
-    if (issueRequest && issues[0]) focusIssue(issues[0])
+    if (issueRequest) focusIssue(issueRequest.issue)
   }, [issueRequest])
   return (
-    <div className="template-instance" ref={root} data-pane={pane}>
+    <div
+      className="template-instance"
+      ref={root}
+      data-pane={pane}
+      style={{ '--template-parameter-width': `${paneWidth}px` } as CSSProperties}
+    >
+      {availableWidth >= 800 && (
+        <PaneResizeHandle
+          label={t('creation.resizeParameters')}
+          width={paneWidth}
+          min={320}
+          max={maxWidth}
+          edge="left"
+          onResize={setParameterWidth}
+          onReset={() => setParameterWidth(560)}
+          style={{ left: paneWidth - 4, top: 0, bottom: 0, width: 8 }}
+        />
+      )}
       <div className="template-mobile-switch" role="group" aria-label={t('creation.presetView')}>
         <Button aria-pressed={pane === 'parameters'} onClick={() => setPane('parameters')}>
           {t('taskTemplate.inputs')}
@@ -365,15 +439,13 @@ export function TemplateInstanceView({
         <div className="template-pane-scroll">
           {definition && visibleBindings.length > 0 && (
             <section className="template-bindings" aria-label={t('taskTemplate.bindings')}>
+              <h3 className="template-section-heading">{t('taskTemplate.bindings')}</h3>
               {runners.isPending ? (
                 <p className="quiet padded" role="status">
                   {t('正在加载…')}
                 </p>
               ) : runners.error ? (
-                <ErrorToast>
-                  {runners.error.message}
-                  <Button onClick={() => runners.refetch()}>{t('重试')}</Button>
-                </ErrorToast>
+                <Button onClick={() => runners.refetch()}>{t('重试')}</Button>
               ) : !allRunners.length ? (
                 <p className="quiet padded">{t('暂无设备')}</p>
               ) : (
@@ -421,7 +493,7 @@ export function TemplateInstanceView({
                       value={bindings[slot] ?? {}}
                       runners={allRunners}
                       directories={contexts}
-                      issues={issues}
+                      issues={[]}
                       onChange={(value) => setBindings({ ...bindings, [slot]: value })}
                     />
                   )
@@ -429,31 +501,29 @@ export function TemplateInstanceView({
               )}
             </section>
           )}
-          {valueMode === 'form' && definition ? (
-            <InputEditor
-              schema={definition.inputs}
-              value={values}
-              onChange={setValues}
-              runners={allRunners}
-              runner={browsingRunner}
-              issues={issues}
-            />
-          ) : (
-            <div className="template-raw-values">
-              <textarea
-                className="mono template-values"
-                spellCheck={false}
-                aria-label={t('taskTemplate.overrides')}
-                value={rawValues}
-                onChange={(event) => changeRaw(event.target.value)}
+          <section className="template-business-inputs" aria-label={t('creation.businessInputs')}>
+            <h3 className="template-section-heading">{t('creation.businessInputs')}</h3>
+            {valueMode === 'form' && definition ? (
+              <InputEditor
+                schema={definition.inputs}
+                value={values}
+                onChange={setValues}
+                runners={allRunners}
+                runner={browsingRunner}
+                issues={[]}
               />
-              {valueError && (
-                <p className="template-field-error" role="alert">
-                  {t(valueError)}
-                </p>
-              )}
-            </div>
-          )}
+            ) : (
+              <div className="template-raw-values">
+                <textarea
+                  className="mono template-values"
+                  spellCheck={false}
+                  aria-label={t('taskTemplate.overrides')}
+                  value={rawValues}
+                  onChange={(event) => changeRaw(event.target.value)}
+                />
+              </div>
+            )}
+          </section>
         </div>
       </section>
       <section
@@ -476,25 +546,10 @@ export function TemplateInstanceView({
           </small>
         </header>
         <div className="template-pane-scroll">
-          {failure && (
-            <ErrorToast>
-              {failure}
-              <Button onClick={instance.refreshPreview}>{t('重试')}</Button>
-            </ErrorToast>
-          )}
-          {issues.length > 0 && <TemplateIssues issues={issues} onSelect={focusIssue} />}
-          {preview?.config && (
-            <div className="template-preview-context">
-              <ScheduleSummary
-                schedule={preview.config.schedule}
-                enabled={preview.config.enabled}
-              />
-              {generated && (
-                <span className="quiet">
-                  {t('dag.nodeCount', { count: generated.nodes.length })} ·{' '}
-                  {t('moments.outputs', { count: outputs(generated).length })}
-                </span>
-              )}
+          {preview?.config && generated && (
+            <div className="template-preview-context quiet">
+              {t('dag.nodeCount', { count: generated.nodes.length })} ·{' '}
+              {t('moments.outputs', { count: outputs(generated).length })}
             </div>
           )}
           {generated && (
@@ -552,7 +607,7 @@ export function TemplateInstanceView({
               <PromptPreview text={preview.config.prompt} />
             </section>
           )}
-          {!preview && !failure && !issues.length && (
+          {!preview && (
             <p className="quiet padded">
               {t(pendingPreview ? 'taskTemplate.updating' : 'taskTemplate.fillInputs')}
             </p>
@@ -577,31 +632,5 @@ function PromptPreview({ text }: { text: string }) {
         <Button onClick={() => setFull((value) => !value)}>{t(full ? '收起' : '展开全文')}</Button>
       )}
     </>
-  )
-}
-function TemplateIssues({
-  issues,
-  onSelect,
-}: {
-  issues: TemplateIssue[]
-  onSelect: (issue: TemplateIssue) => void
-}) {
-  return (
-    <ul className="template-issues" aria-label={t('taskTemplate.validation')}>
-      {issues.map((issue, index) => (
-        <li key={`${issue.path}-${index}`}>
-          <button type="button" onClick={() => onSelect(issue)}>
-            <span>{issueText(issue)}</span>
-            <code>{issue.path}</code>
-          </button>
-          {['render', 'expression', 'syntax', 'configuration', 'binding'].includes(issue.code) && (
-            <details>
-              <summary>{t('taskTemplate.details')}</summary>
-              <pre>{issue.message}</pre>
-            </details>
-          )}
-        </li>
-      ))}
-    </ul>
   )
 }

@@ -3,10 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../api'
 import { t } from '../i18n'
-import { Button } from '../ui'
-import { ErrorToast } from '../Toast'
+import { Button, IconButton } from '../ui'
+import { ActionIcon } from '../actions/ActionIcon'
+import { ErrorToast, useToast } from '../Toast'
 import { Pagination } from '../Pagination'
-import { TemplateInstanceView, useTemplateInstance } from './TemplateInstance'
+import {
+  TemplateInstanceView,
+  useTemplateInstance,
+  TemplateValidationError,
+  type IssueFocus,
+} from './TemplateInstance'
+import { issueText } from './utils'
 import type { TemplateRecord } from './types'
 
 export function PresetCreation({
@@ -76,39 +83,48 @@ export function PresetCreation({
       : ''
   return (
     <div className="preset-creation">
-      <div className="preset-choice-heading">
-        <strong>{record?.definition.name || t('creation.choosePreset')}</strong>
-        {record && <span className="quiet">{record.definition.description}</span>}
-        {updated && (
-          <Button
-            disabled={busy}
-            onClick={() => setRecords((previous) => ({ ...previous, [selected]: latestRecord! }))}
-          >
-            {t('creation.loadRevision')}
-          </Button>
-        )}
-        {record && (
-          <Button
-            disabled={busy}
-            aria-expanded={choosing}
-            onClick={() => setChoosing((value) => !value)}
-          >
-            {t(choosing ? 'creation.backToParameters' : 'creation.changePreset')}
-          </Button>
-        )}
-      </div>
+      {record && (
+        <div className="preset-choice-heading creation-name-row">
+          <strong>{record.definition.name}</strong>
+          {record.definition.description && (
+            <IconButton label={record.definition.description}>
+              <ActionIcon name="info" />
+            </IconButton>
+          )}
+          {updated && (
+            <Button
+              disabled={busy}
+              onClick={() => setRecords((previous) => ({ ...previous, [selected]: latestRecord! }))}
+            >
+              {t('creation.loadRevision')}
+            </Button>
+          )}
+          {record && (
+            <Button
+              disabled={busy}
+              aria-expanded={choosing}
+              onClick={() => setChoosing((value) => !value)}
+            >
+              {t(choosing ? 'creation.backToParameters' : 'creation.changePreset')}
+            </Button>
+          )}
+        </div>
+      )}
       {choosing && (
         <section className="preset-catalog" aria-label={t('creation.choosePreset')}>
-          <input
-            type="search"
-            aria-label={t('creation.searchPresets')}
-            placeholder={t('creation.searchPresets')}
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value)
-              setPage(1)
-            }}
-          />
+          <div className="preset-search-field">
+            <ActionIcon name="search" />
+            <input
+              type="search"
+              aria-label={t('creation.searchPresets')}
+              placeholder={t('creation.searchPresets')}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setPage(1)
+              }}
+            />
+          </div>
           <div className="preset-catalog-list">
             {list.isPending ? (
               <p className="quiet padded" role="status">
@@ -138,12 +154,6 @@ export function PresetCreation({
                   }}
                 >
                   <strong>{row.definition.name}</strong>
-                  <small>
-                    {row.definition.task.dag ? 'DAG' : t('任务')} ·{' '}
-                    {t('taskOverview.parameterCount', {
-                      count: Object.keys(row.definition.inputs.properties ?? {}).length,
-                    })}
-                  </small>
                   {row.definition.description && <span>{row.definition.description}</span>}
                 </button>
               ))
@@ -183,7 +193,7 @@ export function PresetCreation({
         />
       ))}
       {(!selected || choosing || !record) && (
-        <div className="modal-footer">
+        <div className="modal-footer creation-footer">
           {record && choosing ? (
             <Button onClick={() => setChoosing(false)}>{t('creation.backToParameters')}</Button>
           ) : (
@@ -214,9 +224,8 @@ function PresetSession({
   onCreated: (id: string, runId?: string | null) => void
 }) {
   const instance = useTemplateInstance({ record, active })
-  const [error, setError] = useState('')
-  const [issueRequest, setIssueRequest] = useState(0)
-  useEffect(() => setError(''), [record.revision])
+  const toast = useToast()
+  const [issueRequest, setIssueRequest] = useState<IssueFocus>()
   const submitting = useRef(false)
   useEffect(() => {
     onStateChange(record.id, instance.dirty, instance.pending)
@@ -224,50 +233,42 @@ function PresetSession({
   const submit = async (run: boolean) => {
     if (submitting.current) return
     submitting.current = true
-    setError('')
     try {
       const result = await instance.create(run)
       onCreated(result.task_id, result.run_id)
     } catch (failure) {
-      setError((failure as Error).message)
+      if (failure instanceof TemplateValidationError) {
+        const issue = failure.issues[0]
+        const parameter = issue.path.replace(/^inputs\./, '').split(/[.[]/)[0]
+        const title = record.definition.inputs.properties?.[parameter]?.title
+        toast(
+          title
+            ? t('creation.parameterError', { name: title, message: issueText(issue) })
+            : issueText(issue),
+        )
+        setIssueRequest({ issue, token: Date.now() })
+      } else {
+        toast((failure as Error).message)
+        if (instance.valueError)
+          setIssueRequest({
+            issue: { path: 'inputs', code: 'parse', message: instance.valueError },
+            token: Date.now(),
+          })
+      }
     } finally {
       submitting.current = false
     }
   }
-  const blocked =
-    unavailable ||
-    updated ||
-    record.archived_at ||
-    !instance.current ||
-    !instance.preview?.config ||
-    instance.pendingPreview
-  const count = instance.issues.length
+  const blocked = !!(unavailable || updated || record.archived_at)
   return (
     <div className="preset-session" hidden={hidden} inert={hidden}>
       <fieldset disabled={instance.pending} className="preset-session-fields">
-        <TemplateInstanceView instance={instance} issueRequest={issueRequest} />
+        <TemplateInstanceView instance={instance} issueRequest={issueRequest} active={active} />
       </fieldset>
-      <div className="modal-footer">
+      <div className="modal-footer creation-footer">
         <div className="creation-validation" role="status">
-          {error ? (
-            <ErrorToast>{error}</ErrorToast>
-          ) : unavailable ? (
-            unavailable
-          ) : updated ? (
-            t('creation.presetUpdated')
-          ) : record.archived_at ? (
-            t('已归档')
-          ) : instance.pendingPreview ? (
-            t('taskTemplate.updating')
-          ) : count ? (
-            <Button onClick={() => setIssueRequest((value) => value + 1)}>
-              {t('creation.viewIssues', { count })}
-            </Button>
-          ) : instance.current ? (
-            t('creation.ready')
-          ) : (
-            t('taskTemplate.fillInputs')
-          )}
+          {unavailable ||
+            (updated ? t('creation.presetUpdated') : record.archived_at ? t('已归档') : '')}
         </div>
         <Button disabled={instance.pending} onClick={onClose}>
           {t('取消')}

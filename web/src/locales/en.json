@@ -961,5 +961,11 @@
   "creation.emptyObject": "Set empty object",
   "creation.setYes": "Set to yes",
   "creation.setNo": "Set to no",
-  "creation.agentDefaults": "Use Agent default parameters"
+  "creation.agentDefaults": "Use Agent default parameters",
+  "creation.reorderItem": "Drag to reorder, or use the Move up / Move down menu",
+  "creation.directoryDevice": "Choose the device for finding a directory",
+  "creation.resizeParameters": "Resize parameters pane",
+  "creation.businessInputs": "Task parameters",
+  "creation.resizeConfiguration": "Resize execution configuration",
+  "creation.parameterError": "{{name}}: {{message}}"
 }
