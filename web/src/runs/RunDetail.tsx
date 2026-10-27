@@ -25,7 +25,7 @@ import { RunSection } from './RunSection'
 import { RunLogs, RunLogActions } from './RunLogs'
 import { ResumeRun } from '../sessions/ResumeRun'
 import { PageActions } from '../PageHeader'
-import { TaskEditor } from '../TaskEditor'
+import { CreateTaskDialog } from '../CreateTaskDialog'
 import { DagRunDetail } from '../dag/DagRunDetail'
 import { TraceActions } from './RunReading'
 import { RunTabs, RunPanel, useRunView } from './RunTabs'
@@ -289,8 +289,8 @@ function SingleRunDetail({
       </RunPanel>
       {resolve && <ResolveDialog id={id} onClose={() => setResolve(false)} />}
       {createTask && settings.data && r.session?.ready && (
-        <TaskEditor
-          defaultTimezone={settings.data.timezone}
+        <CreateTaskDialog
+          timezone={settings.data.timezone}
           defaults={{
             runner: r.session.runner_id,
             agent: r.session.agent,

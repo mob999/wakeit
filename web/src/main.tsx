@@ -17,6 +17,7 @@ import { InvitationPage } from './InvitationPage'
 import { InstanceAccounts } from './settings/InstanceAccounts'
 import { DeviceAuthorization } from './onboarding/DeviceAuthorization'
 import { TaskEditor } from './TaskEditor'
+import { CreateTaskDialog } from './CreateTaskDialog'
 import { DagEditor } from './dag/DagEditor'
 import { TaskOverview } from './tasks/TaskOverview'
 import { RunTable } from './runs/RunTable'
@@ -487,21 +488,13 @@ function TasksPage() {
             <div className="pane-heading">
               <h1>{tr('Tasks')}</h1>
               {editable && (
-                <Dropdown.Root>
-                  <Dropdown.Trigger asChild>
-                    <IconButton label={tr('新建任务')} disabled={!settings.data}>
-                      <ActionIcon name="add" />
-                    </IconButton>
-                  </Dropdown.Trigger>
-                  <Dropdown.Portal>
-                    <Dropdown.Content className="dropdown" align="end">
-                      <Dropdown.Item onSelect={() => setEditor('new')}>{tr('任务')}</Dropdown.Item>
-                      <Dropdown.Item onSelect={() => navigate({ to: '/tasks/dag', search: {} })}>
-                        {tr('dag.task')}
-                      </Dropdown.Item>
-                    </Dropdown.Content>
-                  </Dropdown.Portal>
-                </Dropdown.Root>
+                <IconButton
+                  label={tr('新建任务')}
+                  disabled={!settings.data}
+                  onClick={() => setEditor('new')}
+                >
+                  <ActionIcon name="add" />
+                </IconButton>
               )}
             </div>
             <div className="list-scroll">
@@ -553,14 +546,7 @@ function TasksPage() {
         }
       >
         {!task ? (
-          <Empty title={tr('暂无任务')}>
-            {editable && (
-              <Button onClick={() => setEditor('new')}>
-                <Plus size={14} />
-                {tr('新建任务')}
-              </Button>
-            )}
-          </Empty>
+          <Empty title={tr('暂无任务')}></Empty>
         ) : (
           <>
             <PageActions>
@@ -610,18 +596,6 @@ function TasksPage() {
                   <CopyMenuItem label={tr('复制 Task ID')} value={task.id} toast={toast} />
                   {editable && !task.archived_at && (
                     <>
-                      <ActionMenuItem
-                        icon="copy"
-                        onSelect={() =>
-                          navigate({
-                            to: '/presets',
-                            search: { new: 'task', source: task.id, section: 'definition' },
-                          })
-                        }
-                      >
-                        {tr('taskTemplate.saveAsTemplate')}
-                      </ActionMenuItem>
-                      <ActionMenuSeparator />
                       <ActionMenuItem
                         icon="archive"
                         disabled={action.isPending}
@@ -695,12 +669,24 @@ function TasksPage() {
           </>
         )}
       </Split>
-      {editor && (
-        <TaskEditor
-          task={editor === 'new' ? undefined : editor}
-          defaultTimezone={settings.data?.timezone ?? 'Asia/Shanghai'}
+      {editor === 'new' ? (
+        <CreateTaskDialog
+          timezone={settings.data?.timezone ?? 'Asia/Shanghai'}
           onClose={() => setEditor(null)}
+          onCreated={(id, runId) =>
+            runId
+              ? navigate({ to: '/runs', search: { run: runId } })
+              : navigate({ to: '/tasks', search: { task: id } })
+          }
         />
+      ) : (
+        editor && (
+          <TaskEditor
+            task={editor}
+            defaultTimezone={settings.data?.timezone ?? 'Asia/Shanghai'}
+            onClose={() => setEditor(null)}
+          />
+        )
       )}
     </>
   )
@@ -812,20 +798,8 @@ const tasksRoute = createRoute({
 const presetsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/presets',
-  validateSearch: (
-    s: Record<string, unknown>,
-  ): {
-    template?: string
-    section?: 'overview' | 'preview' | 'definition'
-    new?: 'task' | 'dag'
-    source?: string
-  } => ({
+  validateSearch: (s: Record<string, unknown>): { template?: string } => ({
     template: typeof s.template === 'string' ? s.template : undefined,
-    section: ['overview', 'preview', 'definition'].includes(String(s.section))
-      ? (s.section as 'overview' | 'preview' | 'definition')
-      : undefined,
-    new: s.new === 'task' || s.new === 'dag' ? s.new : undefined,
-    source: typeof s.source === 'string' ? s.source : undefined,
   }),
   component: () => <PresetPage user={useUser()} />,
 })
@@ -857,6 +831,19 @@ function DagScreen() {
   if (!settings.data || (search.task && !task.data)) return <Empty title={tr('正在加载…')} />
   if (task.data && (!task.data.config.dag || task.data.archived_at))
     return <Empty title={tr('dag.fixErrors')} />
+  if (!search.task)
+    return (
+      <CreateTaskDialog
+        initialTab="dag"
+        timezone={settings.data.timezone}
+        onClose={() => navigate({ to: '/tasks', search: {} })}
+        onCreated={(id, runId) =>
+          runId
+            ? navigate({ to: '/runs', search: { run: runId } })
+            : navigate({ to: '/tasks', search: { task: id } })
+        }
+      />
+    )
   return (
     <DagEditor
       key={search.task ?? 'new'}

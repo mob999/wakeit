@@ -91,17 +91,17 @@ export function DagGraph({
         event.key !== 'Escape' ||
         event.defaultPrevented ||
         document.querySelector(
-          '[data-radix-popper-content-wrapper], [role=dialog][data-state=open]',
+          '[data-radix-popper-content-wrapper], [role=dialog][data-state=open]:not(.creation-modal)',
         )
       )
         return
       event.preventDefault()
       setFullscreen(false)
     }
-    window.addEventListener('keydown', escape)
+    window.addEventListener('keydown', escape, true)
     return () => {
       if (navigation) navigation.inert = previous ?? false
-      window.removeEventListener('keydown', escape)
+      window.removeEventListener('keydown', escape, true)
     }
   }, [fullscreen])
   const [size, setSize] = useState({ width: 0, height: 0 })

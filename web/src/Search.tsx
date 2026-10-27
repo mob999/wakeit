@@ -1,3 +1,4 @@
+import type { TemplateRecord } from './templates/types'
 import { ErrorToast } from './Toast'
 import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
@@ -12,7 +13,7 @@ import {
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Search, ListTodo, History, Monitor, Bot, Settings2, ArrowUpRight } from './icons'
+import { Search, ListTodo, History, Monitor, Bot, Settings2, ArrowUpRight, ListTree } from './icons'
 import {
   api,
   type Task,
@@ -25,7 +26,7 @@ import {
 } from './api'
 import { TooltipTarget, Button, Field, Modal } from './ui'
 
-export type Scope = 'tasks' | 'runs' | 'runners' | 'agents' | 'settings'
+export type Scope = 'presets' | 'tasks' | 'runs' | 'runners' | 'agents' | 'settings'
 export type Filters = {
   q?: string
   state?: string
@@ -45,6 +46,14 @@ const scopes = [
     },
     icon: ListTodo,
     path: '/tasks',
+  },
+  {
+    id: 'presets',
+    get name() {
+      return tr('preset.title')
+    },
+    icon: ListTree,
+    path: '/presets',
   },
   {
     id: 'runs',
@@ -219,6 +228,11 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
     queryFn: () => api(listPath('tasks', f('tasks'), 1)),
     enabled: includes('tasks'),
   })
+  const presets = useQuery<PageResult<TemplateRecord>>({
+    queryKey: ['search', 'presets', f('presets')],
+    queryFn: () => api(`/task-templates?archived=false&q=${encodeURIComponent(debounced)}`),
+    enabled: includes('presets'),
+  })
   const runs = useQuery<PageResult<Run>>({
     queryKey: ['search', 'runs', f('runs')],
     queryFn: () => api(listPath('runs', f('runs'), 1)),
@@ -245,6 +259,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
   const result = (scope: Scope, id: string) =>
     commit(() => {
       apply(scope)
+      if (scope === 'presets') navigate({ to: '/presets', search: { template: id } })
       if (scope === 'tasks') navigate({ to: '/tasks', search: { task: id } })
       if (scope === 'runs') navigate({ to: '/runs', search: { run: id } })
       if (scope === 'runners') {
@@ -336,7 +351,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
       </div>
       <div className="search-filter-groups">
         {selected
-          .filter((s) => s !== 'settings')
+          .filter((s) => s !== 'settings' && s !== 'presets')
           .map((scope) => (
             <div className="search-filters" key={scope}>
               <span>{scopes.find((s) => s.id === scope)!.name}</span>
@@ -453,6 +468,18 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
             tasks.data?.total,
             tasks.error,
             tasks.isPending,
+          )}
+        {includes('presets') &&
+          group(
+            'presets',
+            (presets.data?.items ?? []).map((row) => ({
+              id: row.id,
+              name: row.definition.name,
+              meta: row.definition.description ?? '',
+            })),
+            presets.data?.total,
+            presets.error,
+            presets.isPending,
           )}
         {includes('runs') &&
           group(

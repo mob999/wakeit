@@ -9,6 +9,7 @@ export function DetailTabs<T extends string>({
   onChange,
   status,
   className = '',
+  disabled = false,
 }: {
   idPrefix: string
   label: string
@@ -17,6 +18,7 @@ export function DetailTabs<T extends string>({
   onChange: (value: T) => void
   status?: ReactNode
   className?: string
+  disabled?: boolean
 }) {
   const list = useRef<HTMLDivElement>(null)
   return (
@@ -27,6 +29,7 @@ export function DetailTabs<T extends string>({
             key={tab.key}
             id={`${idPrefix}-${tab.key}-tab`}
             type="button"
+            disabled={disabled}
             role="tab"
             aria-selected={value === tab.key}
             aria-controls={`${idPrefix}-${tab.key}-panel`}

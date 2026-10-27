@@ -62,7 +62,10 @@ export function parseOverrides(source: string): Overrides {
 export const types = (schema: InputSchema) =>
   Array.isArray(schema.type) ? schema.type : [schema.type]
 export function emptyValue(schema: InputSchema): Json {
-  switch (types(schema).find((t) => t !== 'null')) {
+  if (Object.prototype.hasOwnProperty.call(schema, 'default'))
+    return structuredClone(schema.default!)
+  if (schema.enum?.length) return structuredClone(schema.enum[0])
+  switch (types(schema).find((t) => t !== 'null') ?? 'null') {
     case 'object':
       return Object.fromEntries(
         (schema.required ?? []).map((k) => [k, emptyValue(schema.properties![k])]),

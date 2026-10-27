@@ -1,0 +1,343 @@
+.modal.creation-modal {
+  width: min(1180px, calc(100vw - 40px));
+  height: min(820px, calc(100dvh - 40px));
+  max-height: calc(100dvh - 40px);
+  border-radius: 6px;
+}
+.creation-modal > .modal-heading {
+  min-height: 44px;
+  padding: 0 12px;
+  align-items: center;
+}
+.creation-modal > .modal-heading h2 {
+  font-size: 12px;
+  font-weight: 550;
+}
+.creation-modal .modal-heading-actions {
+  width: 100%;
+}
+.creation-modal .modal-heading-actions > .detail-tabs {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.creation-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: creation;
+}
+.creation-panel[hidden],
+.preset-session[hidden],
+.dag-editor [hidden] {
+  display: none !important;
+}
+.creation-task-form,
+.creation-task-form > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.creation-task-form > form > .modal-body {
+  flex: 1;
+  padding: 12px;
+}
+.creation-task-form .editor-fields {
+  width: 100%;
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
+  grid-template-rows: repeat(5, max-content) minmax(max-content, 1fr);
+  min-height: 100%;
+  height: 100%;
+  gap: 10px 24px;
+  align-content: start;
+}
+.creation-task-content,
+.creation-task-form .task-core {
+  display: contents;
+}
+.creation-task-form .task-core > .field:first-child {
+  grid-column: 1 / -1;
+}
+.creation-task-form .task-core > .field:nth-child(2) {
+  grid-column: 1;
+  grid-row: 2 / span 5;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+.creation-task-form .task-core > .field:nth-child(2) textarea {
+  flex: 1;
+  min-height: 380px;
+}
+.creation-task-form .task-core > .form-grid,
+.creation-task-form .task-core > .field:not(:first-child):not(:nth-child(2)),
+.creation-task-form .editor-fields > .creation-schedule,
+.creation-task-content > .advanced-settings {
+  grid-column: 2;
+  min-width: 0;
+  align-self: start;
+}
+.creation-task-form .editor-fields .field {
+  margin-bottom: 0;
+}
+.creation-task-form .editor-fields .advanced-settings {
+  margin-top: 0;
+}
+.creation-task-form .creation-schedule > summary {
+  flex-wrap: wrap;
+}
+.creation-schedule-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.creation-dag-form .dag-stepbar > .creation-schedule-summary {
+  margin-left: auto;
+}
+.creation-task-form .creation-schedule .form-grid {
+  grid-template-columns: 1fr;
+}
+.creation-task-form .creation-schedule[open] > summary {
+  margin-bottom: 12px;
+}
+.creation-task-form .modal-footer {
+  padding: 8px 12px;
+  min-height: 44px;
+}
+.creation-schedule {
+  margin-top: 12px;
+}
+.creation-dag-form {
+  flex: 1;
+  min-height: 0 !important;
+  width: 100%;
+}
+.creation-dag-form:not(.is-fullscreen) {
+  height: auto;
+}
+.creation-dag-name {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.creation-dag-name label {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.creation-dag-name input {
+  width: min(460px, 100%);
+  font-size: 12px;
+}
+.creation-dag-sections {
+  display: flex;
+  gap: 12px;
+  padding: 0 12px;
+}
+.creation-dag-sections button {
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  min-height: 36px;
+  cursor: pointer;
+}
+.creation-dag-form .dag-editor-footer {
+  padding: 8px 12px;
+  min-height: 44px;
+}
+.creation-dag-form .dag-toolbar {
+  gap: 8px;
+}
+.preset-creation,
+.preset-session {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.preset-choice-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.preset-choice-heading > strong {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 550;
+}
+.preset-choice-heading > .quiet {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.preset-choice-heading > .button {
+  font-size: 11px;
+  margin-left: auto;
+}
+.preset-session-fields {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  min-width: 0;
+}
+.preset-creation .modal-footer {
+  padding: 8px 12px;
+  min-height: 44px;
+  flex-wrap: wrap;
+}
+.creation-validation {
+  flex: 1;
+  min-width: 80px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.preset-catalog {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.preset-catalog > input {
+  margin: 12px;
+  width: calc(100% - 24px);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.preset-catalog-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 12px;
+}
+.preset-choice {
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink);
+}
+.preset-choice:hover,
+.preset-choice.active {
+  background: var(--hover);
+}
+.preset-choice.active {
+  border-color: var(--border);
+}
+.preset-choice:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.preset-choice > strong {
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.preset-choice > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.preset-choice > span {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--muted);
+}
+.preset-detail-state {
+  flex: 1;
+  padding: 12px;
+}
+@media (max-width: 600px) {
+  .modal.creation-modal {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+  .creation-task-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .creation-dag-name input {
+    flex: 1;
+    min-width: 0;
+  }
+  .creation-validation {
+    flex-basis: 100%;
+  }
+  .preset-choice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.creation-dag-form.is-fullscreen {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+}
+
+@container creation (max-width: 799px) {
+  .creation-task-form .editor-fields {
+    display: block;
+    min-height: auto;
+    height: auto;
+  }
+  .creation-task-content,
+  .creation-task-form .task-core {
+    display: block;
+  }
+  .creation-task-form .editor-fields .field {
+    margin-bottom: 12px;
+  }
+  .creation-task-form .task-core > .field:nth-child(2) textarea {
+    min-height: 180px;
+  }
+  .creation-task-form .editor-fields .advanced-settings {
+    margin-top: 12px;
+  }
+  .creation-task-form .creation-schedule .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .creation-dag-form .dag-stepbar {
+    flex-wrap: wrap;
+  }
+  .creation-dag-form .dag-stepbar > .creation-schedule-summary {
+    flex-basis: 100%;
+    margin: 0;
+    padding: 0 12px 8px;
+    order: 2;
+  }
+}

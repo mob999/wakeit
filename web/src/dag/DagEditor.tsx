@@ -1,3 +1,4 @@
+import { ScheduleSummary } from '../ScheduleSummary'
 import { promptBlank } from './prompt'
 import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast, useToast } from '../Toast'
@@ -30,12 +31,6 @@ import { CanvasControls } from './CanvasControls'
 import { AgentPalette } from './AgentPalette'
 import { NodeForm } from './NodeForm'
 import { TimeFields } from './TimeFields'
-import {
-  TemplatePicker,
-  TemplateInstanceView,
-  useTemplateInstance,
-  useTemplateRecords,
-} from '../templates/TemplateInstance'
 import { MultiPicker } from './MultiPicker'
 import { issues, outputs } from './model'
 import { nodeName, nodeOptions, shortId } from './identity'
@@ -70,11 +65,17 @@ export function DagEditor({
   timezone,
   onClose,
   onSaved,
+  embedded = false,
+  active = true,
+  onStateChange,
 }: {
   task?: Task
   timezone: string
   onClose: () => void
   onSaved: (id: string) => void
+  embedded?: boolean
+  active?: boolean
+  onStateChange?: (dirty: boolean, busy: boolean) => void
 }) {
   useTranslation()
   const [suffix] = useState(taskIdSuffix)
@@ -106,19 +107,7 @@ export function DagEditor({
   const [layout, setLayout] = useState<EditorLayout>(() =>
     structuredClone(task?.editor_layout ?? emptyLayout()),
   )
-  const [templateId, setTemplateId] = useState('')
-  const templates = useTemplateRecords()
-  const templateRecord = templates.data?.items.find((row) => row.id === templateId) ?? null
-  const templateInstance = useTemplateInstance({
-    record: templateRecord,
-    name: config.name.trim() || undefined,
-    schedule: config.schedule,
-    taskId: createTaskId(config.name || templateRecord?.definition.name || '', suffix),
-  })
-  const timeConfig =
-    templateRecord && templateInstance.preview?.config
-      ? { ...templateInstance.preview.config, schedule: config.schedule }
-      : config
+  const timeConfig = config
   const baseline = useRef({ config: JSON.stringify(config), layout: structuredClone(layout) })
   const initialIds = useRef(new Set(config.dag!.nodes.map((n) => n.id)))
   const [step, setStep] = useState<'task' | 'time'>('task'),
@@ -181,9 +170,7 @@ export function DagEditor({
   const panelKey = panel?.kind === 'node' ? panel.id : (panel?.kind ?? '')
   const dirty =
     JSON.stringify(config) !== baseline.current.config ||
-    JSON.stringify(layout) !== JSON.stringify(baseline.current.layout) ||
-    !!templateRecord ||
-    templateInstance.dirty
+    JSON.stringify(layout) !== JSON.stringify(baseline.current.layout)
   dirtyRef.current = dirty
   useEffect(() => {
     if (step !== 'task' || view !== 'graph') setFullscreen(false)
@@ -247,10 +234,13 @@ export function DagEditor({
       leaveResolve.current = resolve
     })
   }, [])
-  useEffect(() => controls.registerGuard(requestLeave), [controls.registerGuard, requestLeave])
+  useEffect(
+    () => (embedded ? undefined : controls.registerGuard(requestLeave)),
+    [controls.registerGuard, requestLeave, embedded],
+  )
   useBlocker({
-    shouldBlockFn: () => requestLeave().then((value) => !value),
-    enableBeforeUnload: () => dirtyRef.current,
+    shouldBlockFn: () => (embedded ? false : requestLeave().then((value) => !value)),
+    enableBeforeUnload: () => !embedded && dirtyRef.current,
   })
   useEffect(
     () => () => {
@@ -351,26 +341,12 @@ export function DagEditor({
           (issueField(e) === 'prompt' &&
             !promptBlank(dag.nodes.find((n) => n.id === e.node_id)?.prompt)))),
   )
-  const local = templateRecord ? [] : validated ? localErrors() : structural,
+  const local = validated ? localErrors() : structural,
     errors = [...local, ...serverErrors.filter((e) => !local.some((l) => l.path === e.path))]
   const save = useMutation({
     mutationFn: async () => {
       setRequestError('')
       setValidated(true)
-      if (templateRecord) {
-        const found = timeValidation.current()
-        if (found.length) {
-          setServerErrors(found)
-          locate(found[0])
-          return null
-        }
-        if (!templateInstance.current || !templateInstance.preview?.config) {
-          setStep('task')
-          setRequestError(t('taskTemplate.stale'))
-          return null
-        }
-        return templateInstance.create(false).then((result) => ({ id: result.task_id }))
-      }
       const found = [...localErrors(), ...timeValidation.current()]
       if (found.length) {
         setServerErrors(found.filter((e) => !e.node_id && e.path !== 'name'))
@@ -409,7 +385,10 @@ export function DagEditor({
     },
     onError: (error: Error) => setRequestError(error.message),
   })
-  const busy = save.isPending || arranging || templateInstance.pendingPreview
+  const busy = save.isPending || arranging
+  useEffect(() => {
+    onStateChange?.(dirty, busy)
+  }, [dirty, busy, onStateChange])
   busyRef.current = busy
   useLayoutEffect(() => {
     markFields(
@@ -567,10 +546,10 @@ export function DagEditor({
   handlers.current = { travel, setPanel, ghost, picker, panel, fullscreen }
   useEffect(() => {
     function keyboard(event: KeyboardEvent) {
-      if (event.defaultPrevented || busyRef.current || step !== 'task') return
+      if (event.defaultPrevented || busyRef.current || step !== 'task' || !active) return
       const target = event.target instanceof Element ? event.target : null
       const overlay = document.querySelector(
-        '[data-radix-popper-content-wrapper], [role=dialog][data-state=open]',
+        '[data-radix-popper-content-wrapper], [role=dialog][data-state=open]:not(.creation-modal)',
       )
       if (event.key === 'Escape') {
         if (overlay) return
@@ -592,9 +571,9 @@ export function DagEditor({
         handlers.current.travel(event.shiftKey ? 'redo' : 'undo')
       }
     }
-    window.addEventListener('keydown', keyboard)
-    return () => window.removeEventListener('keydown', keyboard)
-  }, [step])
+    window.addEventListener('keydown', keyboard, embedded)
+    return () => window.removeEventListener('keydown', keyboard, embedded)
+  }, [step, active, embedded])
   function nodeActions(n: DagNode) {
     return (
       <Menu.Root>
@@ -648,48 +627,72 @@ export function DagEditor({
   const deletionIssues = deletion ? impacts(deletion) : []
   return (
     <div
-      className={'dag-editor dag-canvas-editor' + (fullscreen ? ' is-fullscreen' : '')}
+      className={
+        'dag-editor dag-canvas-editor' +
+        (embedded ? ' creation-dag-form' : '') +
+        (fullscreen ? ' is-fullscreen' : '')
+      }
       ref={editor}
     >
-      <PageBreadcrumbs
-        label={t('Tasks')}
-        crumbs={[
-          {
-            label: config.name || t('dag.new'),
-            content: (
-              <input
-                className="dag-breadcrumb-title"
-                ref={nameField}
-                aria-label={t('任务名称')}
-                aria-invalid={errors.some((e) => !e.node_id && e.path === 'name')}
-                placeholder={t('dag.new')}
-                autoFocus={!task}
-                disabled={busy}
-                value={config.name}
-                onChange={(e) => change({ ...config, name: e.target.value })}
-              />
-            ),
-          },
-        ]}
-        onBack={onClose}
-      />
+      {!embedded && (
+        <PageBreadcrumbs
+          label={t('Tasks')}
+          crumbs={[
+            {
+              label: config.name || t('dag.new'),
+              content: (
+                <input
+                  className="dag-breadcrumb-title"
+                  ref={nameField}
+                  aria-label={t('任务名称')}
+                  aria-invalid={errors.some((e) => !e.node_id && e.path === 'name')}
+                  placeholder={t('dag.new')}
+                  autoFocus={!task}
+                  disabled={busy}
+                  value={config.name}
+                  onChange={(e) => change({ ...config, name: e.target.value })}
+                />
+              ),
+            },
+          ]}
+          onBack={onClose}
+        />
+      )}
+      {embedded && (
+        <div className="creation-dag-name">
+          <label htmlFor="creation-dag-name">{t('任务名称')}</label>
+          <input
+            id="creation-dag-name"
+            ref={nameField}
+            value={config.name}
+            disabled={busy}
+            onChange={(event) => change({ ...config, name: event.target.value })}
+          />
+        </div>
+      )}
       <div className="dag-stepbar">
-        <div className="tabs" role="tablist" aria-label={t('任务编辑')}>
+        <div
+          className={embedded ? 'creation-dag-sections' : 'tabs'}
+          role={embedded ? 'group' : 'tablist'}
+          aria-label={t('任务编辑')}
+        >
           {(['task', 'time'] as const).map((value) => (
             <button
               type="button"
               key={value}
-              role="tab"
-              aria-selected={step === value}
+              role={embedded ? undefined : 'tab'}
+              aria-selected={embedded ? undefined : step === value}
+              aria-pressed={embedded ? step === value : undefined}
               className={step === value ? 'active' : ''}
               disabled={busy}
               onClick={() => setStep(value)}
             >
-              {t(value === 'task' ? '任务' : '时间')}
+              {t(value === 'task' ? 'creation.structure' : 'creation.schedule')}
             </button>
           ))}
         </div>
-        <div className="dag-toolbar" hidden={step !== 'task' || !!templateRecord}>
+        {embedded && <ScheduleSummary schedule={config.schedule} enabled={config.enabled} />}
+        <div className="dag-toolbar" hidden={step !== 'task'}>
           <div className="dag-toolbar-actions">
             <div className="action-group" role="group" aria-label={t('actions.view')}>
               {desktop && view === 'graph' && (
@@ -794,39 +797,8 @@ export function DagEditor({
           </div>
         </div>
       </div>
-      {!task && (
-        <div className="dag-template-picker" hidden={step !== 'task'}>
-          <TemplatePicker
-            kind="dag"
-            value={templateId}
-            disabled={busy}
-            onChange={(id) => {
-              const next = templates.data?.items.find((row) => row.id === id) ?? null
-              setTemplateId(id)
-              setServerErrors([])
-              setValidated(false)
-              setPanel(null)
-              if (next) {
-                setConfig((current) => ({
-                  ...current,
-                  schedule: next.definition.task.schedule ?? null,
-                }))
-              }
-            }}
-          />
-        </div>
-      )}
       <div className="dag-canvas-body" ref={workbench}>
-        {templateRecord && (
-          <div className="dag-template-instance">
-            <TemplateInstanceView instance={templateInstance} />
-          </div>
-        )}
-        <div
-          className="dag-task-stage"
-          hidden={step !== 'task' || !!templateRecord}
-          inert={step !== 'task' || !!templateRecord}
-        >
+        <div className="dag-task-stage" hidden={step !== 'task'} inert={step !== 'task'}>
           {actualPalette && (
             <aside className="dag-palette-dock" aria-label={t('Agents')}>
               <header>Agents</header>
@@ -1117,7 +1089,6 @@ export function DagEditor({
             config={timeConfig}
             timezone={timezone}
             disabled={busy}
-            hideExecution={!!templateRecord}
             active={step === 'time'}
             onChange={change}
             validation={timeValidation}
@@ -1137,6 +1108,10 @@ export function DagEditor({
         <Button
           disabled={busy}
           onClick={async () => {
+            if (embedded) {
+              onClose()
+              return
+            }
             if (await requestLeave()) {
               dirtyRef.current = false
               onClose()
@@ -1145,7 +1120,7 @@ export function DagEditor({
         >
           {t('取消')}
         </Button>
-        {step === 'time' && (
+        {!embedded && step === 'time' && (
           <Button disabled={busy} onClick={() => setStep('task')}>
             {t('上一步')}
           </Button>
@@ -1154,9 +1129,9 @@ export function DagEditor({
           variant="solid"
           disabled={busy}
           loading={busy}
-          onClick={() => (step === 'task' ? setStep('time') : save.mutate())}
+          onClick={() => (!embedded && step === 'task' ? setStep('time') : save.mutate())}
         >
-          {t(step === 'task' ? '下一步' : '保存任务')}
+          {t(embedded ? 'creation.create' : step === 'task' ? '下一步' : '保存任务')}
         </Button>
       </footer>
       <Modal

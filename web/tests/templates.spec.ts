@@ -1,7 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
-import YAML from 'yaml'
 import { randomUUID } from 'node:crypto'
 import { loginSession } from './session'
 import { selectChoice } from './choices'
@@ -12,9 +11,10 @@ const stack = JSON.parse(
     'utf8',
   ),
 )
-test.skip(!stack.workspaces, 'Requires the isolated workspace acceptance stack')
+test.use({ channel: 'msedge' })
+test.skip(!stack.workspaces || !stack.cwd, 'Requires the isolated creation acceptance stack')
 const workspace = stack.workspaces?.[0]
-const password = 'workspace-fixture-password'
+const password = stack.password ?? 'workspace-fixture-password'
 const apiPath = (path: string) => `/api/v1/workspaces/${workspace}${path}`
 
 function dagDefinition(name: string) {
@@ -50,7 +50,7 @@ function dagDefinition(name: string) {
           type: 'string',
           format: 'directory',
           title: '工作目录',
-          default: `${stack.root}/project-a`,
+          default: stack.cwd,
         },
         note: { type: 'string', title: '备注', default: 'default note' },
         summarize: { type: 'boolean', default: true },
@@ -59,7 +59,7 @@ function dagDefinition(name: string) {
     bindings: {
       worker: {
         title: '检查环境',
-        defaults: { runner: 'same-device', agent: 'mock-events', parameters: {} },
+        defaults: { runner: stack.runner_name, agent: 'mock-events', parameters: {} },
       },
     },
     task: {
@@ -120,15 +120,14 @@ function ordinaryDefinition(name: string) {
       additionalProperties: false,
       required: ['repository', 'working_directory'],
       properties: {
-        repository: {
-          type: 'string',
-          format: 'repository-url',
-          default: 'https://example.com/repo',
-        },
+        repository: { type: 'string', title: '仓库地址', format: 'repository-url', minLength: 1 },
+        ratio: { type: 'number', title: '比例', default: 0 },
+        flag: { type: 'boolean', title: '启用附注', default: false },
+        nullable: { type: ['string', 'null'], title: '可空参数', default: null },
         working_directory: {
           type: 'string',
           format: 'directory',
-          default: `${stack.root}/project-a`,
+          default: stack.cwd,
         },
         note: { type: 'string', default: 'default note' },
       },
@@ -136,7 +135,7 @@ function ordinaryDefinition(name: string) {
     bindings: {
       worker: {
         title: '检查环境',
-        defaults: { runner: 'same-device', agent: 'mock-events', parameters: {} },
+        defaults: { runner: stack.runner_name, agent: 'mock-events', parameters: {} },
       },
     },
     task: {
@@ -159,259 +158,386 @@ async function seed(page: Page, definition: any) {
   return definition
 }
 
-async function archiveExistingPresets(page: Page) {
-  const result = await (
-    await page.request.get(apiPath('/task-templates?archived=false&page_size=100'))
-  ).json()
-  for (const row of result.items) {
-    const response = await page.request.post(apiPath(`/task-templates/${row.id}/archive`), {
-      data: { expected_revision: row.revision },
-      headers: { 'x-wakeit-request': '1' },
-    })
-    expect(response.ok()).toBe(true)
-  }
-}
-
-async function chooseTemplate(page: Page, name: string, scope: Page | Locator = page) {
-  await scope.getByRole('combobox', { name: '模板（可选）', exact: true }).click()
-  await page.getByRole('listbox').getByRole('option', { name, exact: true }).click()
-}
-
-async function openOrdinaryEditor(page: Page) {
+async function openCreation(page: Page, tab?: string) {
+  await page.goto(`/w/${workspace}/tasks`)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
-  await expect(page.getByRole('menuitem', { name: '从模板创建' })).toHaveCount(0)
-  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
-  return page.getByRole('dialog', { name: '新建任务', exact: true })
+  const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
+  if (tab) await dialog.getByRole('tab', { name: tab, exact: true }).click()
+  return dialog
 }
-
+async function choosePreset(page: Page, dialog: Locator, name: string) {
+  const search = dialog.getByRole('searchbox', { name: '搜索预设' })
+  if (!(await search.isVisible()))
+    await dialog.getByRole('button', { name: '切换预设', exact: true }).click()
+  await search.fill(name)
+  await dialog.locator('.preset-choice').filter({ hasText: name }).click()
+}
 async function setLanguage(page: Page, language: 'en' | 'zh') {
   await page.evaluate(async (language) => {
     const { setLanguage } = await import('/src/i18n.ts')
     await setLanguage(language)
   }, language)
 }
+async function discard(page: Page) {
+  const confirm = page.getByRole('dialog', { name: '有未保存的更改', exact: true })
+  if (await confirm.isVisible()) await confirm.getByRole('button', { name: '放弃更改' }).click()
+}
 
-test('Preset workbench manages definitions, previews, archives and bilingual details without writes', async ({
+test('one plus opens Task/DAG/Preset tabs, preserves drafts and confirms cancellation once', async ({
   page,
 }) => {
-  await loginSession(page, 'admin', password)
-  await archiveExistingPresets(page)
-  await page.goto(`/w/${workspace}/presets`)
-  await expect(page.locator('.pane-heading h1')).toHaveText('预设')
-  await expect(page.getByText('暂无预设', { exact: true }).first()).toBeVisible()
-  const before = (await (await page.request.get(apiPath('/tasks'))).json()).length
-  await page.getByRole('button', { name: '新建预设', exact: true }).click()
-  await page.getByRole('menuitem', { name: '动态 DAG 模板', exact: true }).click()
-  const def = dagDefinition('Repository preset')
-  await page.getByLabel('模板定义', { exact: true }).fill(YAML.stringify(def, { lineWidth: 0 }))
-  await page.getByRole('button', { name: '保存模板', exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`/presets\\?template=${def.id}`))
-  await expect(page.locator('.header-breadcrumbs')).toContainText(def.name)
-  await expect(page.locator('.preset-row')).toContainText('DAG')
-  await expect(page.locator('.preset-row')).toContainText('4 项')
-  await expect(page.locator('.preset-overview')).toContainText('r1')
-
-  await page.getByRole('tab', { name: '生成预览', exact: true }).click()
-  await expect(page.locator('.template-generated .dag-structure')).toBeVisible()
-  const previewToolbar = page.locator('.template-preview-status')
-  await expect(previewToolbar).toContainText('3 个节点')
-  await expect(previewToolbar).toContainText('1 份输出')
-  await page.getByRole('button', { name: '表格', exact: true }).click()
-  await page.getByLabel('搜索节点', { exact: true }).fill('alpha')
-  await expect(page.locator('.dag-table-entry')).toHaveCount(1)
-  await page.getByRole('button', { name: '结构图', exact: true }).click()
-  expect((await (await page.request.get(apiPath('/tasks'))).json()).length).toBe(before)
-
-  await page.getByRole('tab', { name: '定义', exact: true }).click()
-  const source = page.getByLabel('模板定义', { exact: true })
-  const edited = { ...def, name: 'Repository preset v2' }
-  await source.fill(YAML.stringify(edited, { lineWidth: 0 }))
-  await page.getByRole('button', { name: '保存模板', exact: true }).click()
-  await expect(page.locator('.preset-overview')).toContainText('r2')
-  await page.screenshot({ path: test.info().outputPath('preset-overview-light.png') })
-  await page.getByRole('tab', { name: '定义', exact: true }).click()
-  await source.fill(YAML.stringify(edited, { lineWidth: 0 }) + '\n# unsaved\n')
-  await page.getByRole('link', { name: '任务', exact: true }).click()
-  const leave = page.getByRole('dialog', { name: '有未保存的更改', exact: true })
-  await expect(leave).toBeVisible()
-  await leave.getByRole('button', { name: '继续编辑', exact: true }).click()
-  await expect(source).toHaveValue(/# unsaved/)
-  await page.getByRole('link', { name: '任务', exact: true }).click()
-  await leave.getByRole('button', { name: '放弃更改', exact: true }).click()
-  await expect(page).toHaveURL(/\/tasks/)
-
-  await page.goto(`/w/${workspace}/presets?template=${def.id}&section=overview`)
-  await page.getByRole('button', { name: '预设操作', exact: true }).click()
-  await page.getByRole('menuitem', { name: '归档', exact: true }).click()
-  await expect(page.locator('.preset-overview')).toContainText('已归档')
-  await page.getByRole('button', { name: '预设操作', exact: true }).click()
-  await page.getByRole('menuitem', { name: '恢复', exact: true }).click()
-  await expect(page.locator('.preset-overview')).not.toContainText('已归档')
-
-  await page.getByRole('tab', { name: '生成预览', exact: true }).click()
-  await setLanguage(page, 'en')
-  await expect(page.getByRole('link', { name: 'Presets', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'New preset', exact: true })).toBeVisible()
-  const preview = page.getByRole('tab', { name: 'Generated preview', exact: true })
-  await preview.focus()
-  await page.keyboard.press('End')
-  await expect(page.getByRole('tab', { name: 'Definition', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  await loginSession(page, stack.username, password)
+  const dialog = await openCreation(page)
+  await expect(dialog.getByRole('tab')).toHaveText(['任务', 'DAG', '预设'])
+  await dialog.getByRole('textbox', { name: '任务名称', exact: true }).fill('Synthetic task draft')
+  await dialog.getByRole('textbox', { name: '指令', exact: true }).fill('Preserve this instruction')
+  await expect(dialog.locator('.creation-schedule > summary')).toContainText('0 9 * * *')
+  await page.screenshot({ path: test.info().outputPath('creation-task-wide.png') })
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.screenshot({ path: test.info().outputPath('creation-task-narrow.png') })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await dialog.getByRole('tab', { name: 'DAG', exact: true }).click()
+  await dialog.getByRole('textbox', { name: '任务名称', exact: true }).fill('Synthetic DAG draft')
+  await expect(dialog.locator('.dag-editor')).toBeVisible()
+  await dialog.getByRole('tab', { name: '任务', exact: true }).click()
+  await expect(dialog.getByRole('textbox', { name: '任务名称', exact: true })).toHaveValue(
+    'Synthetic task draft',
   )
-  await page.keyboard.press('Home')
-  await expect(page.getByRole('tab', { name: 'Overview', exact: true })).toHaveAttribute(
-    'aria-selected',
-    'true',
+  await expect(dialog.getByRole('textbox', { name: '指令', exact: true })).toHaveValue(
+    'Preserve this instruction',
   )
-  await page.keyboard.press('ArrowRight')
-  await expect(preview).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByText('Preview is current', { exact: true })).toBeVisible()
-  await expect(page.locator('.dag-graph-node').first()).toBeVisible()
-
-  for (const width of [1440, 1024, 390]) {
-    for (const theme of ['light', 'dark']) {
-      await page.setViewportSize({ width, height: 900 })
-      await page.evaluate((theme) => {
-        document.documentElement.dataset.theme = theme
-      }, theme)
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
-      )
-      await page.screenshot({ path: test.info().outputPath(`preset-${width}-${theme}.png`) })
-    }
-  }
+  await dialog.getByRole('tab', { name: 'DAG', exact: true }).click()
+  await expect(dialog.getByRole('textbox', { name: '任务名称', exact: true })).toHaveValue(
+    'Synthetic DAG draft',
+  )
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+  const confirmation = page.getByRole('dialog', { name: '有未保存的更改', exact: true })
+  await expect(confirmation).toBeVisible()
+  await confirmation.getByRole('button', { name: '继续编辑', exact: true }).click()
+  await expect(dialog.getByRole('textbox', { name: '任务名称', exact: true })).toHaveValue(
+    'Synthetic DAG draft',
+  )
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+  await discard(page)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
-test('ordinary Task creation offers an optional template inside the existing editor and preserves origin', async ({
+test('required parameters are editable, numeric drafts and defaults survive tab/preset switches and create preserves origin', async ({
   page,
 }) => {
-  await loginSession(page, 'admin', password)
-  const def = await seed(page, ordinaryDefinition('Inline ordinary preset'))
-  const dialog = await openOrdinaryEditor(page)
-  await expect(dialog.getByRole('combobox', { name: '模板（可选）', exact: true })).toContainText(
-    '不使用模板',
+  await loginSession(page, stack.username, password)
+  const def = await seed(page, ordinaryDefinition('Required parameters'))
+  const other = await seed(page, dagDefinition('Other preset'))
+  const dialog = await openCreation(page, '预设')
+  await choosePreset(page, dialog, def.name)
+  const session = dialog.locator('.preset-session:visible')
+  const input = session.getByLabel('仓库地址', { exact: true })
+  await expect(input).toBeVisible()
+  await expect(session.getByRole('button', { name: '创建', exact: true })).toBeDisabled()
+  await expect(session.locator('.template-issues')).toContainText('inputs.repository')
+  await session.locator('.template-issues button').first().click()
+  await expect(input).toBeFocused()
+  await input.fill('https://example.com/first')
+  await session.getByLabel('比例', { exact: true }).fill('')
+  await session.getByLabel('比例', { exact: true }).pressSequentially('1.')
+  await expect(session.getByLabel('比例', { exact: true })).toHaveValue('1.')
+  await session.getByLabel('比例', { exact: true }).pressSequentially('25')
+  await expect(session.getByLabel('比例', { exact: true })).toHaveValue('1.25')
+  await session.getByLabel('比例', { exact: true }).fill('1.25')
+  await expect(session.getByRole('button', { name: '创建', exact: true })).toBeEnabled()
+  await dialog.getByRole('tab', { name: '任务', exact: true }).click()
+  await dialog.getByRole('tab', { name: '预设', exact: true }).click()
+  await expect(input).toHaveValue('https://example.com/first')
+  await choosePreset(page, dialog, other.name)
+  await choosePreset(page, dialog, def.name)
+  await expect(input).toHaveValue('https://example.com/first')
+  await expect(session.getByLabel('比例', { exact: true })).toHaveValue('1.25')
+  const response = page.waitForResponse((response) =>
+    response.url().endsWith(`/task-templates/${def.id}/instantiate`),
   )
-  await chooseTemplate(page, def.name, dialog)
-  await dialog.getByLabel('任务名称', { exact: true }).fill('Inline ordinary task')
-  await setLanguage(page, 'en')
-  const englishDialog = page.getByRole('dialog')
-  await expect(englishDialog.getByLabel('Task name', { exact: true })).toHaveValue(
-    'Inline ordinary task',
-  )
+  await session.getByRole('button', { name: '创建', exact: true }).click()
+  const result = await (await response).json()
+  await expect(dialog).toHaveCount(0)
+  const task = await (await page.request.get(apiPath(`/tasks/${result.task_id}`))).json()
+  expect(task.template_origin.template_id).toBe(def.id)
+  expect(task.template_origin.resolved_inputs).toMatchObject({
+    repository: 'https://example.com/first',
+    ratio: 1.25,
+    flag: false,
+    nullable: null,
+  })
+  expect(task.config.schedule).toBeNull()
+})
+
+test('list edits generate a read-only DAG in the Preset tab, with directory browsing and create-and-run', async ({
+  page,
+}) => {
+  await loginSession(page, stack.username, password)
+  const def = await seed(page, dagDefinition('Dynamic repository preset'))
+  const dialog = await openCreation(page, '预设')
+  await choosePreset(page, dialog, def.name)
+  const session = dialog.locator('.preset-session:visible')
+  await expect(session.locator('.template-preview-context')).toContainText('3 个节点')
+  await session.getByRole('button', { name: '全屏', exact: true }).click()
+  await expect(session.locator('.dag-structure-fullscreen')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(session.locator('.dag-structure-fullscreen')).toHaveCount(0)
+  await expect(dialog).toBeVisible()
   await expect(
-    englishDialog.getByRole('combobox', { name: 'Template (optional)', exact: true }),
-  ).toContainText(def.name)
-  await englishDialog.getByRole('button', { name: 'Next', exact: true }).click()
-  await englishDialog.getByRole('button', { name: 'Save task', exact: true }).click()
-  await expect(englishDialog).toHaveCount(0)
-  const tasks = await (await page.request.get(apiPath('/tasks'))).json()
-  const created = tasks.find((task: any) => task.config.name === 'Inline ordinary task')
-  expect(created.template_origin.template_id).toBe(def.id)
-  expect(JSON.parse(created.config.prompt)).toEqual({
-    text: 'Review https://example.com/repo default note',
-  })
-  expect(created.config.session).toBeUndefined()
+    session.getByRole('combobox', { name: '浏览目录使用的设备', exact: true }),
+  ).toHaveCount(0)
+  await session.getByRole('button', { name: '选择目录', exact: true }).click()
+  const directory = page.getByRole('dialog', { name: '选择工作目录', exact: true })
+  await expect(directory).toBeVisible()
+  await directory.getByRole('button', { name: '选择文件夹', exact: true }).click()
+  await session.locator('.template-array-row').nth(1).getByRole('switch').uncheck()
+  await expect(session.locator('.template-preview-context')).toContainText('2 个节点')
+  await expect(dialog.getByRole('tab', { name: '预设', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(session.locator('.dag-canvas-mount')).toHaveCount(0)
+  await session.getByRole('button', { name: '第 1 项的操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '下移', exact: true }).click()
+  await expect(
+    session.locator('.template-array-row').first().getByLabel('key', { exact: true }),
+  ).toHaveValue('beta')
+  const response = page.waitForResponse((response) =>
+    response.url().endsWith(`/task-templates/${def.id}/instantiate`),
+  )
+  await session.getByRole('button', { name: '创建并运行', exact: true }).click()
+  const result = await (await response).json()
+  expect(result.run_id).toBeTruthy()
+  const task = await (await page.request.get(apiPath(`/tasks/${result.task_id}`))).json()
+  expect(task.config.dag.nodes.map((node: any) => node.id)).toEqual(['review__alpha', 'summary'])
+  expect(task.config.dag.nodes[1].pre).toEqual(['review__alpha'])
 })
 
-test('DAG creation replaces the canvas only when a template is selected and saves the generated graph', async ({
+test('manual Task and DAG creation keep their own editors and save through the unified modal', async ({
   page,
 }) => {
-  await loginSession(page, 'admin', password)
-  const def = await seed(page, dagDefinition('Inline DAG preset'))
-  await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'DAG 任务', exact: true }).click()
-  await chooseTemplate(page, def.name, page.locator('.dag-template-picker'))
-  await expect(page.locator('.dag-template-instance .dag-structure')).toBeVisible()
-  await expect(page.locator('.dag-canvas-mount')).toBeHidden()
-  await page.getByLabel('任务名称', { exact: true }).fill('Inline DAG task')
-  await page.getByRole('button', { name: '下一步', exact: true }).click()
-  await page.getByRole('button', { name: '保存任务', exact: true }).click()
-  await expect(page).toHaveURL(/\/tasks\?task=/)
-  const tasks = await (await page.request.get(apiPath('/tasks'))).json()
-  const created = tasks.find((task: any) => task.config.name === 'Inline DAG task')
-  expect(created.template_origin.template_id).toBe(def.id)
-  expect(created.config.dag.nodes.map((node: any) => node.id)).toEqual([
-    'review__alpha',
-    'review__beta',
-    'summary',
+  await loginSession(page, stack.username, password)
+  let dialog = await openCreation(page)
+  await dialog
+    .getByRole('textbox', { name: '任务名称', exact: true })
+    .fill('Synthetic manual task ' + randomUUID().slice(0, 8))
+  await dialog.getByRole('textbox', { name: '指令', exact: true }).fill('{"text":"manual task"}')
+  await selectChoice(page, dialog, 'Runner', stack.runner_name)
+  await selectChoice(page, dialog, 'Agent', 'Mock Events')
+  await dialog.getByRole('button', { name: '选择目录', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: '选择工作目录', exact: true })
+    .getByRole('button', { name: '选择文件夹', exact: true })
+    .click()
+  await dialog.locator('.creation-schedule > summary').click()
+  await selectChoice(page, dialog, '类型', 'manual')
+  await dialog.getByRole('button', { name: '创建', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  dialog = await openCreation(page, 'DAG')
+  await dialog
+    .getByRole('textbox', { name: '任务名称', exact: true })
+    .fill('Synthetic manual DAG ' + randomUUID().slice(0, 8))
+  await dialog
+    .getByRole('button', { name: `${stack.runner_name} 上的 Mock Events`, exact: true })
+    .click()
+  await dialog.getByRole('textbox', { name: '指令', exact: true }).fill('{"text":"manual DAG"}')
+  await dialog.getByRole('button', { name: '选择目录', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: '选择工作目录', exact: true })
+    .getByRole('button', { name: '选择文件夹', exact: true })
+    .click()
+  await dialog.getByRole('button', { name: '调度设置', exact: true }).click()
+  await selectChoice(page, dialog, '类型', 'manual')
+  await dialog.getByRole('button', { name: '创建', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+})
+
+test('preset catalog is read-only, invalid links show errors, and use opens accessible bilingual responsive creation', async ({
+  page,
+}) => {
+  await loginSession(page, stack.username, password)
+  const def = await seed(page, dagDefinition('Read-only preset'))
+  await page.goto(`/w/${workspace}/presets?template=${def.id}`)
+  await expect(page.locator('.preset-readonly')).toContainText(def.description)
+  await expect(page.getByRole('button', { name: '新建预设', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '预设操作', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: '使用预设', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
+  await expect(dialog.locator('.template-preview-context')).toContainText('3 个节点')
+  await expect(dialog.locator('.dag-graph-surface')).toBeVisible()
+  for (const [width, theme] of [
+    [1440, 'light'],
+    [1024, 'dark'],
+    [390, 'light'],
+    [390, 'dark'],
+  ] as const) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.evaluate((theme) => (document.documentElement.dataset.theme = theme), theme)
+    await expect(dialog).toBeVisible()
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    )
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    if (width === 390) {
+      await dialog.getByRole('button', { name: '任务预览', exact: true }).click()
+      await expect(dialog.locator('.template-preview-pane')).toBeVisible()
+      await expect(dialog.locator('.template-parameters-pane')).toBeHidden()
+      await dialog.getByRole('button', { name: '参数', exact: true }).click()
+    }
+    await page.screenshot({ path: test.info().outputPath(`creation-${width}-${theme}.png`) })
+  }
+  await setLanguage(page, 'en')
+  await expect(page.locator('.creation-modal').getByRole('tab')).toHaveText([
+    'Task',
+    'DAG',
+    'Preset',
   ])
-  expect(created.config.dag.results).toEqual(['summary'])
+  await expect(
+    page.locator('.creation-modal').getByRole('button', { name: 'Create and run', exact: true }),
+  ).toBeEnabled()
+  await setLanguage(page, 'zh')
+  await dialog.getByRole('button', { name: '取消', exact: true }).click()
+  await page.goto(`/w/${workspace}/presets?template=missing-preset`)
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(page.locator('.preset-readonly')).toHaveCount(0)
 })
 
-test('instance previews ignore stale responses, preserve invalid drafts and require an explicit directory Runner', async ({
+test('parameter updates keep the graph view and model input; a new preset revision requires explicit loading', async ({
   page,
 }) => {
-  const def: any = dagDefinition('Preview state preset')
-  def.bindings.worker.defaults = {}
-  await loginSession(page, 'admin', password)
+  await loginSession(page, stack.username, password)
+  const definition = dagDefinition('Stable preview')
+  definition.bindings.worker.defaults.agent = 'mock-sync'
+  const def = await seed(page, definition)
+  const dialog = await openCreation(page, '预设')
+  await choosePreset(page, dialog, def.name)
+  const session = dialog.locator('.preset-session:visible')
+  const create = session.getByRole('button', { name: '创建', exact: true })
+  await expect(create).toBeEnabled()
+  await session.getByRole('button', { name: '表格', exact: true }).click()
+  const search = session.getByRole('textbox', { name: '搜索节点', exact: true })
+  await search.fill('alpha')
+  const graph = await session.locator('.dag-structure').elementHandle()
+  await session.locator('.template-binding > summary').click()
+  await selectChoice(page, session, '模型', '自定义模型 ID')
+  const model = session.getByRole('textbox', { name: '模型', exact: true })
+  await model.pressSequentially('custom-model', { delay: 80 })
+  await expect(model).toBeFocused()
+  await expect(model).toHaveValue('custom-model')
+  await expect(create).toBeEnabled()
+  await session.getByLabel('备注', { exact: true }).fill('keep graph and search')
+  await expect(create).toBeEnabled()
+  expect(await graph!.evaluate((element) => element.isConnected)).toBe(true)
+  await expect(search).toHaveValue('alpha')
+  await expect(session.locator('.dag-node-table')).toBeVisible()
+  await session.getByLabel('备注', { exact: true }).fill('unfinished draft')
+  await page.request.put(apiPath(`/task-templates/${def.id}`), {
+    data: {
+      definition: { ...def, description: 'Updated synthetic description' },
+      expected_revision: 1,
+    },
+    headers: { 'x-wakeit-request': '1' },
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(dialog.getByRole('button', { name: '载入新版', exact: true })).toBeVisible({
+    timeout: 15000,
+  })
+  await expect(create).toBeDisabled()
+  await expect(session.getByLabel('备注', { exact: true })).toHaveValue('unfinished draft')
+  await dialog.getByRole('button', { name: '载入新版', exact: true }).click()
+  await expect(dialog.locator('.preset-choice-heading')).toContainText(
+    'Updated synthetic description',
+  )
+  await expect(session.getByLabel('备注', { exact: true })).toHaveValue('unfinished draft')
+  await expect(create).toBeEnabled()
+})
+
+test('conditional environments remain editable with an old preview, and missing/nullable values can be set explicitly', async ({
+  page,
+}) => {
+  await loginSession(page, stack.username, password)
+  const def = dagDefinition('Conditional environment') as any
+  def.inputs.properties.summarize.default = false
+  def.inputs.properties.empty_list = { type: 'array', title: '空列表', items: { type: 'string' } }
+  def.inputs.properties.empty_flag = { type: 'boolean', title: '空布尔值' }
+  def.inputs.properties.optional = { type: ['string', 'null'], title: '可空内容', default: null }
+  def.inputs.properties.optional_rows = {
+    type: 'array',
+    title: '可空对象列表',
+    default: [null],
+    items: {
+      type: ['object', 'null'],
+      title: '可空行',
+      additionalProperties: false,
+      properties: { note: { type: 'string', title: '行备注' } },
+    },
+  }
+  def.bindings.summary = { title: '汇总环境', defaults: {} }
+  def.task.dag.nodes[1].binding = 'summary'
   await seed(page, def)
-  await page.route('**/runners', async (route) => {
-    const runners = await (await route.fetch()).json()
-    await route.fulfill({
-      json: [...runners, { ...runners[0], id: 'second-device', name: 'Second device' }],
-    })
-  })
-  await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'DAG 任务', exact: true }).click()
-  await chooseTemplate(page, def.name, page.locator('.dag-template-picker'))
-  await expect(page.getByLabel('浏览设备', { exact: true })).toHaveValue('')
-  const before = (await (await page.request.get(apiPath('/tasks'))).json()).length
-  await page.route('**/task-templates/*/preview', async (route) => {
-    const key = route.request().postDataJSON().values?.repositories?.[0]?.key
-    await new Promise((resolve) => setTimeout(resolve, key === 'slow' ? 700 : 50))
-    try {
-      await route.continue()
-    } catch {}
-  })
-  const key = page.getByLabel('inputs.repositories[0].key', { exact: true })
-  const slow = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' &&
-      request.url().includes('/task-templates/') &&
-      request.postDataJSON().values?.repositories?.[0]?.key === 'slow',
+  const dialog = await openCreation(page, '预设')
+  await choosePreset(page, dialog, def.name)
+  const session = dialog.locator('.preset-session:visible')
+  const create = session.getByRole('button', { name: '创建', exact: true })
+  await expect(create).toBeEnabled()
+  const nullable = session.locator('[data-input-path="inputs.optional"]')
+  await nullable.getByRole('button', { name: '设置值', exact: true }).click()
+  await nullable.getByRole('textbox').fill('synthetic value')
+  await nullable.getByRole('button', { name: '可空内容 的参数操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '设为空值', exact: true }).click()
+  await expect(nullable).toContainText('空值')
+  const nullableRow = session.locator('[data-input-path="inputs.optional_rows[0]"]').first()
+  await expect(nullableRow).toContainText('空值')
+  await nullableRow.getByRole('button', { name: '设置值', exact: true }).click()
+  await nullableRow.getByRole('textbox', { name: '行备注', exact: true }).fill('optional value')
+  await nullableRow.getByRole('button', { name: '行备注 的参数操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '清除', exact: true }).click()
+  await expect(nullableRow.getByRole('textbox', { name: '行备注', exact: true })).toHaveValue('')
+  await session.getByRole('button', { name: '空列表 的参数操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '设为空列表', exact: true }).click()
+  await session.getByRole('button', { name: '空布尔值 的参数操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '设为否', exact: true }).click()
+  await session.getByRole('switch', { name: 'inputs.summarize', exact: true }).check()
+  const binding = session.locator('[data-input-path="bindings.summary"]')
+  await expect(binding).toBeVisible()
+  await expect(create).toBeDisabled()
+  await selectChoice(page, binding, '汇总环境 的设备', stack.runner_name)
+  await selectChoice(page, binding, '汇总环境 的 Agent', 'Mock Events')
+  await expect(create).toBeEnabled()
+  const response = page.waitForResponse((response) =>
+    response.url().endsWith(`/task-templates/${def.id}/instantiate`),
   )
-  await key.fill('slow')
-  await slow
-  const fast = page.waitForResponse(
-    (response) =>
-      response.request().postDataJSON().values?.repositories?.[0]?.key === 'fast' &&
-      /\/task-templates\/[^/]+\/preview$/.test(new URL(response.url()).pathname),
-  )
-  await key.fill('fast')
-  await fast
-  await expect(page.getByText('预览已更新', { exact: true })).toBeVisible()
-  await page.waitForTimeout(750)
-  await expect(page.locator('.template-node-heading code')).toHaveText('review__fast')
-
-  await page.getByRole('button', { name: 'YAML', exact: true }).click()
-  const raw = page.getByLabel('参数覆盖', { exact: true })
-  await raw.fill('values: {repositories: [')
-  await page.getByRole('button', { name: '下一步', exact: true }).click()
-  await page.getByRole('button', { name: '保存任务', exact: true }).click()
-  await expect(raw).toHaveValue('values: {repositories: [')
-  await expect(page.getByText('预览已过期', { exact: true }).first()).toBeVisible()
-  expect((await (await page.request.get(apiPath('/tasks'))).json()).length).toBe(before)
+  await create.click()
+  const result = await (await response).json()
+  const task = await (await page.request.get(apiPath(`/tasks/${result.task_id}`))).json()
+  expect(task.template_origin.resolved_inputs).toMatchObject({
+    empty_list: [],
+    empty_flag: false,
+    optional: null,
+    optional_rows: [{}],
+  })
 })
 
-test('saving an existing Task opens the preset definition editor instead of a dialog', async ({
+test('a failed initial preview still allows correcting model parameters without losing input focus', async ({
   page,
 }) => {
-  await loginSession(page, 'admin', password)
-  await page.goto(`/w/${workspace}/tasks?task=same-task`)
-  await page.getByRole('button', { name: '任务操作', exact: true }).click()
-  await page.getByRole('menuitem', { name: '保存为模板', exact: true }).click()
-  await expect(page).toHaveURL(/\/presets\?new=task&source=same-task/)
-  const source = page.getByLabel('模板定义', { exact: true })
-  await expect(source).not.toHaveValue('')
-  const converted = YAML.parse(await source.inputValue())
-  converted.name = `Converted preset ${Date.now()}`
-  await source.fill(YAML.stringify(converted, { lineWidth: 0 }))
-  await page.getByRole('button', { name: '保存模板', exact: true }).click()
-  await expect(page.locator('.preset-row').filter({ hasText: converted.name })).toContainText(
-    converted.name,
-  )
-  const record = await (await page.request.get(apiPath(`/task-templates/${converted.id}`))).json()
-  expect(record.definition.task.binding).toBe('environment-1')
-  expect(typeof record.definition.task.prompt).toBe('string')
+  await loginSession(page, stack.username, password)
+  const def = ordinaryDefinition('Invalid initial model') as any
+  def.inputs.properties.repository.default = 'https://example.com/synthetic'
+  def.bindings.worker.defaults.agent = 'mock-sync'
+  def.bindings.worker.defaults.parameters.model = 'x'.repeat(4097)
+  await seed(page, def)
+  const dialog = await openCreation(page, '预设')
+  await choosePreset(page, dialog, def.name)
+  const session = dialog.locator('.preset-session:visible')
+  const create = session.getByRole('button', { name: '创建', exact: true })
+  await expect(session.locator('.template-issues')).toBeVisible()
+  await expect(create).toBeDisabled()
+  const model = session.getByRole('textbox', { name: '模型', exact: true })
+  await model.fill('')
+  await model.pressSequentially('fixed-model', { delay: 120 })
+  await expect(model).toBeFocused()
+  await expect(model).toHaveValue('fixed-model')
+  await expect(create).toBeEnabled()
 })

@@ -14,7 +14,7 @@ import { useFilters, runnerMatches, agentMatches } from '../Search'
 import { Split } from '../Workbench'
 import { Pagination } from '../Pagination'
 import { Button, IconButton, Modal } from '../ui'
-import { TaskEditor } from '../TaskEditor'
+import { CreateTaskDialog } from '../CreateTaskDialog'
 import { RunnerOverview } from './RunnerOverview'
 import { RunnerAgents } from './RunnerAgents'
 import { EnrollDialog } from './EnrollDialog'
@@ -234,9 +234,9 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
       </Split>
       {enroll && <EnrollDialog onClose={() => setEnroll(false)} toast={toast} />}
       {editor && settings.data && (
-        <TaskEditor
+        <CreateTaskDialog
           defaults={editor}
-          defaultTimezone={settings.data.timezone}
+          timezone={settings.data.timezone}
           onClose={() => setEditor(null)}
         />
       )}

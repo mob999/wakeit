@@ -2,7 +2,7 @@ import { validDuration } from './duration'
 import { ErrorToast } from './Toast'
 import { t as tr, parameterLabel } from './i18n'
 import { useTranslation } from 'react-i18next'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock, ChevronRight } from './icons'
 import { api, time, type Task, type TaskConfig, type Runner } from './api'
@@ -12,13 +12,8 @@ import { AgentLogo } from './AgentLogo'
 import { DirectoryPicker } from './DirectoryPicker'
 import { ModelPicker, ParameterFields } from './ModelPicker'
 import { createTaskId, taskIdSuffix } from './taskId'
+import { ScheduleSummary } from './ScheduleSummary'
 import { SessionBinding } from './sessions/SessionBinding'
-import {
-  TemplatePicker,
-  TemplateInstanceView,
-  useTemplateInstance,
-  useTemplateRecords,
-} from './templates/TemplateInstance'
 export type TaskDefaults = {
   runner: string
   agent?: string
@@ -31,11 +26,17 @@ export function TaskEditor({
   defaultTimezone,
   defaults,
   onClose,
+  embedded = false,
+  onStateChange,
+  onCreated,
 }: {
   task?: Task
   defaultTimezone: string
   defaults?: TaskDefaults
   onClose: () => void
+  onCreated?: (id: string) => void
+  embedded?: boolean
+  onStateChange?: (dirty: boolean, busy: boolean) => void
 }) {
   useTranslation()
   const form = useRef<HTMLFormElement>(null)
@@ -66,19 +67,8 @@ export function TaskEditor({
           execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
         },
   )
-  const [templateId, setTemplateId] = useState('')
-  const templates = useTemplateRecords()
-  const templateRecord = templates.data?.items.find((row) => row.id === templateId) ?? null
-  const templateInstance = useTemplateInstance({
-    record: templateRecord,
-    name: config.name.trim() || undefined,
-    schedule: config.schedule,
-    taskId: createTaskId(config.name || templateRecord?.definition.name || '', suffix),
-  })
-  const timeConfig =
-    templateRecord && templateInstance.preview?.config
-      ? { ...templateInstance.preview.config, schedule: config.schedule }
-      : config
+  const timeConfig = config
+  const baseline = useRef(JSON.stringify(config))
   const [error, setError] = useState('')
   const [focusField, setFocusField] = useState<string | null>(null)
   const [scheduleType, setScheduleType] = useState(
@@ -115,11 +105,6 @@ export function TaskEditor({
     throw Object.assign(new Error(message), { field })
   }
   const validateTask = () => {
-    if (templateRecord) {
-      if (!templateInstance.current || !templateInstance.preview?.config)
-        invalid(tr('taskTemplate.stale'), tr('taskTemplate.optional'))
-      return
-    }
     if (!config.name.trim()) invalid(tr('请填写任务名称'), tr('任务名称'))
     if (!config.prompt.trim()) invalid(tr('请填写指令'), tr('指令'))
     if (!selectedRunner || selectedRunner.revoked) invalid(tr('请选择 Runner'), tr('Runner'))
@@ -140,7 +125,7 @@ export function TaskEditor({
     }
   }
   const advance = () => {
-    if (!save.isPending && !templateInstance.pendingPreview) setStep('time')
+    if (!save.isPending) setStep('time')
   }
   const save = useMutation({
     mutationFn: async () => {
@@ -161,16 +146,17 @@ export function TaskEditor({
         setStep('time')
         throw e
       }
-      if (templateRecord) return templateInstance.create(false)
       const next = { ...config, id: task?.id ?? createTaskId(config.name, suffix) }
-      return api(`/tasks/${encodeURIComponent(next.id)}`, 'PUT', {
+      return api<Task>(`/tasks/${encodeURIComponent(next.id)}`, 'PUT', {
         config: next,
         expected_revision: task?.revision ?? null,
       })
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      baseline.current = JSON.stringify(config)
       client.invalidateQueries({ queryKey: ['tasks'] })
-      onClose()
+      if (onCreated) onCreated(result.id)
+      else onClose()
     },
     onError: (e) => setError(e.message),
   })
@@ -179,76 +165,62 @@ export function TaskEditor({
     focusEditorField(form.current, focusField)
     setFocusField(null)
   }, [focusField, save.isPending, step])
+  useEffect(() => {
+    onStateChange?.(JSON.stringify(config) !== baseline.current, save.isPending)
+  }, [config, save.isPending, onStateChange])
   return (
-    <Modal
+    <TaskEditorSurface
+      embedded={embedded}
       open
       onOpenChange={(v) => !v && !save.isPending && onClose()}
       title={task ? tr('编辑任务') : tr('新建任务')}
       wide
     >
-      <div className="tabs modal-tabs" role="tablist" aria-label={tr('任务编辑')}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={step === 'task'}
-          className={step === 'task' ? 'active' : ''}
-          disabled={save.isPending}
-          onClick={() => {
-            setStep('task')
-            setError('')
-          }}
-        >
-          {tr('任务')}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={step === 'time'}
-          className={step === 'time' ? 'active' : ''}
-          disabled={save.isPending}
-          onClick={advance}
-        >
-          {tr('时间')}
-        </button>
-      </div>
+      {!embedded && (
+        <div className="tabs modal-tabs" role="tablist" aria-label={tr('任务编辑')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={step === 'task'}
+            className={step === 'task' ? 'active' : ''}
+            disabled={save.isPending}
+            onClick={() => {
+              setStep('task')
+              setError('')
+            }}
+          >
+            {tr('任务')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={step === 'time'}
+            className={step === 'time' ? 'active' : ''}
+            disabled={save.isPending}
+            onClick={advance}
+          >
+            {tr('时间')}
+          </button>
+        </div>
+      )}
       <form
         ref={form}
         noValidate
         onSubmit={(e) => {
           e.preventDefault()
           setError('')
-          if (save.isPending || templateInstance.pendingPreview) return
-          if (step === 'task') advance()
+          if (save.isPending) return
+          if (!embedded && step === 'task') advance()
           else save.mutate()
         }}
       >
         <div className="modal-body">
           <fieldset className="editor-fields" disabled={save.isPending}>
-            <div hidden={step !== 'task'} inert={step !== 'task'}>
-              {!task && (
-                <TemplatePicker
-                  kind="task"
-                  value={templateId}
-                  disabled={save.isPending}
-                  onChange={(id) => {
-                    const next = templates.data?.items.find((row) => row.id === id) ?? null
-                    setTemplateId(id)
-                    if (next) {
-                      const schedule = next.definition.task.schedule ?? null
-                      setConfig((current) => ({ ...current, schedule }))
-                      setScheduleType(
-                        schedule?.every
-                          ? 'every'
-                          : schedule?.at
-                            ? 'at'
-                            : schedule
-                              ? 'cron'
-                              : 'manual',
-                      )
-                    }
-                  }}
-                />
-              )}
+            <div
+              className={embedded ? 'creation-task-content' : undefined}
+              hidden={!embedded && step !== 'task'}
+              inert={!embedded && step !== 'task'}
+            >
               <div className="task-core">
                 <Field label={tr('任务名称')}>
                   <input
@@ -259,7 +231,7 @@ export function TaskEditor({
                     placeholder={tr('每日仓库检查')}
                   />
                 </Field>
-                {!templateRecord && (
+                {
                   <>
                     <Field label={tr('指令')}>
                       <textarea
@@ -341,41 +313,53 @@ export function TaskEditor({
                       submitting={save.isPending}
                     />
                   </>
-                )}
+                }
               </div>
-              {templateRecord ? (
-                <TemplateInstanceView instance={templateInstance} />
-              ) : (
-                hasAdvanced && (
-                  <details className="advanced-settings">
-                    <summary>
-                      <ChevronRight size={14} />
-                      <span>{tr('高级设置')}</span>
-                    </summary>
-                    <div className="advanced-body">
-                      {(selectedAgent?.session_supported || config.session) && (
-                        <SessionBinding
-                          runner={selectedRunner}
-                          agent={selectedAgent}
-                          cwd={config.cwd}
-                          value={config.session ?? null}
-                          disabled={save.isPending}
-                          onChange={(session) => change('session', session)}
-                        />
-                      )}
-                      <ParameterFields
+              {hasAdvanced && (
+                <details className="advanced-settings">
+                  <summary>
+                    <ChevronRight size={14} />
+                    <span>{tr('高级设置')}</span>
+                  </summary>
+                  <div className="advanced-body">
+                    {(selectedAgent?.session_supported || config.session) && (
+                      <SessionBinding
+                        runner={selectedRunner}
+                        agent={selectedAgent}
+                        cwd={config.cwd}
+                        value={config.session ?? null}
                         disabled={save.isPending}
-                        agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
-                        values={config.parameters}
-                        options={modelOptions}
-                        onChange={(values) => change('parameters', values)}
+                        onChange={(session) => change('session', session)}
                       />
-                    </div>
-                  </details>
-                )
+                    )}
+                    <ParameterFields
+                      disabled={save.isPending}
+                      agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
+                      values={config.parameters}
+                      options={modelOptions}
+                      onChange={(values) => change('parameters', values)}
+                    />
+                  </div>
+                </details>
               )}
             </div>
-            <div hidden={step !== 'time'} inert={step !== 'time'}>
+            <details
+              className={embedded ? 'advanced-settings creation-schedule' : undefined}
+              open={embedded ? step === 'time' : true}
+              hidden={!embedded && step !== 'time'}
+              inert={!embedded && step !== 'time'}
+              onToggle={
+                embedded
+                  ? (event) => setStep(event.currentTarget.open ? 'time' : 'task')
+                  : undefined
+              }
+            >
+              {embedded && (
+                <summary>
+                  <span>{tr('creation.schedule')}</span>
+                  <ScheduleSummary schedule={config.schedule} enabled={config.enabled} />
+                </summary>
+              )}
               <div className="form-grid">
                 <Field label={tr('类型')}>
                   <ChoicePicker
@@ -459,7 +443,7 @@ export function TaskEditor({
                   </div>
                 </div>
               )}
-              {!templateRecord && (
+              {
                 <details className="advanced-settings">
                   <summary>
                     <ChevronRight size={14} />
@@ -517,8 +501,8 @@ export function TaskEditor({
                     </div>
                   </div>
                 </details>
-              )}
-            </div>
+              }
+            </details>
           </fieldset>
         </div>
         <div className="modal-footer">
@@ -526,7 +510,7 @@ export function TaskEditor({
           <Button type="button" disabled={save.isPending} onClick={onClose}>
             {tr('取消')}
           </Button>
-          {step === 'time' && (
+          {!embedded && step === 'time' && (
             <Button
               type="button"
               disabled={save.isPending}
@@ -538,15 +522,29 @@ export function TaskEditor({
               {tr('上一步')}
             </Button>
           )}
-          <Button
-            variant="solid"
-            type="submit"
-            disabled={save.isPending || templateInstance.pendingPreview}
-          >
-            {step === 'task' ? tr('下一步') : save.isPending ? tr('正在保存…') : tr('保存任务')}
+          <Button variant="solid" type="submit" disabled={save.isPending}>
+            {save.isPending
+              ? tr('正在保存…')
+              : embedded
+                ? tr('creation.create')
+                : step === 'task'
+                  ? tr('下一步')
+                  : tr('保存任务')}
           </Button>
         </div>
       </form>
-    </Modal>
+    </TaskEditorSurface>
+  )
+}
+
+function TaskEditorSurface({
+  embedded,
+  children,
+  ...props
+}: React.ComponentProps<typeof Modal> & { embedded: boolean; children: ReactNode }) {
+  return embedded ? (
+    <div className="creation-task-form">{children}</div>
+  ) : (
+    <Modal {...props}>{children}</Modal>
   )
 }
