@@ -1,5 +1,6 @@
 //! Templates are compiled before Task creation, never during execution.
 mod compiler;
+pub mod document;
 pub mod schema;
 mod types;
 

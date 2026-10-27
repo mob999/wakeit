@@ -27,6 +27,8 @@ Use this analysis:
 
 Configure `pre` explicitly first; inserting a result reference does not create a dependency. Only the reserved `nodes.<id>.result` form is interpreted. String results are inserted verbatim, structured results are formatted as JSON, and inserted text is not interpreted again. Results must come from the same round. Missing, empty, expired, incomplete or persistently truncated results fail the consuming node before submitting to an Agent. The expanded instruction limit is 1 MiB.
 
+A DAG prompt may also be structured as `{parts:[{text:"literal"},{result:"ancestor-id"}]}`. Text parts never enter the legacy parser, even when they contain reference-looking examples; result parts retain order and read only concrete ancestors from the same Run. Existing string prompts and historical snapshots keep their original behavior. [Task templates](templates.md) compile typed selectors into this form before Task creation, rather than rendering MiniJinja during execution. Runners still receive an ordinary version-1 execution string.
+
 Omit `dag.results` to select all leaves automatically, or specify a nonempty list of node IDs. Reports follow definition order and keep each output's format. Wakeit does not call another Agent to summarize them or turn logs into reports.
 
 ## State and lifetime
@@ -81,6 +83,8 @@ python3 scripts/integration_workspaces.py --keep-running
 ```
 
 The script creates its own PostgreSQL, NATS, Gateways, test accounts, CLI profiles and Runners under ignored `.local/workspaces-*`. Its summary records ports, process IDs and checks; private test credentials are separate. Omit `--keep-running` for automatic service shutdown. Add `--old-runner /absolute/path/to/previous/wakeit` to verify legacy Runner assignment compatibility. Never point it at an existing user database.
+
+Use `python3 scripts/integration_workspaces.py --templates-only` for focused creation-time template acceptance on a fresh stack. It covers compilation without writes, atomic Create & run, structured result provenance, cross-Gateway idempotency/concurrency, rollback, permissions, frozen graph recovery and CLI schedule semantics. With `--keep-running`, `WAKEIT_TEST_STACK=<stack>/summary.json npm --prefix web test -- tests/templates.spec.ts` additionally exercises the real template UI with synthetic data.
 
 Local browser fixtures in `web/tests/dag-editor.spec.ts`, `dag-workbench-ux.spec.ts`, `dag-canvas.spec.ts` and `dag-runs.spec.ts` use synthetic data and do not run in CI. Set `WAKEIT_TEST_URL` to the Vite address. Screenshots must not contain personal accounts, paths, credentials or actual user output.
 

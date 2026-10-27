@@ -172,12 +172,12 @@ fn selector_schema(
     names: &BTreeMap<String, bool>,
     issues: &mut Vec<Issue>,
 ) {
-    let valid = match (&selector.node, &selector.group, &selector.key, selector.all) {
-        (Some(_), None, None, None) => true,
-        (None, Some(_), Some(_), None) => true,
-        (None, Some(_), None, Some(true)) => true,
-        _ => false,
-    };
+    let valid = matches!(
+        (&selector.node, &selector.group, &selector.key, selector.all),
+        (Some(_), None, None, None)
+            | (None, Some(_), Some(_), None)
+            | (None, Some(_), None, Some(true))
+    );
     if !valid {
         issues.push(Issue::new(
             "selector",

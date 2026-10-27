@@ -35,6 +35,7 @@ pub mod sessions;
 pub mod store;
 pub mod stream_adapter;
 pub mod task_templates;
+pub mod template_api;
 pub mod trace;
 pub mod update;
 

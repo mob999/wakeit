@@ -41,6 +41,7 @@ test('transparent actions expose tooltips and retain textual form submission', a
   await create.hover()
   await expect(page.getByRole('tooltip')).toHaveText('新建任务')
   await create.click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
   await expect(dialog.getByRole('button', { name: '下一步', exact: true })).toHaveText('下一步')
   await expect(dialog.getByRole('button', { name: '下一步', exact: true })).toHaveClass(/solid/)

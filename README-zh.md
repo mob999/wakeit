@@ -119,6 +119,7 @@ wakeit update
 | 开发 Agent 适配 | [配置与适配协议](docs/protocol.md) |
 | 调用接口 | [REST API](docs/api.md) |
 | 构建和运行测试 | [开发指南](CONTRIBUTING.md) |
-| 查看任务模板与动态 DAG 提案 | [任务模板 RFC](docs/rfc-2-task-templates.md) |
+| 使用任务模板创建任务和动态 DAG | [任务模板指南](docs/templates.md) |
+| 查看任务模板设计 | [任务模板 RFC](docs/rfc-2-task-templates.md) |
 
 许可证：[Apache-2.0](LICENSE)。第三方技能及 Windows 服务工具的来源见[第三方组件](docs/third-party.md)。

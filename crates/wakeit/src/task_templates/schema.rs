@@ -298,17 +298,21 @@ impl InputSchema {
     }
 }
 fn repository_url(value: &str) -> bool {
-    if let Ok(url) = reqwest::Url::parse(value) {
-        return ["http", "https", "ssh"].contains(&url.scheme())
-            && url.host_str().is_some()
-            && url.path() != "/"
-            && !url.path().is_empty();
+    if value.contains("://") {
+        return reqwest::Url::parse(value).is_ok_and(|url| {
+            ["http", "https", "ssh"].contains(&url.scheme())
+                && url.host_str().is_some()
+                && url.path() != "/"
+                && !url.path().is_empty()
+        });
     }
+    // Git's SCP syntax accepts both host:path and user@host:path.
     value.split_once(':').is_some_and(|(host, path)| {
-        !host.is_empty()
+        host.len() > 1
             && !path.is_empty()
-            && !host.contains(['/', '\\', ' '])
-            && host.contains('@')
+            && !host.contains(['/', '\\', ' ', '?', '#'])
+            && !path.starts_with(['/', '\\'])
+            && !value.chars().any(char::is_whitespace)
     })
 }
 pub fn resolve_inputs(

@@ -56,13 +56,36 @@ pub async fn apply_task(
     user: Uuid,
     editor_layout: Option<&crate::editor_layout::EditorLayout>,
 ) -> Result<Option<Value>> {
+    let mut tx = pool.begin().await?;
+    let result = apply_task_tx(
+        &mut tx,
+        workspace,
+        credential,
+        c,
+        expected,
+        user,
+        editor_layout,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(result)
+}
+pub(crate) async fn apply_task_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    workspace: Uuid,
+    credential: &str,
+    c: &TaskConfig,
+    expected: Option<i64>,
+    user: Uuid,
+    editor_layout: Option<&crate::editor_layout::EditorLayout>,
+) -> Result<Option<Value>> {
     let mut normalized = c.clone();
     if let Some(schedule) = &mut normalized.schedule
         && schedule.timezone.is_empty()
     {
         let settings: Value = sqlx::query_scalar("SELECT data FROM settings WHERE workspace_id=$1")
             .bind(workspace)
-            .fetch_one(pool)
+            .fetch_one(&mut **tx)
             .await?;
         schedule.timezone = settings["timezone"]
             .as_str()
@@ -74,19 +97,18 @@ pub async fn apply_task(
     if let Some(layout) = editor_layout {
         layout.validate(c)?;
     }
-    let mut tx = pool.begin().await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
-    crate::workspaces::check_member(&mut tx, credential, workspace, "operator").await?;
+    crate::workspaces::lock(tx, workspace).await?;
+    crate::workspaces::check_member(tx, credential, workspace, "operator").await?;
     // Serialize creation too; an absent row cannot be protected with FOR UPDATE.
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
         .bind(format!("{workspace}:{}", c.id))
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
     let old = sqlx::query(
         "SELECT revision,config,next_at,enabled,archived_at,editor_layout FROM tasks WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
     )
     .bind(&c.id)
-    .bind(workspace).fetch_optional(&mut *tx)
+    .bind(workspace).fetch_optional(&mut **tx)
     .await?;
     ensure!(
         old.as_ref()
@@ -106,10 +128,10 @@ pub async fn apply_task(
     let runner = if c.dag.is_some() {
         None
     } else {
-        Some(crate::dag_store::runner(&mut tx, workspace, c).await?)
+        Some(crate::dag_store::runner(tx, workspace, c).await?)
     };
     let now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
     let config = serde_json::to_value(c)?;
     let unchanged = old.as_ref().is_some_and(|r| {
@@ -145,13 +167,12 @@ pub async fn apply_task(
     .map(serde_json::to_value)
     .transpose()?;
     let row:Value=sqlx::query_scalar("INSERT INTO tasks(workspace_id,id,runner_id,config,enabled,next_at,created_by,updated_by,editor_layout) VALUES($7,$1,$2,$3,$4,$5,$6,$6,$8) ON CONFLICT(workspace_id,id) DO UPDATE SET runner_id=excluded.runner_id,config=excluded.config,enabled=excluded.enabled,next_at=excluded.next_at,editor_layout=excluded.editor_layout,revision=tasks.revision+1,updated_by=excluded.updated_by,updated_at=now() RETURNING to_jsonb(tasks.*)")
-        .bind(&c.id).bind(runner).bind(config).bind(c.enabled).bind(next_at).bind(user).bind(workspace).bind(layout).fetch_one(&mut *tx).await?;
-    crate::dag_store::save_nodes(&mut tx, workspace, c).await?;
+        .bind(&c.id).bind(runner).bind(config).bind(c.enabled).bind(next_at).bind(user).bind(workspace).bind(layout).fetch_one(&mut **tx).await?;
+    crate::dag_store::save_nodes(tx, workspace, c).await?;
     if !c.enabled {
-        sqlx::query("UPDATE runs SET state='cancelled',reason='task paused',finished_at=now() WHERE workspace_id=$2 AND task_id=$1 AND parent_run_id IS NULL AND state='queued' AND source='schedule'").bind(&c.id).bind(workspace).execute(&mut *tx).await?;
+        sqlx::query("UPDATE runs SET state='cancelled',reason='task paused',finished_at=now() WHERE workspace_id=$2 AND task_id=$1 AND parent_run_id IS NULL AND state='queued' AND source='schedule'").bind(&c.id).bind(workspace).execute(&mut **tx).await?;
     }
-    audit(&mut tx, user, Some(workspace), "task.apply", &c.id).await?;
-    tx.commit().await?;
+    audit(tx, user, Some(workspace), "task.apply", &c.id).await?;
     Ok(Some(row))
 }
 
@@ -249,6 +270,8 @@ async fn create_run(tx: &mut Transaction<'_, Postgres>, run: NewRun<'_>) -> Resu
     let deadline = at + chrono::Duration::from_std(duration(&task.execution.start_grace)?)?;
     sqlx::query("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,retry_of,request_key,state,reason,finished_at) VALUES($13,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $11='skipped' THEN now() ELSE NULL END)")
         .bind(id).bind(&task.id).bind(revision).bind(runner).bind(serde_json::to_value(task)?).bind(at).bind(deadline).bind(source).bind(retry).bind(key).bind(state).bind(reason).bind(workspace).execute(&mut **tx).await?;
+    sqlx::query("UPDATE runs r SET template_origin=t.template_origin FROM tasks t WHERE r.id=$1 AND t.workspace_id=$2 AND t.id=$3")
+        .bind(id).bind(workspace).bind(&task.id).execute(&mut **tx).await?;
     if task.dag.is_some() {
         crate::dag_store::seed(tx, workspace, id, task).await?;
     }
@@ -282,8 +305,21 @@ pub async fn trigger(
     key: &str,
 ) -> Result<Uuid> {
     let mut tx = pool.begin().await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
-    crate::workspaces::check_member(&mut tx, credential, workspace, "operator").await?;
+    let id = trigger_tx(&mut tx, workspace, credential, task_id, user, retry, key).await?;
+    tx.commit().await?;
+    Ok(id)
+}
+pub(crate) async fn trigger_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    workspace: Uuid,
+    credential: &str,
+    task_id: &str,
+    user: Uuid,
+    retry: Option<Uuid>,
+    key: &str,
+) -> Result<Uuid> {
+    crate::workspaces::lock(tx, workspace).await?;
+    crate::workspaces::check_member(tx, credential, workspace, "operator").await?;
     let request_key = format!(
         "{user}:{}:{key}",
         retry
@@ -293,7 +329,7 @@ pub async fn trigger(
     let row = sqlx::query("SELECT * FROM tasks WHERE workspace_id=$2 AND id=$1 FOR UPDATE")
         .bind(task_id)
         .bind(workspace)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?
         .context("task not found")?;
     if let Some(id) = sqlx::query_scalar::<_, Uuid>(
@@ -301,7 +337,7 @@ pub async fn trigger(
     )
     .bind(&request_key)
     .bind(workspace)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await?
     {
         return Ok(id);
@@ -314,11 +350,11 @@ pub async fn trigger(
     if let Some(runner) = row.get::<Option<Uuid>, _>("runner_id") {
         let revoked: bool = sqlx::query_scalar("SELECT revoked FROM runners WHERE id=$1")
             .bind(runner)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await?;
         ensure!(!revoked, "assigned runner has been revoked");
     }
-    let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$2 AND task_id=$1 AND parent_run_id IS NULL AND state IN ('queued','starting','running','unknown'))").bind(task_id).bind(workspace).fetch_one(&mut *tx).await?;
+    let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$2 AND task_id=$1 AND parent_run_id IS NULL AND state IN ('queued','starting','running','unknown'))").bind(task_id).bind(workspace).fetch_one(&mut **tx).await?;
     ensure!(
         !busy || task.execution.overlap == Overlap::Allow,
         "task already has an active run"
@@ -330,7 +366,7 @@ pub async fn trigger(
         .bind(previous)
         .bind(task_id)
         .bind(workspace)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
         ensure!(
             protocol::terminal(&state),
@@ -338,10 +374,10 @@ pub async fn trigger(
         );
     }
     let now = sqlx::query_scalar("SELECT now()")
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
     let id = create_run(
-        &mut tx,
+        tx,
         NewRun {
             workspace,
             task: &task,
@@ -356,15 +392,7 @@ pub async fn trigger(
         },
     )
     .await?;
-    audit(
-        &mut tx,
-        user,
-        Some(workspace),
-        "run.trigger",
-        &id.to_string(),
-    )
-    .await?;
-    tx.commit().await?;
+    audit(tx, user, Some(workspace), "run.trigger", &id.to_string()).await?;
     Ok(id)
 }
 

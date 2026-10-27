@@ -1,3 +1,4 @@
+import { promptBlank } from './prompt'
 import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast, useToast } from '../Toast'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -327,7 +328,7 @@ export function DagEditor({
       (e.node_id &&
         (issueField(e) === 'pre' ||
           (issueField(e) === 'prompt' &&
-            dag.nodes.find((n) => n.id === e.node_id)?.prompt.trim()))),
+            !promptBlank(dag.nodes.find((n) => n.id === e.node_id)?.prompt)))),
   )
   const local = validated ? localErrors() : structural,
     errors = [...local, ...serverErrors.filter((e) => !local.some((l) => l.path === e.path))]
@@ -471,7 +472,7 @@ export function DagEditor({
         ((e.path === 'dag.results' && graph().dag.results != null) ||
           (e.node_id &&
             issueField(e) === 'prompt' &&
-            next.dag.nodes.find((n) => n.id === e.node_id)?.prompt.trim())) &&
+            !promptBlank(next.dag.nodes.find((n) => n.id === e.node_id)?.prompt))) &&
         !before.some((p) => p.path === e.path && p.message === e.message),
     )
   }

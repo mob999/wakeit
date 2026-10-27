@@ -12,6 +12,10 @@ export async function loginSession(page: Page, username: string, password: strin
     await page.getByLabel('用户名', { exact: true }).fill(username)
     await page.getByLabel('密码', { exact: true }).fill(password)
     await page.getByRole('button', { name: '登录工作区' }).click()
+    await expect(page.getByRole('heading', { name: /^(动态|工作区)$/ })).toBeVisible()
+    if (await page.getByRole('heading', { name: '工作区', exact: true }).isVisible()) {
+      await page.getByRole('link', { name: /Default/ }).click()
+    }
     await expect(page.getByRole('heading', { name: '动态', exact: true })).toBeVisible()
     sessions.set(username, await page.context().cookies())
   }

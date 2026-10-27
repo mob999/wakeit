@@ -321,6 +321,32 @@ pub fn router(app: App) -> Router {
         .route("/tokens/{id}", delete(delete_token))
         .route("/tasks", get(tasks))
         .route("/tasks/validate", post(validate_task))
+        .route("/tasks/{id}/template", get(crate::template_api::from_task))
+        .route("/task-templates", get(crate::template_api::list))
+        .route(
+            "/task-template-preview",
+            post(crate::template_api::draft_preview),
+        )
+        .route(
+            "/task-templates/{id}",
+            get(crate::template_api::get).put(crate::template_api::save),
+        )
+        .route(
+            "/task-templates/{id}/archive",
+            post(crate::template_api::archive),
+        )
+        .route(
+            "/task-templates/{id}/restore",
+            post(crate::template_api::restore),
+        )
+        .route(
+            "/task-templates/{id}/preview",
+            post(crate::template_api::preview),
+        )
+        .route(
+            "/task-templates/{id}/instantiate",
+            post(crate::template_api::instantiate),
+        )
         .route("/tasks/{id}", get(task).put(apply))
         .route("/tasks/{id}/runs", post(trigger))
         .route("/tasks/{id}/archive", post(archive_task))
@@ -786,7 +812,7 @@ struct ListTasks {
     agent: Option<String>,
     enabled: Option<bool>,
 }
-fn pagination(page: Option<i64>, size: Option<i64>) -> Result<(i64, i64)> {
+pub(crate) fn pagination(page: Option<i64>, size: Option<i64>) -> Result<(i64, i64)> {
     let page = page.unwrap_or(1);
     let size = size.unwrap_or(20);
     if !(1..=1_000_000).contains(&page) || !(1..=100).contains(&size) {
@@ -794,7 +820,7 @@ fn pagination(page: Option<i64>, size: Option<i64>) -> Result<(i64, i64)> {
     }
     Ok((page, size))
 }
-fn search_pattern(q: Option<String>) -> Result<Option<String>> {
+pub(crate) fn search_pattern(q: Option<String>) -> Result<Option<String>> {
     let Some(q) = q else { return Ok(None) };
     if q.len() > 640 {
         return Err(Error::bad("search query too long"));
@@ -1725,6 +1751,9 @@ async fn schema(Path(kind): Path<String>) -> Result<Json<Value>> {
     Ok(Json(match kind.as_str() {
         "agent" => serde_json::to_value(schemars::schema_for!(crate::config::AgentConfig))?,
         "task" => serde_json::to_value(schemars::schema_for!(TaskConfig))?,
+        "template" => {
+            serde_json::to_value(schemars::schema_for!(crate::task_templates::Definition))?
+        }
         _ => return Err(Error::missing()),
     }))
 }

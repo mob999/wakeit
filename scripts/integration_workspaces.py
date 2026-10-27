@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--prepare-only', action='store_true', help='Retain only the basic disposable stack for live-upgrade checks')
     parser.add_argument('--gateway-binary', type=pathlib.Path, help='Previous Gateway binary for a disposable live-upgrade check')
     parser.add_argument('--manual-retry-only', action='store_true', help='Run focused same-Run recovery acceptance on a fresh stack')
+    parser.add_argument('--templates-only', action='store_true', help='Run creation-time template acceptance on a fresh stack')
     parser.add_argument('--files-only', action='store_true', help='Run result file and image acceptance on a fresh two-Gateway stack')
     parser.add_argument('--gateway-port', type=int)
     parser.add_argument('--old-runner', type=pathlib.Path, help='Read-only legacy Runner binary used for workspace A')
@@ -177,13 +178,18 @@ def main():
         if not args.prepare_only:
             from workspace_lock_checks import verify as verify_workspace_locks
             verify_workspace_locks(api, a, sql, cli_env, check)
-            if args.files_only:
+            if args.templates_only:
+                from task_template_checks import verify as verify_templates
+                verify_templates(api,a,b,check,dict(base=base,other=other,sql=sql,binary=binary,cli_env=cli_env,root=root,global_api=global_api))
+            elif args.files_only:
                 from result_file_checks import verify as verify_files
                 file_run = verify_files(api,a,b,check,dict(other=other))
             else:
                 from dag_retry_migration_checks import verify as verify_retry_migration
                 verify_retry_migration(sql,check)
                 if not args.manual_retry_only:
+                    from task_template_checks import verify as verify_templates
+                    verify_templates(api,a,b,check,dict(base=base,other=other,sql=sql,binary=binary,cli_env=cli_env,root=root,global_api=global_api))
                     from dag_checks import verify as verify_dags
                     dag_runs = verify_dags(api, a, b, check, dict(other=other, sql=sql, binary=binary, cli_env=cli_env, workspace=workspace_a, root=root, spawn=spawn))
                     from dag_retry_checks import verify as verify_retries

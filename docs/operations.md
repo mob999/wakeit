@@ -182,6 +182,14 @@ Update Runners for bounded observations that do not interrupt healthy Agent exec
 
 0.3.3 requires no new database migration and retains the published `0007_dag_manual_retry.sql` baseline. Back up service data, replace the Gateway/CLI binary and restart the Gateway to load the updated WebUI and workspace-lock fix; verify `/health/ready`. Keep existing PostgreSQL and NATS data, Runner journals, device identities, native sessions and Agent credentials. Existing Runners remain compatible; do not reregister devices. Configuration and message protocols remain version 1.
 
+## Unreleased task-template migration
+
+The task-template implementation appends `0008_task_templates.sql` after the published `0007_dag_manual_retry.sql` baseline. It adds workspace template resources, Task/Run creation-origin snapshots and idempotent operation results without rewriting existing records. Package metadata remains 0.3.3 during implementation and configuration/message protocols remain version 1; this document does not make the feature part of the published 0.3.3 release.
+
+Before deploying a template-enabled build, back up PostgreSQL, NATS state, Runner configuration and journals, and confirm there are no starting/running Runs. Stop every old Gateway writer, run `wakeit gateway migrate --config gateway.yaml` with the new binary, then start all Gateways on that same build and verify `/health/ready`. Preserve Task/Run IDs, results, API Keys, Runner identities, native sessions and Agent credentials; do not reregister devices or replace databases.
+
+Structured DAG prompts fit the existing JSONB Task/Run snapshots, and Runners continue receiving ordinary version-1 execution strings. Older Runners do not need re-enrollment or new Agent credentials. Older Gateways and CLIs are not guaranteed to understand structured prompt configuration, so do not mix old and new Gateway writes or let an old Gateway schedule/recover those Tasks. See [Task templates](templates.md) for the creation and compatibility model.
+
 ## Browser session terminals
 
 Apply the new PostgreSQL migration before starting updated Gateways. Updated Runners advertise `info.web_terminal: 1`; old or offline Runners retain native command-copy support. Local SQLite lifecycle tracking upgrades automatically. Existing device identities and NATS credentials remain valid: terminal control uses the authorized Runner inbox, and output uses its existing reply prefix. No additional Runner listening port is required.

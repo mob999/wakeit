@@ -293,3 +293,57 @@ fn previews_show_graph_and_used_bindings_without_claiming_incomplete_environment
             .all(|n| n.agent == "kimi-code" && n.runner == "actual-device")
     );
 }
+
+#[test]
+fn documents_preserve_types_and_reject_ambiguous_yaml_or_non_json_values() {
+    use templates::document::parse;
+    assert_eq!(parse("values: {flag: false, count: 0, note: '', list: [], empty: {}, missing: null}\nunset: [optional]\n").unwrap(),json!({"values":{"flag":false,"count":0,"note":"","list":[],"empty":{},"missing":null},"unset":["optional"]}));
+    for source in [
+        "a: 1\na: 2",
+        "{\"a\":1,\"a\":2}",
+        "1: value",
+        "x: !custom value",
+        "x: .nan",
+        "x: .inf",
+        "---\na: 1\n---\nb: 2",
+    ] {
+        assert!(parse(source).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn repository_urls_accept_git_scp_without_treating_local_paths_as_remote_urls() {
+    for (url, valid) in [
+        ("github.com:org/repo.git", true),
+        ("git@github.com:org/repo.git", true),
+        ("ssh://git@example.com/org/repo", true),
+        ("https://example.com/org/repo", true),
+        ("/tmp/repo", false),
+        ("C:\\repo", false),
+        ("file:///tmp/repo", false),
+        ("https://example.com/", false),
+    ] {
+        let preview = templates::compile(
+            &definition(),
+            &request(json!({"repositories":[{"key":"a","url":url}]})),
+        );
+        assert_eq!(
+            !preview.issues.iter().any(|i| i.code == "repositoryUrl"),
+            valid,
+            "{url}: {:?}",
+            preview.issues
+        );
+    }
+}
+
+#[test]
+fn remote_directory_scopes_use_path_components_not_text_prefixes() {
+    use wakeit::template_api::directory_in_roots as within;
+    assert!(within("/work/projects/../report", &json!(["/work"]), false));
+    assert!(!within("/work-else/report", &json!(["/work"]), false));
+    assert!(!within("/work/../../etc", &json!(["/work"]), false));
+    assert!(!within("relative/report", &json!(["/"]), false));
+    assert!(within("C:\\Work\\report", &json!(["c:/work"]), true));
+    assert!(!within("C:\\Work\\..\\private", &json!(["c:/work"]), true));
+    assert!(!within("D:/Work/report", &json!(["c:/work"]), true));
+}

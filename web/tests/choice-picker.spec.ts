@@ -46,6 +46,7 @@ test('shared choices search, support keyboard navigation and preserve offline se
     }),
   )
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog')
   const runner = dialog.getByRole('combobox', { name: 'Runner', exact: true })
   await expect(dialog.getByRole('combobox', { name: 'Agent', exact: true })).toBeDisabled()
@@ -95,6 +96,7 @@ test('shared choices search, support keyboard navigation and preserve offline se
 test('choice popovers and focus borders fit dark and narrow task editors', async ({ page }) => {
   await loginSession(page, 'admin', stack.password)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog')
   for (const [width, dark] of [
     [1440, false],

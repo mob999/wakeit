@@ -89,6 +89,7 @@ test('login and dialogs share the same frame and preserve compact accessible con
   await page.screenshot({ path: 'test-results/cards-login-light.png' })
   await loginSession(page, 'admin', stack.password)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog')
   expect(await dialog.evaluate((e) => getComputedStyle(e).borderRadius)).toBe('6px')
   expect(

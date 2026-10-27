@@ -88,6 +88,7 @@ async function picker(page: Page, windows = false) {
     })
   })
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const task = page.getByRole('dialog', { name: '新建任务', exact: true })
   await task.getByLabel('任务名称', { exact: true }).fill('目录草稿')
   await selectChoice(page, task, 'Runner', '目录设备')

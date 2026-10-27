@@ -117,6 +117,7 @@ Update checks use public GitHub Releases and require no GitHub sign-in. Regular 
 | Develop an Agent adapter | [Configuration and adapter protocol](docs/protocol.md) |
 | Call the API | [REST API](docs/api.md) |
 | Build and run tests | [Contributing](CONTRIBUTING.md) |
-| Review proposed task templates and generated DAGs | [Task template RFC](docs/rfc-2-task-templates.md) |
+| Create reusable tasks and generated DAGs | [Task templates](docs/templates.md) |
+| Review the task template design | [Task template RFC](docs/rfc-2-task-templates.md) |
 
 License: [Apache-2.0](LICENSE). See [third-party components](docs/third-party.md) for bundled skills and Windows service tooling.

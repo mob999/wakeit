@@ -1,3 +1,4 @@
+import { promptText } from '../dag/prompt'
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -102,7 +103,7 @@ export function TaskOverview({
           {source ? (
             <TaskPrompt
               key={identity}
-              text={source.prompt}
+              text={promptText(source.prompt)}
               title={
                 config.dag && node ? (
                   <>

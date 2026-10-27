@@ -12,6 +12,7 @@ const stack = JSON.parse(
 async function open(page: Page) {
   await loginSession(page, 'admin', stack.password)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   return page.getByRole('dialog', { name: '新建任务', exact: true })
 }
 async function fill(page: Page, dialog: any) {

@@ -1,6 +1,6 @@
 # RFC-2: Task templates with MiniJinja and generated DAGs
 
-Status: proposal. Tracking issue: [#138](https://github.com/mob999/wakeit/issues/138). This document plans the feature; it does not enable it or change the current 0.3.3 release.
+Status: accepted. RFC tracking issue: [#138](https://github.com/mob999/wakeit/issues/138); implementation issue: [#142](https://github.com/mob999/wakeit/issues/142). The published 0.3.3 release does not include the implementation or change its schema baseline.
 
 ## Product model
 

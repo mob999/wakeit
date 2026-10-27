@@ -93,7 +93,7 @@
           "type": "array"
         },
         "prompt": {
-          "type": "string"
+          "$ref": "#/$defs/Prompt"
         },
         "runner": {
           "type": "string"
@@ -129,6 +129,38 @@
         "allow"
       ],
       "type": "string"
+    },
+    "Prompt": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/StructuredPrompt"
+        }
+      ]
+    },
+    "PromptPart": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextPart"
+        },
+        {
+          "$ref": "#/$defs/ResultPart"
+        }
+      ]
+    },
+    "ResultPart": {
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
     },
     "Schedule": {
       "additionalProperties": false,
@@ -168,6 +200,33 @@
       },
       "required": [
         "id"
+      ],
+      "type": "object"
+    },
+    "StructuredPrompt": {
+      "additionalProperties": false,
+      "properties": {
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/PromptPart"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "parts"
+      ],
+      "type": "object"
+    },
+    "TextPart": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
       ],
       "type": "object"
     }

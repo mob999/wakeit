@@ -37,6 +37,7 @@ test('workspace timezone initializes the form and formats schedule previews', as
       .locator('.pane-heading')
       .getByRole('button', { name: '新建任务', exact: true })
       .click()
+    await page.getByRole('menuitem', { name: '任务', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await dialog.getByLabel('任务名称', { exact: true }).fill('timezone preview')
     await dialog.getByLabel('指令', { exact: true }).fill('preview')
@@ -54,6 +55,7 @@ test('workspace timezone initializes the form and formats schedule previews', as
 test('create, edit, pause, trigger and inspect a real Agent run', async ({ page }) => {
   await login(page)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.getByLabel('任务名称', { exact: true }).fill('WebUI smoke')
   await selectChoice(page, dialog, 'Runner', 'test-device')
@@ -194,6 +196,7 @@ test('header, directory browser, discovered models and parameter drafts across p
   await expect(header).not.toContainText('Scheduling for agents')
   await expect(page.locator('.nav-bottom .version')).toHaveCount(0)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
   await dialog.getByLabel('任务名称', { exact: true }).fill('Model selection test')
   await selectChoice(page, dialog, 'Runner', 'test-device')
@@ -222,6 +225,7 @@ test('header, directory browser, discovered models and parameter drafts across p
 test('models failure and empty response never reuse the old list', async ({ page }) => {
   await login(page)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
   await selectChoice(page, dialog, 'Runner', 'test-device')
   await selectDirectory(page, dialog)
@@ -261,6 +265,7 @@ test('compact primary fields, pinyin IDs, fixed suffix and immutable ID on renam
 }) => {
   await login(page)
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
   await expect(dialog.getByRole('textbox', { name: '任务 ID', exact: true })).toHaveCount(0)
   await expect(dialog.getByRole('textbox', { name: '指令', exact: true })).toBeVisible()
@@ -433,6 +438,7 @@ test('product copy and status styles stay consistent across all pages', async ({
   }
   await page.getByRole('link', { name: '任务', exact: true }).click()
   await page.locator('.pane-heading').getByRole('button', { name: '新建任务', exact: true }).click()
+  await page.getByRole('menuitem', { name: '任务', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '新建任务', exact: true })
   await expect(dialog.getByText('任务 ID', { exact: true })).toHaveCount(0)
 })

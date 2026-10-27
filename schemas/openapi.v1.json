@@ -529,7 +529,7 @@
                 "type": "array"
               },
               "prompt": {
-                "type": "string"
+                "$ref": "#/components/schemas/ApplyTask/$defs/Prompt"
               },
               "runner": {
                 "type": "string"
@@ -584,6 +584,38 @@
             ],
             "type": "object"
           },
+          "Prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/ApplyTask/$defs/StructuredPrompt"
+              }
+            ]
+          },
+          "PromptPart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplyTask/$defs/TextPart"
+              },
+              {
+                "$ref": "#/components/schemas/ApplyTask/$defs/ResultPart"
+              }
+            ]
+          },
+          "ResultPart": {
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "result"
+            ],
+            "type": "object"
+          },
           "Schedule": {
             "additionalProperties": false,
             "properties": {
@@ -622,6 +654,21 @@
             },
             "required": [
               "id"
+            ],
+            "type": "object"
+          },
+          "StructuredPrompt": {
+            "additionalProperties": false,
+            "properties": {
+              "parts": {
+                "items": {
+                  "$ref": "#/components/schemas/ApplyTask/$defs/PromptPart"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "parts"
             ],
             "type": "object"
           },
@@ -763,6 +810,18 @@
               "name"
             ],
             "type": "object"
+          },
+          "TextPart": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -895,6 +954,38 @@
       },
       "DagRunNode": {
         "$defs": {
+          "Prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/DagRunNode/$defs/StructuredPrompt"
+              }
+            ]
+          },
+          "PromptPart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DagRunNode/$defs/TextPart"
+              },
+              {
+                "$ref": "#/components/schemas/DagRunNode/$defs/ResultPart"
+              }
+            ]
+          },
+          "ResultPart": {
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "result"
+            ],
+            "type": "object"
+          },
           "SessionBinding": {
             "additionalProperties": false,
             "properties": {
@@ -904,6 +995,33 @@
             },
             "required": [
               "id"
+            ],
+            "type": "object"
+          },
+          "StructuredPrompt": {
+            "additionalProperties": false,
+            "properties": {
+              "parts": {
+                "items": {
+                  "$ref": "#/components/schemas/DagRunNode/$defs/PromptPart"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "parts"
+            ],
+            "type": "object"
+          },
+          "TextPart": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
             ],
             "type": "object"
           }
@@ -964,7 +1082,7 @@
             "type": "array"
           },
           "prompt": {
-            "type": "string"
+            "$ref": "#/components/schemas/DagRunNode/$defs/Prompt"
           },
           "reason": {
             "type": [
@@ -1728,6 +1846,16 @@
           "task_id": {
             "type": "string"
           },
+          "template_origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplateOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "window_started_at": {
             "format": "date-time",
             "type": [
@@ -2378,7 +2506,7 @@
                 "type": "array"
               },
               "prompt": {
-                "type": "string"
+                "$ref": "#/components/schemas/Task/$defs/Prompt"
               },
               "runner": {
                 "type": "string"
@@ -2414,6 +2542,38 @@
               "allow"
             ],
             "type": "string"
+          },
+          "Prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/Task/$defs/StructuredPrompt"
+              }
+            ]
+          },
+          "PromptPart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Task/$defs/TextPart"
+              },
+              {
+                "$ref": "#/components/schemas/Task/$defs/ResultPart"
+              }
+            ]
+          },
+          "ResultPart": {
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "result"
+            ],
+            "type": "object"
           },
           "Schedule": {
             "additionalProperties": false,
@@ -2453,6 +2613,33 @@
             },
             "required": [
               "id"
+            ],
+            "type": "object"
+          },
+          "StructuredPrompt": {
+            "additionalProperties": false,
+            "properties": {
+              "parts": {
+                "items": {
+                  "$ref": "#/components/schemas/Task/$defs/PromptPart"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "parts"
+            ],
+            "type": "object"
+          },
+          "TextPart": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
             ],
             "type": "object"
           }
@@ -2618,6 +2805,16 @@
           },
           "revision": {
             "type": "integer"
+          },
+          "template_origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplateOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2625,6 +2822,2930 @@
           "config",
           "revision"
         ],
+        "type": "object"
+      },
+      "TaskTemplate": {
+        "$defs": {
+          "Binding": {
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "runner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "BindingSlot": {
+            "additionalProperties": false,
+            "properties": {
+              "defaults": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Binding",
+                "default": {
+                  "agent": null,
+                  "parameters": null,
+                  "runner": null
+                }
+              },
+              "title": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "BlueprintPrompt": {
+            "additionalProperties": false,
+            "properties": {
+              "parts": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplate/$defs/Part"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "parts"
+            ],
+            "type": "object"
+          },
+          "DagBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "nodes": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplate/$defs/Declaration"
+                },
+                "type": "array"
+              },
+              "results": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplate/$defs/Selector"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "nodes"
+            ],
+            "type": "object"
+          },
+          "Declaration": {
+            "additionalProperties": false,
+            "properties": {
+              "as": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cwd": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "for_each": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "max_retries": {
+                "default": 0,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "node": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/NodeBlueprint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pre": {
+                "default": [],
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplate/$defs/Selector"
+                },
+                "type": "array"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/BlueprintPrompt"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeout": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "Execution": {
+            "additionalProperties": false,
+            "properties": {
+              "misfire": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Misfire",
+                "default": "latest"
+              },
+              "overlap": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Overlap",
+                "default": "skip"
+              },
+              "start_grace": {
+                "default": "1h",
+                "type": "string"
+              },
+              "timeout": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "Expr": {
+            "additionalProperties": false,
+            "properties": {
+              "expr": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expr"
+            ],
+            "type": "object"
+          },
+          "InputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "additionalProperties": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "default": true,
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "enum": {
+                "items": true,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "format": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/InputSchema"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maxItems": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "maxLength": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "maximum": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "minItems": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "minLength": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "minimum": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "properties": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/TaskTemplate/$defs/InputSchema"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "required": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": true
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "Key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Expr"
+              }
+            ]
+          },
+          "Misfire": {
+            "enum": [
+              "skip",
+              "latest"
+            ],
+            "type": "string"
+          },
+          "NodeBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "binding": {
+                "type": "string"
+              },
+              "cwd": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Text"
+              },
+              "max_retries": {
+                "default": 0,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Text"
+              },
+              "pre": {
+                "default": [],
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplate/$defs/Selector"
+                },
+                "type": "array"
+              },
+              "prompt": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/BlueprintPrompt"
+              },
+              "timeout": {
+                "default": "1h",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "binding",
+              "cwd",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          "Overlap": {
+            "enum": [
+              "skip",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "Part": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/TextPart"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/TemplateText"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/ResultSelection"
+              }
+            ]
+          },
+          "ResultSelection": {
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Selector"
+              },
+              "separator": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "result"
+            ],
+            "type": "object"
+          },
+          "Schedule": {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cron": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "every": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timezone": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "Selector": {
+            "additionalProperties": false,
+            "properties": {
+              "all": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Key"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "node": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "TaskBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cwd": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dag": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/DagBlueprint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "execution": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Execution",
+                "default": {
+                  "misfire": "latest",
+                  "overlap": "skip",
+                  "start_grace": "1h",
+                  "timeout": null
+                }
+              },
+              "name": {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/Text"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "schedule": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplate/$defs/Schedule"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "TemplateText": {
+            "additionalProperties": false,
+            "properties": {
+              "template": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "template"
+            ],
+            "type": "object"
+          },
+          "Text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplate/$defs/TemplateText"
+              }
+            ]
+          },
+          "TextPart": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TaskTemplate/$defs/BindingSlot"
+            },
+            "default": {},
+            "type": "object"
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/TaskTemplate/$defs/InputSchema"
+          },
+          "name": {
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskTemplate/$defs/TaskBlueprint"
+          },
+          "version": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "id",
+          "name",
+          "inputs",
+          "task"
+        ],
+        "title": "Definition",
+        "type": "object"
+      },
+      "TaskTemplateDraftPreview": {
+        "$defs": {
+          "Binding": {
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "runner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "BindingSlot": {
+            "additionalProperties": false,
+            "properties": {
+              "defaults": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Binding",
+                "default": {
+                  "agent": null,
+                  "parameters": null,
+                  "runner": null
+                }
+              },
+              "title": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "BlueprintPrompt": {
+            "additionalProperties": false,
+            "properties": {
+              "parts": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Part"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "parts"
+            ],
+            "type": "object"
+          },
+          "DagBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "nodes": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Declaration"
+                },
+                "type": "array"
+              },
+              "results": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Selector"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "nodes"
+            ],
+            "type": "object"
+          },
+          "Declaration": {
+            "additionalProperties": false,
+            "properties": {
+              "as": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cwd": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "for_each": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "max_retries": {
+                "default": 0,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "node": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/NodeBlueprint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pre": {
+                "default": [],
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Selector"
+                },
+                "type": "array"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/BlueprintPrompt"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeout": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "Definition": {
+            "additionalProperties": false,
+            "properties": {
+              "bindings": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/BindingSlot"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "inputs": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/InputSchema"
+              },
+              "name": {
+                "type": "string"
+              },
+              "task": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/TaskBlueprint"
+              },
+              "version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "id",
+              "name",
+              "inputs",
+              "task"
+            ],
+            "type": "object"
+          },
+          "Execution": {
+            "additionalProperties": false,
+            "properties": {
+              "misfire": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Misfire",
+                "default": "latest"
+              },
+              "overlap": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Overlap",
+                "default": "skip"
+              },
+              "start_grace": {
+                "default": "1h",
+                "type": "string"
+              },
+              "timeout": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "Expr": {
+            "additionalProperties": false,
+            "properties": {
+              "expr": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expr"
+            ],
+            "type": "object"
+          },
+          "InputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "additionalProperties": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "default": true,
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "enum": {
+                "items": true,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "format": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/InputSchema"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maxItems": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "maxLength": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "maximum": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "minItems": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "minLength": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "minimum": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "properties": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/InputSchema"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "required": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": true
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "InstanceRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "bindings": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Binding"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "expected_revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "request_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "run_now": {
+                "default": false,
+                "type": "boolean"
+              },
+              "schedule": true,
+              "task_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "unset": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "values": {
+                "additionalProperties": true,
+                "default": {},
+                "type": "object"
+              }
+            },
+            "required": [
+              "expected_revision"
+            ],
+            "type": "object"
+          },
+          "Key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Expr"
+              }
+            ]
+          },
+          "Misfire": {
+            "enum": [
+              "skip",
+              "latest"
+            ],
+            "type": "string"
+          },
+          "NodeBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "binding": {
+                "type": "string"
+              },
+              "cwd": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Text"
+              },
+              "max_retries": {
+                "default": 0,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Text"
+              },
+              "pre": {
+                "default": [],
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Selector"
+                },
+                "type": "array"
+              },
+              "prompt": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/BlueprintPrompt"
+              },
+              "timeout": {
+                "default": "1h",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "binding",
+              "cwd",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          "Overlap": {
+            "enum": [
+              "skip",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "Part": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/TextPart"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/TemplateText"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/ResultSelection"
+              }
+            ]
+          },
+          "ResultSelection": {
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Selector"
+              },
+              "separator": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "result"
+            ],
+            "type": "object"
+          },
+          "Schedule": {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cron": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "every": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timezone": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "Selector": {
+            "additionalProperties": false,
+            "properties": {
+              "all": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Key"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "node": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "TaskBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cwd": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dag": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/DagBlueprint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "execution": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Execution",
+                "default": {
+                  "misfire": "latest",
+                  "overlap": "skip",
+                  "start_grace": "1h",
+                  "timeout": null
+                }
+              },
+              "name": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Text"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "schedule": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Schedule"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "TemplateText": {
+            "additionalProperties": false,
+            "properties": {
+              "template": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "template"
+            ],
+            "type": "object"
+          },
+          "Text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/TemplateText"
+              }
+            ]
+          },
+          "TextPart": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/Definition"
+          },
+          "request": {
+            "$ref": "#/components/schemas/TaskTemplateDraftPreview/$defs/InstanceRequest"
+          }
+        },
+        "required": [
+          "definition",
+          "request"
+        ],
+        "title": "DraftPreview",
+        "type": "object"
+      },
+      "TaskTemplateInstance": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "task_revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "template_revision": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id",
+          "task_revision",
+          "run_id",
+          "template_revision"
+        ],
+        "type": "object"
+      },
+      "TaskTemplateIssue": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "column": {
+            "format": "uint",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "line": {
+            "format": "uint",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "path",
+          "message"
+        ],
+        "title": "Issue",
+        "type": "object"
+      },
+      "TaskTemplateOrigin": {
+        "additionalProperties": false,
+        "description": "Creation-time template origin. It never live-updates an existing Task or Run.",
+        "properties": {
+          "binding_overrides": {
+            "type": "object"
+          },
+          "bindings": {
+            "description": "Resolved execution bindings captured at creation time.",
+            "type": "object"
+          },
+          "resolved_inputs": {
+            "type": "object"
+          },
+          "source_map": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TaskTemplateSource"
+            },
+            "type": "object"
+          },
+          "template_id": {
+            "type": "string"
+          },
+          "template_name": {
+            "type": "string"
+          },
+          "template_revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unset": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "values": {
+            "description": "Original top-level input overrides.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "template_id",
+          "template_name",
+          "template_revision",
+          "values",
+          "unset",
+          "resolved_inputs",
+          "bindings",
+          "binding_overrides",
+          "source_map"
+        ],
+        "type": "object"
+      },
+      "TaskTemplatePreview": {
+        "$defs": {
+          "Dag": {
+            "additionalProperties": false,
+            "properties": {
+              "nodes": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Node"
+                },
+                "type": "array"
+              },
+              "results": {
+                "description": "Absent means the leaves of the current definition, rather than a cached list.",
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "nodes"
+            ],
+            "type": "object"
+          },
+          "Execution": {
+            "additionalProperties": false,
+            "properties": {
+              "misfire": {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Misfire",
+                "default": "latest"
+              },
+              "overlap": {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Overlap",
+                "default": "skip"
+              },
+              "start_grace": {
+                "default": "1h",
+                "type": "string"
+              },
+              "timeout": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "Issue": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "column": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "line": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "node_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "params": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "path",
+              "message"
+            ],
+            "type": "object"
+          },
+          "Misfire": {
+            "enum": [
+              "skip",
+              "latest"
+            ],
+            "type": "string"
+          },
+          "Node": {
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "type": "string"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "max_retries": {
+                "format": "uint32",
+                "maximum": 10,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "pre": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "prompt": {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Prompt"
+              },
+              "runner": {
+                "type": "string"
+              },
+              "session": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplatePreview/$defs/SessionBinding"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeout": {
+                "default": "1h",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "runner",
+              "agent",
+              "cwd",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          "Overlap": {
+            "enum": [
+              "skip",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "Prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/StructuredPrompt"
+              }
+            ]
+          },
+          "PromptPart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/TextPart"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/ResultPart"
+              }
+            ]
+          },
+          "ResultPart": {
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "result"
+            ],
+            "type": "object"
+          },
+          "Schedule": {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cron": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "every": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timezone": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "SessionBinding": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          },
+          "Source": {
+            "properties": {
+              "binding": {
+                "type": "string"
+              },
+              "declaration": {
+                "type": "string"
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "input_path": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "declaration",
+              "binding"
+            ],
+            "type": "object"
+          },
+          "StructuredPrompt": {
+            "additionalProperties": false,
+            "properties": {
+              "parts": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplatePreview/$defs/PromptPart"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "parts"
+            ],
+            "type": "object"
+          },
+          "TaskConfig": {
+            "additionalProperties": false,
+            "oneOf": [
+              {
+                "properties": {
+                  "agent": {
+                    "minLength": 1
+                  },
+                  "cwd": {
+                    "minLength": 1
+                  },
+                  "dag": {
+                    "type": "null"
+                  },
+                  "prompt": {
+                    "minLength": 1
+                  },
+                  "runner": {
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "runner",
+                  "agent",
+                  "cwd",
+                  "prompt"
+                ]
+              },
+              {
+                "properties": {
+                  "agent": {
+                    "maxLength": 0
+                  },
+                  "cwd": {
+                    "maxLength": 0
+                  },
+                  "dag": {
+                    "type": "object"
+                  },
+                  "parameters": {
+                    "maxProperties": 0
+                  },
+                  "prompt": {
+                    "maxLength": 0
+                  },
+                  "runner": {
+                    "maxLength": 0
+                  },
+                  "session": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "dag"
+                ]
+              }
+            ],
+            "properties": {
+              "agent": {
+                "type": "string"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "dag": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Dag"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "execution": {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Execution",
+                "default": {
+                  "misfire": "latest",
+                  "overlap": "skip",
+                  "start_grace": "1h",
+                  "timeout": null
+                }
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "runner": {
+                "type": "string"
+              },
+              "schedule": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Schedule"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "session": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplatePreview/$defs/SessionBinding"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "version": {
+                "default": 1,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "TextPart": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/TaskConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Dag"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Issue"
+            },
+            "type": "array"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolved_inputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "source_map": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TaskTemplatePreview/$defs/Source"
+            },
+            "type": "object"
+          },
+          "template_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "used_bindings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "template_revision",
+          "resolved_inputs",
+          "source_map",
+          "used_bindings",
+          "issues"
+        ],
+        "title": "Preview",
+        "type": "object"
+      },
+      "TaskTemplateRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "archived_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/TaskTemplate"
+          },
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_by": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "id",
+          "revision",
+          "definition",
+          "created_by",
+          "updated_by",
+          "archived_at",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "TaskTemplateRequest": {
+        "$defs": {
+          "Binding": {
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "runner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "bindings": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TaskTemplateRequest/$defs/Binding"
+            },
+            "default": {},
+            "type": "object"
+          },
+          "expected_revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run_now": {
+            "default": false,
+            "type": "boolean"
+          },
+          "schedule": true,
+          "task_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unset": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "values": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "InstanceRequest",
+        "type": "object"
+      },
+      "TaskTemplateRevision": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "Revision",
+        "type": "object"
+      },
+      "TaskTemplateSave": {
+        "$defs": {
+          "Binding": {
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "runner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "BindingSlot": {
+            "additionalProperties": false,
+            "properties": {
+              "defaults": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Binding",
+                "default": {
+                  "agent": null,
+                  "parameters": null,
+                  "runner": null
+                }
+              },
+              "title": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "BlueprintPrompt": {
+            "additionalProperties": false,
+            "properties": {
+              "parts": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateSave/$defs/Part"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "parts"
+            ],
+            "type": "object"
+          },
+          "DagBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "nodes": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateSave/$defs/Declaration"
+                },
+                "type": "array"
+              },
+              "results": {
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateSave/$defs/Selector"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "nodes"
+            ],
+            "type": "object"
+          },
+          "Declaration": {
+            "additionalProperties": false,
+            "properties": {
+              "as": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cwd": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "for_each": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "max_retries": {
+                "default": 0,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "node": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/NodeBlueprint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pre": {
+                "default": [],
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateSave/$defs/Selector"
+                },
+                "type": "array"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/BlueprintPrompt"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeout": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "Definition": {
+            "additionalProperties": false,
+            "properties": {
+              "bindings": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/TaskTemplateSave/$defs/BindingSlot"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "inputs": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/InputSchema"
+              },
+              "name": {
+                "type": "string"
+              },
+              "task": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/TaskBlueprint"
+              },
+              "version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "id",
+              "name",
+              "inputs",
+              "task"
+            ],
+            "type": "object"
+          },
+          "Execution": {
+            "additionalProperties": false,
+            "properties": {
+              "misfire": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Misfire",
+                "default": "latest"
+              },
+              "overlap": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Overlap",
+                "default": "skip"
+              },
+              "start_grace": {
+                "default": "1h",
+                "type": "string"
+              },
+              "timeout": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "Expr": {
+            "additionalProperties": false,
+            "properties": {
+              "expr": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expr"
+            ],
+            "type": "object"
+          },
+          "InputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "additionalProperties": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "default": true,
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "enum": {
+                "items": true,
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "format": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/InputSchema"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maxItems": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "maxLength": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "maximum": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "minItems": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "minLength": {
+                "format": "uint",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "minimum": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "properties": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/TaskTemplateSave/$defs/InputSchema"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "required": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": true
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "Key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Expr"
+              }
+            ]
+          },
+          "Misfire": {
+            "enum": [
+              "skip",
+              "latest"
+            ],
+            "type": "string"
+          },
+          "NodeBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "binding": {
+                "type": "string"
+              },
+              "cwd": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Text"
+              },
+              "max_retries": {
+                "default": 0,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "name": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Text"
+              },
+              "pre": {
+                "default": [],
+                "items": {
+                  "$ref": "#/components/schemas/TaskTemplateSave/$defs/Selector"
+                },
+                "type": "array"
+              },
+              "prompt": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/BlueprintPrompt"
+              },
+              "timeout": {
+                "default": "1h",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "binding",
+              "cwd",
+              "prompt"
+            ],
+            "type": "object"
+          },
+          "Overlap": {
+            "enum": [
+              "skip",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "Part": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/TextPart"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/TemplateText"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/ResultSelection"
+              }
+            ]
+          },
+          "ResultSelection": {
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Selector"
+              },
+              "separator": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "required": [
+              "result"
+            ],
+            "type": "object"
+          },
+          "Schedule": {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cron": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "every": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timezone": {
+                "default": "",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "Selector": {
+            "additionalProperties": false,
+            "properties": {
+              "all": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "group": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "key": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Key"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "node": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "when": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Expr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "TaskBlueprint": {
+            "additionalProperties": false,
+            "properties": {
+              "binding": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cwd": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "dag": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/DagBlueprint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enabled": {
+                "default": true,
+                "type": "boolean"
+              },
+              "execution": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Execution",
+                "default": {
+                  "misfire": "latest",
+                  "overlap": "skip",
+                  "start_grace": "1h",
+                  "timeout": null
+                }
+              },
+              "name": {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/Text"
+              },
+              "prompt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "schedule": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskTemplateSave/$defs/Schedule"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "TemplateText": {
+            "additionalProperties": false,
+            "properties": {
+              "template": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "template"
+            ],
+            "type": "object"
+          },
+          "Text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/TaskTemplateSave/$defs/TemplateText"
+              }
+            ]
+          },
+          "TextPart": {
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/TaskTemplateSave/$defs/Definition"
+          },
+          "expected_revision": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "definition"
+        ],
+        "title": "SaveTemplate",
+        "type": "object"
+      },
+      "TaskTemplateSource": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "binding": {
+            "type": "string"
+          },
+          "declaration": {
+            "type": "string"
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "input_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "declaration",
+          "binding"
+        ],
+        "title": "Source",
         "type": "object"
       },
       "Token": {
@@ -4693,8 +7814,10 @@
             "required": true,
             "schema": {
               "enum": [
+                "agent",
                 "task",
-                "agent"
+                "template",
+                "stream"
               ],
               "type": "string"
             }
@@ -9259,6 +12382,1097 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace}/task-template-preview": {
+      "post": {
+        "operationId": "post__task-template-preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskTemplateDraftPreview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplatePreview"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/task-templates": {
+      "get": {
+        "operationId": "get__task-templates",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "default": 1,
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateRecord"
+                      },
+                      "type": "array"
+                    },
+                    "page": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "page_size": {
+                      "maximum": 100,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "total": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "page_size"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/task-templates/{id}": {
+      "get": {
+        "operationId": "get__task-templates_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplateRecord"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put__task-templates_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskTemplateSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplateRecord"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/task-templates/{id}/archive": {
+      "post": {
+        "operationId": "post__task-templates_id_archive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskTemplateRevision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplateRecord"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/task-templates/{id}/instantiate": {
+      "post": {
+        "description": "Operator only. Recompiles on the server, rechecks revision/archive state and atomically creates an independent Task, its origin and an optional Run. Idempotent replay returns the original IDs even after template edits/archive; mismatched payloads and stale new revisions return 409.",
+        "operationId": "post__task-templates_id_instantiate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplateInstance"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/task-templates/{id}/preview": {
+      "post": {
+        "description": "Read-only compilation and binding validation. Creates no Task, Run, event or Outbox entry. Validation issues are returned in Preview.issues without inventing runtime results.",
+        "operationId": "post__task-templates_id_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplatePreview"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/task-templates/{id}/restore": {
+      "post": {
+        "operationId": "post__task-templates_id_restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskTemplateRevision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplateRecord"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/TaskTemplateIssue"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "issues"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Template validation failed; issues identify the affected input or blueprint path."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace}/tasks": {
       "get": {
         "description": "With page: {items,total,page,page_size}; without page: an array. Runs without page are limited to 100. q matches literal, case-insensitive text with ordered whitespace-separated terms.",
@@ -10019,6 +14233,113 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid JSON shape"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/tasks/{id}/template": {
+      "get": {
+        "operationId": "get__tasks_id_template",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskTemplate"
+                }
               }
             },
             "description": "Success"
