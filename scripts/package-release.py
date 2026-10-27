@@ -56,6 +56,8 @@ def main():
     with tarfile.open(args.output / 'wakeit-skill.tar.gz', 'w:gz') as archive:
         archive.add(ROOT / 'skills/wakeit', arcname='wakeit', filter=lambda item: None if '__pycache__' in item.name else item)
     lines.append(f"{hashlib.sha256((args.output / 'wakeit-skill.tar.gz').read_bytes()).hexdigest()}  wakeit-skill.tar.gz")
+    shutil.copy2(ROOT / 'install.sh', args.output / 'install.sh')
+    lines.append(f"{hashlib.sha256((args.output / 'install.sh').read_bytes()).hexdigest()}  install.sh")
     (args.output / 'wakeit-release.json').write_text(json.dumps({'version': version, 'assets': assets}, indent=2) + '\n', encoding='utf-8')
     (args.output / 'SHA256SUMS').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 

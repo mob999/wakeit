@@ -52,6 +52,10 @@ class Packaging(unittest.TestCase):
         notes = entries((ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'))
         self.assertEqual((self.output / 'release-notes.md').read_text(encoding='utf-8'), notes[version] + '\n')
         self.assertEqual(set(manifest['assets']), set(TARGETS))
+        installer = self.output / 'install.sh'
+        self.assertEqual(installer.read_bytes(), (ROOT / 'install.sh').read_bytes())
+        self.assertIn(f"{hashlib.sha256(installer.read_bytes()).hexdigest()}  install.sh",
+                      (self.output / 'SHA256SUMS').read_text())
         for entry in manifest['assets'].values():
             self.assertEqual(entry['sha256'], hashlib.sha256((self.output / entry['name']).read_bytes()).hexdigest())
         with tarfile.open(self.output / 'wakeit-skill.tar.gz') as archive:

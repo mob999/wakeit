@@ -20,7 +20,13 @@
 
 ## 安装
 
-从 [v0.3.3 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.3) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
+macOS 或 Linux GNU：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
+```
+
+脚本显示安装进度，自动下载、校验、安装并配置用户 PATH。完成后打开新终端，运行 `wakeit --version`。Windows、指定版本、安装目录及手工安装方式见[安装指南](docs/install-zh.md)。
 
 从源码构建需要 Rust 1.89+、Node.js 22.12+：
 
