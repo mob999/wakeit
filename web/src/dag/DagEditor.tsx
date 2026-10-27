@@ -30,6 +30,12 @@ import { CanvasControls } from './CanvasControls'
 import { AgentPalette } from './AgentPalette'
 import { NodeForm } from './NodeForm'
 import { TimeFields } from './TimeFields'
+import {
+  TemplatePicker,
+  TemplateInstanceView,
+  useTemplateInstance,
+  useTemplateRecords,
+} from '../templates/TemplateInstance'
 import { MultiPicker } from './MultiPicker'
 import { issues, outputs } from './model'
 import { nodeName, nodeOptions, shortId } from './identity'
@@ -100,6 +106,19 @@ export function DagEditor({
   const [layout, setLayout] = useState<EditorLayout>(() =>
     structuredClone(task?.editor_layout ?? emptyLayout()),
   )
+  const [templateId, setTemplateId] = useState('')
+  const templates = useTemplateRecords()
+  const templateRecord = templates.data?.items.find((row) => row.id === templateId) ?? null
+  const templateInstance = useTemplateInstance({
+    record: templateRecord,
+    name: config.name.trim() || undefined,
+    schedule: config.schedule,
+    taskId: createTaskId(config.name || templateRecord?.definition.name || '', suffix),
+  })
+  const timeConfig =
+    templateRecord && templateInstance.preview?.config
+      ? { ...templateInstance.preview.config, schedule: config.schedule }
+      : config
   const baseline = useRef({ config: JSON.stringify(config), layout: structuredClone(layout) })
   const initialIds = useRef(new Set(config.dag!.nodes.map((n) => n.id)))
   const [step, setStep] = useState<'task' | 'time'>('task'),
@@ -162,7 +181,9 @@ export function DagEditor({
   const panelKey = panel?.kind === 'node' ? panel.id : (panel?.kind ?? '')
   const dirty =
     JSON.stringify(config) !== baseline.current.config ||
-    JSON.stringify(layout) !== JSON.stringify(baseline.current.layout)
+    JSON.stringify(layout) !== JSON.stringify(baseline.current.layout) ||
+    !!templateRecord ||
+    templateInstance.dirty
   dirtyRef.current = dirty
   useEffect(() => {
     if (step !== 'task' || view !== 'graph') setFullscreen(false)
@@ -330,12 +351,26 @@ export function DagEditor({
           (issueField(e) === 'prompt' &&
             !promptBlank(dag.nodes.find((n) => n.id === e.node_id)?.prompt)))),
   )
-  const local = validated ? localErrors() : structural,
+  const local = templateRecord ? [] : validated ? localErrors() : structural,
     errors = [...local, ...serverErrors.filter((e) => !local.some((l) => l.path === e.path))]
   const save = useMutation({
     mutationFn: async () => {
       setRequestError('')
       setValidated(true)
+      if (templateRecord) {
+        const found = timeValidation.current()
+        if (found.length) {
+          setServerErrors(found)
+          locate(found[0])
+          return null
+        }
+        if (!templateInstance.current || !templateInstance.preview?.config) {
+          setStep('task')
+          setRequestError(t('taskTemplate.stale'))
+          return null
+        }
+        return templateInstance.create(false).then((result) => ({ id: result.task_id }))
+      }
       const found = [...localErrors(), ...timeValidation.current()]
       if (found.length) {
         setServerErrors(found.filter((e) => !e.node_id && e.path !== 'name'))
@@ -374,7 +409,7 @@ export function DagEditor({
     },
     onError: (error: Error) => setRequestError(error.message),
   })
-  const busy = save.isPending || arranging
+  const busy = save.isPending || arranging || templateInstance.pendingPreview
   busyRef.current = busy
   useLayoutEffect(() => {
     markFields(
@@ -654,7 +689,7 @@ export function DagEditor({
             </button>
           ))}
         </div>
-        <div className="dag-toolbar" hidden={step !== 'task'}>
+        <div className="dag-toolbar" hidden={step !== 'task' || !!templateRecord}>
           <div className="dag-toolbar-actions">
             <div className="action-group" role="group" aria-label={t('actions.view')}>
               {desktop && view === 'graph' && (
@@ -759,8 +794,39 @@ export function DagEditor({
           </div>
         </div>
       </div>
+      {!task && (
+        <div className="dag-template-picker" hidden={step !== 'task'}>
+          <TemplatePicker
+            kind="dag"
+            value={templateId}
+            disabled={busy}
+            onChange={(id) => {
+              const next = templates.data?.items.find((row) => row.id === id) ?? null
+              setTemplateId(id)
+              setServerErrors([])
+              setValidated(false)
+              setPanel(null)
+              if (next) {
+                setConfig((current) => ({
+                  ...current,
+                  schedule: next.definition.task.schedule ?? null,
+                }))
+              }
+            }}
+          />
+        </div>
+      )}
       <div className="dag-canvas-body" ref={workbench}>
-        <div className="dag-task-stage" hidden={step !== 'task'} inert={step !== 'task'}>
+        {templateRecord && (
+          <div className="dag-template-instance">
+            <TemplateInstanceView instance={templateInstance} />
+          </div>
+        )}
+        <div
+          className="dag-task-stage"
+          hidden={step !== 'task' || !!templateRecord}
+          inert={step !== 'task' || !!templateRecord}
+        >
           {actualPalette && (
             <aside className="dag-palette-dock" aria-label={t('Agents')}>
               <header>Agents</header>
@@ -1048,9 +1114,10 @@ export function DagEditor({
           }}
         >
           <TimeFields
-            config={config}
+            config={timeConfig}
             timezone={timezone}
             disabled={busy}
+            hideExecution={!!templateRecord}
             active={step === 'time'}
             onChange={change}
             validation={timeValidation}

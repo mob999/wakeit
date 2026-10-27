@@ -23,6 +23,10 @@ export type Binding = {
   agent?: string | null
   parameters?: Record<string, string> | null
 }
+export type TaskBlueprint = Record<string, unknown> & {
+  schedule?: TaskConfig['schedule']
+  dag?: Record<string, unknown>
+}
 export type Definition = {
   version: 1
   id: string
@@ -30,13 +34,15 @@ export type Definition = {
   description?: string
   inputs: InputSchema
   bindings: Record<string, { title?: string; defaults?: Binding }>
-  task: Record<string, unknown>
+  task: TaskBlueprint
 }
 export type TemplateRecord = {
   id: string
   revision: number
   definition: Definition
   archived_at: string | null
+  created_at?: string
+  updated_at?: string
 }
 export type Overrides = { values: Record<string, Json>; unset: string[] }
 export type Request = Overrides & {

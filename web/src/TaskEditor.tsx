@@ -13,6 +13,12 @@ import { DirectoryPicker } from './DirectoryPicker'
 import { ModelPicker, ParameterFields } from './ModelPicker'
 import { createTaskId, taskIdSuffix } from './taskId'
 import { SessionBinding } from './sessions/SessionBinding'
+import {
+  TemplatePicker,
+  TemplateInstanceView,
+  useTemplateInstance,
+  useTemplateRecords,
+} from './templates/TemplateInstance'
 export type TaskDefaults = {
   runner: string
   agent?: string
@@ -60,6 +66,19 @@ export function TaskEditor({
           execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
         },
   )
+  const [templateId, setTemplateId] = useState('')
+  const templates = useTemplateRecords()
+  const templateRecord = templates.data?.items.find((row) => row.id === templateId) ?? null
+  const templateInstance = useTemplateInstance({
+    record: templateRecord,
+    name: config.name.trim() || undefined,
+    schedule: config.schedule,
+    taskId: createTaskId(config.name || templateRecord?.definition.name || '', suffix),
+  })
+  const timeConfig =
+    templateRecord && templateInstance.preview?.config
+      ? { ...templateInstance.preview.config, schedule: config.schedule }
+      : config
   const [error, setError] = useState('')
   const [focusField, setFocusField] = useState<string | null>(null)
   const [scheduleType, setScheduleType] = useState(
@@ -96,6 +115,11 @@ export function TaskEditor({
     throw Object.assign(new Error(message), { field })
   }
   const validateTask = () => {
+    if (templateRecord) {
+      if (!templateInstance.current || !templateInstance.preview?.config)
+        invalid(tr('taskTemplate.stale'), tr('taskTemplate.optional'))
+      return
+    }
     if (!config.name.trim()) invalid(tr('请填写任务名称'), tr('任务名称'))
     if (!config.prompt.trim()) invalid(tr('请填写指令'), tr('指令'))
     if (!selectedRunner || selectedRunner.revoked) invalid(tr('请选择 Runner'), tr('Runner'))
@@ -116,7 +140,7 @@ export function TaskEditor({
     }
   }
   const advance = () => {
-    if (!save.isPending) setStep('time')
+    if (!save.isPending && !templateInstance.pendingPreview) setStep('time')
   }
   const save = useMutation({
     mutationFn: async () => {
@@ -128,15 +152,16 @@ export function TaskEditor({
         throw e
       }
       try {
-        if (!validDuration(config.execution.timeout ?? '1h'))
+        if (!validDuration(timeConfig.execution.timeout ?? '1h'))
           throw new Error(tr('请填写有效的执行超时（1 秒至 366 天）'))
-        if (!validDuration(config.execution.start_grace))
+        if (!validDuration(timeConfig.execution.start_grace))
           throw new Error(tr('请填写有效的允许延迟（1 秒至 366 天）'))
-        if (config.schedule) await api('/schedule/preview', 'POST', config.schedule)
+        if (timeConfig.schedule) await api('/schedule/preview', 'POST', timeConfig.schedule)
       } catch (e) {
         setStep('time')
         throw e
       }
+      if (templateRecord) return templateInstance.create(false)
       const next = { ...config, id: task?.id ?? createTaskId(config.name, suffix) }
       return api(`/tasks/${encodeURIComponent(next.id)}`, 'PUT', {
         config: next,
@@ -192,7 +217,7 @@ export function TaskEditor({
         onSubmit={(e) => {
           e.preventDefault()
           setError('')
-          if (save.isPending) return
+          if (save.isPending || templateInstance.pendingPreview) return
           if (step === 'task') advance()
           else save.mutate()
         }}
@@ -200,6 +225,30 @@ export function TaskEditor({
         <div className="modal-body">
           <fieldset className="editor-fields" disabled={save.isPending}>
             <div hidden={step !== 'task'} inert={step !== 'task'}>
+              {!task && (
+                <TemplatePicker
+                  kind="task"
+                  value={templateId}
+                  disabled={save.isPending}
+                  onChange={(id) => {
+                    const next = templates.data?.items.find((row) => row.id === id) ?? null
+                    setTemplateId(id)
+                    if (next) {
+                      const schedule = next.definition.task.schedule ?? null
+                      setConfig((current) => ({ ...current, schedule }))
+                      setScheduleType(
+                        schedule?.every
+                          ? 'every'
+                          : schedule?.at
+                            ? 'at'
+                            : schedule
+                              ? 'cron'
+                              : 'manual',
+                      )
+                    }
+                  }}
+                />
+              )}
               <div className="task-core">
                 <Field label={tr('任务名称')}>
                   <input
@@ -210,112 +259,120 @@ export function TaskEditor({
                     placeholder={tr('每日仓库检查')}
                   />
                 </Field>
-                <Field label={tr('指令')}>
-                  <textarea
-                    value={config.prompt}
-                    onChange={(e) => change('prompt', e.target.value)}
-                    required
-                    rows={4}
-                    placeholder={tr('描述希望 Agent 完成的工作…')}
-                  />
-                </Field>
-                <div className="form-grid">
-                  <Field label={tr('Runner')}>
-                    <ChoicePicker
-                      label={tr('Runner')}
-                      searchable
-                      placeholder={tr('选择设备')}
-                      disabled={save.isPending}
-                      value={selectedRunner?.name ?? config.runner}
-                      options={(runners.data ?? [])
-                        .filter((r) => !r.revoked)
-                        .map((r) => ({
-                          value: r.name,
-                          label: r.name,
-                          status: r.online ? undefined : tr('离线'),
-                        }))}
-                      onChange={(value) =>
-                        value === selectedRunner?.name
-                          ? undefined
-                          : setConfig((c) => ({
-                              ...c,
-                              runner: value,
-                              cwd: '',
-                              agent: '',
-                              parameters: {},
-                              session: null,
-                            }))
-                      }
-                    />
-                  </Field>
-                  <Field label={tr('Agent')}>
-                    <ChoicePicker
-                      label={tr('Agent')}
-                      searchable
-                      placeholder={tr('选择 Agent')}
-                      disabled={save.isPending || !selectedRunner}
-                      value={config.agent}
-                      selectionLabel={selectedAgent?.name}
-                      options={(selectedRunner?.agents ?? [])
-                        .filter((a) => a.available)
-                        .map((a) => ({
-                          value: a.id,
-                          label: a.name,
-                          keywords: a.id,
-                          icon: <AgentLogo name={a.name} logo={a.logo} />,
-                        }))}
-                      onChange={(value) =>
-                        setConfig((c) =>
-                          value === c.agent
-                            ? c
-                            : { ...c, agent: value, parameters: {}, session: null },
-                        )
-                      }
-                    />
-                  </Field>
-                </div>
-                <DirectoryPicker
-                  runner={selectedRunner}
-                  value={config.cwd}
-                  onChange={(value) => change('cwd', value)}
-                />
-                <ModelPicker
-                  key={`${selectedRunner?.id}/${config.agent}`}
-                  runner={selectedRunner}
-                  agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
-                  cwd={config.cwd}
-                  values={config.parameters}
-                  onChange={(values) => change('parameters', values)}
-                  onOptionsChange={setModelOptions}
-                  submitting={save.isPending}
-                />
-              </div>
-              {hasAdvanced && (
-                <details className="advanced-settings">
-                  <summary>
-                    <ChevronRight size={14} />
-                    <span>{tr('高级设置')}</span>
-                  </summary>
-                  <div className="advanced-body">
-                    {(selectedAgent?.session_supported || config.session) && (
-                      <SessionBinding
-                        runner={selectedRunner}
-                        agent={selectedAgent}
-                        cwd={config.cwd}
-                        value={config.session ?? null}
-                        disabled={save.isPending}
-                        onChange={(session) => change('session', session)}
+                {!templateRecord && (
+                  <>
+                    <Field label={tr('指令')}>
+                      <textarea
+                        value={config.prompt}
+                        onChange={(e) => change('prompt', e.target.value)}
+                        required
+                        rows={4}
+                        placeholder={tr('描述希望 Agent 完成的工作…')}
                       />
-                    )}
-                    <ParameterFields
-                      disabled={save.isPending}
-                      agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
-                      values={config.parameters}
-                      options={modelOptions}
-                      onChange={(values) => change('parameters', values)}
+                    </Field>
+                    <div className="form-grid">
+                      <Field label={tr('Runner')}>
+                        <ChoicePicker
+                          label={tr('Runner')}
+                          searchable
+                          placeholder={tr('选择设备')}
+                          disabled={save.isPending}
+                          value={selectedRunner?.name ?? config.runner}
+                          options={(runners.data ?? [])
+                            .filter((r) => !r.revoked)
+                            .map((r) => ({
+                              value: r.name,
+                              label: r.name,
+                              status: r.online ? undefined : tr('离线'),
+                            }))}
+                          onChange={(value) =>
+                            value === selectedRunner?.name
+                              ? undefined
+                              : setConfig((c) => ({
+                                  ...c,
+                                  runner: value,
+                                  cwd: '',
+                                  agent: '',
+                                  parameters: {},
+                                  session: null,
+                                }))
+                          }
+                        />
+                      </Field>
+                      <Field label={tr('Agent')}>
+                        <ChoicePicker
+                          label={tr('Agent')}
+                          searchable
+                          placeholder={tr('选择 Agent')}
+                          disabled={save.isPending || !selectedRunner}
+                          value={config.agent}
+                          selectionLabel={selectedAgent?.name}
+                          options={(selectedRunner?.agents ?? [])
+                            .filter((a) => a.available)
+                            .map((a) => ({
+                              value: a.id,
+                              label: a.name,
+                              keywords: a.id,
+                              icon: <AgentLogo name={a.name} logo={a.logo} />,
+                            }))}
+                          onChange={(value) =>
+                            setConfig((c) =>
+                              value === c.agent
+                                ? c
+                                : { ...c, agent: value, parameters: {}, session: null },
+                            )
+                          }
+                        />
+                      </Field>
+                    </div>
+                    <DirectoryPicker
+                      runner={selectedRunner}
+                      value={config.cwd}
+                      onChange={(value) => change('cwd', value)}
                     />
-                  </div>
-                </details>
+                    <ModelPicker
+                      key={`${selectedRunner?.id}/${config.agent}`}
+                      runner={selectedRunner}
+                      agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
+                      cwd={config.cwd}
+                      values={config.parameters}
+                      onChange={(values) => change('parameters', values)}
+                      onOptionsChange={setModelOptions}
+                      submitting={save.isPending}
+                    />
+                  </>
+                )}
+              </div>
+              {templateRecord ? (
+                <TemplateInstanceView instance={templateInstance} />
+              ) : (
+                hasAdvanced && (
+                  <details className="advanced-settings">
+                    <summary>
+                      <ChevronRight size={14} />
+                      <span>{tr('高级设置')}</span>
+                    </summary>
+                    <div className="advanced-body">
+                      {(selectedAgent?.session_supported || config.session) && (
+                        <SessionBinding
+                          runner={selectedRunner}
+                          agent={selectedAgent}
+                          cwd={config.cwd}
+                          value={config.session ?? null}
+                          disabled={save.isPending}
+                          onChange={(session) => change('session', session)}
+                        />
+                      )}
+                      <ParameterFields
+                        disabled={save.isPending}
+                        agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
+                        values={config.parameters}
+                        options={modelOptions}
+                        onChange={(values) => change('parameters', values)}
+                      />
+                    </div>
+                  </details>
+                )
               )}
             </div>
             <div hidden={step !== 'time'} inert={step !== 'time'}>
@@ -402,60 +459,65 @@ export function TaskEditor({
                   </div>
                 </div>
               )}
-              <details className="advanced-settings">
-                <summary>
-                  <ChevronRight size={14} />
-                  <span>{tr('高级设置')}</span>
-                </summary>
-                <div className="advanced-body">
-                  <div className="form-grid">
-                    <Field label={tr('执行超时')}>
-                      <input
-                        value={config.execution.timeout ?? '1h'}
-                        onChange={(e) =>
-                          change('execution', { ...config.execution, timeout: e.target.value })
-                        }
-                      />
-                    </Field>
-                    <Field label={tr('允许延迟')}>
-                      <input
-                        value={config.execution.start_grace}
-                        onChange={(e) =>
-                          change('execution', { ...config.execution, start_grace: e.target.value })
-                        }
-                      />
-                    </Field>
-                    <Field label={tr('错过执行')}>
-                      <ChoicePicker
-                        label={tr('错过执行')}
-                        value={config.execution.misfire}
-                        disabled={save.isPending}
-                        options={[
-                          { value: 'latest', label: tr('补最近一次') },
-                          { value: 'skip', label: tr('跳过') },
-                        ]}
-                        onChange={(value) =>
-                          change('execution', { ...config.execution, misfire: value })
-                        }
-                      />
-                    </Field>
-                    <Field label={tr('执行重叠')}>
-                      <ChoicePicker
-                        label={tr('执行重叠')}
-                        value={config.execution.overlap}
-                        disabled={save.isPending}
-                        options={[
-                          { value: 'skip', label: tr('跳过新触发') },
-                          { value: 'allow', label: tr('允许并行') },
-                        ]}
-                        onChange={(value) =>
-                          change('execution', { ...config.execution, overlap: value })
-                        }
-                      />
-                    </Field>
+              {!templateRecord && (
+                <details className="advanced-settings">
+                  <summary>
+                    <ChevronRight size={14} />
+                    <span>{tr('高级设置')}</span>
+                  </summary>
+                  <div className="advanced-body">
+                    <div className="form-grid">
+                      <Field label={tr('执行超时')}>
+                        <input
+                          value={config.execution.timeout ?? '1h'}
+                          onChange={(e) =>
+                            change('execution', { ...config.execution, timeout: e.target.value })
+                          }
+                        />
+                      </Field>
+                      <Field label={tr('允许延迟')}>
+                        <input
+                          value={config.execution.start_grace}
+                          onChange={(e) =>
+                            change('execution', {
+                              ...config.execution,
+                              start_grace: e.target.value,
+                            })
+                          }
+                        />
+                      </Field>
+                      <Field label={tr('错过执行')}>
+                        <ChoicePicker
+                          label={tr('错过执行')}
+                          value={config.execution.misfire}
+                          disabled={save.isPending}
+                          options={[
+                            { value: 'latest', label: tr('补最近一次') },
+                            { value: 'skip', label: tr('跳过') },
+                          ]}
+                          onChange={(value) =>
+                            change('execution', { ...config.execution, misfire: value })
+                          }
+                        />
+                      </Field>
+                      <Field label={tr('执行重叠')}>
+                        <ChoicePicker
+                          label={tr('执行重叠')}
+                          value={config.execution.overlap}
+                          disabled={save.isPending}
+                          options={[
+                            { value: 'skip', label: tr('跳过新触发') },
+                            { value: 'allow', label: tr('允许并行') },
+                          ]}
+                          onChange={(value) =>
+                            change('execution', { ...config.execution, overlap: value })
+                          }
+                        />
+                      </Field>
+                    </div>
                   </div>
-                </div>
-              </details>
+                </details>
+              )}
             </div>
           </fieldset>
         </div>
@@ -476,7 +538,11 @@ export function TaskEditor({
               {tr('上一步')}
             </Button>
           )}
-          <Button variant="solid" type="submit" disabled={save.isPending}>
+          <Button
+            variant="solid"
+            type="submit"
+            disabled={save.isPending || templateInstance.pendingPreview}
+          >
             {step === 'task' ? tr('下一步') : save.isPending ? tr('正在保存…') : tr('保存任务')}
           </Button>
         </div>

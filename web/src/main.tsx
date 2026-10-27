@@ -1,4 +1,4 @@
-import { TemplateDialog } from './templates/TemplateDialog'
+import { PresetPage } from './templates/PresetPage'
 import { ActionMenu, ActionMenuItem, ActionMenuSeparator, CopyMenuItem } from './actions/ActionMenu'
 import { ActionIcon } from './actions/ActionIcon'
 import { ToastContext, useToast, ErrorToast } from './Toast'
@@ -395,7 +395,6 @@ function TasksPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [editor, setEditor] = useState<Task | 'new' | null>(null)
   const [archiving, setArchiving] = useState<Task | null>(null)
-  const [templateDialog, setTemplateDialog] = useState<{ seedTask?: string } | null>(null)
   const [tab, setTab] = useState<'overview' | 'runs' | 'config'>('overview')
   const u = useUser()
   const editable = u.role !== 'viewer'
@@ -496,9 +495,6 @@ function TasksPage() {
                   </Dropdown.Trigger>
                   <Dropdown.Portal>
                     <Dropdown.Content className="dropdown" align="end">
-                      <Dropdown.Item onSelect={() => setTemplateDialog({})}>
-                        {tr('taskTemplate.fromTemplate')}
-                      </Dropdown.Item>
                       <Dropdown.Item onSelect={() => setEditor('new')}>{tr('任务')}</Dropdown.Item>
                       <Dropdown.Item onSelect={() => navigate({ to: '/tasks/dag', search: {} })}>
                         {tr('dag.task')}
@@ -616,7 +612,12 @@ function TasksPage() {
                     <>
                       <ActionMenuItem
                         icon="copy"
-                        onSelect={() => setTemplateDialog({ seedTask: task.id })}
+                        onSelect={() =>
+                          navigate({
+                            to: '/presets',
+                            search: { new: 'task', source: task.id, section: 'definition' },
+                          })
+                        }
                       >
                         {tr('taskTemplate.saveAsTemplate')}
                       </ActionMenuItem>
@@ -694,18 +695,6 @@ function TasksPage() {
           </>
         )}
       </Split>
-      {templateDialog && (
-        <TemplateDialog
-          seedTask={templateDialog.seedTask}
-          timezone={settings.data?.timezone ?? 'Asia/Shanghai'}
-          onClose={() => setTemplateDialog(null)}
-          onCreated={(result) => {
-            setTemplateDialog(null)
-            if (result.run_id) navigate({ to: '/runs', search: { run: result.run_id } })
-            else navigate({ to: '/tasks', search: { task: result.task_id } })
-          }}
-        />
-      )}
       {editor && (
         <TaskEditor
           task={editor === 'new' ? undefined : editor}
@@ -820,6 +809,26 @@ const tasksRoute = createRoute({
   }),
   component: TasksPage,
 })
+const presetsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/presets',
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): {
+    template?: string
+    section?: 'overview' | 'preview' | 'definition'
+    new?: 'task' | 'dag'
+    source?: string
+  } => ({
+    template: typeof s.template === 'string' ? s.template : undefined,
+    section: ['overview', 'preview', 'definition'].includes(String(s.section))
+      ? (s.section as 'overview' | 'preview' | 'definition')
+      : undefined,
+    new: s.new === 'task' || s.new === 'dag' ? s.new : undefined,
+    source: typeof s.source === 'string' ? s.source : undefined,
+  }),
+  component: () => <PresetPage user={useUser()} />,
+})
 const dagRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tasks/dag',
@@ -916,6 +925,7 @@ const router = createRouter({
   routeTree: rootRoute.addChildren([
     momentsRoute,
     tasksRoute,
+    presetsRoute,
     dagRoute,
     runsRoute,
     runnersRoute,

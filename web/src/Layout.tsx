@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ListTodo, Rss, History, Monitor, Settings2 } from './icons'
+import { ListTodo, ListTree, Rss, History, Monitor, Settings2 } from './icons'
 import { api, type User } from './api'
 import { IconButton, TooltipTarget } from './ui'
 import { SearchLauncher } from './Search'
@@ -133,6 +133,7 @@ export function Layout({
               {[
                 { to: '/', icon: Rss, label: tr('Moments') },
                 { to: '/tasks', icon: ListTodo, label: tr('Tasks') },
+                { to: '/presets', icon: ListTree, label: tr('preset.title') },
                 { to: '/runs', icon: History, label: tr('Runs') },
                 { to: '/runners', icon: Monitor, label: tr('Runners') },
                 { to: '/settings', icon: Settings2, label: tr('Settings') },

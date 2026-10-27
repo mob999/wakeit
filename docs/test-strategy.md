@@ -14,7 +14,7 @@ Use [.agents/skills/unit-test-review](../.agents/skills/unit-test-review/SKILL.m
 | Native adapter normalization                       | `crates/wakeit/tests/*_adapter.rs`       | CLI framing, actual exit status and pipe draining                                   |
 | Session and DAG lifecycle                          | Rust and service integration suites      | Transactions, local locks, migration compatibility, restart and concurrent requests |
 | Task Template compilation and instantiation        | `crates/wakeit/tests/task_templates.rs`  | Real migrations, cross-Gateway idempotency, authorization, frozen Runs and CLI      |
-| Template inputs and generated-preview interaction | `web/tests/templates.spec.ts`            | Typed drafts, stale responses, graph/table search, bindings and responsive layout   |
+| Preset workbench and template instance interaction | `web/tests/templates.spec.ts`            | Definition management, inline creation, typed drafts, stale responses and i18n      |
 | Card and toolbar appearance                        | Local browser suites                     | Geometry, transparency, keyboard access, themes and narrow layouts                  |
 
 The same risk can justify tests at two layers when they exercise different boundaries. Do not remove service tests in favor of mocks for database constraints, authorization, NATS delivery or process-tree cleanup.
