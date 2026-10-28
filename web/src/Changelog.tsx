@@ -8,18 +8,23 @@ import { t } from './i18n'
 import { Button, Modal, TooltipTarget } from './ui'
 import { MarkdownContent } from './runs/MarkdownContent'
 import { LanguageSwitch } from './LanguageSwitch'
+import englishChangelog from '../../CHANGELOG.md?raw'
+import chineseChangelog from '../../CHANGELOG.zh-CN.md?raw'
 
 type ChangelogDocument = { version: string; content: string }
 
 export function Changelog({ version }: { version?: string }) {
   const { i18n } = useTranslation()
   const language = i18n.language === 'zh' ? 'zh' : 'en'
+  const localContent = import.meta.env.DEV
+    ? (language === 'zh' ? chineseChangelog : englishChangelog)
+    : undefined
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const document = useQuery<ChangelogDocument>({
     queryKey: ['changelog', version, language],
     queryFn: () => api(`/changelog?lang=${language}`),
-    enabled: open,
+    enabled: open && localContent === undefined,
     staleTime: Infinity,
     retry: false,
     refetchOnWindowFocus: false,
@@ -55,7 +60,11 @@ export function Changelog({ version }: { version?: string }) {
         actions={<LanguageSwitch />}
       >
         <div className="modal-body changelog-body" aria-busy={document.isFetching || undefined}>
-          {document.isPending ? (
+          {localContent !== undefined ? (
+            <div className="markdown-result">
+              <MarkdownContent text={localContent} />
+            </div>
+          ) : document.isPending ? (
             <p role="status">{t('正在加载…')}</p>
           ) : document.isError ? (
             <ErrorToast>

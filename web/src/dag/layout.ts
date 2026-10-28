@@ -1,5 +1,4 @@
 import ELK from 'elkjs/lib/elk-api'
-// @ts-expect-error Vite emits the worker as a local asset.
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url'
 import type { DagNode } from '../api'
 import type { Point } from './workbench'
