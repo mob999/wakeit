@@ -47,6 +47,6 @@ Keep existing databases, NATS identities, task history, Runner registration and 
 1. Split the Rust packages and command ownership; remove Gateway code and WebUI build requirements from CLI builds.
 2. Split tags, package metadata, installation scripts, update discovery and release notes.
 3. Update setup prompts, the Skill, source/Compose/native deployment instructions and current version labels.
-4. Route CI by changed product: frontend/Gateway changes do not start CLI checks, CLI changes do not build WebUI, and shared changes select both. Keep end-to-end checks for the affected shared boundary.
+4. Route CI by changed product: frontend/Gateway changes do not start CLI unit checks, standalone CLI checks do not require WebUI, and shared changes select both. End-to-end service checks build both programs and the embedded WebUI to exercise their connection.
 
 Completion means each product builds and publishes independently, each installer and updater selects the intended product, the CLI has no deployment commands, and Gateway remains deployable through its documented server paths. CI owns product builds and relevant behavior checks; local work focuses on the changed setup and deployment flows.

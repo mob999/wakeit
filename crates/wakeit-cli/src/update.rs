@@ -548,7 +548,7 @@ mod tests {
                 .await
                 .unwrap_err()
                 .to_string()
-                .contains("differ")
+                .contains("does not match the CLI")
         );
         release.assets[1].size += 1;
         assert!(
