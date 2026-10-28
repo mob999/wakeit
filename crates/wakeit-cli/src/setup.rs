@@ -1,5 +1,5 @@
 use crate::{
-    config::{self, AgentConfig, RunnerConfig},
+    config::{self, RunnerConfig},
     connection as c,
     device_auth::{Connect, Intent},
 };
@@ -364,9 +364,7 @@ pub async fn run(
         for &(id, _) in config::BUILTIN_AGENTS {
             let path = dir.join("agents").join(format!("{id}.yaml"));
             if !path.exists() {
-                let mut a: AgentConfig = yaml_serde::from_str(config::builtin(id)?)?;
-                config::normalize_commands(&mut a)?;
-                c::atomic(&path, yaml_serde::to_string(&a)?)?;
+                c::atomic(&path, config::builtin(id)?)?;
             }
             agents.push(path);
         }

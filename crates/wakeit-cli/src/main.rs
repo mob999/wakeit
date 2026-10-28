@@ -760,9 +760,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                     .clone()
                     .unwrap_or_else(|| PathBuf::from(format!("{id}.yaml")));
                 ensure!(!file.exists(), "file already exists");
-                let mut agent: AgentConfig = yaml_serde::from_str(config::builtin(id)?)?;
-                config::normalize_commands(&mut agent)?;
-                std::fs::write(&file, yaml_serde::to_string(&agent)?)?;
+                std::fs::write(&file, config::builtin(id)?)?;
                 println!("{}", file.display());
             }
             Agent::Validate { file } => {
