@@ -4,38 +4,71 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: read
 concurrency:
   group: verify-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.select.outputs.frontend }}
+      web: ${{ steps.select.outputs.web }}
+      rust: ${{ steps.select.outputs.rust }}
+      integration: ${{ steps.select.outputs.integration }}
+      docs: ${{ steps.select.outputs.docs }}
+      packaging: ${{ steps.select.outputs.packaging }}
+      installer: ${{ steps.select.outputs.installer }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/test-ci-scope.py
+      - id: select
+        run: python scripts/ci_scope.py
+  web:
+    needs: scope
+    if: needs.scope.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm, cache-dependency-path: web/package-lock.json}
+      - run: npm ci && npm run build
+        working-directory: web
+      - run: npm run test:unit
+        if: needs.scope.outputs.frontend == 'true'
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        if: needs.scope.outputs.rust == 'true' || needs.scope.outputs.integration == 'true'
+        with:
+          name: web-dist
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 1
   rust:
+    needs: [scope, web]
+    if: needs.scope.outputs.rust == 'true'
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: web-dist, path: web/dist}
       - uses: dtolnay/rust-toolchain@stable
-        with: {components: "rustfmt, clippy"}
-      - uses: actions/setup-node@v4
-        with: {node-version: "22", cache: npm, cache-dependency-path: web/package-lock.json}
+        with: {components: 'rustfmt, clippy'}
       - uses: Swatinem/rust-cache@v2
-      - run: npm ci && npm run build
-        working-directory: web
-      - run: npm run test:unit
-        working-directory: web
       - run: cargo fmt --all --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked --all-targets
       - run: cargo build --locked --bin wakeit --example update_probe
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - run: python -m pip install pyyaml jsonschema
-      - run: python scripts/check-brand-docs.py
-      - run: python scripts/test-release.py
-      - name: Shell installer checks
-        if: runner.os != 'Windows'
-        run: python scripts/test-installer.py
       - name: Native service and replacement checks
         shell: bash
         run: |
@@ -43,22 +76,22 @@ jobs:
           if [[ "$RUNNER_OS" == 'Windows' ]]; then suffix='.exe'; fi
           python scripts/check-native.py --binary "target/debug/wakeit$suffix" --probe "target/debug/examples/update_probe$suffix"
   integration:
+    needs: [scope, web]
+    if: needs.scope.outputs.integration == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: web-dist, path: web/dist}
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
-        with: {node-version: "22", cache: npm, cache-dependency-path: web/package-lock.json}
       - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
+        with: {python-version: '3.12'}
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get update && sudo apt-get install -y postgresql
       - name: Install NATS Server
         run: |
           curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz | tar xz
           sudo install nats-server-v2.15.0-linux-amd64/nats-server /usr/local/bin/nats-server
-      - run: npm ci && npm run build
-        working-directory: web
       - run: cargo build --locked --examples && cargo build --locked
       - run: python3 scripts/check-archive-upgrade.py
       - run: python3 scripts/check-session-upgrade.py
@@ -76,3 +109,46 @@ jobs:
           path: |
             .local-integration.log
             .local/integration-*/*.log
+  docs:
+    needs: scope
+    if: needs.scope.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install pyyaml jsonschema
+      - run: python scripts/check-brand-docs.py
+      - run: python scripts/changelog.py
+  packaging:
+    needs: scope
+    if: needs.scope.outputs.packaging == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/test-release.py
+  installer:
+    needs: scope
+    if: needs.scope.outputs.installer == 'true'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/test-installer.py
+  verify-result:
+    needs: [scope, web, rust, integration, docs, packaging, installer]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/ci_scope.py --check-results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}

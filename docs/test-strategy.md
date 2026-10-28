@@ -8,6 +8,26 @@ Use the dev preview and focused checks to resolve concrete questions during impl
 
 For ordinary UI or copy changes, inspect the affected page and interactions through Vite hot reload. A production build is useful when investigating a bundling/type issue, not a mandatory finish step for every UI edit. Run or add a test when it protects meaningful behavior; widen checks only when a changed boundary or failure justifies it.
 
+## CI scope
+
+`verify` selects jobs from changed files, not PR titles or branch names. Pull requests use the base-to-head merge-base diff; pushes use the before-to-after diff. Deletions and both sides of renames are included. Manual runs and changes to CI routing/workflows run every check.
+
+| Changed files | Checks |
+| --- | --- |
+| `web/**` | Frontend build and unit tests; package manifests also check release metadata |
+| Markdown, `docs/**`, `.agents/**` | Documentation links/examples and bilingual changelog structure |
+| `crates/**`, `agents/**`, database fixtures, Cargo manifests/lockfile | Rust checks on Linux/macOS/Windows and service integration; Cargo metadata also checks packaging |
+| `schemas/**` | Frontend, Rust, service integration, documentation examples and packaging |
+| Runtime/deployment examples and `skills/wakeit/assets/**` | Rust/service integration and documentation; Skill assets also check packaging |
+| Skill instructions | Documentation and standalone Skill packaging |
+| `install.sh` and its checks | Installer checks on Linux/macOS and packaging |
+| Packaging/changelog scripts | Packaging and documentation checks |
+| Native-check script / service-integration scripts | Native Rust checks / service integration respectively |
+
+Unknown code/configuration paths run all checks until their owner is added in `scripts/ci_scope.py`. Gateway and Runner share one Rust crate, so backend changes retain their existing joint coverage. Frontend-only and documentation-only changes do not start Rust or service checks.
+
+The frontend is built once per workflow. Backend jobs download those assets for the embedded WebUI; frontend unit tests run only when their scope is selected. The required `verify-result` job always runs and rejects failed, cancelled or unexpectedly skipped selected jobs, including failed scope detection. Unselected checks may be skipped. Release/tag builds remain independent and continue to build all published targets.
+
 ## Maintained coverage
 
 | Contract | Owner |
