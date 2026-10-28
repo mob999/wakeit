@@ -85,12 +85,14 @@ export function PresetCreation({
     <div className="preset-creation">
       {record && (
         <div className="preset-choice-heading creation-name-row">
-          <strong>{record.definition.name}</strong>
-          {record.definition.description && (
-            <IconButton label={record.definition.description}>
-              <ActionIcon name="info" />
-            </IconButton>
-          )}
+          <div className="preset-choice-title">
+            <strong>{record.definition.name}</strong>
+            {record.definition.description && (
+              <IconButton label={record.definition.description}>
+                <ActionIcon name="info" />
+              </IconButton>
+            )}
+          </div>
           {updated && (
             <Button
               disabled={busy}
@@ -101,6 +103,7 @@ export function PresetCreation({
           )}
           {record && (
             <Button
+              className="preset-change-button"
               disabled={busy}
               aria-expanded={choosing}
               onClick={() => setChoosing((value) => !value)}

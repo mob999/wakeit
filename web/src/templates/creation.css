@@ -3,6 +3,7 @@
   height: min(820px, calc(100dvh - 40px));
   max-height: calc(100dvh - 40px);
   border-radius: 6px;
+  font-size: var(--ui-text);
 }
 .creation-modal > .modal-heading {
   min-height: 44px;
@@ -32,6 +33,7 @@
   container-name: creation;
 }
 .creation-panel[hidden],
+.creation-task-fields [hidden],
 .preset-session[hidden],
 .dag-editor [hidden] {
   display: none !important;
@@ -234,18 +236,50 @@
 .creation-dag-form:not(.is-fullscreen) {
   height: auto;
 }
-.creation-dag-sections {
-  display: flex;
-  gap: 12px;
-  padding: 0 12px;
+.creation-section-tabs {
+  height: 44px;
+  min-height: 44px;
+  padding: 0 16px;
 }
-.creation-dag-sections button {
-  font-size: 12px;
-  color: var(--muted);
-  background: transparent;
+.creation-dag-form .dag-stepbar > .creation-section-tabs {
   border: 0;
+}
+.creation-section-tabs [role='tab'] {
+  height: 43px;
+}
+.creation-task-form .field,
+.creation-modal .field > label,
+.creation-modal :is(input, textarea, select, .choice-selector) {
+  font-size: var(--ui-text);
+}
+.creation-modal :is(input:not([type='checkbox']):not([type='radio']), select, .choice-selector) {
+  min-height: 28px;
+}
+.creation-schedule-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+}
+.creation-schedule-scroll .dag-time-page > .content-card {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: none;
+}
+.creation-schedule-scroll .dag-time-page > .content-card + .content-card {
+  margin-top: 12px;
+}
+.creation-schedule-scroll .card-header {
   min-height: 36px;
-  cursor: pointer;
+  padding: 4px 16px;
+}
+.creation-schedule-scroll .dag-settings-rows > .field,
+.creation-schedule-scroll .dag-preview-row {
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px 12px;
+  padding: 8px 16px;
+  min-height: 44px;
 }
 .creation-dag-form .dag-toolbar {
   gap: 8px;
@@ -273,23 +307,31 @@
   padding: 7px 16px;
   flex-wrap: nowrap;
 }
-.preset-choice-heading > strong {
+.preset-choice-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
   min-width: 0;
-  max-width: 100%;
+}
+.preset-choice-title > strong {
+  min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--ui-text);
   font-weight: 550;
 }
-.preset-choice-heading > .quiet {
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
+.preset-choice-title > .icon-button {
+  flex: none;
 }
 .preset-choice-heading > .button {
-  font-size: 11px;
-  margin-left: auto;
+  flex: none;
+  font-size: var(--ui-text);
+}
+.preset-choice-heading > .preset-change-button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  min-height: 28px;
 }
 .preset-session-fields {
   display: block;
@@ -507,17 +549,16 @@
   margin: 0;
   padding: 0;
 }
-.creation-dag-form .dag-time-scroll {
-  padding: 12px 16px;
-}
-.creation-dag-form .dag-time-page > .content-card {
-  margin: 0;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  box-shadow: none;
-}
-.creation-dag-form .dag-time-page .card-header {
-  min-height: 36px;
-  padding: 4px 16px;
+@container creation (max-width: 499px) {
+  .creation-section-tabs {
+    padding-inline: 12px;
+  }
+  .creation-schedule-scroll {
+    padding: 12px;
+  }
+  .creation-schedule-scroll .dag-settings-rows > .field,
+  .creation-schedule-scroll .dag-preview-row {
+    grid-template-columns: 72px minmax(0, 1fr);
+    padding-inline: 12px;
+  }
 }

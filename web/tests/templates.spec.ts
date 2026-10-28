@@ -188,11 +188,29 @@ test('one plus opens Task/DAG/Preset tabs, preserves drafts and confirms cancell
 }) => {
   await loginSession(page, stack.username, password)
   const dialog = await openCreation(page)
-  await expect(dialog.getByRole('tab')).toHaveText(['任务', 'DAG', '预设'])
+  await expect(dialog.locator('.modal-heading [role=tab]')).toHaveText(['任务', 'DAG', '预设'])
   await dialog.getByRole('textbox', { name: '任务名称', exact: true }).fill('Synthetic task draft')
   await dialog.getByRole('textbox', { name: '指令', exact: true }).fill('Preserve this instruction')
-  await expect(dialog.locator('.creation-schedule > summary')).toHaveText('调度设置')
-  await dialog.locator('.creation-schedule > summary').click()
+  await expect(dialog.locator('.creation-section-tabs [role=tab]')).toHaveText([
+    '任务内容',
+    '调度设置',
+  ])
+  await dialog.getByRole('tab', { name: '调度设置', exact: true }).click()
+  const scheduleMetrics = () =>
+    dialog.locator('.creation-schedule-scroll:visible').evaluate((element) => {
+      const label = element.querySelector('.field > label')!
+      const control = element.querySelector('.choice-selector')!
+      const field = element.querySelector('.field')!
+      return {
+        labelFont: getComputedStyle(label).fontSize,
+        controlFont: getComputedStyle(control).fontSize,
+        padding: getComputedStyle(field).padding,
+        height: field.getBoundingClientRect().height,
+      }
+    })
+  const taskScheduleMetrics = await scheduleMetrics()
+  expect(taskScheduleMetrics.labelFont).toBe('12px')
+  expect(taskScheduleMetrics.controlFont).toBe('12px')
   await page.screenshot({ path: test.info().outputPath('creation-task-wide.png') })
   await page.setViewportSize({ width: 390, height: 844 })
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
@@ -201,10 +219,23 @@ test('one plus opens Task/DAG/Preset tabs, preserves drafts and confirms cancell
   await dialog.getByRole('tab', { name: 'DAG', exact: true }).click()
   await dialog.getByRole('textbox', { name: '任务名称', exact: true }).fill('Synthetic DAG draft')
   await expect(dialog.locator('.dag-editor')).toBeVisible()
+  await expect(dialog.locator('.creation-dag-form .creation-section-tabs [role=tab]')).toHaveText([
+    '节点结构',
+    '调度设置',
+  ])
+  await dialog.getByRole('tab', { name: '调度设置', exact: true }).click()
+  expect(await scheduleMetrics()).toEqual(taskScheduleMetrics)
+  await page.screenshot({ path: test.info().outputPath('creation-dag-schedule-wide.png') })
+
   await dialog.getByRole('tab', { name: '任务', exact: true }).click()
   await expect(dialog.getByRole('textbox', { name: '任务名称', exact: true })).toHaveValue(
     'Synthetic task draft',
   )
+  await expect(dialog.getByRole('tab', { name: '调度设置', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await dialog.getByRole('tab', { name: '任务内容', exact: true }).click()
   await expect(dialog.getByRole('textbox', { name: '指令', exact: true })).toHaveValue(
     'Preserve this instruction',
   )
@@ -332,7 +363,7 @@ test('manual Task and DAG creation keep their own editors and save through the u
     .getByRole('dialog', { name: '选择工作目录', exact: true })
     .getByRole('button', { name: '选择文件夹', exact: true })
     .click()
-  await dialog.locator('.creation-schedule > summary').click()
+  await dialog.getByRole('tab', { name: '调度设置', exact: true }).click()
   await selectChoice(page, dialog, '类型', 'manual')
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
   await expect(dialog).toHaveCount(0)
@@ -349,7 +380,7 @@ test('manual Task and DAG creation keep their own editors and save through the u
     .getByRole('dialog', { name: '选择工作目录', exact: true })
     .getByRole('button', { name: '选择文件夹', exact: true })
     .click()
-  await dialog.getByRole('button', { name: '调度设置', exact: true }).click()
+  await dialog.getByRole('tab', { name: '调度设置', exact: true }).click()
   await selectChoice(page, dialog, '类型', 'manual')
   await dialog.getByRole('button', { name: '创建', exact: true }).click()
   await expect(dialog).toHaveCount(0)
@@ -404,7 +435,7 @@ test('preset catalog is read-only, invalid links show errors, and use opens acce
     await page.screenshot({ path: test.info().outputPath(`creation-${width}-${theme}.png`) })
   }
   await setLanguage(page, 'en')
-  await expect(page.locator('.creation-modal').getByRole('tab')).toHaveText([
+  await expect(page.locator('.creation-modal .modal-heading [role=tab]')).toHaveText([
     'Task',
     'DAG',
     'Preset',
@@ -580,9 +611,32 @@ test('adding an unfinished repository stays silent; submit reports once and focu
   const dialog = await openCreation(page, '预设')
   await choosePreset(page, dialog, def.name)
   const session = dialog.locator('.preset-session:visible')
-  await expect(session.locator('.template-preview-pane').getByRole('status')).toContainText(
-    '可以创建',
+  const ready = session.locator('.template-ready')
+  await expect(ready).toHaveAttribute('aria-label', '可以创建')
+  await expect(ready).toHaveCSS('color', 'rgb(31, 136, 61)')
+  await ready.focus()
+  await expect(page.getByRole('tooltip')).toHaveText('可以创建')
+  await expect(dialog.locator('.preset-choice-title .icon-button')).toBeVisible()
+  const title = await dialog.locator('.preset-choice-title > strong').boundingBox()
+  const info = await dialog.locator('.preset-choice-title .icon-button').boundingBox()
+  expect(info!.x - (title!.x + title!.width)).toBeLessThan(12)
+  await expect(dialog.getByRole('button', { name: '切换预设', exact: true })).toHaveCSS(
+    'border-top-width',
+    '1px',
   )
+  const bindingHeader = session.locator('.template-binding > summary').first()
+  await expect(bindingHeader.locator('svg')).toHaveCount(2)
+  await expect(bindingHeader.locator('.agent-logo')).toBeVisible()
+  await expect(session.locator('.template-bindings > h3')).toHaveCount(0)
+  await setLanguage(page, 'en')
+  await expect(page.locator('.creation-modal .template-ready')).toHaveAttribute(
+    'aria-label',
+    'Ready to create',
+  )
+  await expect(
+    page.locator('.creation-modal').getByRole('button', { name: 'Change preset', exact: true }),
+  ).toBeVisible()
+  await setLanguage(page, 'zh')
   const list = session.locator('[data-input-path="inputs.repository"]').first()
   const response = page.waitForResponse((response) =>
     response.url().endsWith(`/task-templates/${def.id}/preview`),
@@ -662,7 +716,7 @@ test('DAG palette drag uses viewport coordinates and canvas supports node moveme
   await page.mouse.up()
   await expect(viewport).not.toHaveAttribute('style', transform!)
   await page.screenshot({ path: test.info().outputPath('dag-creation-drag.png') })
-  await dialog.getByRole('button', { name: '调度设置', exact: true }).click()
+  await dialog.getByRole('tab', { name: '调度设置', exact: true }).click()
   await expect(dialog.locator('.dag-stepbar')).not.toContainText('Cron')
   await page.screenshot({ path: test.info().outputPath('dag-creation-schedule.png') })
 })

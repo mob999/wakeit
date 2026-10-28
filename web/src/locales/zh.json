@@ -912,6 +912,7 @@
   "taskTemplate.loopSnippet": "循环",
   "creation.kind": "创建方式",
   "creation.schedule": "调度设置",
+  "creation.content": "任务内容",
   "creation.structure": "节点结构",
   "creation.create": "创建",
   "creation.createRun": "创建并运行",

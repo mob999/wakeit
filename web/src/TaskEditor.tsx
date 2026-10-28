@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { useState, useRef, useEffect, type CSSProperties, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Clock, ChevronRight } from './icons'
-import { api, time, type Task, type TaskConfig, type Runner } from './api'
+import { api, time, type Task, type TaskConfig, type Runner, type DagIssue } from './api'
+import { DetailTabs } from './DetailTabs'
+import { TimeFields } from './dag/TimeFields'
 import { Button, Field, Modal, focusEditorField } from './ui'
 import { ChoicePicker } from './ChoicePicker'
 import { AgentLogo } from './AgentLogo'
@@ -40,6 +42,7 @@ export function TaskEditor({
 }) {
   useTranslation()
   const form = useRef<HTMLFormElement>(null)
+  const timeValidation = useRef<() => DagIssue[]>(() => [])
   const workspace = useRef<HTMLDivElement>(null)
   const [workspaceWidth, setWorkspaceWidth] = useState(0)
   const [sideSize, setSideSize] = useState(380)
@@ -103,7 +106,7 @@ export function TaskEditor({
   const preview = useQuery<string[]>({
     queryKey: ['preview', config.schedule],
     queryFn: () => api('/schedule/preview', 'POST', config.schedule),
-    enabled: step === 'time' && !!config.schedule,
+    enabled: !embedded && step === 'time' && !!config.schedule,
     retry: false,
   })
   const change = (key: keyof TaskConfig, value: any) =>
@@ -149,6 +152,10 @@ export function TaskEditor({
         throw e
       }
       try {
+        if (embedded) {
+          const issue = timeValidation.current()[0]
+          if (issue) throw new Error(issue.message)
+        }
         if (!validDuration(timeConfig.execution.timeout ?? '1h'))
           throw new Error(tr('请填写有效的执行超时（1 秒至 366 天）'))
         if (!validDuration(timeConfig.execution.start_grace))
@@ -501,8 +508,25 @@ export function TaskEditor({
         {embedded ? (
           <fieldset className="editor-fields creation-task-fields" disabled={save.isPending}>
             <div className="creation-name-row">{nameField}</div>
+            <DetailTabs
+              idPrefix="creation-task-section"
+              className="creation-section-tabs"
+              label={tr('任务编辑')}
+              value={step}
+              disabled={save.isPending}
+              tabs={[
+                { key: 'task', label: tr('creation.content') },
+                { key: 'time', label: tr('creation.schedule') },
+              ]}
+              onChange={setStep}
+            />
             <div
               className="creation-workspace"
+              id="creation-task-section-task-panel"
+              role="tabpanel"
+              aria-labelledby="creation-task-section-task-tab"
+              hidden={step !== 'task'}
+              inert={step !== 'task'}
               ref={workspace}
               style={{ '--creation-side-width': `${sideWidth}px` } as CSSProperties}
             >
@@ -512,17 +536,6 @@ export function TaskEditor({
               <aside className="creation-side-pane">
                 <div className="creation-task-properties">{environmentFields}</div>
                 {advancedFields}
-                <details
-                  className="advanced-settings creation-section creation-schedule"
-                  open={step === 'time'}
-                  onToggle={(event) => setStep(event.currentTarget.open ? 'time' : 'task')}
-                >
-                  <summary>
-                    <ChevronRight size={14} />
-                    <span>{tr('creation.schedule')}</span>
-                  </summary>
-                  <div className="creation-section-body">{scheduleFields}</div>
-                </details>
               </aside>
               {split && (
                 <PaneResizeHandle
@@ -537,6 +550,23 @@ export function TaskEditor({
                   style={{ right: sideWidth - 4, top: 0, bottom: 0 }}
                 />
               )}
+            </div>
+            <div
+              className="creation-schedule-scroll"
+              id="creation-task-section-time-panel"
+              role="tabpanel"
+              aria-labelledby="creation-task-section-time-tab"
+              hidden={step !== 'time'}
+              inert={step !== 'time'}
+            >
+              <TimeFields
+                config={config}
+                timezone={defaultTimezone}
+                disabled={save.isPending}
+                active={step === 'time'}
+                onChange={setConfig}
+                validation={timeValidation}
+              />
             </div>
           </fieldset>
         ) : (

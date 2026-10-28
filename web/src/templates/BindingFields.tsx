@@ -3,6 +3,8 @@ import { t } from '../i18n'
 import { ChoicePicker } from '../ChoicePicker'
 import { ModelPicker, ParameterFields } from '../ModelPicker'
 import { Field, Button } from '../ui'
+import { AgentLogo } from '../AgentLogo'
+import { ChevronRight, Monitor } from '../icons'
 import type { Runner } from '../api'
 import type { Binding, TemplateIssue } from './types'
 
@@ -40,14 +42,17 @@ export function BindingFields({
       data-input-path={`bindings.${slot}`}
     >
       <summary>
-        <span>{title}</span>
+        <ChevronRight size={14} className="template-binding-chevron" aria-hidden="true" />
+        <span className="template-binding-title">{title}</span>
         <span className="template-binding-summary">
-          <span>
-            <span className="quiet">{t('设备')}</span>
+          <span title={runner?.name}>
+            <Monitor size={14} aria-hidden="true" />
+            <span className="sr-only">{t('设备')}: </span>
             <span>{runner?.name || t('选择设备')}</span>
           </span>
-          <span>
-            <span className="quiet">Agent</span>
+          <span title={agent?.name}>
+            <AgentLogo name={agent?.name || 'Agent'} logo={agent?.logo} />
+            <span className="sr-only">Agent: </span>
             <span>{agent?.name || t('选择 Agent')}</span>
           </span>
         </span>

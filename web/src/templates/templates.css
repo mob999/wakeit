@@ -74,8 +74,7 @@
   padding: 2px 6px;
 }
 .template-value-modes .button[aria-pressed='true'],
-.template-mobile-switch .button[aria-pressed='true'],
-.creation-dag-sections button[aria-pressed='true'] {
+.template-mobile-switch .button[aria-pressed='true'] {
   text-decoration: underline;
   text-underline-offset: 6px;
   color: var(--ink);
@@ -588,42 +587,73 @@
 }
 
 .template-binding > summary {
-  display: grid;
-  grid-template-columns: minmax(80px, 0.45fr) minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  min-height: 36px;
   list-style: none;
 }
 .template-binding > summary::-webkit-details-marker {
   display: none;
 }
-.template-binding > summary > span:first-child::before {
-  content: '›';
-  display: inline-block;
-  margin-right: 8px;
+.template-binding-chevron {
+  flex: none;
+  transition: transform 120ms;
 }
-.template-binding[open] > summary > span:first-child::before {
+.template-binding[open] > summary > .template-binding-chevron {
   transform: rotate(90deg);
 }
+.template-binding-title {
+  font-weight: 500;
+}
 .template-binding-summary {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-left: auto;
   min-width: 0;
+  max-width: 100%;
 }
 .template-binding-summary > span {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 11px;
-  overflow-wrap: anywhere;
+}
+.template-binding-summary > span > :is(svg, .agent-logo) {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.template-binding-summary > span > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.template-preview-status {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.template-ready {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--success);
+  border-radius: 4px;
+}
+.template-ready:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: -2px;
 }
 .template-binding-body > [data-input-path] + [data-input-path] {
   margin-top: 12px;
 }
 .template-binding-body .field > label {
   font-weight: 500;
-}
-.preset-choice-heading > .icon-button {
-  margin-left: 0;
 }

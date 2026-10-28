@@ -912,6 +912,7 @@
   "taskTemplate.loopSnippet": "Loop",
   "creation.kind": "Creation method",
   "creation.schedule": "Schedule",
+  "creation.content": "Task content",
   "creation.structure": "Structure",
   "creation.create": "Create",
   "creation.createRun": "Create and run",

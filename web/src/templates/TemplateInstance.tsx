@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError, type Runner, type TaskConfig } from '../api'
 import { t } from '../i18n'
-import { Button } from '../ui'
+import { Button, TooltipTarget } from '../ui'
+import { ActionIcon } from '../actions/ActionIcon'
 import { CopyValue } from '../runs/CopyValue'
 import { useToast } from '../Toast'
 import { DagGraph } from '../dag/DagGraph'
@@ -439,7 +440,6 @@ export function TemplateInstanceView({
         <div className="template-pane-scroll">
           {definition && visibleBindings.length > 0 && (
             <section className="template-bindings" aria-label={t('taskTemplate.bindings')}>
-              <h3 className="template-section-heading">{t('taskTemplate.bindings')}</h3>
               {runners.isPending ? (
                 <p className="quiet padded" role="status">
                   {t('正在加载…')}
@@ -535,15 +535,19 @@ export function TemplateInstanceView({
           <strong title={preview?.config?.name}>
             {preview?.config?.name || t('creation.taskPreview')}
           </strong>
-          <small className="quiet" role="status">
-            {t(
-              pendingPreview
-                ? 'taskTemplate.updating'
-                : current
-                  ? 'creation.ready'
-                  : 'creation.incomplete',
+          <span role="status" className="template-preview-status">
+            {current && !pendingPreview ? (
+              <TooltipTarget label={t('creation.ready')}>
+                <span className="template-ready" tabIndex={0} aria-label={t('creation.ready')}>
+                  <ActionIcon name="check" />
+                </span>
+              </TooltipTarget>
+            ) : (
+              <small className="quiet">
+                {t(pendingPreview ? 'taskTemplate.updating' : 'creation.incomplete')}
+              </small>
             )}
-          </small>
+          </span>
         </header>
         <div className="template-pane-scroll">
           {preview?.config && generated && (

@@ -31,6 +31,7 @@ import { CanvasControls } from './CanvasControls'
 import { AgentPalette } from './AgentPalette'
 import { NodeForm } from './NodeForm'
 import { TimeFields } from './TimeFields'
+import { DetailTabs } from '../DetailTabs'
 import { MultiPicker } from './MultiPicker'
 import { issues, outputs } from './model'
 import { nodeName, nodeOptions, shortId } from './identity'
@@ -671,26 +672,36 @@ export function DagEditor({
         </div>
       )}
       <div className="dag-stepbar">
-        <div
-          className={embedded ? 'creation-dag-sections' : 'tabs'}
-          role={embedded ? 'group' : 'tablist'}
-          aria-label={t('任务编辑')}
-        >
-          {(['task', 'time'] as const).map((value) => (
-            <button
-              type="button"
-              key={value}
-              role={embedded ? undefined : 'tab'}
-              aria-selected={embedded ? undefined : step === value}
-              aria-pressed={embedded ? step === value : undefined}
-              className={step === value ? 'active' : ''}
-              disabled={busy}
-              onClick={() => setStep(value)}
-            >
-              {t(value === 'task' ? 'creation.structure' : 'creation.schedule')}
-            </button>
-          ))}
-        </div>
+        {embedded ? (
+          <DetailTabs
+            idPrefix="creation-dag-section"
+            className="creation-section-tabs"
+            label={t('任务编辑')}
+            value={step}
+            disabled={busy}
+            tabs={[
+              { key: 'task', label: t('creation.structure') },
+              { key: 'time', label: t('creation.schedule') },
+            ]}
+            onChange={setStep}
+          />
+        ) : (
+          <div className="tabs" role="tablist" aria-label={t('任务编辑')}>
+            {(['task', 'time'] as const).map((value) => (
+              <button
+                type="button"
+                key={value}
+                role="tab"
+                aria-selected={step === value}
+                className={step === value ? 'active' : ''}
+                disabled={busy}
+                onClick={() => setStep(value)}
+              >
+                {t(value === 'task' ? 'creation.structure' : 'creation.schedule')}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="dag-toolbar" hidden={step !== 'task'}>
           <div className="dag-toolbar-actions">
             <div className="action-group" role="group" aria-label={t('actions.view')}>
@@ -797,7 +808,14 @@ export function DagEditor({
         </div>
       </div>
       <div className="dag-canvas-body" ref={workbench}>
-        <div className="dag-task-stage" hidden={step !== 'task'} inert={step !== 'task'}>
+        <div
+          className="dag-task-stage"
+          hidden={step !== 'task'}
+          inert={step !== 'task'}
+          id={embedded ? 'creation-dag-section-task-panel' : undefined}
+          role={embedded ? 'tabpanel' : undefined}
+          aria-labelledby={embedded ? 'creation-dag-section-task-tab' : undefined}
+        >
           {actualPalette && (
             <aside className="dag-palette-dock" aria-label={t('Agents')}>
               <header>Agents</header>
@@ -1076,7 +1094,12 @@ export function DagEditor({
           {runners.error && <ErrorToast error={runners.error} />}
         </div>
         <div
-          className="dag-editor-scroll dag-time-scroll"
+          className={
+            'dag-editor-scroll dag-time-scroll' + (embedded ? ' creation-schedule-scroll' : '')
+          }
+          id={embedded ? 'creation-dag-section-time-panel' : undefined}
+          role={embedded ? 'tabpanel' : undefined}
+          aria-labelledby={embedded ? 'creation-dag-section-time-tab' : undefined}
           hidden={step !== 'time'}
           inert={step !== 'time'}
           ref={timePane}
