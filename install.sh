@@ -6,11 +6,12 @@ usage() {
   cat <<'HELP'
 Install Wakeit for the current user (macOS / Linux GNU).
 
-Usage: sh install.sh [--version VERSION] [--bin-dir DIRECTORY] [--skill-dir DIRECTORY] [--no-modify-path]
+Usage: sh install.sh [--version VERSION] [--bin-dir DIRECTORY] [--skill-dir DIRECTORY] [--skill-only] [--no-modify-path]
 
   --version VERSION  Install a stable release, e.g. 0.3.3 (default: latest)
   --bin-dir PATH     Install directory (default: $HOME/.local/bin)
-  --skill-dir PATH   Also install the Wakeit skill at this directory
+  --skill-dir PATH   Install the Wakeit skill at this directory
+  --skill-only       Install only the skill; requires --skill-dir
   --no-modify-path   Do not update shell startup files
   -h, --help         Show help
 HELP
@@ -25,17 +26,22 @@ main() {
   bin_dir=${HOME:?HOME is required}/.local/bin
   modify_path=true
   skill_dir=
+  skill_only=false
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --version|--bin-dir|--skill-dir)
         [ "$#" -ge 2 ] || fail "Missing value for $1"
         case "$1" in --version) requested=${2#v} ;; --bin-dir) bin_dir=$2 ;; --skill-dir) skill_dir=$2 ;; esac
         shift 2 ;;
+      --skill-only) skill_only=true; shift ;;
       --no-modify-path) modify_path=false; shift ;;
       -h|--help) usage; return ;;
       *) usage >&2; fail "Unknown argument: $1" ;;
     esac
   done
+  if [ "$skill_only" = true ] && [ -z "$skill_dir" ]; then
+    fail '--skill-only requires --skill-dir'
+  fi
   need curl
   need awk
   need sed
@@ -73,7 +79,7 @@ main() {
   release_root=https://github.com/mob999/wakeit/releases
   case "$requested" in latest) metadata_url=$release_root/latest/download/wakeit-release.json ;; *) metadata_url=$release_root/download/v$requested/wakeit-release.json ;; esac
 
-  step 2 'Downloading release metadata and binary'
+  step 2 'Downloading release files'
   download "$metadata_url" "$temp_dir/manifest.json"
   # package-release.py emits one top-level stable version and target asset blocks.
   version=$(sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*,?[[:space:]]*$/\1/p' "$temp_dir/manifest.json")
@@ -83,7 +89,9 @@ main() {
   asset=wakeit-$target
   # Do not combine a moving latest alias with subsequent downloads.
   download "$base/SHA256SUMS" "$temp_dir/SHA256SUMS"
-  download "$base/$asset" "$temp_dir/$asset"
+  if [ "$skill_only" = false ]; then
+    download "$base/$asset" "$temp_dir/$asset"
+  fi
 
   if [ -n "$skill_dir" ]; then
     need tar
@@ -91,10 +99,12 @@ main() {
     download "$base/wakeit-skill.tar.gz" "$temp_dir/wakeit-skill.tar.gz"
   fi
 
-  step 3 'Verifying SHA-256 and executable version'
-  verify_checksum "$asset"
-  manifest_hash=$(awk -F '"' -v target="$target" '$2 == target { inside=1; next } inside && $2 == "sha256" { print $4; exit } inside && /^[[:space:]]*}/ { exit }' "$temp_dir/manifest.json")
-  [ "$manifest_hash" = "$expected" ] || fail 'The manifest and checksum list disagree'
+  step 3 'Verifying release files'
+  if [ "$skill_only" = false ]; then
+    verify_checksum "$asset"
+    manifest_hash=$(awk -F '"' -v target="$target" '$2 == target { inside=1; next } inside && $2 == "sha256" { print $4; exit } inside && /^[[:space:]]*}/ { exit }' "$temp_dir/manifest.json")
+    [ "$manifest_hash" = "$expected" ] || fail 'The manifest and checksum list disagree'
+  fi
   if [ -n "$skill_dir" ]; then
     verify_checksum wakeit-skill.tar.gz
     tar -tzf "$temp_dir/wakeit-skill.tar.gz" > "$temp_dir/skill-files" || fail 'The skill archive is invalid'
@@ -108,24 +118,31 @@ main() {
     fi
   fi
 
-  step 4 'Installing executable'
-  mkdir -p "$bin_dir" || fail "Cannot create $bin_dir"
-  bin_dir=$(cd "$bin_dir" && pwd -P)
-  [ ! -d "$bin_dir/wakeit" ] || fail "$bin_dir/wakeit is a directory"
-  stage=$(mktemp "$bin_dir/.wakeit-install.XXXXXX") || fail "Cannot write to $bin_dir"
-  cp "$temp_dir/$asset" "$stage" || fail 'Cannot stage the executable'
-  chmod 755 "$stage"
-  reported=$("$stage" --version) || fail 'The downloaded binary cannot run on this system'
-  [ "$reported" = "wakeit $version" ] || fail 'The executable version does not match the release manifest'
-  mv -f "$stage" "$bin_dir/wakeit" || fail 'Cannot replace the executable; the current installation was kept'
-  stage=''
-  printf '  %s\n' "$bin_dir/wakeit" >&2
+  step 4 'Installing files'
+  if [ "$skill_only" = false ]; then
+    mkdir -p "$bin_dir" || fail "Cannot create $bin_dir"
+    bin_dir=$(cd "$bin_dir" && pwd -P)
+    [ ! -d "$bin_dir/wakeit" ] || fail "$bin_dir/wakeit is a directory"
+    stage=$(mktemp "$bin_dir/.wakeit-install.XXXXXX") || fail "Cannot write to $bin_dir"
+    cp "$temp_dir/$asset" "$stage" || fail 'Cannot stage the executable'
+    chmod 755 "$stage"
+    reported=$("$stage" --version) || fail 'The downloaded binary cannot run on this system'
+    [ "$reported" = "wakeit $version" ] || fail 'The executable version does not match the release manifest'
+    mv -f "$stage" "$bin_dir/wakeit" || fail 'Cannot replace the executable; the current installation was kept'
+    stage=''
+    printf '  %s\n' "$bin_dir/wakeit" >&2
+  fi
   if [ -n "$skill_dir" ] && [ ! -d "$skill_dir" ]; then
     mkdir -p "$(dirname "$skill_dir")" || fail 'Cannot create the skill parent directory'
     mv "$temp_dir/skill/wakeit" "$skill_dir" || fail 'Cannot install the skill'
     printf '  Skill: %s\n' "$skill_dir" >&2
   fi
 
+  if [ "$skill_only" = true ]; then
+    step 5 'Skill ready'
+    printf '\nInstalled Wakeit skill %s: %s\n' "$version" "$skill_dir" >&2
+    return
+  fi
   step 5 'Configuring command access'
   path_configured=false
   if [ "$modify_path" = true ]; then

@@ -138,6 +138,24 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
         self.assertEqual((skill / 'SKILL.md').read_text(), 'my customization')
         self.assertEqual((self.bin / 'wakeit').read_bytes(), b'keep existing CLI')
 
+    def test_skill_only_keeps_cli_and_shell_untouched(self):
+        skill = self.home / 'agent skills/wakeit'
+        result = self.install('--skill-only')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('requires --skill-dir', result.stderr)
+        result = self.install('--skill-only', '--skill-dir', str(skill))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((skill / 'references/connect.md').exists())
+        self.assertFalse(self.bin.exists())
+        self.assertFalse((self.home / '.zshrc').exists())
+        self.assertNotIn('/wakeit-aarch64-apple-darwin', (self.root / 'requests').read_text())
+        self.bin.mkdir(parents=True)
+        existing = self.bin / 'wakeit'
+        existing.write_bytes(b'existing CLI')
+        result = self.install('--skill-only', '--skill-dir', str(skill))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(existing.read_bytes(), b'existing CLI')
+
     def test_bash_and_fish_configuration_preserves_existing_content(self):
         (self.home / '.bash_profile').write_text('# User login config\n')
         result = self.install(SHELL='/bin/bash')

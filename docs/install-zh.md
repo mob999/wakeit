@@ -20,6 +20,12 @@ curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh 
 
 Agent 可以添加 `--skill-dir /path/to/agent/skills/wakeit`，同时安装匹配版本的完整 Wakeit skill。应使用该 Agent 实际配置的技能目录。已有内容完全相同时直接复用；存在差异时保留原文件并报告，不直接覆盖。Agent 若需要重新加载才能发现技能，应在安装后重新加载。
 
+只安装 Skill，不下载或替换 CLI，也不修改 PATH：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.3 --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
+```
+
 后续发布产物也会提供 `install.sh` 及其 `SHA256SUMS`，可以先下载、查看脚本再执行。
 
 ## 手工安装与 Windows

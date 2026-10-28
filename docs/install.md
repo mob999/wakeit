@@ -20,6 +20,12 @@ Use `--no-modify-path` to manage PATH yourself. The installer supports zsh, bash
 
 Agents can also pass `--skill-dir /path/to/agent/skills/wakeit` to install the entire matching Wakeit skill. Choose the Agent's actual configured skill directory. An identical existing skill is reused; different files are retained and reported instead of being overwritten. Reload the Agent if it requires that to discover installed skills.
 
+To install only the Skill without downloading or replacing the CLI or changing PATH:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.3 --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
+```
+
 The installer is also included as `install.sh` in future release assets, alongside `SHA256SUMS`. It can be downloaded and inspected before running.
 
 ## Manual installation and Windows
