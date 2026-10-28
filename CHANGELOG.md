@@ -1,3 +1,24 @@
+## 0.3.4
+
+### Added
+
+- Create tasks from reusable workspace presets with typed inputs, list parameters and execution-environment bindings. MiniJinja conditions and loops can generate DAG nodes and dependencies at creation time; the resulting task is independent of later preset edits.
+- Install Wakeit and its Agent Skill with separate shell commands on macOS and GNU Linux. The installer selects the platform, shows progress, verifies downloads and installs the requested release; Windows native packages remain available.
+
+### Improved
+
+- Task, DAG and Preset creation share one modal with consistent tabs and spacing. Presets provide searchable selection, grouped parameters, execution-environment settings and a task preview; preset definitions are managed through the CLI/API.
+- Ordinary and DAG Runs share consistent actions. Retry and session continuation use fixed-height, paginated node lists, with a separate Retry all action for DAGs.
+- Tasks, Runs and devices share detail-tab styling, and DAG summaries identify their Agents. Agent Prompt presents concise setup steps and separate copyable installation commands.
+
+### Fixed
+
+- Incomplete preset inputs no longer emit errors before an explicit action. Parameter diagnostics use Toasts, and lists, tooltips and advanced settings keep consistent spacing.
+
+### Upgrade
+
+- Back up service data and stop all Gateway writers before applying `0008_task_templates.sql` with 0.3.4, then restart every Gateway on the same version. Existing tasks, runs, Runner identities, native sessions and Agent credentials are preserved; configuration and message protocols remain version 1. See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.4/docs/operations.md#upgrading-from-033).
+
 ## 0.3.3
 
 ### Improved

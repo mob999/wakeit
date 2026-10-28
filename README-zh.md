@@ -14,7 +14,7 @@
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
 - **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
 
-最新已发布版本为 **0.3.3**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
+最新已发布版本为 **0.3.4**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
 
 报告和 Markdown 文件预览支持以缩略图内嵌本地 PNG/JPEG/WebP 图片，由原 Runner 读取；相对路径按执行目录或 Markdown 所在目录解析，沿用工作区权限及目录范围。点击图片后按需加载原图。
 

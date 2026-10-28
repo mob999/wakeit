@@ -13,7 +13,7 @@ The script detects the system and architecture, downloads the current stable rel
 To install a specific release or choose a different directory:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.3 --bin-dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.4 --bin-dir "$HOME/.local/bin"
 ```
 
 Use `--no-modify-path` to manage PATH yourself. The installer supports zsh, bash, fish and POSIX shell startup files. For another shell, it prints the directory to add. The installer does not restart a running Gateway or Runner; follow the [update guide](../skills/wakeit/references/updates.md) when upgrading services.
@@ -23,7 +23,7 @@ Agents can also pass `--skill-dir /path/to/agent/skills/wakeit` to install the e
 To install only the Skill without downloading or replacing the CLI or changing PATH:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.3 --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.4 --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
 ```
 
 The installer is also included as `install.sh` in future release assets, alongside `SHA256SUMS`. It can be downloaded and inspected before running.

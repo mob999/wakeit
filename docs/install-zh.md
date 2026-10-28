@@ -13,7 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 指定版本或安装目录：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.3 --bin-dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.4 --bin-dir "$HOME/.local/bin"
 ```
 
 自行管理 PATH 时添加 `--no-modify-path`。脚本支持 zsh、bash、fish 和 POSIX Shell 的启动文件；其它 Shell 会提示需要加入 PATH 的目录。安装脚本不会重启运行中的 Gateway 或 Runner；升级服务请继续参照[更新指南](../skills/wakeit/references/updates.md)。
@@ -23,7 +23,7 @@ Agent 可以添加 `--skill-dir /path/to/agent/skills/wakeit`，同时安装匹�
 只安装 Skill，不下载或替换 CLI，也不修改 PATH：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.3 --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.3.4 --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
 ```
 
 后续发布产物也会提供 `install.sh` 及其 `SHA256SUMS`，可以先下载、查看脚本再执行。

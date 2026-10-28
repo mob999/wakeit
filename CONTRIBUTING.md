@@ -1,6 +1,6 @@
 # 开发 Wakeit
 
-Wakeit 当前版本为 0.3.1。产品与包版本随发布同步，配置和消息协议保持 version: 1；已发布的数据库迁移基线不可改写，后续结构变更通过新增迁移交付。开发约定见 [AGENTS.md](AGENTS.md)。
+Wakeit 当前版本为 0.3.4。产品与包版本随发布同步，配置和消息协议保持 version: 1；已发布的数据库迁移基线不可改写，后续结构变更通过新增迁移交付。开发约定见 [AGENTS.md](AGENTS.md)。
 
 ## 提交流程
 
@@ -43,7 +43,7 @@ python3 scripts/integration.py --pg-bin /path/to/postgresql/bin --keep-running
 
 翻译目录与插值由前端单元测试检查。界面验收覆盖中英文、浅色/深色和宽窄布局，使用合成账号、报告和设备，不为文案位置或控件尺寸增加长期维护的测试。
 
-发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。`v0.3.1` 为正式 Release，`v0.1.0` 保留为历史预览版；普通更新检查忽略预览版。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
+发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。`v0.3.4` 为正式 Release，`v0.1.0` 保留为历史预览版；普通更新检查忽略预览版。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
 
 [README Crafter skill](.agents/skills/readme-crafter-skill/SKILL.md) 是维护 README 的仓库内技能；写完核对命令、配置、链接和真实发布状态。
 

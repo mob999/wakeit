@@ -1,6 +1,6 @@
 # RFC-2: Task templates with MiniJinja and generated DAGs
 
-Status: accepted. RFC tracking issue: [#138](https://github.com/mob999/wakeit/issues/138); implementation issue: [#142](https://github.com/mob999/wakeit/issues/142). The published 0.3.3 release does not include the implementation or change its schema baseline.
+Status: accepted. RFC tracking issue: [#138](https://github.com/mob999/wakeit/issues/138); implementation issue: [#142](https://github.com/mob999/wakeit/issues/142). Implemented in 0.3.4; the published 0.3.3 schema baseline remains unchanged.
 
 ## Product model
 
@@ -204,7 +204,7 @@ Numbers remain native JSON numbers without lossy UI coercion; reject unrepresent
 
 Add workspace-scoped template storage with definition, revision, editor layout where applicable, creator/updater, timestamps and `archived_at`. Persist instance origin separately from TaskConfig: template ID/name/revision, original `values`/`unset`, resolved inputs, resolved bindings, and group/key-to-node mapping. This metadata describes creation-time values, not the current hand-edited Task. Freeze the relevant origin alongside each new Run's configuration.
 
-Append migrations for template resources, instance origin and operation idempotency; never edit published migrations. Structured prompts themselves fit the existing JSONB snapshot chain and do not require rewriting old records. Keep product 0.3.3 and configuration/message version 1 during implementation unless a separate release is explicitly requested.
+Append migrations for template resources, instance origin and operation idempotency; never edit published migrations. Structured prompts themselves fit the existing JSONB snapshot chain and do not require rewriting old records. The implementation ships in 0.3.4; configuration/message version remains 1.
 
 After authorization and canonical request hashing, first look for an already committed idempotent operation. Return an authorized matching result before reading, recompiling or checking the current template revision/archive state; a lost response must remain replayable after template changes. A mismatched payload is a conflict. Only a miss proceeds to read/compile the template.
 
