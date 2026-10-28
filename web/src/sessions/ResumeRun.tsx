@@ -8,7 +8,7 @@ import { api, terminal, type Run, type Runner, type User } from '../api'
 import { Button, IconButton, Modal } from '../ui'
 import { CopyValue } from '../runs/CopyValue'
 import { ChoicePicker } from '../ChoicePicker'
-import { RunNodeList } from '../runs/RunNodeList'
+import { RunNodeList, RUN_NODE_PAGE_SIZE } from '../runs/RunNodeList'
 import { TerminalSession, type TerminalHandle } from './TerminalSession'
 
 export function ResumeRun({
@@ -37,6 +37,7 @@ export function ResumeRun({
   const [selected, setSelected] = useState<Run | null>(null)
   const [graph, setGraph] = useState<Run | null>(null)
   const [node, setNode] = useState('')
+  const [page, setPage] = useState(1)
   const [picking, setPicking] = useState(false)
   useEffect(() => {
     onActiveChange?.(!!selected || !!graph)
@@ -57,6 +58,9 @@ export function ResumeRun({
   const device =
     runners.data?.find((r) => r.id === selected?.session?.runner_id)?.name ??
     selected?.config.runner
+  const nodes = graph?.nodes ?? []
+  const pageNodes = nodes.slice((page - 1) * RUN_NODE_PAGE_SIZE, page * RUN_NODE_PAGE_SIZE)
+  const selectedNode = pageNodes.find((item) => item.id === node)
   if (!available || (run && !run.config.dag && !run.session?.command?.trim())) return null
   async function close() {
     if (closing) return
@@ -66,6 +70,8 @@ export function ResumeRun({
     generation.current++
     setSelected(null)
     setGraph(null)
+    setNode('')
+    setPage(1)
     setPicking(false)
     setLoading(false)
   }
@@ -120,6 +126,7 @@ export function ResumeRun({
         setGraph(current)
         if (selectNodeFirst) {
           setNode('')
+          setPage(1)
           setPicking(true)
         } else await choose(first.id)
       } else {
@@ -144,7 +151,7 @@ export function ResumeRun({
           open
           title={tr('续聊')}
           onOpenChange={(open) => {
-            if (!open) void close()
+            if (!open && !loading && !closing) void close()
           }}
           className="run-node-modal"
         >
@@ -152,8 +159,14 @@ export function ResumeRun({
             <RunNodeList
               value={node}
               onChange={setNode}
-              disabled={loading}
-              options={(graph.nodes ?? []).map((item) => ({
+              disabled={loading || closing}
+              page={page}
+              total={nodes.length}
+              onPageChange={(next) => {
+                setNode('')
+                setPage(next)
+              }}
+              options={pageNodes.map((item) => ({
                 value: item.id,
                 name: item.name,
                 state: item.state,
@@ -166,12 +179,17 @@ export function ResumeRun({
             />
           </div>
           <div className="modal-footer">
-            <Button onClick={() => void close()} disabled={loading}>
+            <Button onClick={() => void close()} disabled={loading || closing}>
               {tr('取消')}
             </Button>
             <Button
               className="primary"
-              disabled={!node}
+              disabled={
+                !selectedNode?.continuation_available ||
+                !terminal(selectedNode.state) ||
+                loading ||
+                closing
+              }
               loading={loading}
               onClick={() => void choose(node)}
             >

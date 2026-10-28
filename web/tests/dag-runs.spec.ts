@@ -1136,19 +1136,20 @@ test.describe('unified run actions', () => {
         await toolbar.getByRole('button', { name: messages['actions.rerun'], exact: true }).click()
         const dialog = page.getByRole('dialog')
         await expect(
-          dialog.getByRole('button', { name: messages['actions.rerun'], exact: true }),
+          dialog.getByRole('button', { name: messages['retry.node'], exact: true }),
         ).toBeDisabled()
         expect(requests).toHaveLength(target === 'Collect sources' ? 0 : 1)
-        await dialog
-          .locator('.run-node-list')
-          .getByRole('button', { name: new RegExp(target) })
-          .click()
+        if (target === 'Collect sources')
+          await dialog
+            .locator('.run-node-list')
+            .getByRole('button', { name: new RegExp(target) })
+            .click()
         await dialog
           .locator('.modal-footer')
           .getByRole('button', {
             name:
               target === 'Collect sources'
-                ? messages['actions.rerun']
+                ? messages['retry.node']
                 : messages['runActions.entireGraph'],
             exact: true,
           })
@@ -1265,7 +1266,7 @@ test.describe('unified run actions', () => {
     await toolbar.getByRole('button', { name: '重新运行', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await expect(
-      dialog.locator('.run-node-list').getByRole('button', { name: /全部重试/ }),
+      dialog.locator('.modal-footer').getByRole('button', { name: '全部重试', exact: true }),
     ).toBeDisabled()
     const node = dialog.locator('.run-node-list').getByRole('button', { name: /Collect sources/ })
     await expect(node).toBeDisabled()
@@ -1273,7 +1274,7 @@ test.describe('unified run actions', () => {
     await expect(page.getByRole('tooltip')).toContainText(
       zh['All predecessors must succeed before retrying'],
     )
-    await expect(dialog.getByRole('button', { name: '重新运行', exact: true })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: '重试节点', exact: true })).toBeDisabled()
     expect(writes).toEqual([])
   })
 

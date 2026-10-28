@@ -201,7 +201,7 @@ Tasks、Runs、Runners、Settings 共用独立的第二侧栏语义底色与细�
 
 Trace 工具名称完整显示，不压缩为省略号；只有后面的命令、路径等摘要单行省略。极长工具名在窄屏允许换行，状态及耗时保持原列对齐。
 
-DAG manual recovery keeps the selected node context and reading state. Show Retry node, Retry now or Resume node as the same transparent context action, only on the latest attempt; disabled actions retain their stable action name and expose the server blocking reason through a Tooltip and accessible description. Confirm stopped recovery in a compact three-column table (node / state / action) and retain the dialog and reading position after errors. Successful nodes remain unchanged. The DAG Time step uses the existing execution-policy table row for an optional total-limit switch; new drafts default off, while existing explicit limits remain visible. Errors use top-right Toasts.
+DAG manual recovery keeps the selected node context and reading state. Show Retry node, Retry now or Resume node as the same transparent context action, only on the latest attempt; disabled actions retain their stable action name and expose the server blocking reason through a Tooltip and accessible description. Recovery executes directly without an additional confirmation or impact table, and errors retain the dialog and reading position. Successful nodes remain unchanged. The DAG Time step uses the existing execution-policy table row for an optional total-limit switch; new drafts default off, while existing explicit limits remain visible. Errors use top-right Toasts.
 
 过程记录完整性使用过程表头或 DAG 当前节点工具栏中的 Info 图标、Tooltip 和可点击 Popover 展示，按实际执行隔离。提示区分输入/输出节选、事件数量限制、不支持的事件、解析失败、单条事件过大、保存容量和保留过期；普通诊断只留在日志，不根据文案推测缺失。历史记录没有结构化原因时明确提示原因未提供。消息列表前不插入完整性提示段落；没有消息时保留加载、等待、不支持、未记录或全部过期的空状态。Tooltip 中英文同步，支持悬停和键盘聚焦，去重显示所有已知原因，不影响消息折叠、跟随或运行状态。
 
@@ -240,4 +240,4 @@ Agent Prompt 顶栏入口先打开弹窗，不直接访问剪贴板。弹窗顶�
 
 ## Run 操作
 
-普通任务与 DAG 的运行详情共用顶部操作栏，顺序为续聊、执行操作、核对状态、更多菜单。重跑只显示图标，保留 Tooltip 和可访问名称；更多菜单统一提供从会话创建任务与复制 Run ID。DAG 续聊和重试使用同一宽版节点列表弹窗，列表直接复用侧栏的 task-row、row-title 与选中色，所有节点展示名称、状态，不可用原因放 Tooltip，底部确认，不自动进入首个节点。重试列表另提供“全部重试”，等待整图终态后可用；节点沿用服务端给出的重试、立即重试、恢复资格与不可用原因。恢复节点由明确的恢复动作执行，不增加恢复说明或影响表格。历史尝试保留自身会话，顶部节点动作始终作用于当前尝试。
+普通任务与 DAG 的运行详情共用顶部操作栏，顺序为续聊、执行操作、核对状态、更多菜单。重跑只显示图标，保留 Tooltip 和可访问名称；更多菜单统一提供从会话创建任务与复制 Run ID。DAG 续聊和重试使用同一节点列表弹窗，宽 800px、高 600px，并保留视口边距；标题、分页和底栏固定，中部列表占满余下空间。列表直接复用侧栏的 task-row、row-title 与选中色，每页 8 个节点，所有节点均可翻页查看，名称和右侧状态对齐，不可用原因放 Tooltip。切页清空选择，未选有效节点时底栏节点操作不可用，请求期间锁定选择和分页，不自动进入首个节点。“全部重试”作为透明次要操作放在重试弹窗底栏左侧，右侧为取消与节点操作，等待整图终态后可直接执行；节点沿用服务端给出的重试、立即重试、恢复资格与不可用原因。恢复节点由明确的恢复动作执行，不增加恢复说明或影响表格。历史尝试保留自身会话，顶部节点动作始终作用于当前尝试。
