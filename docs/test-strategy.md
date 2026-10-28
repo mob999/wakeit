@@ -16,17 +16,19 @@ For ordinary UI or copy changes, inspect the affected page and interactions thro
 | --- | --- |
 | `web/**` | Frontend build and unit tests; package manifests also check release metadata |
 | Markdown, `docs/**`, `.agents/**` | Documentation links/examples and bilingual changelog structure |
-| `crates/**`, `agents/**`, database fixtures, Cargo manifests/lockfile | Rust checks on Linux/macOS/Windows and service integration; Cargo metadata also checks packaging |
+| `crates/wakeit-cli/**`, `agents/**` | CLI checks on Linux/macOS/Windows and service integration |
+| `crates/wakeit-gateway/**`, database fixtures | Gateway checks on Linux/macOS/Windows and service integration |
+| `crates/wakeit-core/**`, shared Cargo configuration/lockfile | Both products, shared core checks and service integration; package metadata also checks packaging |
 | `schemas/**` | Frontend, Rust, service integration, documentation examples and packaging |
 | Runtime/deployment examples and `skills/wakeit/assets/**` | Rust/service integration and documentation; Skill assets also check packaging |
 | Skill instructions | Documentation and standalone Skill packaging |
-| `install.sh` and its checks | Installer checks on Linux/macOS and packaging |
+| `install.sh`, `deploy-gateway.sh` and their checks | Installer checks on Linux/macOS and packaging |
 | Packaging/changelog scripts | Packaging and documentation checks |
 | Native-check script / service-integration scripts | Native Rust checks / service integration respectively |
 
-Unknown code/configuration paths run all checks until their owner is added in `scripts/ci_scope.py`. Gateway and Runner share one Rust crate, so backend changes retain their existing joint coverage. Frontend-only and documentation-only changes do not start Rust or service checks.
+Unknown code/configuration paths run all checks until their owner is added in `scripts/ci_scope.py`. CLI and Gateway have independent check jobs. The CLI job requires no Node, WebUI assets or Gateway build; integration builds both programs to exercise their connection. Frontend-only and documentation-only changes do not start Rust or service checks.
 
-The frontend is built once per workflow. Backend jobs download those assets for the embedded WebUI; frontend unit tests run only when their scope is selected. The required `verify-result` job always runs and rejects failed, cancelled or unexpectedly skipped selected jobs, including failed scope detection. Unselected checks may be skipped. Release/tag builds remain independent and continue to build all published targets.
+The frontend is built once per workflow. Gateway and integration jobs download those assets for the embedded WebUI; frontend unit tests run only when their scope is selected. The required `verify-result` job always runs and rejects failed, cancelled or unexpectedly skipped selected jobs, including failed scope detection. Unselected checks may be skipped. Release/tag builds remain independent and continue to build all published targets.
 
 ## Maintained coverage
 
@@ -62,8 +64,8 @@ These are available commands, not a mandatory local checklist. Choose the releva
 npm --prefix web test
 npm --prefix web run build
 cargo fmt --all --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked --all-targets
+cargo clippy --locked -p wakeit-cli --all-targets -- -D warnings
+cargo test --locked -p wakeit-cli --all-targets
 ```
 
 `npm test` runs the frontend unit suite; `test:unit` remains an equivalent explicit entry. It needs no browser, Gateway, database or native Agent login. Run the affected suites after a behavioral change, and broaden verification only when shared boundaries change. Do not add a test framework, coverage quota or duplicate test just to increase the count.

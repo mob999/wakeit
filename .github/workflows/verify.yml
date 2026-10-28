@@ -15,7 +15,9 @@ jobs:
     outputs:
       frontend: ${{ steps.select.outputs.frontend }}
       web: ${{ steps.select.outputs.web }}
-      rust: ${{ steps.select.outputs.rust }}
+      cli: ${{ steps.select.outputs.cli }}
+      gateway: ${{ steps.select.outputs.gateway }}
+      core: ${{ steps.select.outputs.core }}
       integration: ${{ steps.select.outputs.integration }}
       docs: ${{ steps.select.outputs.docs }}
       packaging: ${{ steps.select.outputs.packaging }}
@@ -42,15 +44,40 @@ jobs:
         if: needs.scope.outputs.frontend == 'true'
         working-directory: web
       - uses: actions/upload-artifact@v4
-        if: needs.scope.outputs.rust == 'true' || needs.scope.outputs.integration == 'true'
+        if: needs.scope.outputs.gateway == 'true' || needs.scope.outputs.integration == 'true'
         with:
           name: web-dist
           path: web/dist
           if-no-files-found: error
           retention-days: 1
-  rust:
+  cli:
+    needs: scope
+    if: needs.scope.outputs.cli == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: {components: 'rustfmt, clippy'}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt -p wakeit-cli --check
+      - run: cargo clippy --locked -p wakeit-cli --all-targets -- -D warnings
+      - run: cargo test --locked -p wakeit-cli --all-targets
+      - run: cargo build --locked -p wakeit-cli --bin wakeit --example update_probe
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: CLI replacement checks
+        shell: bash
+        run: |
+          suffix=''
+          if [[ "$RUNNER_OS" == 'Windows' ]]; then suffix='.exe'; fi
+          python scripts/check-native.py --product cli --binary "target/debug/wakeit$suffix" --probe "target/debug/examples/update_probe$suffix"
+  gateway:
     needs: [scope, web]
-    if: needs.scope.outputs.rust == 'true'
+    if: needs.scope.outputs.gateway == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -63,18 +90,33 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: {components: 'rustfmt, clippy'}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
-      - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked --all-targets
-      - run: cargo build --locked --bin wakeit --example update_probe
+      - run: cargo fmt -p wakeit-gateway --check
+      - run: cargo clippy --locked -p wakeit-gateway --all-targets -- -D warnings
+      - run: cargo test --locked -p wakeit-gateway --all-targets
+      - run: cargo build --locked -p wakeit-gateway --bin wakeit-gateway
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - name: Native service and replacement checks
+      - name: Gateway service checks
         shell: bash
         run: |
           suffix=''
           if [[ "$RUNNER_OS" == 'Windows' ]]; then suffix='.exe'; fi
-          python scripts/check-native.py --binary "target/debug/wakeit$suffix" --probe "target/debug/examples/update_probe$suffix"
+          python scripts/check-native.py --product gateway --binary "target/debug/wakeit-gateway$suffix"
+  core:
+    needs: scope
+    if: needs.scope.outputs.core == 'true'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: {components: 'rustfmt, clippy'}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt -p wakeit-core --check
+      - run: cargo clippy --locked -p wakeit-core --all-targets -- -D warnings
+      - run: cargo test --locked -p wakeit-core --all-targets
   integration:
     needs: [scope, web]
     if: needs.scope.outputs.integration == 'true'
@@ -92,7 +134,7 @@ jobs:
         run: |
           curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz | tar xz
           sudo install nats-server-v2.15.0-linux-amd64/nats-server /usr/local/bin/nats-server
-      - run: cargo build --locked --examples && cargo build --locked
+      - run: cargo build --locked --workspace --bins --examples
       - run: python3 scripts/check-archive-upgrade.py
       - run: python3 scripts/check-session-upgrade.py
       - run: python3 scripts/check-device-auth-upgrade.py
@@ -142,7 +184,7 @@ jobs:
         with: {python-version: '3.12'}
       - run: python scripts/test-installer.py
   verify-result:
-    needs: [scope, web, rust, integration, docs, packaging, installer]
+    needs: [scope, web, cli, gateway, core, integration, docs, packaging, installer]
     if: always()
     runs-on: ubuntu-latest
     steps:

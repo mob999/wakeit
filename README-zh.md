@@ -12,13 +12,13 @@
 - **编排 Agent DAG。** 在画布拖入 Agent，或导入一份 YAML，连接 AND 依赖并引用上游结果；整图执行并按所选节点展示报告，节点可配置指数退避重试。见 [DAG 任务](docs/dag.md)。
 - **保留执行上下文**：支持会话的 Agent 可绑定原生会话，直接通过网页终端续聊、复制原生命令，或在原 Runner 设备用 `wakeit run resume <run-id>` 继续交互；见[会话续聊](docs/cli.md#绑定会话与本机续聊)。
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
-- **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
+- **本地或云端托管**：Gateway 携带 WebUI 独立部署，设备安装包含 Runner 的 CLI。
 
-最新已发布版本为 **0.3.4**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
+Gateway/WebUI **0.4.0** 与 CLI/Runner **0.1.0** 独立编号和发布，使用 Apache-2.0 许可。Gateway 使用 `gateway-v*` 标签，CLI 使用 `cli-v*`；两者版本号不要求相同。
 
 报告和 Markdown 文件预览支持以缩略图内嵌本地 PNG/JPEG/WebP 图片，由原 Runner 读取；相对路径按执行目录或 Markdown 所在目录解析，沿用工作区权限及目录范围。点击图片后按需加载原图。
 
-## 安装
+## 安装 CLI
 
 macOS 或 Linux GNU：
 
@@ -26,16 +26,14 @@ macOS 或 Linux GNU：
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-脚本显示安装进度，自动下载、校验、安装并配置用户 PATH。完成后打开新终端，运行 `wakeit --version`。Windows、指定版本、安装目录及手工安装方式见[安装指南](docs/install-zh.md)。
+脚本显示安装进度，默认下载和校验 CLI 0.1.0，安装包含 Runner 的 `wakeit` 并配置用户 PATH，不部署 Gateway。完成后打开新终端，运行 `wakeit --version`。Windows、指定版本、安装目录及手工安装方式见[安装指南](docs/install-zh.md)。
 
-从源码构建需要 Rust 1.89+、Node.js 22.12+：
+从源码构建 CLI 需要 Rust 1.89+：
 
 ```sh
 git clone https://github.com/mob999/wakeit.git
 cd wakeit
-npm --prefix web ci
-npm --prefix web run build
-cargo install --locked --path crates/wakeit
+cargo install --locked --path crates/wakeit-cli
 ```
 
 ## 接入已有 Gateway
@@ -59,7 +57,7 @@ wakeit runner list
 
 ## 自行部署 Gateway
 
-单机部署需要 Docker Compose v2。在仓库根目录执行：
+Gateway 是独立的 `wakeit-gateway` 程序，`wakeit` 不再提供 Gateway 部署命令。单机全栈部署需要 Docker Compose v2，在仓库根目录执行：
 
 ```sh
 cp .env.example .env
@@ -68,11 +66,19 @@ docker compose build
 docker compose up -d
 export WAKEIT_PASSWORD='replace-with-a-generated-admin-password'
 docker compose run --rm -e WAKEIT_PASSWORD gateway \
-  gateway bootstrap --config /app/gateway.yaml --username admin
+  bootstrap --config /app/gateway.yaml --username admin
 unset WAKEIT_PASSWORD
 ```
 
 打开 <http://localhost:8080> 登录。Compose 会持久化 PostgreSQL、NATS 数据和设备身份，并自动重启服务；Linux 还需启用 Docker 的系统自启。
+
+macOS 或 Linux GNU 安装原生 Gateway 程序：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh
+```
+
+脚本安装服务端程序；PostgreSQL/NATS 配置和系统服务设置见 [Gateway 指南](docs/gateway-service.md)。
 
 macOS、Windows 的 Docker Desktop 登录启动不能代替无人登录时的系统启动。需要系统级开机运行时，使用[原生 Gateway 服务指南](docs/gateway-service.md)。跨设备部署同时配置 Gateway 的公开地址及 NATS WSS 地址，见[部署与运维](docs/operations.md)。
 
@@ -112,7 +118,7 @@ wakeit update --check
 wakeit update
 ```
 
-通过公开 GitHub Releases 检查正式版本，无需 GitHub 登录。普通更新排除预览版，并按正式版本号判断更新；同版本提交不会触发更新。校验通过后只替换二进制，保留数据和配置，也不自动重启运行中的服务。
+通过公开 GitHub Releases 检查 `cli-v*` 正式版本，无需 GitHub 登录。普通更新排除预览版，并按正式版本号判断更新；同版本提交不会触发更新。校验通过后只替换 `wakeit`，保留数据和配置，Runner 需单独重启。Gateway 通过部署脚本、Compose 或源码构建更新，不由 `wakeit update` 更新。
 
 ## 文档
 
@@ -127,5 +133,6 @@ wakeit update
 | 构建和运行测试 | [开发指南](CONTRIBUTING.md) |
 | 使用任务模板创建任务和动态 DAG | [任务模板指南](docs/templates.md) |
 | 查看任务模板设计 | [任务模板 RFC](docs/rfc-2-task-templates.md) |
+| 查看独立发布设计 | [产品拆分 RFC](docs/rfc-3-independent-products.md) |
 
 许可证：[Apache-2.0](LICENSE)。第三方技能及 Windows 服务工具的来源见[第三方组件](docs/third-party.md)。

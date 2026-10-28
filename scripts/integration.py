@@ -4,6 +4,7 @@ import argparse, concurrent.futures, datetime, getpass, json, os, pathlib, re, s
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BIN = ROOT / 'target/debug/wakeit'
+GATEWAY = ROOT / 'target/debug/wakeit-gateway'
 MOCK = ROOT / 'target/debug/examples/mock_agent'
 PROBE = ROOT / 'target/debug/examples/bus_probe'
 
@@ -71,7 +72,7 @@ def main():
     parser.add_argument('--state-file', default='.local/integration-stack.json')
     args = parser.parse_args()
     pg_bin = pathlib.Path(args.pg_bin or command(['pg_config', '--bindir']).strip())
-    for binary in [BIN, MOCK, PROBE]: assert binary.exists(), f'build first: cargo build --examples; missing {binary}'
+    for binary in [BIN, GATEWAY, MOCK, PROBE]: assert binary.exists(), f'build first: cargo build --examples; missing {binary}'
     root = ROOT / '.local' / ('integration-' + uuid.uuid4().hex[:8]); root.mkdir(parents=True)
     pg_port, nats_port, ws_port, gateway_port, second_port = [port() for _ in range(5)]
     if args.gateway_port: gateway_port=args.gateway_port
@@ -95,14 +96,14 @@ def main():
         command([pg_bin/'initdb', '-D', root/'pg', '-A', 'trust', '--no-locale', '-E', 'UTF8'])
         command([pg_bin/'pg_ctl','-D',root/'pg','-l',root/'postgres.log','-o',f"-p {pg_port} -h 127.0.0.1 -k ''",'start']); pg_started=True
         auth_dir = root/'nats'
-        command([BIN,'gateway','nats-init','--dir',auth_dir,'--port',nats_port,'--ws-port',ws_port])
+        command([GATEWAY,'nats-init','--dir',auth_dir,'--port',nats_port,'--ws-port',ws_port])
         broker = spawn('nats',[shutil.which('nats-server'),'--config',auth_dir/'nats.conf'])
         config = {'version':1,'listen':f'127.0.0.1:{gateway_port}','public_url':f'http://127.0.0.1:{gateway_port}','database_url_env':'WAKEIT_DATABASE_URL','nats_url':f'nats://127.0.0.1:{nats_port}','nats_public_url':f'ws://127.0.0.1:{ws_port}','nats_auth_dir':str(auth_dir),'nats_replicas':1}
         config_file=root/'gateway.yaml'; config_file.write_text(json.dumps(config))
         second_config=root/'gateway-second.yaml'; second_config.write_text(json.dumps(dict(config,listen=f'127.0.0.1:{second_port}')))
-        command([BIN,'gateway','migrate','--config',config_file],env)
-        command([BIN,'gateway','bootstrap','--config',config_file,'--username','admin'],env)
-        first=spawn('gateway',[BIN,'gateway','start','--config',config_file]); second=spawn('gateway-second',[BIN,'gateway','start','--config',second_config])
+        command([GATEWAY,'migrate','--config',config_file],env)
+        command([GATEWAY,'bootstrap','--config',config_file,'--username','admin'],env)
+        first=spawn('gateway',[GATEWAY,'start','--config',config_file]); second=spawn('gateway-second',[GATEWAY,'start','--config',second_config])
         base, other = config['public_url'],f'http://127.0.0.1:{second_port}'
         wait(lambda:call(base,'/health/ready'),'first Gateway ready')
         wait(lambda:call(other,'/health/ready'),'second Gateway ready')
@@ -213,12 +214,13 @@ def main():
         from integration_watch import verify as verify_watch
         verify_watch(api,other,task,apply,trigger,role_tokens,BIN,root,check)
         release_meta=call(base,'/api/v1/meta')
-        package_version=command([BIN,'--version']).strip().split()[-1]
-        assert release_meta['version']==release_meta['install']['version']==package_version
-        assert release_meta['install']['release'].endswith('/v'+package_version)
-        assert release_meta['install']['manifest']==release_meta['install']['base_url']+'/wakeit-release.json'
+        gateway_version=command([GATEWAY,'--version']).strip().split()[-1]
+        cli_version=command([BIN,'--version']).strip().split()[-1]
+        assert release_meta['version']==gateway_version
+        assert 'install' not in release_meta
+        assert next(r for r in api('/runners') if r['id']==runner_id)['info']['version']==cli_version
         assert next(a for a in api('/agents') if a['id']=='mock-sync')['logo']=='/agent-logos/pi.svg'
-        assert int(sql('SELECT count(*) FROM _sqlx_migrations'))==len(list((ROOT/'crates/wakeit/migrations').glob('*.sql')))
+        assert int(sql('SELECT count(*) FROM _sqlx_migrations'))==len(list((ROOT/'crates/wakeit-gateway/migrations').glob('*.sql')))
         roots=api(f'/runners/{runner_id}/directories'); assert roots['directories'][0]['path']==str(cwd)
         for name in ['child 中文','other child']: (cwd/name).mkdir()
         from urllib.parse import urlencode
@@ -255,7 +257,7 @@ def main():
         assert next(a for a in api('/agents') if a['id']=='mock-events')['trace_supported']
         assert not next(a for a in api('/agents') if a['id']=='mock-sync')['trace_supported']
         for native in ['codex','claude-code','pi','opencode']:
-            native_args=[BIN,'adapter','stream',native,'--',MOCK,'native',ROOT/'crates/wakeit/tests/fixtures/trace'/f'{native}.jsonl']
+            native_args=[BIN,'adapter','stream',native,'--',MOCK,'native',ROOT/'crates/wakeit-cli/tests/fixtures/trace'/f'{native}.jsonl']
             records=[json.loads(line) for line in command(native_args).splitlines()]
             assert any(r['type']=='result' and r['data']=='# 完成\n\n报告' for r in records)
             failure=subprocess.run([str(a) for a in native_args]+['fail'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -445,7 +447,7 @@ def main():
         gateway_id=trigger('gateway-recovery');wait(lambda:api('/runs/'+gateway_id)['state']=='running','run started before Gateway outage')
         first.kill();first.wait();second.kill();second.wait()
         time.sleep(4)
-        first=spawn('gateway-recovered',[BIN,'gateway','start','--config',config_file]);second=spawn('gateway-second-recovered',[BIN,'gateway','start','--config',second_config])
+        first=spawn('gateway-recovered',[GATEWAY,'start','--config',config_file]);second=spawn('gateway-second-recovered',[GATEWAY,'start','--config',second_config])
         wait(lambda:call(base,'/health/ready'),'Gateway restored')
         assert 'gateway recovered' in final(gateway_id)['result']
         assert (remote/'calls.log').read_text().count('sync '+gateway_id)==1

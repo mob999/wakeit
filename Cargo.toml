@@ -1,9 +1,8 @@
 [workspace]
-members = ["crates/wakeit"]
+members = ["crates/wakeit-cli", "crates/wakeit-gateway", "crates/wakeit-core"]
 resolver = "2"
 
 [workspace.package]
-version = "0.3.4"
 edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.89"

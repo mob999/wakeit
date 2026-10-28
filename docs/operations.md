@@ -2,10 +2,10 @@
 
 ## 原生部署
 
-先构建 WebUI 和 `wakeit`。准备 PostgreSQL，初始化专用 NATS 身份目录：
+先通过 [Gateway 安装脚本或源码](gateway-service.md#安装程序)安装 `wakeit-gateway`。准备 PostgreSQL，初始化专用 NATS 身份目录：
 
 ```sh
-wakeit gateway nats-init --dir ./data/nats
+wakeit-gateway nats-init --dir ./data/nats
 nats-server --config ./data/nats/nats.conf
 ```
 
@@ -29,11 +29,11 @@ log_limit_bytes: 20971520
 
 ```sh
 export WAKEIT_DATABASE_URL='postgres://wakeit:password@127.0.0.1/wakeit'
-wakeit gateway migrate --config gateway.yaml
+wakeit-gateway migrate --config gateway.yaml
 export WAKEIT_PASSWORD='your-admin-password'
-wakeit gateway bootstrap --config gateway.yaml --username admin
+wakeit-gateway bootstrap --config gateway.yaml --username admin
 unset WAKEIT_PASSWORD
-wakeit gateway start --config gateway.yaml
+wakeit-gateway start --config gateway.yaml
 ```
 
 环境覆盖：`WAKEIT_PUBLIC_URL`、`WAKEIT_NATS_URL`、`WAKEIT_NATS_PUBLIC_URL`、`WAKEIT_NATS_REPLICAS`。NATS URL 可用逗号分隔多个节点。首版创建 Stream 时设置副本数；已有部署调整副本数前，须通过 NATS 管理工具迁移三个 WAKEIT Stream 的副本配置。对外 URL 应与浏览器访问域名保持一致。
@@ -51,7 +51,7 @@ docker compose -f deploy/compose.ha.yaml --profile tools run --rm init
 docker compose -f deploy/compose.ha.yaml --profile tools run --rm migrate
 export WAKEIT_PASSWORD='your-admin-password'
 docker compose -f deploy/compose.ha.yaml run --rm -e WAKEIT_PASSWORD gateway-1 \
-  gateway bootstrap --config /app/gateway.yaml --username admin
+  bootstrap --config /app/gateway.yaml --username admin
 unset WAKEIT_PASSWORD
 docker compose -f deploy/compose.ha.yaml up -d
 ```
@@ -60,7 +60,7 @@ docker compose -f deploy/compose.ha.yaml up -d
 
 ## Gateway 开机自启
 
-Gateway 使用系统级服务，三平台均可在用户未登录时启动。通过 `wakeit gateway service` 生成配置及安装脚本，详细步骤见 [Gateway 系统服务](gateway-service.md)。数据库与 NATS 同样需要系统自启，不能仅设置 Gateway。
+Gateway 使用系统级服务，三平台均可在用户未登录时启动。通过 `wakeit-gateway service` 生成配置及安装脚本，详细步骤见 [Gateway 系统服务](gateway-service.md)。数据库与 NATS 同样需要系统自启，不能仅设置 Gateway。
 
 ## Runner 自启
 
@@ -92,15 +92,15 @@ pg_dump -Fc "$WAKEIT_DATABASE_URL" > wakeit.dump
 
 Compose 部署可在服务干净停止后备份对应命名卷。身份目录包含签名种子和系统凭据，应与数据库备份一同受控保存。
 
-恢复时先恢复数据库，再恢复同一套 NATS 身份及数据目录，运行 `gateway migrate`，启动 NATS 与 Gateway，最后连接原 Runner。不要重新运行 nats-init 生成新身份。外部异步任务可能仍在执行，恢复时通过已保存的 job_id 核对；本地同步执行仍按 unknown 语义处理。
+恢复时先恢复数据库，再恢复同一套 NATS 身份及数据目录，运行 `wakeit-gateway migrate`，启动 NATS 与 Gateway，最后连接原 Runner。不要重新运行 nats-init 生成新身份。外部异步任务可能仍在执行，恢复时通过已保存的 job_id 核对；本地同步执行仍按 unknown 语义处理。
 
 ## CLI 更新
 
-`wakeit update --check` 检查正式版本，`wakeit update` 校验并替换当前二进制，GitHub 私有凭据与 Gateway Token 独立。没有正式发布时返回 no_release；同版本提交不触发更新。详细行为见 [CLI 指南](cli.md#检查与更新)。
+`wakeit update --check` 只检查 CLI 的 `cli-v*` 正式版本，`wakeit update` 校验并替换当前二进制，GitHub 私有凭据与 Gateway Token 独立。没有正式发布时返回 no_release；同版本提交不触发更新。详细行为见 [CLI 指南](cli.md#检查与更新)。
 
 ## 升级与监控
 
-构建新镜像，备份后单独运行迁移，再滚动替换 Gateway。保持协议 v1 兼容后替换 Runner；不要删除它的 data_dir。收到 SIGTERM 时服务停止接收新工作；Runner 记录未完成异步任务，后续恢复查询。
+Gateway 使用部署脚本、源码构建或新镜像更新；CLI/Runner 单独更新，不比较二者的产品版本号。服务数据保留在原目录，数据库更新使用 `wakeit-gateway migrate`。Runner 重启时保留 data_dir。收到 SIGTERM 时服务停止接收新工作；Runner 记录未完成异步任务，后续恢复查询。
 
 监控 `/health/ready` 和带 Admin Token 的 `/metrics`。重点关注调度延迟、Outbox 积压、Runner 离线、unknown 与 failed 的增长。NATS 存储达到配额时拒绝新消息，Runner 保留未上传结果，恢复容量后补传。
 
@@ -108,6 +108,16 @@ Compose 部署可在服务干净停止后备份对应命名卷。身份目录包
 
 
 吊销 Runner 会暂停它关联的 Task，取消尚未开始的 Run，已启动但无法再核对的 Run 进入 unknown。重新分配设备后再恢复 Task。
+
+## 独立版本与 0.4.0 部署
+
+Gateway/WebUI 从原版本线继续发布 0.4.0；CLI/Runner 从 0.1.0 独立发布。`wakeit` 不再提供 `gateway` 子命令，服务器改用 `wakeit-gateway start`、`migrate`、`bootstrap` 等顶层命令。
+
+这是明确的命令与安装入口变更，没有旧命令兼容层。已有服务配置必须将程序路径与启动参数改为 `wakeit-gateway start ...`；不要把 CLI 程序当作服务端覆盖安装。数据库、NATS 身份、任务与 Runner 数据保留在原位置。独立升级 Gateway 和 CLI/Runner，不要求版本号相等。
+
+## 历史版本升级记录
+
+以下 0.1.x–0.3.x 记录保留当时的命令；当前部署使用上面的独立产品入口。
 
 ## 本机服务升级
 
@@ -164,7 +174,7 @@ wakeit gateway migrate --config gateway.yaml
 
 For an existing known pre-device baseline, stop Gateway writers, preserve Runner processes, and explicitly run `WAKEIT_DATABASE_URL=... python3 scripts/upgrade-unreleased-device-auth.py --backup /private/path/backup.dump`. It creates a private backup, checks the exact prior SQLx checksum, adds grant/limit/registration tables in one transaction and updates the single initial migration checksum. Unknown baselines are refused. Normal migration validation remains enabled. Older archive/session upgrade scripts also create the final device-authorization schema.
 
-The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.3.4. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
+The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Current installation uses independent `cli-v*` and `gateway-v*` releases. Agent Prompt installs the CLI through its own installer, without deriving its version from Gateway metadata. Regular update checks exclude preview releases.
 
 ## Upgrading from 0.3.0
 

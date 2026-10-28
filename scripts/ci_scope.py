@@ -6,9 +6,9 @@ import os
 from pathlib import Path
 import subprocess
 
-SCOPES = ('frontend', 'rust', 'integration', 'docs', 'packaging', 'installer')
-JOBS = ('web', 'rust', 'integration', 'docs', 'packaging', 'installer')
-BACKEND = {'rust', 'integration'}
+SCOPES = ('frontend', 'cli', 'gateway', 'core', 'integration', 'docs', 'packaging', 'installer')
+JOBS = ('web', 'cli', 'gateway', 'core', 'integration', 'docs', 'packaging', 'installer')
+BACKEND = {'cli', 'gateway', 'core', 'integration'}
 PACKAGING_FILES = {
     'scripts/package-release.py', 'scripts/test-release.py', 'scripts/changelog.py',
 }
@@ -27,14 +27,14 @@ def file_scopes(path):
         return {'frontend', 'packaging'} if path in {
             'web/package.json', 'web/package-lock.json',
         } else {'frontend'}
-    if path in {'install.sh', 'scripts/test-installer.py'}:
+    if path in {'install.sh', 'deploy-gateway.sh', 'scripts/test-installer.py'}:
         return {'installer', 'packaging'}
     if path in PACKAGING_FILES:
         return {'packaging', 'docs'}
     if path == 'scripts/check-brand-docs.py':
         return {'docs'}
     if path == 'scripts/check-native.py':
-        return {'rust'}
+        return {'cli', 'gateway'}
     if path.startswith('scripts/'):
         return {'integration'}
     if path.startswith('schemas/'):
@@ -45,7 +45,15 @@ def file_scopes(path):
         return {'docs', 'packaging'}
     if path in {'Cargo.toml', 'Cargo.lock'} or path.startswith(('rust-toolchain', '.cargo/')):
         return BACKEND | {'packaging'}
-    if path.startswith(('crates/', 'agents/', 'fixtures/')):
+    if path.startswith('crates/wakeit-cli/'):
+        return {'cli', 'integration', 'packaging'} if path.endswith('Cargo.toml') else {'cli', 'integration'}
+    if path.startswith('crates/wakeit-gateway/'):
+        return {'gateway', 'integration', 'packaging'} if path.endswith('Cargo.toml') else {'gateway', 'integration'}
+    if path.startswith('agents/'):
+        return {'cli', 'integration'}
+    if path.startswith('fixtures/'):
+        return {'gateway', 'integration'}
+    if path.startswith('crates/'):
         return BACKEND.copy()
     if path.startswith(('examples/', 'deploy/')) or path in {
         'Dockerfile', '.dockerignore', 'compose.yaml', '.env.example',
@@ -58,7 +66,7 @@ def file_scopes(path):
 def select_scopes(paths):
     selected = set(SCOPES) if paths is None else set().union(*(file_scopes(p) for p in paths))
     result = {scope: scope in selected for scope in SCOPES}
-    result['web'] = bool(selected & {'frontend', 'rust', 'integration'})
+    result['web'] = bool(selected & {'frontend', 'gateway', 'integration'})
     return result
 
 

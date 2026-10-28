@@ -4,11 +4,11 @@ set -eu
 
 usage() {
   cat <<'HELP'
-Install Wakeit for the current user (macOS / Linux GNU).
+Install Wakeit CLI and Runner for the current user (macOS / Linux GNU).
 
 Usage: sh install.sh [--version VERSION] [--bin-dir DIRECTORY] [--skill-dir DIRECTORY] [--skill-only] [--no-modify-path]
 
-  --version VERSION  Install a stable release, e.g. 0.3.3 (default: latest)
+  --version VERSION  Install a stable release, e.g. 0.1.0 (default: 0.1.0)
   --bin-dir PATH     Install directory (default: $HOME/.local/bin)
   --skill-dir PATH   Install the Wakeit skill at this directory
   --skill-only       Install only the skill; requires --skill-dir
@@ -22,7 +22,7 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1
 quote() { printf "'"; printf '%s' "$1" | sed "s/'/'\\\\''/g"; printf "'"; }
 
 main() {
-  requested=latest
+  requested=0.1.0
   bin_dir=${HOME:?HOME is required}/.local/bin
   modify_path=true
   skill_dir=
@@ -45,9 +45,7 @@ main() {
   need curl
   need awk
   need sed
-  if [ "$requested" != latest ]; then
-    printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable version such as 0.3.3'
-  fi
+  printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable version such as 0.1.0'
   case "$bin_dir" in /*) ;; *) bin_dir="$PWD/$bin_dir" ;; esac
   case "$bin_dir" in *'
 '*) fail 'The installation directory cannot contain a newline' ;; esac
@@ -77,17 +75,18 @@ main() {
   trap 'exit 130' INT
   trap 'exit 143' TERM HUP
   release_root=https://github.com/mob999/wakeit/releases
-  case "$requested" in latest) metadata_url=$release_root/latest/download/wakeit-release.json ;; *) metadata_url=$release_root/download/v$requested/wakeit-release.json ;; esac
+  metadata_url=$release_root/download/cli-v$requested/wakeit-cli-release.json
 
   step 2 'Downloading release files'
   download "$metadata_url" "$temp_dir/manifest.json"
   # package-release.py emits one top-level stable version and target asset blocks.
   version=$(sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*,?[[:space:]]*$/\1/p' "$temp_dir/manifest.json")
   [ -n "$version" ] || fail 'The release manifest has no stable version'
-  [ "$requested" = latest ] || [ "$requested" = "$version" ] || fail 'The release manifest does not match the requested version'
-  base=$release_root/download/v$version
+  [ "$requested" = "$version" ] || fail 'The release manifest does not match the requested version'
+  product=$(sed -nE 's/^[[:space:]]*"product"[[:space:]]*:[[:space:]]*"([a-z]+)"[[:space:]]*,?[[:space:]]*$/\1/p' "$temp_dir/manifest.json")
+  [ "$product" = cli ] || fail 'The release manifest is not a CLI release'
+  base=$release_root/download/cli-v$version
   asset=wakeit-$target
-  # Do not combine a moving latest alias with subsequent downloads.
   download "$base/SHA256SUMS" "$temp_dir/SHA256SUMS"
   if [ "$skill_only" = false ]; then
     download "$base/$asset" "$temp_dir/$asset"

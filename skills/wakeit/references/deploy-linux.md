@@ -2,7 +2,7 @@
 
 适用于 systemd 主机。优先检测现有 PostgreSQL、NATS 和同名服务，已有服务不重置数据。以下新部署示例采用专用 wakeit 账号及 /var/lib/wakeit。
 
-安装 PostgreSQL 16+（发行版包或官方仓库），确认其系统服务开机启用；安装 NATS Server 2.15+ 到 /usr/local/bin/nats-server。将 wakeit 放在 /usr/local/bin/wakeit。不要把当前用户的临时构建目录当服务路径。
+安装 PostgreSQL 16+（发行版包或官方仓库），确认其系统服务开机启用；安装 NATS Server 2.15+ 到 /usr/local/bin/nats-server。将 wakeit-gateway 放在 /usr/local/bin/wakeit-gateway。不要把当前用户的临时构建目录当服务路径。
 
 ```sh
 sudo useradd --system --home /var/lib/wakeit --create-home --shell /usr/sbin/nologin wakeit
@@ -14,7 +14,7 @@ sudo install -d -m 750 -o wakeit -g wakeit /var/lib/wakeit
 以 wakeit 用户初始化 NATS 身份。按 deploy.md 执行 migrate/bootstrap（环境文件独立提供），然后生成：
 
 ```sh
-wakeit gateway service --config /var/lib/wakeit/gateway.yaml \
+wakeit-gateway service --config /var/lib/wakeit/gateway.yaml \
   --env-file /var/lib/wakeit/gateway.env --user wakeit --platform linux \
   --nats-bin /usr/local/bin/nats-server --nats-config /var/lib/wakeit/nats/nats.conf \
   --postgres-service postgresql.service --output /var/lib/wakeit/services

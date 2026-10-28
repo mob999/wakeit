@@ -12,6 +12,7 @@ from integration import APIError, call, command, expect_status, port, wait
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BIN = ROOT / 'target/debug/wakeit'
+GATEWAY = ROOT / 'target/debug/wakeit-gateway'
 MOCK = ROOT / 'target/debug/examples/mock_agent'
 
 
@@ -19,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--keep-running', action='store_true')
     parser.add_argument('--prepare-only', action='store_true', help='Retain only the basic disposable stack for live-upgrade checks')
-    parser.add_argument('--gateway-binary', type=pathlib.Path, help='Previous Gateway binary for a disposable live-upgrade check')
+    parser.add_argument('--gateway-binary', type=pathlib.Path, help='Alternate Gateway binary for a disposable live-upgrade check')
     parser.add_argument('--manual-retry-only', action='store_true', help='Run focused same-Run recovery acceptance on a fresh stack')
     parser.add_argument('--templates-only', action='store_true', help='Run creation-time template acceptance on a fresh stack')
     parser.add_argument('--files-only', action='store_true', help='Run result file and image acceptance on a fresh two-Gateway stack')
@@ -31,7 +32,9 @@ def main():
     root.mkdir(parents=True)
     (root / 'home').mkdir()
     binary=root/'wakeit'
-    shutil.copy2(args.gateway_binary or BIN,binary)
+    shutil.copy2(BIN,binary)
+    gateway_binary=root/'wakeit-gateway'
+    shutil.copy2(args.gateway_binary or GATEWAY,gateway_binary)
     legacy=root/'legacy-runner'
     if args.old_runner: shutil.copy2(args.old_runner,legacy)
     pg_port, nats_port, ws_port, gateway_port, second_port = [port() for _ in range(5)]
@@ -59,7 +62,7 @@ def main():
         command([pg / 'pg_ctl', '-D', root / 'pg', '-l', root / 'postgres.log', '-o', f"-p {pg_port} -h 127.0.0.1 -k ''", 'start'])
         started = True
         auth_dir = root / 'nats'
-        command([binary, 'gateway', 'nats-init', '--dir', auth_dir, '--port', nats_port, '--ws-port', ws_port], env)
+        command([gateway_binary, 'nats-init', '--dir', auth_dir, '--port', nats_port, '--ws-port', ws_port], env)
         spawn('nats', [shutil.which('nats-server'), '--config', auth_dir / 'nats.conf'])
         config = dict(version=1, listen=f'127.0.0.1:{gateway_port}', public_url=f'http://127.0.0.1:{gateway_port}',
                       database_url_env='WAKEIT_DATABASE_URL', nats_url=f'nats://127.0.0.1:{nats_port}',
@@ -68,10 +71,10 @@ def main():
         config_file.write_text(json.dumps(config))
         second_file = root / 'gateway-second.yaml'
         second_file.write_text(json.dumps(dict(config, listen=f'127.0.0.1:{second_port}')))
-        command([binary, 'gateway', 'migrate', '--config', config_file], env)
-        command([binary, 'gateway', 'bootstrap', '--config', config_file, '--username', 'admin'], env)
-        spawn('gateway', [binary, 'gateway', 'start', '--config', config_file])
-        spawn('gateway-second', [binary, 'gateway', 'start', '--config', second_file])
+        command([gateway_binary, 'migrate', '--config', config_file], env)
+        command([gateway_binary, 'bootstrap', '--config', config_file, '--username', 'admin'], env)
+        spawn('gateway', [gateway_binary, 'start', '--config', config_file])
+        spawn('gateway-second', [gateway_binary, 'start', '--config', second_file])
         base, other = config['public_url'], f'http://127.0.0.1:{second_port}'
         wait(lambda: call(base, '/health/ready'), 'workspace Gateway ready')
         wait(lambda: call(other, '/health/ready'), 'second workspace Gateway ready')
@@ -180,7 +183,7 @@ def main():
             verify_workspace_locks(api, a, sql, cli_env, check)
             if args.templates_only:
                 from task_template_checks import verify as verify_templates
-                verify_templates(api,a,b,check,dict(base=base,other=other,sql=sql,binary=binary,cli_env=cli_env,root=root,global_api=global_api))
+                verify_templates(api,a,b,check,dict(base=base,other=other,sql=sql,binary=binary,gateway_binary=gateway_binary,cli_env=cli_env,root=root,global_api=global_api))
             elif args.files_only:
                 from result_file_checks import verify as verify_files
                 file_run = verify_files(api,a,b,check,dict(other=other))
@@ -189,16 +192,16 @@ def main():
                 verify_retry_migration(sql,check)
                 if not args.manual_retry_only:
                     from task_template_checks import verify as verify_templates
-                    verify_templates(api,a,b,check,dict(base=base,other=other,sql=sql,binary=binary,cli_env=cli_env,root=root,global_api=global_api))
+                    verify_templates(api,a,b,check,dict(base=base,other=other,sql=sql,binary=binary,gateway_binary=gateway_binary,cli_env=cli_env,root=root,global_api=global_api))
                     from dag_checks import verify as verify_dags
-                    dag_runs = verify_dags(api, a, b, check, dict(other=other, sql=sql, binary=binary, cli_env=cli_env, workspace=workspace_a, root=root, spawn=spawn))
+                    dag_runs = verify_dags(api, a, b, check, dict(other=other, sql=sql, binary=binary,gateway_binary=gateway_binary, cli_env=cli_env, workspace=workspace_a, root=root, spawn=spawn))
                     from dag_retry_checks import verify as verify_retries
                     verify_retries(api, a, b, check, dict(other=other, sql=sql))
                 from dag_manual_retry_checks import verify as verify_manual
-                verify_manual(api, a, b, check, dict(base=base, other=other, sql=sql, binary=binary, cli_env=cli_env, root=root, spawn=spawn, global_api=global_api))
+                verify_manual(api, a, b, check, dict(base=base, other=other, sql=sql, binary=binary,gateway_binary=gateway_binary, cli_env=cli_env, root=root, spawn=spawn, global_api=global_api))
                 if not args.manual_retry_only:
                     from editor_layout_checks import verify as verify_layout
-                    verify_layout(api, a, b, check, dict(base=base, other=other, root=root, binary=binary, cli_env=cli_env, global_api=global_api))
+                    verify_layout(api, a, b, check, dict(base=base, other=other, root=root, binary=binary,gateway_binary=gateway_binary, cli_env=cli_env, global_api=global_api))
                     from result_file_checks import verify as verify_files
                     file_run = verify_files(api,a,b,check,dict(other=other))
         summary = dict(base_url=base, other_url=other, root=str(root), checks=checks, workspaces=[workspace_a, workspace_b],

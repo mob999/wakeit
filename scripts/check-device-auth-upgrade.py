@@ -52,8 +52,8 @@ def main():
                     for table in tables
                 }
             before=snapshot()
-            binary=ROOT/'target/debug/wakeit'
-            migrate=[binary,'gateway','migrate','--config',folder/'gateway.yaml']
+            binary=ROOT/'target/debug/wakeit-gateway'
+            migrate=[binary,'migrate','--config',folder/'gateway.yaml']
             (folder/'gateway.yaml').write_text(json.dumps({'version':1,'listen':'127.0.0.1:8080','public_url':'http://127.0.0.1:8080','database_url_env':'WAKEIT_DATABASE_URL','nats_url':'nats://127.0.0.1:4222','nats_public_url':'ws://127.0.0.1:8081','nats_auth_dir':str(folder/'nats')}),encoding='utf-8')
             original=run(migrate,env,ok=False)
             assert original.returncode != 0 and 'previously applied' in original.stderr,original.stderr
@@ -66,7 +66,7 @@ def main():
             if os.name=='posix':assert (folder/'backup.dump').stat().st_mode & 0o777 == 0o600
             # Legacy repair remains idempotent before later published migrations.
             run(upgrade,env)
-            published=hashlib.sha384((ROOT/'crates/wakeit/migrations/0001_initial.sql').read_bytes()).hexdigest()
+            published=hashlib.sha384((ROOT/'crates/wakeit-gateway/migrations/0001_initial.sql').read_bytes()).hexdigest()
             assert sql("SELECT encode(checksum,'hex') FROM _sqlx_migrations WHERE version=1")==published
             sql("UPDATE _sqlx_migrations SET checksum=decode('deadbeef','hex') WHERE version=1")
             bad=run(upgrade,env,ok=False)
@@ -74,7 +74,7 @@ def main():
             assert snapshot()==before
             sql(f"UPDATE _sqlx_migrations SET checksum=decode('{published}','hex') WHERE version=1")
             run(migrate,env)
-            assert sql("SELECT string_agg(version::text,',' ORDER BY version) FROM _sqlx_migrations WHERE success")==','.join(str(int(p.name.split('_')[0])) for p in sorted((ROOT/'crates/wakeit/migrations').glob('*.sql')))
+            assert sql("SELECT string_agg(version::text,',' ORDER BY version) FROM _sqlx_migrations WHERE success")==','.join(str(int(p.name.split('_')[0])) for p in sorted((ROOT/'crates/wakeit-gateway/migrations').glob('*.sql')))
             assert snapshot()==before
             assert sql('SELECT count(*) FROM runs WHERE parent_run_id IS NOT NULL OR node_id IS NOT NULL')=='0'
             assert sql('SELECT count(*) FROM tasks WHERE editor_layout IS NOT NULL')=='0'

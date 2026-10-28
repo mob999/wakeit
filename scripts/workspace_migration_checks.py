@@ -32,7 +32,7 @@ def main():
             return command(pg / 'psql', url, '-v', 'ON_ERROR_STOP=1', '-At', '-c', statement, check=check)
 
         def migrate(name):
-            command(pg / 'psql', url, '-v', 'ON_ERROR_STOP=1', '-f', ROOT / 'crates/wakeit/migrations' / name)
+            command(pg / 'psql', url, '-v', 'ON_ERROR_STOP=1', '-f', ROOT / 'crates/wakeit-gateway/migrations' / name)
 
         migrate('0001_initial.sql')
         user, runner, run = [str(uuid.uuid4()) for _ in range(3)]

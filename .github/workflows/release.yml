@@ -1,12 +1,42 @@
 name: release
 on:
   workflow_dispatch:
+    inputs:
+      product:
+        type: choice
+        options: [cli, gateway]
+        default: cli
+        required: true
   push:
-    tags: ['v*']
+    tags: ['cli-v*', 'gateway-v*']
 permissions:
   contents: read
 jobs:
+  product:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.select.outputs.name }}
+      binary: ${{ steps.select.outputs.binary }}
+    steps:
+      - id: select
+        shell: bash
+        env:
+          INPUT_PRODUCT: ${{ inputs.product }}
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/cli-v*) product=cli ;;
+            refs/tags/gateway-v*) product=gateway ;;
+            *) product="$INPUT_PRODUCT" ;;
+          esac
+          case "$product" in
+            cli) binary=wakeit ;;
+            gateway) binary=wakeit-gateway ;;
+            *) exit 1 ;;
+          esac
+          echo "name=$product" >> "$GITHUB_OUTPUT"
+          echo "binary=$binary" >> "$GITHUB_OUTPUT"
   build:
+    needs: product
     strategy:
       fail-fast: false
       matrix:
@@ -28,30 +58,34 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: actions/setup-node@v4
+        if: needs.product.outputs.name == 'gateway'
         with: {node-version: '22', cache: npm, cache-dependency-path: web/package-lock.json}
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - uses: Swatinem/rust-cache@v2
       - run: npm ci && npm run build
+        if: needs.product.outputs.name == 'gateway'
         working-directory: web
-      - run: cargo build --locked --release --target ${{ matrix.target }}
+      - run: cargo build --locked --release --package wakeit-${{ needs.product.outputs.name }} --target ${{ matrix.target }}
       - name: Verify native executable and package binary
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
+          PRODUCT: ${{ needs.product.outputs.name }}
+          BINARY: ${{ needs.product.outputs.binary }}
         run: |
           suffix=''
           if [[ "$TARGET" == *windows* ]]; then suffix='.exe'; fi
-          binary="target/$TARGET/release/wakeit$suffix"
+          binary="target/$TARGET/release/$BINARY$suffix"
           "$binary" --version
-          "$binary" update --help
-          python scripts/package-release.py binary --target "$TARGET" --input "$binary" --output .local/release-native
+          "$binary" --help
+          python scripts/package-release.py binary --product "$PRODUCT" --target "$TARGET" --input "$binary" --output .local/release-native
       - uses: actions/upload-artifact@v4
         with:
-          name: wakeit-${{ matrix.target }}
+          name: wakeit-${{ needs.product.outputs.name }}-${{ matrix.target }}
           path: .local/release-native/*
   assemble:
-    needs: build
+    needs: [product, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -61,7 +95,7 @@ jobs:
         with: {python-version: '3.12'}
       - uses: actions/download-artifact@v4
         with:
-          pattern: wakeit-*
+          pattern: wakeit-${{ needs.product.outputs.name }}-*
           path: .local/native-artifacts
       - name: Assemble verified release contract
         env:
@@ -70,10 +104,10 @@ jobs:
         run: |
           args=()
           if [[ "$IS_TAG" == 'true' ]]; then args=(--tag "$TAG"); fi
-          python scripts/package-release.py assemble --input .local/native-artifacts --output .local/release "${args[@]}"
+          python scripts/package-release.py assemble --product "${{ needs.product.outputs.name }}" --input .local/native-artifacts --output .local/release "${args[@]}"
       - uses: actions/upload-artifact@v4
         with:
-          name: wakeit-release-bundle
+          name: wakeit-${{ needs.product.outputs.name }}-release-bundle
           path: .local/release/*
       - name: Publish official tagged release
         if: startsWith(github.ref, 'refs/tags/')
@@ -85,4 +119,6 @@ jobs:
           for file in .local/release/*; do
             [[ "$file" == *.md ]] || assets+=("$file")
           done
-          gh release create "$TAG" "${assets[@]}" --verify-tag --title "Wakeit $TAG" --notes-file .local/release/release-notes.md --latest
+          latest=false
+          if [[ "${{ needs.product.outputs.name }}" == gateway ]]; then latest=true; fi
+          gh release create "$TAG" "${assets[@]}" --verify-tag --title "Wakeit $TAG" --notes-file .local/release/release-notes.md --latest="$latest"

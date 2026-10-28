@@ -38,14 +38,29 @@ def validate(english, chinese, current):
     return en
 
 
+def product_version(product):
+    manifest = ROOT / 'crates' / f'wakeit-{product}' / 'Cargo.toml'
+    return tomllib.loads(manifest.read_text(encoding='utf-8'))['package']['version']
+
+
+def changelog_paths(product):
+    return (ROOT / 'CHANGELOG.cli.md', ROOT / 'CHANGELOG.cli.zh-CN.md') if product == 'cli' else (ROOT / 'CHANGELOG.md', ROOT / 'CHANGELOG.zh-CN.md')
+
+
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--product', choices=('cli', 'gateway'), help='Product to extract; omit to validate both')
     parser.add_argument('--version', help='Extract this version, otherwise validate only')
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
-    current = tomllib.loads((ROOT / 'Cargo.toml').read_text(encoding='utf-8'))['workspace']['package']['version']
-    notes = validate((ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'),
-                     (ROOT / 'CHANGELOG.zh-CN.md').read_text(encoding='utf-8'), current)
+    products = (args.product,) if args.product else ('cli', 'gateway')
+    if args.version and not args.product:
+        parser.error('--version requires --product')
+    for product in products:
+        current = product_version(product)
+        english, chinese = changelog_paths(product)
+        notes = validate(english.read_text(encoding='utf-8'),
+                         chinese.read_text(encoding='utf-8'), current)
     if args.version:
         if args.version not in notes:
             raise SystemExit('Requested version is absent from changelog')

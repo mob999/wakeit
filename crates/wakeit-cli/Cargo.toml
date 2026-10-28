@@ -1,0 +1,57 @@
+[package]
+name = "wakeit-cli"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "wakeit"
+
+[[bin]]
+name = "wakeit"
+path = "src/main.rs"
+
+[dependencies]
+http = "1"
+wakeit-core = { path = "../wakeit-core" }
+anyhow = "1"
+async-nats = "0.50"
+base64 = "0.22"
+cap-std = "3"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+fs2 = "0.4"
+futures = "0.3"
+hex = "0.4"
+humantime = "2"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+nkeys = "0.4"
+percent-encoding = "2"
+portable-pty = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+schemars = { version = "1", features = ["chrono04", "uuid1"] }
+self-replace = "1.5"
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "json", "migrate"] }
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+tokio-websockets = { version = "0.10", features = ["client", "rand", "ring"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+vt100 = "0.18"
+which = "8"
+yaml_serde = "0.10"
+
+[dev-dependencies]
+axum = "0.8"
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_Security", "Win32_Storage_FileSystem"] }

@@ -3874,38 +3874,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "wakeit"
-version = "0.3.4"
+name = "wakeit-cli"
+version = "0.1.0"
 dependencies = [
  "anyhow",
- "argon2",
  "async-nats",
- "async-stream",
  "axum",
  "base64 0.22.1",
  "cap-std",
  "chrono",
- "chrono-tz",
  "clap",
- "croner",
- "dotenvy",
  "fs2",
  "futures",
  "hex",
+ "http",
  "humantime",
  "image",
  "libc",
- "mime_guess",
- "minijinja",
  "nkeys",
  "percent-encoding",
  "portable-pty",
- "pulldown-cmark",
- "rand 0.8.8",
  "reqwest",
- "rust-embed",
  "schemars",
- "scraper",
  "self-replace",
  "semver",
  "serde",
@@ -3916,14 +3906,76 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tokio-websockets",
- "tower-http",
  "tracing",
  "tracing-subscriber",
  "uuid",
  "vt100",
+ "wakeit-core",
  "which",
  "windows-sys 0.61.2",
  "yaml_serde",
+]
+
+[[package]]
+name = "wakeit-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-nats",
+ "chrono",
+ "chrono-tz",
+ "croner",
+ "hex",
+ "humantime",
+ "minijinja",
+ "percent-encoding",
+ "pulldown-cmark",
+ "reqwest",
+ "schemars",
+ "scraper",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "uuid",
+ "yaml_serde",
+]
+
+[[package]]
+name = "wakeit-gateway"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "async-nats",
+ "async-stream",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "chrono-tz",
+ "clap",
+ "dotenvy",
+ "futures",
+ "hex",
+ "mime_guess",
+ "nkeys",
+ "rand 0.8.8",
+ "reqwest",
+ "rust-embed",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "wakeit-core",
 ]
 
 [[package]]

@@ -2,15 +2,15 @@
 
 使用管理员 PowerShell。Gateway/NATS 注册为 Automatic 的 Windows 系统服务，不用 AtLogOn 计划任务。WinSW 2.12.0 x64 在安装时从官方 Release 下载并校验固定 SHA-256。
 
-将 wakeit.exe 和 nats-server.exe 放入持久安装目录（例如 C:\Program Files\Wakeit），数据和配置放 C:\ProgramData\Wakeit。安装 PostgreSQL 17+ 的 Windows 发行包，其数据库服务应设为 Automatic，并创建专用角色和数据库。查看 Get-Service 得到实际名称，例如 postgresql-x64-17。
+将 wakeit-gateway.exe 和 nats-server.exe 放入持久安装目录（例如 C:\Program Files\Wakeit），数据和配置放 C:\ProgramData\Wakeit。安装 PostgreSQL 17+ 的 Windows 发行包，其数据库服务应设为 Automatic，并创建专用角色和数据库。查看 Get-Service 得到实际名称，例如 postgresql-x64-17。
 
 Gateway/NATS 默认建议使用 LocalService；支持 NetworkService、LocalSystem，但不把 Runner/Agent 的登录身份换成这些账号。环境文件中保存数据库 URL，避免用户终端环境变量在开机时缺失。
 
 ```powershell
-wakeit gateway nats-init --dir C:\ProgramData\Wakeit\nats
-wakeit gateway migrate --config C:\ProgramData\Wakeit\gateway.yaml --env-file C:\ProgramData\Wakeit\gateway.env
-wakeit gateway bootstrap --config C:\ProgramData\Wakeit\gateway.yaml --env-file C:\ProgramData\Wakeit\gateway.env --username admin
-wakeit gateway service --config C:\ProgramData\Wakeit\gateway.yaml `
+wakeit-gateway nats-init --dir C:\ProgramData\Wakeit\nats
+wakeit-gateway migrate --config C:\ProgramData\Wakeit\gateway.yaml --env-file C:\ProgramData\Wakeit\gateway.env
+wakeit-gateway bootstrap --config C:\ProgramData\Wakeit\gateway.yaml --env-file C:\ProgramData\Wakeit\gateway.env --username admin
+wakeit-gateway service --config C:\ProgramData\Wakeit\gateway.yaml `
   --env-file C:\ProgramData\Wakeit\gateway.env --user LocalService --platform windows `
   --nats-bin 'C:\Program Files\Wakeit\nats-server.exe' `
   --nats-config C:\ProgramData\Wakeit\nats\nats.conf `
