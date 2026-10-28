@@ -7,6 +7,7 @@ import { Button, IconButton } from '../ui'
 import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast, useToast } from '../Toast'
 import { Pagination } from '../Pagination'
+import { ChoicePicker } from '../ChoicePicker'
 import {
   TemplateInstanceView,
   useTemplateInstance,
@@ -33,7 +34,7 @@ export function PresetCreation({
   const [selected, setSelected] = useState(presetId ?? '')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
-  const [choosing, setChoosing] = useState(!presetId)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [records, setRecords] = useState<Record<string, TemplateRecord>>({})
   const [states, setStates] = useState<Record<string, { dirty: boolean; busy: boolean }>>({})
   const list = useQuery<{ items: TemplateRecord[]; total: number }>({
@@ -42,12 +43,12 @@ export function PresetCreation({
       api(
         `/task-templates?archived=false&q=${encodeURIComponent(query)}&page=${page}&page_size=20`,
       ),
-    enabled: active && choosing,
+    enabled: active && (!selected || pickerOpen),
   })
   const detail = useQuery<TemplateRecord>({
     queryKey: ['task-templates', 'detail', selected],
     queryFn: () => api(`/task-templates/${encodeURIComponent(selected)}`),
-    enabled: active && !!selected && !choosing,
+    enabled: active && !!selected,
     refetchInterval: 10000,
     retry: false,
   })
@@ -83,11 +84,53 @@ export function PresetCreation({
       : ''
   return (
     <div className="preset-creation">
-      {record && (
+      {selected && (
         <div className="preset-choice-heading creation-name-row">
           <div className="preset-choice-title">
-            <strong>{record.definition.name}</strong>
-            {record.definition.description && (
+            <ChoicePicker
+              label={t('creation.choosePreset')}
+              value={selected}
+              selectionLabel={record?.definition.name || t('正在加载…')}
+              searchable
+              searchLabel={t('creation.searchPresets')}
+              filterOptions={false}
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              onSearchChange={(value) => {
+                setQuery(value)
+                setPage(1)
+              }}
+              disabled={busy}
+              pending={list.isPending || list.isFetching}
+              error={list.error?.message}
+              emptyLabel={t(query ? '无匹配结果' : 'preset.empty')}
+              popoverClassName="preset-selector-popover"
+              options={(list.isFetching ? [] : (list.data?.items ?? [])).map((row) => ({
+                value: row.id,
+                label: row.definition.name,
+                keywords: row.id,
+              }))}
+              onChange={(id) => {
+                const row = list.data?.items.find((item) => item.id === id)
+                if (row) {
+                  setRecords((previous) => (previous[id] ? previous : { ...previous, [id]: row }))
+                  setSelected(id)
+                }
+              }}
+              footer={
+                list.error ? (
+                  <Button onClick={() => list.refetch()}>{t('重试')}</Button>
+                ) : (
+                  <Pagination
+                    page={page}
+                    total={list.data?.total ?? 0}
+                    pending={list.isFetching}
+                    onChange={setPage}
+                  />
+                )
+              }
+            />
+            {record?.definition.description && (
               <IconButton label={record.definition.description}>
                 <ActionIcon name="info" />
               </IconButton>
@@ -101,19 +144,9 @@ export function PresetCreation({
               {t('creation.loadRevision')}
             </Button>
           )}
-          {record && (
-            <Button
-              className="preset-change-button"
-              disabled={busy}
-              aria-expanded={choosing}
-              onClick={() => setChoosing((value) => !value)}
-            >
-              {t(choosing ? 'creation.backToParameters' : 'creation.changePreset')}
-            </Button>
-          )}
         </div>
       )}
-      {choosing && (
+      {!selected && (
         <section className="preset-catalog" aria-label={t('creation.choosePreset')}>
           <div className="preset-search-field">
             <ActionIcon name="search" />
@@ -153,7 +186,6 @@ export function PresetCreation({
                       previous[row.id] ? previous : { ...previous, [row.id]: row },
                     )
                     setSelected(row.id)
-                    setChoosing(false)
                   }}
                 >
                   <strong>{row.definition.name}</strong>
@@ -188,20 +220,16 @@ export function PresetCreation({
           record={item}
           unavailable={item.id === selected ? unavailable : ''}
           updated={item.id === selected && updated}
-          active={active && !choosing && item.id === selected}
-          hidden={choosing || item.id !== selected}
+          active={active && item.id === selected}
+          hidden={item.id !== selected}
           onStateChange={report}
           onClose={onClose}
           onCreated={onCreated}
         />
       ))}
-      {(!selected || choosing || !record) && (
+      {(!selected || !record) && (
         <div className="modal-footer creation-footer">
-          {record && choosing ? (
-            <Button onClick={() => setChoosing(false)}>{t('creation.backToParameters')}</Button>
-          ) : (
-            <Button onClick={onClose}>{t('取消')}</Button>
-          )}
+          <Button onClick={onClose}>{t('取消')}</Button>
         </div>
       )}
     </div>

@@ -167,10 +167,17 @@ async function openCreation(page: Page, tab?: string) {
 }
 async function choosePreset(page: Page, dialog: Locator, name: string) {
   const search = dialog.getByRole('searchbox', { name: '搜索预设' })
-  if (!(await search.isVisible()))
-    await dialog.getByRole('button', { name: '切换预设', exact: true }).click()
-  await search.fill(name)
-  await dialog.locator('.preset-choice').filter({ hasText: name }).click()
+  if (await search.isVisible()) {
+    await search.fill(name)
+    await dialog.locator('.preset-choice').filter({ hasText: name }).click()
+  } else {
+    await dialog.getByRole('combobox', { name: '选择预设', exact: true }).click()
+    await expect(dialog.locator('.preset-session:visible')).toBeVisible()
+    await page.getByRole('combobox', { name: '搜索预设', exact: true }).fill(name)
+    await page.getByRole('option', { name, exact: true }).click()
+    await expect(page.locator('.preset-selector-popover')).toHaveCount(0)
+  }
+  await expect(dialog.getByRole('button', { name: /^(切换预设|返回参数)$/ })).toHaveCount(0)
 }
 async function setLanguage(page: Page, language: 'en' | 'zh') {
   await page.evaluate(async (language) => {
@@ -282,7 +289,23 @@ test('required parameters are editable, numeric drafts and defaults survive tab/
   await dialog.getByRole('tab', { name: '任务', exact: true }).click()
   await dialog.getByRole('tab', { name: '预设', exact: true }).click()
   await expect(input).toHaveValue('https://example.com/first')
-  await choosePreset(page, dialog, other.name)
+  const picker = dialog.getByRole('combobox', { name: '选择预设', exact: true })
+  await picker.click()
+  await expect(input).toBeVisible()
+  const presetSearch = page.getByRole('combobox', { name: '搜索预设', exact: true })
+  await presetSearch.fill('synthetic-no-such-preset-zzzz')
+  await expect(page.locator('.preset-selector-popover')).toContainText('无匹配结果')
+  await presetSearch.fill(other.name)
+  await expect(page.getByRole('option', { name: other.name, exact: true })).toBeVisible()
+  await page.screenshot({ path: test.info().outputPath('preset-selector-search.png') })
+  await presetSearch.press('Escape')
+  await expect(input).toHaveValue('https://example.com/first')
+  await expect(picker).toBeFocused()
+  await picker.click()
+  await page.getByRole('combobox', { name: '搜索预设', exact: true }).fill(other.name)
+  await expect(page.getByRole('option', { name: other.name, exact: true })).toBeVisible()
+  await page.getByRole('combobox', { name: '搜索预设', exact: true }).press('Enter')
+  await expect(picker).toContainText(other.name)
   await choosePreset(page, dialog, def.name)
   await expect(input).toHaveValue('https://example.com/first')
   await expect(session.getByLabel('比例', { exact: true })).toHaveValue('1.25')
@@ -617,10 +640,10 @@ test('adding an unfinished repository stays silent; submit reports once and focu
   await ready.focus()
   await expect(page.getByRole('tooltip')).toHaveText('可以创建')
   await expect(dialog.locator('.preset-choice-title .icon-button')).toBeVisible()
-  const title = await dialog.locator('.preset-choice-title > strong').boundingBox()
+  const title = await dialog.locator('.preset-choice-title > .choice-selector').boundingBox()
   const info = await dialog.locator('.preset-choice-title .icon-button').boundingBox()
   expect(info!.x - (title!.x + title!.width)).toBeLessThan(12)
-  await expect(dialog.getByRole('button', { name: '切换预设', exact: true })).toHaveCSS(
+  await expect(dialog.getByRole('combobox', { name: '选择预设', exact: true })).toHaveCSS(
     'border-top-width',
     '1px',
   )
@@ -634,7 +657,7 @@ test('adding an unfinished repository stays silent; submit reports once and focu
     'Ready to create',
   )
   await expect(
-    page.locator('.creation-modal').getByRole('button', { name: 'Change preset', exact: true }),
+    page.locator('.creation-modal').getByRole('combobox', { name: 'Choose a preset', exact: true }),
   ).toBeVisible()
   await setLanguage(page, 'zh')
   const list = session.locator('[data-input-path="inputs.repository"]').first()
