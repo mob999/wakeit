@@ -1,0 +1,29 @@
+@reference '../styles/tailwind.css';
+
+.modal.run-node-modal {
+  @apply w-[min(800px,_calc(100vw_-_32px))] h-[min(600px,_calc(100dvh_-_40px))] max-h-[calc(100dvh_-_40px)];
+}
+.run-node-modal > .modal-body {
+  @apply flex flex-1 p-0 overflow-hidden;
+}
+.run-node-picker > .pagination {
+  @apply shrink-0;
+}
+.run-node-list {
+  @apply [border-top:0];
+}
+.run-node-list .task-row {
+  @apply min-h-12;
+}
+.run-node-list .status {
+  @apply text-meta;
+}
+.run-node-list .task-row[aria-disabled='true'] {
+  @apply text-muted cursor-default;
+}
+.run-node-list .task-row[aria-disabled='true']:not(.active):hover {
+  @apply bg-transparent;
+}
+.run-node-all-action {
+  @apply mr-auto;
+}

@@ -164,7 +164,7 @@ wakeit gateway migrate --config gateway.yaml
 
 For an existing known pre-device baseline, stop Gateway writers, preserve Runner processes, and explicitly run `WAKEIT_DATABASE_URL=... python3 scripts/upgrade-unreleased-device-auth.py --backup /private/path/backup.dump`. It creates a private backup, checks the exact prior SQLx checksum, adds grant/limit/registration tables in one transaction and updates the single initial migration checksum. Unknown baselines are refused. Normal migration validation remains enabled. Older archive/session upgrade scripts also create the final device-authorization schema.
 
-The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.3.3. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
+The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Publish the five native packages, skill archive and SHA-256 manifest under v0.3.4. The copied Prompt uses the exact release version advertised by Gateway metadata. Regular update checks exclude preview releases.
 
 ## Upgrading from 0.3.0
 
@@ -181,6 +181,14 @@ Update Runners for bounded observations that do not interrupt healthy Agent exec
 ## Upgrading from 0.3.2
 
 0.3.3 requires no new database migration and retains the published `0007_dag_manual_retry.sql` baseline. Back up service data, replace the Gateway/CLI binary and restart the Gateway to load the updated WebUI and workspace-lock fix; verify `/health/ready`. Keep existing PostgreSQL and NATS data, Runner journals, device identities, native sessions and Agent credentials. Existing Runners remain compatible; do not reregister devices. Configuration and message protocols remain version 1.
+
+## Upgrading from 0.3.3
+
+The task-template implementation appends `0008_task_templates.sql` after the published `0007_dag_manual_retry.sql` baseline. It adds workspace template resources, Task/Run creation-origin snapshots and idempotent operation results without rewriting existing records. Task templates ship in 0.3.4; configuration/message protocols remain version 1.
+
+Before upgrading to 0.3.4, back up PostgreSQL, NATS state, Runner configuration and journals, and confirm there are no starting/running Runs. Stop every old Gateway writer, run `wakeit gateway migrate --config gateway.yaml` with the new binary, then start all Gateways on that same build and verify `/health/ready`. Preserve Task/Run IDs, results, API Keys, Runner identities, native sessions and Agent credentials; do not reregister devices or replace databases.
+
+Structured DAG prompts fit the existing JSONB Task/Run snapshots, and Runners continue receiving ordinary version-1 execution strings. Older Runners do not need re-enrollment or new Agent credentials. Older Gateways and CLIs are not guaranteed to understand structured prompt configuration, so do not mix old and new Gateway writes or let an old Gateway schedule/recover those Tasks. See [Task templates](templates.md) for the creation and compatibility model.
 
 ## Browser session terminals
 

@@ -151,9 +151,11 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
           <ActionIcon name="refresh" />
         </IconButton>
       </PageActions>
-      {days.isPending && <p className="quiet moments-state">{tr('正在加载…')}</p>}
+      {days.isPending && <p className="quiet text-muted moments-state">{tr('正在加载…')}</p>}
       {days.error && <RequestError error={days.error} retry={() => days.refetch()} />}
-      {first?.total_runs === 0 && <p className="quiet moments-state">{tr('暂无执行结果')}</p>}
+      {first?.total_runs === 0 && (
+        <p className="quiet text-muted moments-state">{tr('暂无执行结果')}</p>
+      )}
       {first && (
         <div className="moments-timeline">
           {days.data?.pages
@@ -227,7 +229,7 @@ function DayEntries({
   })
   return (
     <>
-      {entries.isPending && <p className="quiet moments-state">{tr('正在加载…')}</p>}
+      {entries.isPending && <p className="quiet text-muted moments-state">{tr('正在加载…')}</p>}
       {entries.error && <RequestError error={entries.error} retry={() => entries.refetch()} />}
       {entries.data?.pages
         .flatMap((page) => page.items)

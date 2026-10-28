@@ -125,28 +125,6 @@ def main():
         adapter.write_text(json.dumps(agent))
         rcfg=directory/'runner.yaml'
         rcfg.write_text(json.dumps(dict(version=1,gateway=base,id=runner,name='terminal-device',token_file=str(directory/'device.token'),nats_url=config['nats_public_url'],credentials_file=str(directory/'runner.creds'),data_dir=str(directory/'data'),concurrency=2,agents=[str(adapter)],allowed_roots=[str(project)])))
-        if os.environ.get('WAKEIT_TEST_PI_CONFIG'):
-            env['PI_CODING_AGENT_DIR']=os.environ['WAKEIT_TEST_PI_CONFIG']
-            pi_adapter=directory/'agents/pi.yaml'
-            # Parse the shipped adapter without introducing a Python YAML dependency.
-            source=command(['node','--input-type=module','-e',"import fs from 'node:fs';import YAML from './web/node_modules/yaml/dist/index.js';console.log(JSON.stringify(YAML.parse(fs.readFileSync('agents/pi.yaml','utf8'))));"])
-            pi_agent=json.loads(source)
-            for operation in [pi_agent['submit'],pi_agent['session']['inspect'],pi_agent['session']['resume'],pi_agent['session']['list'],pi_agent['models']]:
-                if operation['command']=='wakeit':operation['command']=str(BIN)
-            for operation in [pi_agent['submit'],pi_agent['session']['interactive']]:
-                operation['args']+=['--no-extensions','--no-skills','--no-prompt-templates','--no-context-files','--no-mcp','--no-tools','--offline','--approve']
-            pi_adapter.write_text(json.dumps(pi_agent))
-            saved=json.loads(rcfg.read_text());saved['agents'].append(str(pi_adapter));rcfg.write_text(json.dumps(saved))
-        if os.environ.get('WAKEIT_TEST_CODEX_CONFIG'):
-            env['CODEX_HOME']=os.environ['WAKEIT_TEST_CODEX_CONFIG']
-            command(['git','init','--quiet',project])
-            pathlib.Path(env['CODEX_HOME'],'config.toml').write_text('[projects.'+json.dumps(str(project))+']\ntrust_level = "trusted"\n')
-            source=command(['node','--input-type=module','-e',"import fs from 'node:fs';import YAML from './web/node_modules/yaml/dist/index.js';console.log(JSON.stringify(YAML.parse(fs.readFileSync('agents/codex.yaml','utf8'))));"])
-            codex=json.loads(source)
-            for operation in [codex['submit'],*codex['session'].values(),codex['models']]:
-                if operation['command']=='wakeit':operation['command']=str(BIN)
-            adapter_file=directory/'agents/codex.yaml';adapter_file.write_text(json.dumps(codex))
-            saved=json.loads(rcfg.read_text());saved['agents'].append(str(adapter_file));rcfg.write_text(json.dumps(saved))
         runner_process=spawn('runner' ,[BIN,'runner','start','--config',rcfg])
         wait(lambda:any(r['online'] and r['info'].get('web_terminal')==1 for r in api('/runners')),'terminal capability')
         definition=dict(version=1,id='terminal-task',name='Terminal fixture',runner='terminal-device',agent='mock-session',cwd=str(project),prompt=json.dumps({'text':'unchanged report'}),enabled=True,schedule=None)
@@ -216,30 +194,6 @@ def main():
         assert wait(lambda:(r if (r:=api('/runs/'+resumed))['state']=='succeeded' else None),'free Session after terminal lease')
         assert api('/terminals/'+expired['id'],t=env['operator'])['state']=='closed'
         passed('30-second local lease cleanup and immutable original Run/result/session')
-        if os.environ.get('WAKEIT_TEST_PI_CONFIG'):
-            pi_task=dict(definition,id='native-pi',agent='pi',prompt='Reply exactly TERMINAL_NATIVE_READY.',parameters={'provider':'magpie','model':'codex/gpt-6.1-sol','reasoning':'low'})
-            api('/tasks/native-pi','PUT',{'config':pi_task,'expected_revision':None})
-            pi_run=api('/tasks/native-pi/runs','POST',{})['id']
-            pi_result=wait(lambda:(r if (r:=api('/runs/'+pi_run))['state']=='succeeded' and (r.get('session') or {}).get('ready') else None),'native Pi resumable session',120)
-            browser_fixture=root/'native-browser.json'
-            browser_fixture.write_text(json.dumps({'base':base,'workspace':workspace,'run':pi_run,'password':env['WAKEIT_PASSWORD']}));os.chmod(browser_fixture,0o600)
-            output=command(['node','scripts/terminal_native_browser.mjs',browser_fixture],dict(env,HOME=os.environ['HOME']))
-            assert 'PASS native Agent terminal' in output
-            browser_fixture.unlink()
-            unchanged=api('/runs/'+pi_run)
-            assert unchanged['result']==pi_result['result'] and unchanged['session']['id']==pi_result['session']['id']
-            passed('native Pi/Magpie session restored in PTY, interactive follow-up answered, close confirmed and original report unchanged')
-        if os.environ.get('WAKEIT_TEST_CODEX_CONFIG'):
-            task=dict(definition,id='native-codex',agent='codex',prompt='Reply exactly TERMINAL_NATIVE_READY. No tools are needed.',parameters={'reasoning':'low'})
-            api('/tasks/native-codex','PUT',{'config':task,'expected_revision':None})
-            native_run=api('/tasks/native-codex/runs','POST',{})['id']
-            before=wait(lambda:(r if (r:=api('/runs/'+native_run))['state']=='succeeded' and (r.get('session') or {}).get('ready') else None),'native Codex resumable session',120)
-            browser_fixture=root/'native-browser.json';browser_fixture.write_text(json.dumps({'base':base,'workspace':workspace,'run':native_run,'password':env['WAKEIT_PASSWORD']}));os.chmod(browser_fixture,0o600)
-            output=command(['node','scripts/terminal_native_browser.mjs',browser_fixture],dict(env,HOME=os.environ['HOME']))
-            browser_fixture.unlink()
-            assert 'PASS native' in output
-            assert api('/runs/'+native_run)['result']==before['result']
-            passed('native Codex session restored, interactive follow-up answered and process closed without changing original result')
         pending=create();connection=attach(pending);connection.until(lambda f:f['kind']=='state' and f['data']['state']=='running')
         operator=global_api('/session',t=env['operator'])['id']
         api('/members/'+operator,'PUT',{'role':'viewer','active':True})

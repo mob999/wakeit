@@ -42,15 +42,17 @@ export function EnrollDialog({
               {tr('在设备上运行')}
               <CopyValue label={tr('actions.copyEnrollment')} value={command} toast={toast} />
             </div>
-            <pre className="code wrap">{command}</pre>
-            <small className="quiet">
+            <pre className="code wrap [overflow-wrap:anywhere] [word-break:break-word]">
+              {command}
+            </pre>
+            <small className="quiet text-muted">
               {tr(
                 '令牌 30 分钟内有效，使用后失效。Windows 可将令牌设置为 WAKEIT_ENROLL_TOKEN 环境变量后运行同一命令。',
               )}
             </small>
             <div className="section-heading">{tr('启动 Runner')}</div>
             <pre className="code">wakeit runner start --config .wakeit/runner/runner.yaml</pre>
-            <p className="quiet">
+            <p className="quiet text-muted">
               {tr(
                 '先在设备上安装并登录 Agent，并将 /path/to/projects 换成允许执行的项目父目录。可用的 Agent 会自动上报。',
               )}

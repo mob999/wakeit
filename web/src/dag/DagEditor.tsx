@@ -1,6 +1,8 @@
+import { promptBlank } from './prompt'
 import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast, useToast } from '../Toast'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBlocker } from '@tanstack/react-router'
@@ -29,6 +31,7 @@ import { CanvasControls } from './CanvasControls'
 import { AgentPalette } from './AgentPalette'
 import { NodeForm } from './NodeForm'
 import { TimeFields } from './TimeFields'
+import { DetailTabs } from '../DetailTabs'
 import { MultiPicker } from './MultiPicker'
 import { issues, outputs } from './model'
 import { nodeName, nodeOptions, shortId } from './identity'
@@ -63,11 +66,17 @@ export function DagEditor({
   timezone,
   onClose,
   onSaved,
+  embedded = false,
+  active = true,
+  onStateChange,
 }: {
   task?: Task
   timezone: string
   onClose: () => void
   onSaved: (id: string) => void
+  embedded?: boolean
+  active?: boolean
+  onStateChange?: (dirty: boolean, busy: boolean) => void
 }) {
   useTranslation()
   const [suffix] = useState(taskIdSuffix)
@@ -99,6 +108,7 @@ export function DagEditor({
   const [layout, setLayout] = useState<EditorLayout>(() =>
     structuredClone(task?.editor_layout ?? emptyLayout()),
   )
+  const timeConfig = config
   const baseline = useRef({ config: JSON.stringify(config), layout: structuredClone(layout) })
   const initialIds = useRef(new Set(config.dag!.nodes.map((n) => n.id)))
   const [step, setStep] = useState<'task' | 'time'>('task'),
@@ -225,10 +235,13 @@ export function DagEditor({
       leaveResolve.current = resolve
     })
   }, [])
-  useEffect(() => controls.registerGuard(requestLeave), [controls.registerGuard, requestLeave])
+  useEffect(
+    () => (embedded ? undefined : controls.registerGuard(requestLeave)),
+    [controls.registerGuard, requestLeave, embedded],
+  )
   useBlocker({
-    shouldBlockFn: () => requestLeave().then((value) => !value),
-    enableBeforeUnload: () => dirtyRef.current,
+    shouldBlockFn: () => (embedded ? false : requestLeave().then((value) => !value)),
+    enableBeforeUnload: () => !embedded && dirtyRef.current,
   })
   useEffect(
     () => () => {
@@ -327,7 +340,7 @@ export function DagEditor({
       (e.node_id &&
         (issueField(e) === 'pre' ||
           (issueField(e) === 'prompt' &&
-            dag.nodes.find((n) => n.id === e.node_id)?.prompt.trim()))),
+            !promptBlank(dag.nodes.find((n) => n.id === e.node_id)?.prompt)))),
   )
   const local = validated ? localErrors() : structural,
     errors = [...local, ...serverErrors.filter((e) => !local.some((l) => l.path === e.path))]
@@ -374,6 +387,9 @@ export function DagEditor({
     onError: (error: Error) => setRequestError(error.message),
   })
   const busy = save.isPending || arranging
+  useEffect(() => {
+    onStateChange?.(dirty, busy)
+  }, [dirty, busy, onStateChange])
   busyRef.current = busy
   useLayoutEffect(() => {
     markFields(
@@ -471,7 +487,7 @@ export function DagEditor({
         ((e.path === 'dag.results' && graph().dag.results != null) ||
           (e.node_id &&
             issueField(e) === 'prompt' &&
-            next.dag.nodes.find((n) => n.id === e.node_id)?.prompt.trim())) &&
+            !promptBlank(next.dag.nodes.find((n) => n.id === e.node_id)?.prompt))) &&
         !before.some((p) => p.path === e.path && p.message === e.message),
     )
   }
@@ -531,10 +547,10 @@ export function DagEditor({
   handlers.current = { travel, setPanel, ghost, picker, panel, fullscreen }
   useEffect(() => {
     function keyboard(event: KeyboardEvent) {
-      if (event.defaultPrevented || busyRef.current || step !== 'task') return
+      if (event.defaultPrevented || busyRef.current || step !== 'task' || !active) return
       const target = event.target instanceof Element ? event.target : null
       const overlay = document.querySelector(
-        '[data-radix-popper-content-wrapper], [role=dialog][data-state=open]',
+        '[data-radix-popper-content-wrapper], [role=dialog][data-state=open]:not(.creation-modal)',
       )
       if (event.key === 'Escape') {
         if (overlay) return
@@ -556,9 +572,9 @@ export function DagEditor({
         handlers.current.travel(event.shiftKey ? 'redo' : 'undo')
       }
     }
-    window.addEventListener('keydown', keyboard)
-    return () => window.removeEventListener('keydown', keyboard)
-  }, [step])
+    window.addEventListener('keydown', keyboard, embedded)
+    return () => window.removeEventListener('keydown', keyboard, embedded)
+  }, [step, active, embedded])
   function nodeActions(n: DagNode) {
     return (
       <Menu.Root>
@@ -612,47 +628,80 @@ export function DagEditor({
   const deletionIssues = deletion ? impacts(deletion) : []
   return (
     <div
-      className={'dag-editor dag-canvas-editor' + (fullscreen ? ' is-fullscreen' : '')}
+      className={
+        'dag-editor dag-canvas-editor' +
+        (embedded ? ' creation-dag-form' : '') +
+        (fullscreen ? ' is-fullscreen' : '')
+      }
       ref={editor}
     >
-      <PageBreadcrumbs
-        label={t('Tasks')}
-        crumbs={[
-          {
-            label: config.name || t('dag.new'),
-            content: (
-              <input
-                className="dag-breadcrumb-title"
-                ref={nameField}
-                aria-label={t('任务名称')}
-                aria-invalid={errors.some((e) => !e.node_id && e.path === 'name')}
-                placeholder={t('dag.new')}
-                autoFocus={!task}
-                disabled={busy}
-                value={config.name}
-                onChange={(e) => change({ ...config, name: e.target.value })}
-              />
-            ),
-          },
-        ]}
-        onBack={onClose}
-      />
-      <div className="dag-stepbar">
-        <div className="tabs" role="tablist" aria-label={t('任务编辑')}>
-          {(['task', 'time'] as const).map((value) => (
-            <button
-              type="button"
-              key={value}
-              role="tab"
-              aria-selected={step === value}
-              className={step === value ? 'active' : ''}
-              disabled={busy}
-              onClick={() => setStep(value)}
-            >
-              {t(value === 'task' ? '任务' : '时间')}
-            </button>
-          ))}
+      {!embedded && (
+        <PageBreadcrumbs
+          label={t('Tasks')}
+          crumbs={[
+            {
+              label: config.name || t('dag.new'),
+              content: (
+                <input
+                  className="dag-breadcrumb-title"
+                  ref={nameField}
+                  aria-label={t('任务名称')}
+                  aria-invalid={errors.some((e) => !e.node_id && e.path === 'name')}
+                  placeholder={t('dag.new')}
+                  autoFocus={!task}
+                  disabled={busy}
+                  value={config.name}
+                  onChange={(e) => change({ ...config, name: e.target.value })}
+                />
+              ),
+            },
+          ]}
+          onBack={onClose}
+        />
+      )}
+      {embedded && (
+        <div className="creation-dag-name">
+          <label htmlFor="creation-dag-name">{t('任务名称')}</label>
+          <input
+            id="creation-dag-name"
+            ref={nameField}
+            value={config.name}
+            disabled={busy}
+            onChange={(event) => change({ ...config, name: event.target.value })}
+          />
         </div>
+      )}
+      <div className="dag-stepbar">
+        {embedded ? (
+          <DetailTabs
+            idPrefix="creation-dag-section"
+            className="creation-section-tabs"
+            label={t('任务编辑')}
+            value={step}
+            disabled={busy}
+            tabs={[
+              { key: 'task', label: t('creation.structure') },
+              { key: 'time', label: t('creation.schedule') },
+            ]}
+            onChange={setStep}
+          />
+        ) : (
+          <div className="tabs" role="tablist" aria-label={t('任务编辑')}>
+            {(['task', 'time'] as const).map((value) => (
+              <button
+                type="button"
+                key={value}
+                role="tab"
+                aria-selected={step === value}
+                className={step === value ? 'active' : ''}
+                disabled={busy}
+                onClick={() => setStep(value)}
+              >
+                {t(value === 'task' ? 'creation.structure' : 'creation.schedule')}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="dag-toolbar" hidden={step !== 'task'}>
           <div className="dag-toolbar-actions">
             <div className="action-group" role="group" aria-label={t('actions.view')}>
@@ -759,7 +808,14 @@ export function DagEditor({
         </div>
       </div>
       <div className="dag-canvas-body" ref={workbench}>
-        <div className="dag-task-stage" hidden={step !== 'task'} inert={step !== 'task'}>
+        <div
+          className="dag-task-stage"
+          hidden={step !== 'task'}
+          inert={step !== 'task'}
+          id={embedded ? 'creation-dag-section-task-panel' : undefined}
+          role={embedded ? 'tabpanel' : undefined}
+          aria-labelledby={embedded ? 'creation-dag-section-task-tab' : undefined}
+        >
           {actualPalette && (
             <aside className="dag-palette-dock" aria-label={t('Agents')}>
               <header>Agents</header>
@@ -1016,7 +1072,7 @@ export function DagEditor({
                         return (
                           <div key={id}>
                             <span>{n ? nodeName(n) : id}</span>
-                            <span className="quiet mono">
+                            <span className="quiet text-muted mono">
                               {n ? shortId(n.id) : t('dag.missingOutput')}
                             </span>
                             <IconButton
@@ -1038,7 +1094,12 @@ export function DagEditor({
           {runners.error && <ErrorToast error={runners.error} />}
         </div>
         <div
-          className="dag-editor-scroll dag-time-scroll"
+          className={
+            'dag-editor-scroll dag-time-scroll' + (embedded ? ' creation-schedule-scroll' : '')
+          }
+          id={embedded ? 'creation-dag-section-time-panel' : undefined}
+          role={embedded ? 'tabpanel' : undefined}
+          aria-labelledby={embedded ? 'creation-dag-section-time-tab' : undefined}
           hidden={step !== 'time'}
           inert={step !== 'time'}
           ref={timePane}
@@ -1047,7 +1108,7 @@ export function DagEditor({
           }}
         >
           <TimeFields
-            config={config}
+            config={timeConfig}
             timezone={timezone}
             disabled={busy}
             active={step === 'time'}
@@ -1069,6 +1130,10 @@ export function DagEditor({
         <Button
           disabled={busy}
           onClick={async () => {
+            if (embedded) {
+              onClose()
+              return
+            }
             if (await requestLeave()) {
               dirtyRef.current = false
               onClose()
@@ -1077,7 +1142,7 @@ export function DagEditor({
         >
           {t('取消')}
         </Button>
-        {step === 'time' && (
+        {!embedded && step === 'time' && (
           <Button disabled={busy} onClick={() => setStep('task')}>
             {t('上一步')}
           </Button>
@@ -1086,9 +1151,9 @@ export function DagEditor({
           variant="solid"
           disabled={busy}
           loading={busy}
-          onClick={() => (step === 'task' ? setStep('time') : save.mutate())}
+          onClick={() => (!embedded && step === 'task' ? setStep('time') : save.mutate())}
         >
-          {t(step === 'task' ? '下一步' : '保存任务')}
+          {t(embedded ? 'creation.create' : step === 'task' ? '下一步' : '保存任务')}
         </Button>
       </footer>
       <Modal
@@ -1195,16 +1260,19 @@ export function DagEditor({
           </Button>
         </div>
       </Modal>
-      {ghost && (
-        <div
-          className="dag-agent-ghost"
-          style={{ left: ghost.point.x - 120, top: ghost.point.y - 48 }}
-        >
-          <AgentLogo name={ghost.choice.agent.name} logo={ghost.choice.agent.logo} />
-          <strong>{ghost.choice.agent.name}</strong>
-          <span>{ghost.choice.runner.name}</span>
-        </div>
-      )}
+      {ghost &&
+        createPortal(
+          <div
+            className="dag-agent-ghost"
+            aria-hidden="true"
+            style={{ left: ghost.point.x - NODE_WIDTH / 2, top: ghost.point.y - NODE_HEIGHT / 2 }}
+          >
+            <AgentLogo name={ghost.choice.agent.name} logo={ghost.choice.agent.logo} />
+            <strong>{ghost.choice.agent.name}</strong>
+            <span>{ghost.choice.runner.name}</span>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

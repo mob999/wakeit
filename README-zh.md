@@ -14,13 +14,19 @@
 - **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
 - **本地或云端托管**：一个 Rust 二进制包含 Gateway、Runner 和 CLI，WebUI 随 Gateway 交付。
 
-最新已发布版本为 **0.3.3**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
+最新已发布版本为 **0.3.4**，使用 Apache-2.0 许可。请使用与 Gateway 匹配的 CLI 版本。接口与数据结构仍可能调整。
 
 报告和 Markdown 文件预览支持以缩略图内嵌本地 PNG/JPEG/WebP 图片，由原 Runner 读取；相对路径按执行目录或 Markdown 所在目录解析，沿用工作区权限及目录范围。点击图片后按需加载原图。
 
 ## 安装
 
-从 [v0.3.3 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.3) 下载当前系统和架构的二进制，同时下载 `wakeit-release.json` 与 `SHA256SUMS`，核对 SHA-256 后安装到用户 bin 目录。支持 Linux、macOS 和 Windows。
+macOS 或 Linux GNU：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
+```
+
+脚本显示安装进度，自动下载、校验、安装并配置用户 PATH。完成后打开新终端，运行 `wakeit --version`。Windows、指定版本、安装目录及手工安装方式见[安装指南](docs/install-zh.md)。
 
 从源码构建需要 Rust 1.89+、Node.js 22.12+：
 
@@ -119,5 +125,7 @@ wakeit update
 | 开发 Agent 适配 | [配置与适配协议](docs/protocol.md) |
 | 调用接口 | [REST API](docs/api.md) |
 | 构建和运行测试 | [开发指南](CONTRIBUTING.md) |
+| 使用任务模板创建任务和动态 DAG | [任务模板指南](docs/templates.md) |
+| 查看任务模板设计 | [任务模板 RFC](docs/rfc-2-task-templates.md) |
 
 许可证：[Apache-2.0](LICENSE)。第三方技能及 Windows 服务工具的来源见[第三方组件](docs/third-party.md)。

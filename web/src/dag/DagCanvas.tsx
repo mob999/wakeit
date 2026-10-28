@@ -219,38 +219,43 @@ const CanvasInner = forwardRef<CanvasHandle, CanvasProps>(function CanvasInner(p
   useEffect(() => {
     const query = props.search.toLowerCase().trim()
     setNodes((old) =>
-      props.nodes.map((config, i) => ({
-        id: config.id,
-        type: 'agent',
-        position: positionOf(props.layout, config.id) ?? { x: 40 + i * 312, y: 40 },
-        selected: props.selected.includes(config.id),
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        ariaLabel: nodeName(config),
-        domAttributes: {
-          'aria-description': props.outputs.includes(config.id) ? t('dag.outputNode') : undefined,
-        },
-        data: {
-          config,
-          runner: runnerName(config, props.runners, props.agents),
-          agent: props.agents.find(
-            (a) =>
-              a.id === config.agent &&
-              (a.runner_id === config.runner || a.runner === config.runner),
-          ),
-          output: props.outputs.includes(config.id),
-          invalid: props.invalid.includes(config.id),
-          matched: !!query && (nodeName(config) + ' ' + config.id).toLowerCase().includes(query),
-          disabled: props.disabled,
-          actions: props.actions(config),
-          onAdd: () => {
-            const position = flow.getNode(config.id)?.position ??
-              positionOf(props.layout, config.id) ?? { x: 0, y: 0 }
-            callbacks.current.onAdd(config.id, { x: position.x + NODE_WIDTH + 72, y: position.y })
+      props.nodes.map((config, i) => {
+        const previous = old.find((node) => node.id === config.id)
+        return {
+          id: config.id,
+          type: 'agent',
+          position: previous?.dragging
+            ? previous.position
+            : (positionOf(props.layout, config.id) ?? { x: 40 + i * 312, y: 40 }),
+          selected: props.selected.includes(config.id),
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+          ariaLabel: nodeName(config),
+          domAttributes: {
+            'aria-description': props.outputs.includes(config.id) ? t('dag.outputNode') : undefined,
           },
-        },
-        dragging: old.find((n) => n.id === config.id)?.dragging,
-      })),
+          data: {
+            config,
+            runner: runnerName(config, props.runners, props.agents),
+            agent: props.agents.find(
+              (a) =>
+                a.id === config.agent &&
+                (a.runner_id === config.runner || a.runner === config.runner),
+            ),
+            output: props.outputs.includes(config.id),
+            invalid: props.invalid.includes(config.id),
+            matched: !!query && (nodeName(config) + ' ' + config.id).toLowerCase().includes(query),
+            disabled: props.disabled,
+            actions: props.actions(config),
+            onAdd: () => {
+              const position = flow.getNode(config.id)?.position ??
+                positionOf(props.layout, config.id) ?? { x: 0, y: 0 }
+              callbacks.current.onAdd(config.id, { x: position.x + NODE_WIDTH + 72, y: position.y })
+            },
+          },
+          dragging: previous?.dragging,
+        }
+      }),
     )
   }, [
     props.nodes,
@@ -390,8 +395,8 @@ const CanvasInner = forwardRef<CanvasHandle, CanvasProps>(function CanvasInner(p
         edgesReconnectable={!props.disabled}
         deleteKeyCode={props.disabled ? null : ['Backspace', 'Delete']}
         panOnScroll
-        selectionOnDrag
-        panOnDrag={[1, 2]}
+        selectionOnDrag={false}
+        panOnDrag={[0, 1, 2]}
         zoomOnScroll={false}
         zoomOnPinch
         zoomActivationKeyCode="Meta"

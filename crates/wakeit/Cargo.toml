@@ -23,6 +23,7 @@ futures = "0.3"
 hex = "0.4"
 humantime = "2"
 mime_guess = "2"
+minijinja = { version = "3.0.3", default-features = false, features = ["builtins", "debug", "macros", "multi_template", "std_collections", "serde", "json", "fuel"] }
 nkeys = "0.4"
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }

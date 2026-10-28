@@ -1,0 +1,98 @@
+@reference '../styles/tailwind.css';
+
+.preset-overview-summary {
+  @apply justify-between gap-[8px_16px] flex-wrap;
+}
+.preset-overview-summary > h3 {
+  @apply min-w-0 [overflow-wrap:anywhere];
+}
+.preset-overview-meta {
+  @apply flex items-center flex-wrap gap-[6px_12px] text-[11px];
+}
+.preset-overview-description {
+  @apply m-0 py-3 px-4 [border-bottom:1px_solid_var(--border)] text-[12px] leading-[20px] [overflow-wrap:anywhere];
+}
+.preset-overview-sections {
+  @apply grid gap-3 pt-0 px-4 pb-4;
+}
+.preset-overview-parameter {
+  @apply min-w-0 m-0;
+}
+.preset-overview-parameter-head {
+  @apply flex items-center justify-between gap-3 min-h-9 py-1 px-3 [border-bottom:1px_solid_var(--border)] text-[12px];
+  @apply font-medium;
+}
+.preset-overview-label {
+  @apply inline-flex items-center gap-1 min-w-0 [overflow-wrap:anywhere];
+}
+.preset-overview-info {
+  @apply inline-flex items-center justify-center flex-none w-7 h-7 p-0 [border:0];
+  @apply rounded-[6px] bg-transparent text-muted cursor-help;
+}
+.preset-overview-info:hover,
+.preset-overview-info:focus-visible {
+  @apply text-ink;
+}
+.preset-overview-info:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.preset-overview-type {
+  @apply text-[11px];
+  @apply font-normal [overflow-wrap:anywhere];
+}
+.preset-overview-parameter-head > .preset-overview-type {
+  @apply shrink-0 max-w-[50%] text-right;
+}
+.preset-overview-parameter-body {
+  @apply py-1 px-3 min-w-0;
+}
+.preset-overview.task-overview .preset-overview-fields {
+  @apply grid-cols-[minmax(72px,_112px)_minmax(0,_1fr)] p-0;
+}
+.preset-overview .preset-overview-fields > dt {
+  @apply flex flex-col items-start justify-center gap-0.5 pt-1.5 pr-2 pb-1.5 pl-0;
+}
+.preset-overview .preset-overview-fields > dd {
+  @apply block py-1.5 px-0;
+}
+.preset-overview .preset-overview-fields > dt:not(:first-of-type),
+.preset-overview .preset-overview-fields > dd:not(:first-of-type) {
+  @apply [border-top:1px_solid_var(--border)];
+}
+.preset-overview-value {
+  @apply whitespace-pre-wrap [overflow-wrap:anywhere] text-[12px] leading-[20px];
+}
+.preset-overview-options {
+  @apply [border-top:1px_solid_var(--border)];
+}
+.preset-overview-item {
+  @apply [border:1px_solid_var(--border)];
+  @apply rounded-[6px] my-2 mx-0 py-1.5 px-2.5;
+}
+.preset-overview-environment + .preset-overview-environment {
+  @apply [border-top:1px_solid_var(--border)];
+}
+.preset-overview-environment > h4 {
+  @apply text-[11px];
+  @apply font-medium text-muted;
+}
+.preset-overview-empty {
+  @apply m-0 pt-2 px-4 pb-4 text-[12px];
+}
+.preset-overview-sections > .preset-overview-empty {
+  @apply px-0;
+}
+.preset-overview[data-size='small'] .preset-overview-sections,
+.preset-overview[data-size='small'] .preset-overview-description {
+  @apply px-3;
+}
+.preset-overview[data-size='small'] .preset-overview-fields {
+  @apply grid-cols-[72px_minmax(0,_1fr)];
+}
+.preset-overview[data-size='small'] .preset-overview-fields .preset-overview-fields {
+  @apply grid-cols-[minmax(0,_1fr)];
+}
+.preset-overview[data-size='small'] .preset-overview-fields .preset-overview-fields > dd {
+  @apply pt-0 [border-top:0];
+}

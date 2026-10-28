@@ -1,4 +1,3 @@
-import { ActionMenu, ActionMenuItem, CopyMenuItem } from '../actions/ActionMenu'
 import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { EditorMemoryContext, useEditorValue, type EditorMemory } from '../EditorMemory'
@@ -6,7 +5,6 @@ import { shortId } from './identity'
 import { outputs } from './model'
 import { useEffect, useRef, useState, useCallback, type RefObject, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { RefreshCw } from '../icons'
 import { useTranslation } from 'react-i18next'
 import { t, locale } from '../i18n'
@@ -23,8 +21,8 @@ import {
   type Agent,
   type Runner,
 } from '../api'
-import { IconButton, Button, Modal } from '../ui'
-import { PageActions } from '../PageHeader'
+import { IconButton, Button } from '../ui'
+import { RunActions } from '../runs/RunActions'
 import { Status } from '../Status'
 import { ChoicePicker } from '../ChoicePicker'
 import { RunSection } from '../runs/RunSection'
@@ -67,8 +65,6 @@ export function DagRunDetail({
   const runners = useQuery<Runner[]>({ queryKey: ['runners'], queryFn: () => api('/runners') })
   const [visited, setVisited] = useState(new Set([nodes[0]?.id]))
   const viewport = useRef<HTMLDivElement>(null)
-  const client = useQueryClient()
-  const navigate = useNavigate()
   const agents = useQuery<Agent[]>({ queryKey: ['agents'], queryFn: () => api('/agents') })
   function select(id: string, focus = false) {
     setSelected(id)
@@ -99,45 +95,9 @@ export function DagRunDetail({
       {t('reading.resultReady')}
     </button>
   ) : null
-  const action = useMutation({
-    mutationFn: (type: string) => api<{ id?: string }>(`/runs/${id}/${type}`, 'POST', {}),
-    onSuccess: (v) => {
-      client.invalidateQueries({ queryKey: ['run', id] })
-      if (v.id) navigate({ to: '/runs', search: { run: v.id } })
-    },
-    onError: (e) => toast(e.message),
-  })
   return (
     <>
-      <PageActions>
-        {user.role !== 'viewer' && !terminal(r.state) && (
-          <IconButton
-            label={t('取消执行')}
-            danger
-            disabled={r.cancel_requested}
-            disabledReason={r.cancel_requested ? t('取消已请求') : undefined}
-            loading={action.isPending}
-            onClick={() => action.mutate('cancel')}
-          >
-            <ActionIcon name="stop" />
-          </IconButton>
-        )}
-        <ActionMenu
-          label={t('actions.runMenu')}
-          loading={action.isPending && action.variables === 'retry'}
-        >
-          {user.role !== 'viewer' && terminal(r.state) && !r.task_archived && (
-            <ActionMenuItem
-              icon="rerun"
-              disabled={action.isPending}
-              onSelect={() => action.mutate('retry')}
-            >
-              {t('actions.rerunGraph')}
-            </ActionMenuItem>
-          )}
-          <CopyMenuItem label={t('复制 Run ID')} value={id} toast={toast} />
-        </ActionMenu>
-      </PageActions>
+      <RunActions run={{ ...r, nodes }} user={user} agents={agents.data} toast={toast} />
       <RunTabs
         id={id}
         tab={tab}
@@ -334,7 +294,6 @@ function NodeExecution({
   const [chosen, setChosen] = useEditorValue<string | null>('attempt', null)
   const executionId = chosen ?? currentExecutionId
   const current = nodes.find((n) => n.id === node)
-  const [resume, setResume] = useState(false)
   const retry = useMutation({
     mutationFn: (resumeStopped: boolean) =>
       api(`/runs/${parent}/nodes/${encodeURIComponent(node)}/retry`, 'POST', {
@@ -342,7 +301,6 @@ function NodeExecution({
         resume_stopped: resumeStopped,
       }),
     onSuccess: () => {
-      setResume(false)
       client.invalidateQueries({ queryKey: ['runs'] })
       client.invalidateQueries({ queryKey: ['moments'] })
       client.invalidateQueries({ queryKey: ['search'] })
@@ -481,14 +439,14 @@ function NodeExecution({
           )}
         </div>
         {chosen && !run ? (
-          <span className="dag-node-state-placeholder quiet">{t('正在加载…')}</span>
+          <span className="dag-node-state-placeholder quiet text-muted">{t('正在加载…')}</span>
         ) : (
           <RunReason key={executionId ?? node} state={run?.state ?? state} reason={displayedReason}>
             <Status state={run?.state ?? state} />
           </RunReason>
         )}
         {!chosen && current?.retry_at && (
-          <span className="quiet dag-retry-time">
+          <span className="quiet text-muted dag-retry-time">
             {t('retry.waiting')}{' '}
             <time dateTime={current.retry_at}>
               {new Date(current.retry_at).toLocaleTimeString(locale(), { hour12: false })}
@@ -496,7 +454,7 @@ function NodeExecution({
           </span>
         )}
         {startedAt && finishedAt && (
-          <span className="dag-node-duration quiet mono">
+          <span className="dag-node-duration quiet text-muted mono">
             {Math.max(0, (Date.parse(finishedAt) - Date.parse(startedAt)) / 1000).toFixed(1)}s
           </span>
         )}
@@ -515,13 +473,6 @@ function NodeExecution({
                       ? 'retry.resume'
                       : 'retry.node',
                 )}
-                text={t(
-                  execution.data.retry.action === 'accelerate'
-                    ? 'retry.now'
-                    : execution.data.retry.action === 'resume'
-                      ? 'retry.resume'
-                      : 'retry.node',
-                )}
                 disabledReason={
                   execution.data.retry.reason
                     ? apiErrorText(
@@ -533,9 +484,7 @@ function NodeExecution({
                 }
                 disabled={!execution.data.retry.action}
                 loading={retry.isPending}
-                onClick={() =>
-                  execution.data?.retry?.action === 'resume' ? setResume(true) : retry.mutate(false)
-                }
+                onClick={() => retry.mutate(execution.data?.retry?.action === 'resume')}
               >
                 <ActionIcon
                   name={
@@ -564,7 +513,7 @@ function NodeExecution({
         </div>
       </div>
       {!executionId ? (
-        <p className="quiet dag-node-empty">
+        <p className="quiet text-muted dag-node-empty">
           {reason || stateNames[state] || t('dag.noExecution')}
         </p>
       ) : execution.error ? (
@@ -576,7 +525,7 @@ function NodeExecution({
           </Button>
         </ErrorToast>
       ) : !run ? (
-        <p className="quiet dag-node-empty">{t('正在加载…')}</p>
+        <p className="quiet text-muted dag-node-empty">{t('正在加载…')}</p>
       ) : mode === 'trace' ? (
         run.execution_snapshot?.trace_supported === false ? (
           <>
@@ -631,50 +580,6 @@ function NodeExecution({
           </RunSection>
         </>
       )}
-      <Modal
-        open={resume}
-        onOpenChange={(open) => {
-          if (!retry.isPending) setResume(open)
-        }}
-        title={t('retry.resume')}
-        description={t('retry.preserve')}
-        actions={
-          <>
-            <Button disabled={retry.isPending} onClick={() => setResume(false)}>
-              {t('取消')}
-            </Button>
-            <Button
-              className="primary"
-              loading={retry.isPending}
-              onClick={() => retry.mutate(true)}
-            >
-              {t('retry.resume')}
-            </Button>
-          </>
-        }
-      >
-        <div className="dag-recovery-table" role="table" aria-label={t('retry.resume')}>
-          <div className="table-head" role="row">
-            <span role="columnheader">{t('dag.field.name')}</span>
-            <span role="columnheader">{t('状态')}</span>
-            <span role="columnheader">{t('操作')}</span>
-          </div>
-          {[
-            { id: node, name, state: run?.state ?? state },
-            ...(execution.data?.retry?.affected ?? []),
-          ].map((item, index) => (
-            <div role="row" key={item.id}>
-              <span role="cell" title={item.id}>
-                {item.name}
-              </span>
-              <span role="cell">
-                <Status state={item.state} />
-              </span>
-              <span role="cell">{t(index ? 'retry.continue' : 'retry.node')}</span>
-            </div>
-          ))}
-        </div>
-      </Modal>
       {resolve && (
         <ResolveDialog
           id={parent}

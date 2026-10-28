@@ -1763,6 +1763,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "minijinja"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90086695417a271bc96e6cb50618555614ca48fa3bb0d9aa96e3468b0f84431e"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3866,7 +3875,7 @@ dependencies = [
 
 [[package]]
 name = "wakeit"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "argon2",
@@ -3887,6 +3896,7 @@ dependencies = [
  "image",
  "libc",
  "mime_guess",
+ "minijinja",
  "nkeys",
  "percent-encoding",
  "portable-pty",

@@ -1,3 +1,4 @@
+import { promptText } from '../dag/prompt'
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -73,13 +74,13 @@ export function TaskOverview({
         <div className="task-overview-rule">
           {schedule && <CalendarCheck size={14} />}
           <span className={schedule ? 'mono' : ''}>{rule}</span>
-          {schedule && <span className="quiet">{schedule.timezone}</span>}
+          {schedule && <span className="quiet text-muted">{schedule.timezone}</span>}
         </div>
         {!config.enabled ? (
-          <span className="task-overview-next quiet">{t('actions.taskDisabled')}</span>
+          <span className="task-overview-next quiet text-muted">{t('actions.taskDisabled')}</span>
         ) : schedule ? (
           <div className="task-overview-next">
-            <span className="quiet">{t('下一次执行')}</span>
+            <span className="quiet text-muted">{t('下一次执行')}</span>
             <time>{time(task.next_at, schedule.timezone)}</time>
           </div>
         ) : null}
@@ -102,11 +103,11 @@ export function TaskOverview({
           {source ? (
             <TaskPrompt
               key={identity}
-              text={source.prompt}
+              text={promptText(source.prompt)}
               title={
                 config.dag && node ? (
                   <>
-                    <span className="quiet">{t('指令')}</span>
+                    <span className="quiet text-muted">{t('指令')}</span>
                     {nodes.length > 1 ? (
                       <ChoicePicker
                         label={t('dag.selectNode')}
@@ -133,7 +134,7 @@ export function TaskOverview({
               toast={toast}
             />
           ) : (
-            <p className="quiet card-state">{t('taskOverview.noNodes')}</p>
+            <p className="quiet text-muted card-state">{t('taskOverview.noNodes')}</p>
           )}
         </div>
         <aside
@@ -278,7 +279,9 @@ function ExecutionConfig({
       <dd className="mono">{source.cwd || '—'}</dd>
       <dt>{t('模型')}</dt>
       <dd>
-        {source.parameters?.model || <span className="quiet">{t('taskOverview.default')}</span>}
+        {source.parameters?.model || (
+          <span className="quiet text-muted">{t('taskOverview.default')}</span>
+        )}
       </dd>
       <dt>{t('会话')}</dt>
       <dd className={source.session?.id ? 'mono' : ''}>{source.session?.id ?? t('每次新建')}</dd>
@@ -307,7 +310,7 @@ function ExecutionConfig({
             <CodeContent text={JSON.stringify(parameters, null, 2)} json />
           </details>
         ) : (
-          <span className="quiet">—</span>
+          <span className="quiet text-muted">—</span>
         )}
       </dd>
     </dl>

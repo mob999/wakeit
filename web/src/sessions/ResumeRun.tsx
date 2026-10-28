@@ -5,9 +5,10 @@ import { useRef, useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api, terminal, type Run, type Runner, type User } from '../api'
-import { IconButton, Modal } from '../ui'
+import { Button, IconButton, Modal } from '../ui'
 import { CopyValue } from '../runs/CopyValue'
 import { ChoicePicker } from '../ChoicePicker'
+import { RunNodeList, RUN_NODE_PAGE_SIZE } from '../runs/RunNodeList'
 import { TerminalSession, type TerminalHandle } from './TerminalSession'
 
 export function ResumeRun({
@@ -18,12 +19,14 @@ export function ResumeRun({
   parentId,
   initialNode,
   strictNode = false,
+  selectNodeFirst = false,
   onActiveChange,
 }: {
   run?: Run
   parentId?: string
   initialNode?: string
   strictNode?: boolean
+  selectNodeFirst?: boolean
   onActiveChange?: (active: boolean) => void
   id: string
   available: boolean
@@ -34,6 +37,8 @@ export function ResumeRun({
   const [selected, setSelected] = useState<Run | null>(null)
   const [graph, setGraph] = useState<Run | null>(null)
   const [node, setNode] = useState('')
+  const [page, setPage] = useState(1)
+  const [picking, setPicking] = useState(false)
   useEffect(() => {
     onActiveChange?.(!!selected || !!graph)
     return () => onActiveChange?.(false)
@@ -53,6 +58,9 @@ export function ResumeRun({
   const device =
     runners.data?.find((r) => r.id === selected?.session?.runner_id)?.name ??
     selected?.config.runner
+  const nodes = graph?.nodes ?? []
+  const pageNodes = nodes.slice((page - 1) * RUN_NODE_PAGE_SIZE, page * RUN_NODE_PAGE_SIZE)
+  const selectedNode = pageNodes.find((item) => item.id === node)
   if (!available || (run && !run.config.dag && !run.session?.command?.trim())) return null
   async function close() {
     if (closing) return
@@ -62,6 +70,9 @@ export function ResumeRun({
     generation.current++
     setSelected(null)
     setGraph(null)
+    setNode('')
+    setPage(1)
+    setPicking(false)
     setLoading(false)
   }
   async function choose(nodeId: string) {
@@ -82,6 +93,7 @@ export function ResumeRun({
       if (!response.execution?.session?.ready || !response.execution.session.command?.trim())
         throw new Error(tr('该会话暂不可续聊'))
       setSelected(response.execution)
+      setPicking(false)
     } catch (e) {
       if (request === generation.current) toast((e as Error).message)
     } finally {
@@ -104,11 +116,19 @@ export function ResumeRun({
       if (request !== generation.current) return
       if (current.config.dag) {
         const first =
-          current.nodes?.find((n) => n.id === initialNode && n.continuation_available) ??
-          (!strictNode ? current.nodes?.find((n) => n.continuation_available) : undefined)
+          current.nodes?.find(
+            (n) => n.id === initialNode && n.continuation_available && terminal(n.state),
+          ) ??
+          (!strictNode
+            ? current.nodes?.find((n) => n.continuation_available && terminal(n.state))
+            : undefined)
         if (!first) throw new Error(tr('该会话暂不可续聊'))
         setGraph(current)
-        await choose(first.id)
+        if (selectNodeFirst) {
+          setNode('')
+          setPage(1)
+          setPicking(true)
+        } else await choose(first.id)
       } else {
         if (!terminal(current.state)) throw new Error(tr('该会话暂不可续聊'))
         if (!current.session?.ready || !current.session.command?.trim())
@@ -126,7 +146,59 @@ export function ResumeRun({
       <IconButton ref={trigger} label={tr('续聊')} loading={loading && !graph} onClick={open}>
         <ActionIcon name="resumeSession" />
       </IconButton>
-      {(selected || graph) && (
+      {picking && graph && (
+        <Modal
+          open
+          title={tr('续聊')}
+          onOpenChange={(open) => {
+            if (!open && !loading && !closing) void close()
+          }}
+          className="run-node-modal"
+        >
+          <div className="modal-body">
+            <RunNodeList
+              value={node}
+              onChange={setNode}
+              disabled={loading || closing}
+              page={page}
+              total={nodes.length}
+              onPageChange={(next) => {
+                setNode('')
+                setPage(next)
+              }}
+              options={pageNodes.map((item) => ({
+                value: item.id,
+                name: item.name,
+                state: item.state,
+                disabled: !item.continuation_available || !terminal(item.state),
+                reason:
+                  !item.continuation_available || !terminal(item.state)
+                    ? tr('该会话暂不可续聊')
+                    : undefined,
+              }))}
+            />
+          </div>
+          <div className="modal-footer">
+            <Button onClick={() => void close()} disabled={loading || closing}>
+              {tr('取消')}
+            </Button>
+            <Button
+              className="primary"
+              disabled={
+                !selectedNode?.continuation_available ||
+                !terminal(selectedNode.state) ||
+                loading ||
+                closing
+              }
+              loading={loading}
+              onClick={() => void choose(node)}
+            >
+              {tr('续聊')}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {!picking && (selected || graph) && (
         <Modal
           open
           title={tr('续聊')}

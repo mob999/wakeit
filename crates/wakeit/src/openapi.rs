@@ -41,12 +41,71 @@ pub fn document() -> Value {
     add!("DagValidationIssue", crate::dag::ValidationIssue);
     add!("Task", crate::config::TaskConfig);
     add!("EditorLayout", crate::editor_layout::EditorLayout);
+    add!("TaskTemplate", crate::task_templates::Definition);
+    add!(
+        "TaskTemplateRequest",
+        crate::task_templates::InstanceRequest
+    );
+    add!("TaskTemplatePreview", crate::task_templates::Preview);
+    add!("TaskTemplateIssue", crate::task_templates::Issue);
+    add!("TaskTemplateSource", crate::task_templates::Source);
+    add!("TaskTemplateSave", crate::template_api::SaveTemplate);
+    add!("TaskTemplateRevision", crate::template_api::Revision);
+    add!(
+        "TaskTemplateDraftPreview",
+        crate::template_api::DraftPreview
+    );
+    schemas.insert("TaskTemplateRecord".into(), json!({
+        "type":"object","additionalProperties":false,
+        "required":["workspace_id","id","revision","definition","created_by","updated_by","archived_at","created_at","updated_at"],
+        "properties":{
+            "workspace_id":{"type":"string","format":"uuid"},
+            "id":{"type":"string"},
+            "revision":{"type":"integer","minimum":1},
+            "definition":{"$ref":"#/components/schemas/TaskTemplate"},
+            "created_by":{"type":"string","format":"uuid"},
+            "updated_by":{"type":"string","format":"uuid"},
+            "archived_at":{"type":["string","null"],"format":"date-time"},
+            "created_at":{"type":"string","format":"date-time"},
+            "updated_at":{"type":"string","format":"date-time"}
+        }
+    }));
+    schemas.insert(
+        "TaskTemplateInstance".into(),
+        json!({
+            "type":"object","additionalProperties":false,
+            "required":["task_id","task_revision","run_id","template_revision"],
+            "properties":{
+                "task_id":{"type":"string"},
+                "task_revision":{"type":"integer","minimum":1},
+                "run_id":{"type":["string","null"],"format":"uuid"},
+                "template_revision":{"type":"integer","minimum":1}
+            }
+        }),
+    );
+    schemas.insert("TaskTemplateOrigin".into(), json!({
+        "type":"object","additionalProperties":false,
+        "required":["template_id","template_name","template_revision","values","unset","resolved_inputs","bindings","binding_overrides","source_map"],
+        "properties":{
+            "template_id":{"type":"string"},
+            "template_name":{"type":"string"},
+            "template_revision":{"type":"integer","minimum":1},
+            "values":{"type":"object","description":"Original top-level input overrides."},
+            "unset":{"type":"array","items":{"type":"string"}},
+            "resolved_inputs":{"type":"object"},
+            "bindings":{"type":"object","description":"Resolved execution bindings captured at creation time."},
+            "binding_overrides":{"type":"object"},
+            "source_map":{"type":"object","additionalProperties":{"$ref":"#/components/schemas/TaskTemplateSource"}}
+        },
+        "description":"Creation-time template origin. It never live-updates an existing Task or Run."
+    }));
     schemas.insert("TaskRecord".into(), json!({
         "type":"object", "required":["id","config","revision"],
         "properties":{
             "id":{"type":"string"}, "config":{"$ref":"#/components/schemas/Task"},
             "revision":{"type":"integer"},
-            "editor_layout":{"anyOf":[{"$ref":"#/components/schemas/EditorLayout"},{"type":"null"}],"description":"Shared DAG canvas coordinates, outside TaskConfig and execution snapshots. Omitted or null on PUT preserves positions of remaining nodes."}
+            "editor_layout":{"anyOf":[{"$ref":"#/components/schemas/EditorLayout"},{"type":"null"}],"description":"Shared DAG canvas coordinates, outside TaskConfig and execution snapshots. Omitted or null on PUT preserves positions of remaining nodes."},
+            "template_origin":{"anyOf":[{"$ref":"#/components/schemas/TaskTemplateOrigin"},{"type":"null"}]}
         }
     }));
     add!("Agent", crate::config::AgentConfig);
@@ -131,6 +190,7 @@ pub fn document() -> Value {
             "id":{"type":"string","format":"uuid"},"task_id":{"type":"string"},
             "config":{"$ref":"#/components/schemas/Task"},"state":{"type":"string","enum":["queued","starting","running","unknown","succeeded","warning","failed","timed_out","cancelled","skipped","interrupted"]},"nodes":{"type":"array","items":{"$ref":"#/components/schemas/DagRunNode"}},"parent_run_id":{"type":["string","null"],"format":"uuid"},"node_id":{"type":["string","null"]},
             "task_archived":{"type":"boolean"},
+            "template_origin":{"anyOf":[{"$ref":"#/components/schemas/TaskTemplateOrigin"},{"type":"null"}]},
             "session":{"anyOf":[{"$ref":"#/components/schemas/RunSession"},{"type":"null"}],"description":"Actual session captured by this execution. Null for historical or unsupported runs; a configured binding alone does not establish continuation readiness."},
             "result":{},"reason":{"type":["string","null"]},
             "started_at":{"type":["string","null"],"format":"date-time"},
@@ -168,6 +228,14 @@ pub fn document() -> Value {
         ("/tasks", vec!["get"]),
         ("/tasks/{id}", vec!["get", "put"]),
         ("/tasks/validate", vec!["post"]),
+        ("/tasks/{id}/template", vec!["get"]),
+        ("/task-templates", vec!["get"]),
+        ("/task-template-preview", vec!["post"]),
+        ("/task-templates/{id}", vec!["get", "put"]),
+        ("/task-templates/{id}/archive", vec!["post"]),
+        ("/task-templates/{id}/restore", vec!["post"]),
+        ("/task-templates/{id}/preview", vec!["post"]),
+        ("/task-templates/{id}/instantiate", vec!["post"]),
         ("/tasks/{id}/runs", vec!["post"]),
         ("/tasks/{id}/archive", vec!["post"]),
         ("/tasks/{id}/restore", vec!["post"]),
@@ -236,6 +304,14 @@ pub fn document() -> Value {
                 ("/runners/{id}/agents/{agent}/sessions/inspect", "post") => Some("SessionInspect"),
                 ("/runners/{id}/agents/{agent}/sessions/query", "post") => Some("SessionListQuery"),
                 ("/tasks/{id}", "put") | ("/tasks/validate", "post") => Some("ApplyTask"),
+                ("/task-templates/{id}", "put") => Some("TaskTemplateSave"),
+                ("/task-templates/{id}/archive" | "/task-templates/{id}/restore", "post") => {
+                    Some("TaskTemplateRevision")
+                }
+                ("/task-template-preview", "post") => Some("TaskTemplateDraftPreview"),
+                ("/task-templates/{id}/preview" | "/task-templates/{id}/instantiate", "post") => {
+                    Some("TaskTemplateRequest")
+                }
                 ("/runs/{id}/resolve" | "/runs/{id}/nodes/{node}/resolve", "post") => {
                     Some("Resolution")
                 }
@@ -338,13 +414,23 @@ pub fn document() -> Value {
                 parameters.push(json!({"name":"execution","in":"query","schema":{"type":"string","format":"uuid"},"description":"An existing attempt owned by this parent and node. Omit to follow the current execution."}));
             }
             if path == "/schema/{kind}" {
-                parameters.push(json!({"name":"kind","in":"path","required":true,"schema":{"type":"string","enum":["task","agent"]}}));
+                parameters.push(json!({"name":"kind","in":"path","required":true,"schema":{"type":"string","enum":["agent","task","template","stream"]}}));
             }
             if matches!(
                 path,
-                "/tasks/{id}/runs" | "/runs/{id}/retry" | "/runs/{id}/nodes/{node}/retry"
+                "/tasks/{id}/runs"
+                    | "/runs/{id}/retry"
+                    | "/runs/{id}/nodes/{node}/retry"
+                    | "/task-templates/{id}/instantiate"
             ) {
                 parameters.push(json!({"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","maxLength":200}}));
+            }
+            if path == "/task-templates" && method == "get" {
+                for (name, default, maximum) in [("page", 1, 1_000_000), ("page_size", 20, 100)] {
+                    parameters.push(json!({"name":name,"in":"query","schema":{"type":"integer","minimum":1,"maximum":maximum,"default":default}}));
+                }
+                parameters.push(json!({"name":"q","in":"query","schema":{"type":"string"}}));
+                parameters.push(json!({"name":"archived","in":"query","schema":{"type":"boolean","default":false}}));
             }
             if matches!(
                 path,
@@ -398,6 +484,36 @@ pub fn document() -> Value {
             } else {
                 json!({"application/json":{"schema":{}}})
             };
+            let response_schema = match path {
+                "/tasks/{id}/template" => Some("TaskTemplate"),
+                "/task-templates/{id}"
+                | "/task-templates/{id}/archive"
+                | "/task-templates/{id}/restore" => Some("TaskTemplateRecord"),
+                "/task-template-preview" | "/task-templates/{id}/preview" => {
+                    Some("TaskTemplatePreview")
+                }
+                "/task-templates/{id}/instantiate" => Some("TaskTemplateInstance"),
+                _ => None,
+            };
+            if let Some(name) = response_schema {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"$ref":format!("#/components/schemas/{name}")}}});
+            }
+            if path == "/task-templates" {
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["items","total","page","page_size"],"properties":{"items":{"type":"array","items":{"$ref":"#/components/schemas/TaskTemplateRecord"}},"total":{"type":"integer","minimum":0},"page":{"type":"integer","minimum":1},"page_size":{"type":"integer","minimum":1,"maximum":100}}}}});
+            }
+            if path.starts_with("/task-template") {
+                op["responses"]["422"] = json!({"description":"Template validation failed; issues identify the affected input or blueprint path.","content":{"application/json":{"schema":{"type":"object","required":["error","issues"],"properties":{"error":{"type":"string"},"issues":{"type":"array","items":{"$ref":"#/components/schemas/TaskTemplateIssue"}}}}}}});
+            }
+            if path.ends_with("/preview") && path.starts_with("/task-template") {
+                op["description"] = json!(
+                    "Read-only compilation and binding validation. Creates no Task, Run, event or Outbox entry. Validation issues are returned in Preview.issues without inventing runtime results."
+                );
+            }
+            if path == "/task-templates/{id}/instantiate" {
+                op["description"] = json!(
+                    "Operator only. Recompiles on the server, rechecks revision/archive state and atomically creates an independent Task, its origin and an optional Run. Idempotent replay returns the original IDs even after template edits/archive; mismatched payloads and stale new revisions return 409."
+                );
+            }
             if path == "/changelog" {
                 op["responses"]["200"] = json!({"description":"Curated Markdown bundled with this Gateway, current version first.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Changelog"}}}});
             }

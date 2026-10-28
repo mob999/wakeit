@@ -1,3 +1,4 @@
+import { PresetPage } from './templates/PresetPage'
 import { ActionMenu, ActionMenuItem, ActionMenuSeparator, CopyMenuItem } from './actions/ActionMenu'
 import { ActionIcon } from './actions/ActionIcon'
 import { ToastContext, useToast, ErrorToast } from './Toast'
@@ -5,6 +6,7 @@ import { t as tr } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { MomentsPage, MomentsVisit } from './moments/MomentsPage'
 import { ContentCard } from './ContentCard'
+import { DetailTabs } from './DetailTabs'
 import { Button, IconButton, Field, Modal, TooltipProvider } from './ui'
 import { CopyValue } from './runs/CopyValue'
 import { PageActions } from './PageHeader'
@@ -15,6 +17,7 @@ import { InvitationPage } from './InvitationPage'
 import { InstanceAccounts } from './settings/InstanceAccounts'
 import { DeviceAuthorization } from './onboarding/DeviceAuthorization'
 import { TaskEditor } from './TaskEditor'
+import { CreateTaskDialog } from './CreateTaskDialog'
 import { DagEditor } from './dag/DagEditor'
 import { TaskOverview } from './tasks/TaskOverview'
 import { RunTable } from './runs/RunTable'
@@ -278,7 +281,7 @@ function Login() {
             <ErrorToast>{tr('GitHub 授权已取消')}</ErrorToast>
           )}
           {meta.isPending ? (
-            <span className="quiet">{tr('加载中…')}</span>
+            <span className="quiet text-muted">{tr('加载中…')}</span>
           ) : meta.error ? (
             <>
               <ErrorToast>{meta.error.message}</ErrorToast>
@@ -393,7 +396,7 @@ function TasksPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [editor, setEditor] = useState<Task | 'new' | null>(null)
   const [archiving, setArchiving] = useState<Task | null>(null)
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState<'overview' | 'runs' | 'config'>('overview')
   const u = useUser()
   const editable = u.role !== 'viewer'
   const toast = useToast()
@@ -485,28 +488,20 @@ function TasksPage() {
             <div className="pane-heading">
               <h1>{tr('Tasks')}</h1>
               {editable && (
-                <Dropdown.Root>
-                  <Dropdown.Trigger asChild>
-                    <IconButton label={tr('新建任务')} disabled={!settings.data}>
-                      <ActionIcon name="add" />
-                    </IconButton>
-                  </Dropdown.Trigger>
-                  <Dropdown.Portal>
-                    <Dropdown.Content className="dropdown" align="end">
-                      <Dropdown.Item onSelect={() => setEditor('new')}>{tr('任务')}</Dropdown.Item>
-                      <Dropdown.Item onSelect={() => navigate({ to: '/tasks/dag', search: {} })}>
-                        {tr('dag.task')}
-                      </Dropdown.Item>
-                    </Dropdown.Content>
-                  </Dropdown.Portal>
-                </Dropdown.Root>
+                <IconButton
+                  label={tr('新建任务')}
+                  disabled={!settings.data}
+                  onClick={() => setEditor('new')}
+                >
+                  <ActionIcon name="add" />
+                </IconButton>
               )}
             </div>
             <div className="list-scroll">
               {tasks.error ? (
                 <ErrorToast>{tasks.error.message}</ErrorToast>
               ) : tasks.isPending ? (
-                <p className="quiet padded">{tr('正在加载…')}</p>
+                <p className="quiet text-muted padded p-5">{tr('正在加载…')}</p>
               ) : tasks.data?.total === 0 ? (
                 <Empty title={tr('暂无任务')} />
               ) : (
@@ -551,18 +546,11 @@ function TasksPage() {
         }
       >
         {!task ? (
-          <Empty title={tr('暂无任务')}>
-            {editable && (
-              <Button onClick={() => setEditor('new')}>
-                <Plus size={14} />
-                {tr('新建任务')}
-              </Button>
-            )}
-          </Empty>
+          <Empty title={tr('暂无任务')}></Empty>
         ) : (
           <>
             <PageActions>
-              {task.archived_at && <span className="quiet">{tr('已归档')}</span>}
+              {task.archived_at && <span className="quiet text-muted">{tr('已归档')}</span>}
               {editable && !task.archived_at && (
                 <>
                   <div
@@ -608,7 +596,6 @@ function TasksPage() {
                   <CopyMenuItem label={tr('复制 Task ID')} value={task.id} toast={toast} />
                   {editable && !task.archived_at && (
                     <>
-                      <ActionMenuSeparator />
                       <ActionMenuItem
                         icon="archive"
                         disabled={action.isPending}
@@ -624,22 +611,25 @@ function TasksPage() {
                 </ActionMenu>
               </div>
             </PageActions>
-            <div className="tabs task-detail-tabs">
-              {[
-                ['overview', tr('概览')],
-                ['runs', tr('执行历史')],
-                ['config', tr('配置')],
-              ].map(([key, label]) => (
-                <button
-                  key={key}
-                  className={tab === key ? 'active' : ''}
-                  onClick={() => setTab(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="detail-scroll">
+            <DetailTabs
+              className="task-detail-tabs"
+              idPrefix={`task-${task.id}`}
+              label={tr('task.content')}
+              tabs={[
+                { key: 'overview', label: tr('概览') },
+                { key: 'runs', label: tr('执行历史') },
+                { key: 'config', label: tr('配置') },
+              ]}
+              value={tab}
+              onChange={setTab}
+            />
+            <div
+              className="detail-scroll"
+              id={`task-${task.id}-${tab}-panel`}
+              role="tabpanel"
+              aria-labelledby={`task-${task.id}-${tab}-tab`}
+              tabIndex={0}
+            >
               {tab === 'overview' ? (
                 <TaskOverview
                   key={task.id}
@@ -679,12 +669,24 @@ function TasksPage() {
           </>
         )}
       </Split>
-      {editor && (
-        <TaskEditor
-          task={editor === 'new' ? undefined : editor}
-          defaultTimezone={settings.data?.timezone ?? 'Asia/Shanghai'}
+      {editor === 'new' ? (
+        <CreateTaskDialog
+          timezone={settings.data?.timezone ?? 'Asia/Shanghai'}
           onClose={() => setEditor(null)}
+          onCreated={(id, runId) =>
+            runId
+              ? navigate({ to: '/runs', search: { run: runId } })
+              : navigate({ to: '/tasks', search: { task: id } })
+          }
         />
+      ) : (
+        editor && (
+          <TaskEditor
+            task={editor}
+            defaultTimezone={settings.data?.timezone ?? 'Asia/Shanghai'}
+            onClose={() => setEditor(null)}
+          />
+        )
       )}
     </>
   )
@@ -793,6 +795,14 @@ const tasksRoute = createRoute({
   }),
   component: TasksPage,
 })
+const presetsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/presets',
+  validateSearch: (s: Record<string, unknown>): { template?: string } => ({
+    template: typeof s.template === 'string' ? s.template : undefined,
+  }),
+  component: () => <PresetPage user={useUser()} />,
+})
 const dagRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tasks/dag',
@@ -821,6 +831,19 @@ function DagScreen() {
   if (!settings.data || (search.task && !task.data)) return <Empty title={tr('正在加载…')} />
   if (task.data && (!task.data.config.dag || task.data.archived_at))
     return <Empty title={tr('dag.fixErrors')} />
+  if (!search.task)
+    return (
+      <CreateTaskDialog
+        initialTab="dag"
+        timezone={settings.data.timezone}
+        onClose={() => navigate({ to: '/tasks', search: {} })}
+        onCreated={(id, runId) =>
+          runId
+            ? navigate({ to: '/runs', search: { run: runId } })
+            : navigate({ to: '/tasks', search: { task: id } })
+        }
+      />
+    )
   return (
     <DagEditor
       key={search.task ?? 'new'}
@@ -889,6 +912,7 @@ const router = createRouter({
   routeTree: rootRoute.addChildren([
     momentsRoute,
     tasksRoute,
+    presetsRoute,
     dagRoute,
     runsRoute,
     runnersRoute,

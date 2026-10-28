@@ -1,3 +1,4 @@
+import { promptReferences, promptBlank } from './prompt'
 import { type Dag, type DagNode, type DagIssue } from '../api'
 import { t } from '../i18n'
 
@@ -35,13 +36,19 @@ export const outputs = (dag: Dag) =>
 export function issues(dag: Dag): DagIssue[] {
   const result: DagIssue[] = []
   for (const node of dag.nodes) {
-    for (const key of ['name', 'runner', 'agent', 'cwd', 'prompt'] as const)
+    for (const key of ['name', 'runner', 'agent', 'cwd'] as const)
       if (!node[key]?.trim())
         result.push({
           node_id: node.id,
           path: `dag.nodes.${node.id}.${key}`,
           message: t('dag.required', { field: t(`dag.field.${key}`) }),
         })
+    if (promptBlank(node.prompt))
+      result.push({
+        node_id: node.id,
+        path: `dag.nodes.${node.id}.prompt`,
+        message: t('dag.required', { field: t('dag.field.prompt') }),
+      })
     if (
       !Number.isInteger(node.max_retries ?? 0) ||
       (node.max_retries ?? 0) < 0 ||
@@ -64,12 +71,12 @@ export function issues(dag: Dag): DagIssue[] {
         message: t('dag.connection.missing'),
       })
     const upstream = ancestors(dag, node.id)
-    for (const match of node.prompt.matchAll(/\{\{\s*nodes\.([a-zA-Z0-9_-]+)\.result\s*\}\}/g))
-      if (!upstream.has(match[1]))
+    for (const id of promptReferences(node.prompt))
+      if (!upstream.has(id))
         result.push({
           node_id: node.id,
           path: `dag.nodes.${node.id}.prompt`,
-          message: t('dag.notAncestor', { name: match[1] }),
+          message: t('dag.notAncestor', { name: id }),
         })
   }
   if (!dag.nodes.length) result.push({ path: 'dag.nodes', message: t('dag.needNode') })
@@ -80,10 +87,7 @@ export function issues(dag: Dag): DagIssue[] {
 }
 export function referencesTo(dag: Dag, id: string) {
   return dag.nodes.filter(
-    (n) =>
-      n.id !== id &&
-      (n.pre.includes(id) ||
-        new RegExp(`\\{\\{\\s*nodes\\.${id}\\.result\\s*\\}\\}`).test(n.prompt)),
+    (n) => n.id !== id && (n.pre.includes(id) || promptReferences(n.prompt).includes(id)),
   )
 }
 
@@ -92,11 +96,7 @@ export function referenceLocations(dag: Dag, id: string) {
   for (const node of dag.nodes) {
     if (node.pre.includes(id))
       rows.push({ node_id: node.id, name: node.name, field: 'pre', kind: t('dag.pre') })
-    if (
-      Array.from(node.prompt.matchAll(/\{\{\s*nodes\.([a-zA-Z0-9_-]+)\.result\s*\}\}/g)).some(
-        (m) => m[1] === id,
-      )
-    )
+    if (promptReferences(node.prompt).includes(id))
       rows.push({ node_id: node.id, name: node.name, field: 'prompt', kind: t('dag.insertResult') })
   }
   if (dag.results?.includes(id))

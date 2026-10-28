@@ -29,7 +29,7 @@ export function RunnerAgents({
   return (
     <DetailBody>
       {!agents.length ? (
-        <p className="quiet card-state content-card">
+        <p className="quiet text-muted card-state content-card">
           {runner.agents.length ? tr('无匹配 Agent') : tr('暂无 Agent')}
         </p>
       ) : (
@@ -54,7 +54,7 @@ export function RunnerAgents({
                   <AgentLogo name={agent.name} logo={agent.logo} />
                   <span className="agent-display-name">{agent.name}</span>
                 </button>
-                <span className="mono quiet agent-version">{agent.version || '—'}</span>
+                <span className="mono quiet text-muted agent-version">{agent.version || '—'}</span>
                 <span className={`status ${agent.available ? 'succeeded' : 'failed'}`}>
                   <i />
                   {agent.available ? tr('已检测到') : tr('未检测到')}
@@ -107,12 +107,12 @@ export function RunnerAgents({
                             <tr key={id}>
                               <td>
                                 {parameterLabel(spec.label || id)}
-                                <small className="mono quiet">{id}</small>
+                                <small className="mono quiet text-muted">{id}</small>
                               </td>
                               <td className="mono">
                                 {spec.default ?? (id === 'model' ? tr('Agent 默认') : '—')}
                               </td>
-                              <td className="mono quiet">
+                              <td className="mono quiet text-muted">
                                 {spec.enum.length ? spec.enum.join(', ') : '—'}
                               </td>
                             </tr>

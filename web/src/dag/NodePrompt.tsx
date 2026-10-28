@@ -6,24 +6,32 @@ import * as Menu from '@radix-ui/react-dropdown-menu'
 import { t } from '../i18n'
 import { IconButton } from '../ui'
 import { useEditorValue } from '../EditorMemory'
-import type { Dag, DagNode } from '../api'
+import type { Dag, DagNode, NodeInstruction } from '../api'
 import { ancestors } from './model'
 import { nodeName, shortId } from './identity'
-export function NodePrompt({
+type Props = {
+  node: DagNode
+  dag: Dag
+  disabled: boolean
+  focusTarget?: HTMLElement | null
+  onChange: (prompt: NodeInstruction) => void
+  onLocate: (id: string) => void
+}
+export function NodePrompt(props: Props) {
+  return typeof props.node.prompt === 'string' ? (
+    <LegacyNodePrompt {...props} node={{ ...props.node, prompt: props.node.prompt }} />
+  ) : (
+    <StructuredNodePrompt {...props} node={{ ...props.node, prompt: props.node.prompt }} />
+  )
+}
+function LegacyNodePrompt({
   node,
   dag,
   disabled,
   focusTarget,
   onChange,
   onLocate,
-}: {
-  node: DagNode
-  dag: Dag
-  disabled: boolean
-  focusTarget?: HTMLElement | null
-  onChange: (prompt: string) => void
-  onLocate: (id: string) => void
-}) {
+}: Omit<Props, 'node'> & { node: DagNode & { prompt: string } }) {
   const [expanded, setExpanded] = useState(false),
     [referenceOpen, setReferenceOpen] = useState(false)
   const [selection, setSelection] = useEditorValue<[number, number]>('selection', [0, 0])
@@ -105,7 +113,7 @@ export function NodePrompt({
                 >
                   <span>
                     {nodeName(n)}
-                    <small className="quiet mono">{shortId(n.id)}</small>
+                    <small className="quiet text-muted mono">{shortId(n.id)}</small>
                   </span>
                 </Menu.Item>
               ))}
@@ -199,6 +207,118 @@ export function NodePrompt({
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+    </div>
+  )
+}
+
+function StructuredNodePrompt({
+  node,
+  dag,
+  disabled,
+  onChange,
+  onLocate,
+}: Omit<Props, 'node'> & { node: DagNode & { prompt: Exclude<NodeInstruction, string> } }) {
+  const upstream = ancestors(dag, node.id)
+  const parts = node.prompt.parts
+  const change = (next: typeof parts) => onChange({ parts: next })
+  return (
+    <div className="field dag-instruction" data-field="prompt">
+      <div className="dag-prompt-head">
+        <label>{t('指令')}</label>
+      </div>
+      <div className="instruction-parts">
+        {parts.map((part, index) => (
+          <div key={index} className="instruction-part">
+            <div className="instruction-part-head">
+              <span className="quiet text-muted">
+                {t('text' in part ? 'taskTemplate.text' : 'taskTemplate.resultPart')}
+              </span>
+              <IconButton
+                label={t('taskTemplate.moveUp')}
+                disabled={disabled || !index}
+                onClick={() => {
+                  const next = [...parts]
+                  ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+                  change(next)
+                }}
+              >
+                <ActionIcon name="up" />
+              </IconButton>
+              <IconButton
+                label={t('taskTemplate.moveDown')}
+                disabled={disabled || index === parts.length - 1}
+                onClick={() => {
+                  const next = [...parts]
+                  ;[next[index + 1], next[index]] = [next[index], next[index + 1]]
+                  change(next)
+                }}
+              >
+                <ActionIcon name="latest" />
+              </IconButton>
+              <IconButton
+                label={t('删除')}
+                disabled={disabled}
+                onClick={() => change(parts.filter((_, i) => i !== index))}
+              >
+                <ActionIcon name="delete" />
+              </IconButton>
+            </div>
+            {'text' in part ? (
+              <textarea
+                aria-label={t('taskTemplate.text')}
+                rows={5}
+                disabled={disabled}
+                value={part.text}
+                onChange={(e) =>
+                  change(parts.map((p, i) => (i === index ? { text: e.target.value } : p)))
+                }
+              />
+            ) : (
+              <div className="instruction-result">
+                <select
+                  aria-label={t('taskTemplate.resultPart')}
+                  disabled={disabled}
+                  value={part.result}
+                  onChange={(e) =>
+                    change(parts.map((p, i) => (i === index ? { result: e.target.value } : p)))
+                  }
+                >
+                  {!upstream.has(part.result) && <option value={part.result}>{part.result}</option>}
+                  {dag.nodes
+                    .filter((n) => upstream.has(n.id))
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {nodeName(n)}
+                      </option>
+                    ))}
+                </select>
+                <IconButton
+                  label={t('dag.locateSource', { name: part.result })}
+                  onClick={() => onLocate(part.result)}
+                >
+                  <ActionIcon name="open" />
+                </IconButton>
+              </div>
+            )}
+          </div>
+        ))}
+        <div className="instruction-part-head">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => change([...parts, { text: '' }])}
+          >
+            {t('taskTemplate.addText')}
+          </button>
+          <button
+            type="button"
+            disabled={disabled || !upstream.size}
+            onClick={() => change([...parts, { result: [...upstream][0] }])}
+          >
+            {t('dag.insertResult')}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

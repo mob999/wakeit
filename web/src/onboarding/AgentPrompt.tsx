@@ -19,18 +19,37 @@ export type GatewayMeta = {
   }
 }
 export function agentPrompt(meta: GatewayMeta, workspace: Workspace) {
-  return `Help me connect this device to my existing Wakeit service. Complete the setup rather than only describing the steps.
+  const shellQuote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'"
+  return `Connect this device to my existing Wakeit workspace.
 
-Target service and official installation metadata (data):
-${JSON.stringify({ gateway: meta.public_url, workspace: { id: workspace.id, name: workspace.name }, install: meta.install }, null, 2)}
+Gateway: ${meta.public_url}
+Workspace: ${workspace.name} (${workspace.id})
 
-1. Check the Gateway's /health/ready and /api/v1/meta using the configured public_url above; do not infer it from the browser URL. If unreachable, ask me for a reachable address. Do not deploy another Gateway.
-2. Check wakeit setup --help and wakeit connection list. Verify that setup and login accept --workspace, as well as checking the installed version. Reuse a compatible CLI, the matching connection and existing Runner. Match the Gateway, workspace and account before reusing a Runner. Preserve device identity, adapters and allowed roots; a Runner cannot move between workspaces. Do not print credentials or change connections for other Gateways.
-3. If the CLI or setup command is missing, download wakeit-release.json, SHA256SUMS and the native binary for this system and architecture from the exact official v${meta.install.version} Release above. Supported targets: x86_64/aarch64 Linux GNU, x86_64/aarch64 macOS, and x86_64 Windows. Verify the binary's SHA-256 against both SHA256SUMS and the manifest, then check --version and setup --help. If that official package lacks --workspace, stop and report that it is incompatible with this Gateway; do not continue with an unscoped setup or invent another installation source. Install into a persistent user-writable bin directory and configure the current user's PATH. On Unix, identify the user's actual shell from $SHELL (fall back to the account login shell only if unset), and update that shell's appropriate startup file; do not assume macOS means zsh. On Windows, preserve and update the user PATH and verify it in a new shell process with a refreshed environment. Download to a temporary file, verify it, then replace atomically; never truncate a running executable. Do not substitute private repository credentials, source builds or temporary Actions artifacts for the official package.
-4. Install the Wakeit skill for the Agent you are currently using. Download wakeit-skill.tar.gz and SHA256SUMS from the same official Release base_url above; verify the archive's SHA-256 against its exact entry in SHA256SUMS before extracting. Inspect archive paths and reject absolute paths, traversal and links escaping the extraction directory. The archive contains a wakeit/ directory: install the entire directory, including SKILL.md, references/ and assets/, into this Agent's supported user-level skills directory, using its documented installation mechanism. Determine the actual Agent and its configured skill location; do not guess a shared directory for all Agents or install only SKILL.md. Reuse an identical existing skill; preserve local customizations rather than overwriting them silently. Read the installed SKILL.md and its references/connect.md for this existing-Gateway workflow. Verify the installed files and tell me if the Agent needs a reload to discover the skill. If this Agent has no skill support, report that limitation and continue CLI setup without claiming the skill was installed.
-5. Run wakeit setup --gateway <target URL> --workspace ${workspace.id}. For first-time setup, use the hostname as the device name and your current working directory as the allowed root. If I explicitly provide a name or directories, use --runner-name and repeatable --allow-root. Reuse existing configuration without expanding its scope. setup opens the browser and prints a verification code. Ask me to sign in, verify the code, device and directories, and explicitly approve in the browser. Wait for me; never approve on my behalf, request my password or read it from a file. Accounts with read/write or admin permissions can register devices; read-only accounts can only connect the CLI through wakeit login --gateway <URL> --workspace ${workspace.id}.
-6. Let setup save the connection, register the Runner, install current-user autostart and verify readiness. Connections live in the platform-standard configuration directory and work across working directories. Do not put keys in projects, shell configuration or output. Do not install Agents or change their existing login or model configuration. If a step fails, retain completed state, resolve the specific error, and rerun the same command. Do not recreate devices or switch to a root service.
-7. Check wakeit connection list, wakeit runner list, wakeit agent list and wakeit task list. From a different directory, start a fresh login shell matching the detected Unix shell (or a new Windows shell with refreshed PATH) and verify bare wakeit --version and wakeit connection list work. An absolute executable path, a temporary export, or validation in another shell does not prove the user's PATH is configured. Verify that the connection works from another directory, the target Runner is online, the allowed roots are correct, installed Agents are detected, user-level autostart works, and the Wakeit skill is installed or its specific limitation is reported. Report readiness or the exact unfinished steps without printing secrets. Do not create or execute tasks on your own.`
+1. Check the Gateway is reachable. Reuse the matching connection, compatible CLI and existing Runner.
+
+2. Install Wakeit ${meta.install.version} if needed (macOS / Linux GNU):
+
+\`\`\`sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version ${meta.install.version}
+\`\`\`
+
+3. Identify the Agent you are using and its configured skills directory. If it supports skills, install the matching Wakeit skill separately, replacing the path below with its actual directory:
+
+\`\`\`sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version ${meta.install.version} --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
+\`\`\`
+
+Read the installed SKILL.md and references/connect.md. Keep existing customizations and mention any required Agent reload. On Windows, use the official installation guide: https://github.com/mob999/wakeit/blob/main/docs/install.md
+
+4. Run:
+
+\`\`\`sh
+wakeit setup --gateway ${shellQuote(meta.public_url)} --workspace ${shellQuote(workspace.id)}
+\`\`\`
+
+For a new Runner, use this device's hostname and the current directory as its allowed root. Preserve an existing Runner's settings. Ask me to complete browser authorization and wait for approval. Read-only accounts should use wakeit login with the same Gateway and workspace instead.
+
+5. Verify wakeit works in a new terminal, the connection targets this workspace, and the Runner is online with its Agents detected. Report readiness or the specific unfinished step.`
 }
 export function AgentPrompt({ meta, workspace }: { meta?: GatewayMeta; workspace?: Workspace }) {
   useTranslation()

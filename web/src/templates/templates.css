@@ -1,0 +1,450 @@
+@reference '../styles/tailwind.css';
+
+.list-pane .task-row.preset-row {
+  @apply min-h-9;
+}
+.preset-row .row-title {
+  @apply min-h-5;
+}
+.template-instance {
+  @apply grid relative grid-cols-[var(--template-parameter-width,_560px)_minmax(0,_1fr)] h-full min-h-0 min-w-0;
+}
+.template-parameters-pane,
+.template-preview-pane {
+  @apply flex flex-col min-w-0 min-h-0;
+}
+.template-parameters-pane {
+  @apply [border-right:1px_solid_var(--border)];
+}
+.template-pane-heading {
+  @apply flex items-center justify-between gap-2 min-h-9 py-0 px-3 [border-bottom:1px_solid_var(--border)] shrink-0;
+}
+.template-pane-heading strong {
+  @apply text-[12px];
+  @apply font-[550];
+}
+.template-pane-heading small {
+  @apply text-[11px];
+}
+.template-pane-scroll {
+  @apply flex-1 min-h-0 min-w-0 overflow-auto overscroll-contain;
+}
+.template-mobile-switch {
+  @apply hidden;
+}
+.template-raw-menu {
+  @apply relative text-[11px];
+}
+.template-raw-menu summary {
+  @apply cursor-pointer;
+}
+.template-value-modes {
+  @apply flex gap-1 p-1.5 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] bg-canvas absolute top-6 right-0 z-3;
+}
+.template-value-modes .button {
+  @apply min-h-7 text-[11px] py-0.5 px-1.5;
+}
+.template-value-modes .button[aria-pressed='true'],
+.template-mobile-switch .button[aria-pressed='true'] {
+  @apply underline;
+  text-underline-offset: 6px;
+  @apply text-ink;
+}
+.template-inputs {
+  @apply min-w-0;
+  container-type: inline-size;
+  container-name: preset-inputs;
+}
+.template-input-row {
+  @apply py-2 px-3 [border-bottom:1px_solid_var(--border)];
+}
+.template-input-heading {
+  @apply flex items-center;
+  align-self: start;
+  @apply gap-1 min-h-7.5 min-w-0;
+}
+.template-input-heading > label {
+  @apply text-[12px];
+  @apply font-medium leading-[18px] min-w-0 [overflow-wrap:anywhere];
+}
+.template-input-heading > .template-field-info {
+  @apply shrink-0;
+}
+.template-field-info.button.icon-button {
+  @apply w-5 h-5 min-h-5 p-0.5 text-muted;
+}
+.template-value-state {
+  @apply py-1 px-2 text-[11px] text-muted;
+}
+.template-value-field {
+  @apply grid grid-cols-[minmax(76px,_0.3fr)_minmax(0,_1fr)];
+  align-items: start;
+  @apply gap-[8px_12px] min-w-0;
+}
+.template-value-field input:not([type='checkbox']),
+.template-value-field textarea,
+.template-value-field select {
+  box-sizing: border-box;
+  @apply w-full min-w-0 text-[12px];
+}
+.template-value-field input:not([type='checkbox']),
+.template-value-field select {
+  @apply min-h-7.5 py-1 px-2;
+}
+.template-field-error {
+  @apply block mt-1 text-[11px] [overflow-wrap:anywhere] text-failure;
+}
+.template-boolean {
+  @apply flex items-center gap-2 min-h-7 text-[11px];
+}
+.template-boolean input {
+  accent-color: var(--ink);
+  @apply w-7 h-4 cursor-pointer;
+}
+.template-null {
+  @apply flex items-center gap-2 text-muted min-h-7.5 flex-wrap text-[12px];
+}
+.template-null > .button {
+  @apply min-h-7 py-0.5 px-1 text-[11px];
+}
+.template-object {
+  @apply flex flex-col gap-2 min-w-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] p-2;
+}
+.template-object > .template-value-field {
+  @apply grid-cols-[minmax(64px,_0.3fr)_minmax(0,_1fr)] gap-[6px_8px];
+}
+.template-directory-field {
+  @apply flex flex-wrap gap-1.5 min-w-0;
+}
+.template-directory-device {
+  flex: 1 1 100px;
+  @apply min-w-0 max-w-full;
+}
+.template-directory-device .model-selector {
+  @apply w-full min-h-7.5 h-7.5 text-[12px];
+}
+.template-directory-path {
+  @apply flex;
+  flex: 3 1 150px;
+  @apply gap-1 min-w-0;
+}
+.template-directory-path > input {
+  @apply flex-1;
+}
+.template-directory-path .directory-browse-control {
+  @apply shrink-0;
+}
+.template-directory-path .directory-selector.is-compact {
+  @apply w-7.5 h-7.5 min-h-0 p-1.5 justify-center;
+}
+.template-array {
+  @apply min-w-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] py-0.5 px-1.5;
+}
+.template-array-main,
+.template-array-columns {
+  @apply grid grid-cols-[20px_minmax(0,_1fr)_28px] gap-1;
+  align-items: start;
+}
+.template-array.is-table .template-array-main,
+.template-array-columns {
+  @apply grid-cols-[20px_var(--template-columns)_28px];
+}
+.template-array-columns {
+  @apply text-muted text-[11px] py-1.5 px-0;
+}
+.template-array-columns > span {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
+}
+.template-array-row {
+  @apply py-1.5 px-0 [border-bottom:1px_solid_var(--border)];
+}
+.template-array-row[data-dragging] {
+  @apply opacity-[0.45];
+}
+.template-array-grip.button.icon-button {
+  @apply w-5 h-7.5 min-h-7.5 p-0 text-muted cursor-grab;
+}
+.template-array-grip:active {
+  @apply cursor-grabbing;
+}
+.template-array-grip-dots {
+  @apply block w-2.5 h-[15px];
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 5px 5px;
+}
+.template-value-field.is-compact,
+.template-value-field.is-unlabeled {
+  @apply block;
+}
+.template-value-field.is-unlabeled > .template-input-heading,
+.template-array.is-table .is-compact > .template-input-heading {
+  @apply absolute w-px h-px overflow-hidden;
+  clip-path: inset(50%);
+}
+.template-array-row > details {
+  @apply mt-1.5 mr-0 mb-0 ml-6 text-[11px];
+}
+.template-array-row > details > .template-value-field {
+  @apply mt-2;
+}
+.template-array-footer {
+  @apply flex items-center justify-end min-h-7;
+}
+.template-bindings {
+  @apply [border-top:1px_solid_var(--border)];
+}
+.template-binding {
+  @apply [border-bottom:1px_solid_var(--border)];
+}
+.template-binding > summary {
+  @apply py-2 px-3 cursor-pointer text-[12px];
+}
+.template-binding > summary > small {
+  @apply text-[11px] ml-2 [overflow-wrap:anywhere];
+}
+.template-binding-body {
+  @apply pt-1 px-3 pb-3;
+}
+.template-binding-heading {
+  @apply flex items-center justify-end mb-2 gap-2;
+}
+.template-binding-heading .button {
+  @apply text-[11px];
+}
+.template-binding .field {
+  @apply mb-2;
+}
+.template-binding-advanced {
+  @apply text-[11px];
+}
+.template-binding-advanced > summary {
+  @apply py-1 px-0 cursor-pointer;
+}
+.template-raw-values {
+  @apply p-3;
+}
+.template-values {
+  @apply block w-full min-h-60;
+  font: 12px/1.6 var(--font-mono, monospace);
+  @apply bg-transparent;
+}
+.template-preview-context {
+  @apply flex items-center justify-between flex-wrap gap-[4px_12px] min-h-8 py-1 px-3 text-[11px] [border-bottom:1px_solid_var(--border)];
+}
+.template-pane-heading strong {
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+}
+.template-field-control {
+  @apply flex gap-1 items-start min-w-0;
+}
+.template-field-control > :first-child {
+  @apply flex-1 min-w-0;
+}
+.template-field-control > .icon-button {
+  @apply flex-none;
+}
+.template-preview-pane .dag-structure {
+  @apply [border:0];
+  @apply rounded-none;
+}
+.template-generated-instruction {
+  @apply p-3;
+}
+.template-node-heading {
+  @apply mb-2 [overflow-wrap:anywhere];
+}
+.template-node-heading strong {
+  @apply text-[12px];
+  @apply font-[550];
+}
+.template-generated-instruction .properties {
+  @apply my-2 mx-0;
+}
+.template-generated-instruction .properties > dt,
+.template-generated-instruction .properties > dd {
+  @apply min-h-7 text-[11px] py-[5px] px-0;
+}
+.template-generated-instruction .properties > dd {
+  @apply [overflow-wrap:anywhere];
+}
+.template-instruction-tools {
+  @apply flex items-center justify-between mt-2 text-[11px] text-muted;
+}
+.template-prompt {
+  @apply max-w-full m-0 whitespace-pre-wrap [overflow-wrap:anywhere];
+  font: 12px/1.65 var(--font-mono, monospace);
+  @apply bg-transparent;
+}
+
+@container creation (max-width: 799px) {
+  .template-instance {
+    @apply flex flex-col;
+  }
+  .template-mobile-switch {
+    @apply flex min-h-9 gap-3 py-0 px-3 [border-bottom:1px_solid_var(--border)] shrink-0;
+  }
+  .template-parameters-pane,
+  .template-preview-pane {
+    @apply flex-1 [border:0];
+  }
+  .template-instance[data-pane='parameters'] .template-preview-pane,
+  .template-instance[data-pane='preview'] .template-parameters-pane {
+    @apply hidden;
+  }
+}
+
+.template-instance {
+  @apply relative;
+}
+.template-generated-instruction .properties {
+  @apply gap-[0_16px];
+}
+.template-preview-pane .dag-structure {
+  @apply max-h-none;
+}
+.template-preview-pane .dag-graph-scroll {
+  @apply h-[min(236px,_calc(35dvh_-_44px))];
+}
+.template-preview-pane .dag-node-table {
+  @apply max-h-[min(236px,_calc(35dvh_-_44px))] overflow-auto;
+}
+.template-preview-pane .dag-table-head {
+  @apply sticky top-0 z-2;
+}
+.template-preview-pane .dag-node-columns {
+  @apply min-w-145;
+}
+.template-instance .dag-structure-fullscreen {
+  @apply absolute inset-0 z-25;
+}
+.template-instance .dag-structure-fullscreen .dag-graph-scroll {
+  @apply h-full;
+}
+
+@container creation (max-width: 799px) {
+  .template-parameters-pane > .template-pane-heading {
+    @apply absolute right-3 top-0 min-h-9 p-0 [border:0];
+  }
+  .template-parameters-pane > .template-pane-heading > strong {
+    @apply hidden;
+  }
+  .template-preview-pane > .template-pane-heading {
+    @apply min-h-9;
+  }
+  .template-pane-heading small {
+    @apply max-w-27.5 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+}
+@container preset-inputs (max-width: 620px) {
+  .template-array.is-table .template-array-columns {
+    @apply hidden;
+  }
+  .template-array.is-table .template-array-main {
+    @apply grid-cols-[20px_minmax(0,_1fr)_28px] gap-[6px_4px];
+  }
+  .template-array.is-table .template-array-main > .template-value-field {
+    @apply grid col-[2];
+    @apply grid-cols-[minmax(60px,_0.35fr)_minmax(0,_1fr)] gap-[4px_8px];
+  }
+  .template-array.is-table .is-compact > .template-input-heading {
+    @apply static w-auto h-auto;
+    clip-path: none;
+  }
+  .template-array.is-table .template-array-grip {
+    @apply col-[1];
+    @apply row-[1];
+  }
+  .template-array.is-table .template-array-actions {
+    @apply col-[3];
+    @apply row-[1];
+  }
+}
+@container preset-inputs (max-width: 420px) {
+  .template-input-row {
+    @apply py-2 px-2.5;
+  }
+  .template-value-field {
+    @apply grid-cols-[minmax(64px,_0.27fr)_minmax(0,_1fr)] gap-x-2;
+  }
+  .template-object {
+    @apply p-1.5;
+  }
+  .template-object > .template-value-field,
+  .template-array.is-table .template-array-main > .template-value-field {
+    @apply grid-cols-[minmax(48px,_0.32fr)_minmax(0,_1fr)] gap-x-1.5;
+  }
+}
+
+.template-section-heading {
+  @apply flex items-center min-h-9 m-0 py-0 px-4 [border-bottom:1px_solid_var(--border)] text-[11px] text-muted;
+  @apply font-medium;
+}
+.template-business-inputs {
+  @apply m-3 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] overflow-hidden;
+}
+.template-business-inputs .template-input-row:last-child {
+  @apply [border-bottom:0];
+}
+.template-bindings {
+  @apply m-3 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] overflow-hidden;
+}
+.template-binding:last-child {
+  @apply [border-bottom:0];
+}
+.template-binding-body .field {
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-center gap-3;
+}
+.template-binding-body .field > label {
+  @apply m-0;
+}
+
+.template-binding > summary {
+  @apply flex flex-wrap items-center gap-2 py-2 px-3 min-h-9;
+  list-style: none;
+}
+.template-binding > summary::-webkit-details-marker {
+  @apply hidden;
+}
+.template-binding-chevron {
+  @apply flex-none;
+  transition: transform 120ms;
+}
+.template-binding[open] > summary > .template-binding-chevron {
+  transform: rotate(90deg);
+}
+.template-binding-title {
+  @apply font-medium;
+}
+.template-binding-summary {
+  @apply flex flex-wrap gap-[6px_12px] ml-auto min-w-0 max-w-full;
+}
+.template-binding-summary > span {
+  @apply inline-flex items-center gap-1.5 min-w-0 text-[11px];
+}
+.template-binding-summary > span > :is(svg, .agent-logo) {
+  @apply flex-none w-3.5 h-3.5;
+}
+.template-binding-summary > span > span:last-child {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
+}
+.template-preview-status {
+  @apply inline-flex items-center flex-none;
+}
+.template-ready {
+  @apply inline-flex items-center justify-center w-7 h-7 text-success rounded-[4px];
+}
+.template-ready:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: -2px;
+}
+.template-binding-body > [data-input-path] + [data-input-path] {
+  @apply mt-3;
+}
+.template-binding-body .field > label {
+  @apply font-medium;
+}

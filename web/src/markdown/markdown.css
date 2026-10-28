@@ -1,3 +1,5 @@
+@reference '../styles/tailwind.css';
+
 :root {
   --syntax-keyword: #cf222e;
   --syntax-string: #0a3069;
@@ -12,93 +14,75 @@
 }
 .markdown-result .hljs-comment,
 .markdown-result .hljs-quote {
-  color: var(--muted);
+  @apply text-muted;
 }
 .markdown-result .hljs-keyword,
 .markdown-result .hljs-selector-tag,
 .markdown-result .hljs-doctag {
-  color: var(--syntax-keyword);
+  @apply text-[var(--syntax-keyword)];
 }
 .markdown-result .hljs-string,
 .markdown-result .hljs-regexp,
 .markdown-result .hljs-meta .hljs-string {
-  color: var(--syntax-string);
+  @apply text-[var(--syntax-string)];
 }
 .markdown-result .hljs-number,
 .markdown-result .hljs-literal,
 .markdown-result .hljs-attr,
 .markdown-result .hljs-variable,
 .markdown-result .hljs-built_in {
-  color: var(--syntax-number);
+  @apply text-[var(--syntax-number)];
 }
 .markdown-result .hljs-title,
 .markdown-result .hljs-section,
 .markdown-result .hljs-type {
-  color: var(--syntax-title);
+  @apply text-[var(--syntax-title)];
 }
 .markdown-result .hljs-meta {
-  color: var(--syntax-number);
+  @apply text-[var(--syntax-number)];
 }
 .markdown-result .hljs-addition {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 10%, transparent);
+  @apply text-success bg-[color-mix(in_srgb,_var(--success)_10%,_transparent)];
 }
 .markdown-result .hljs-deletion {
-  color: var(--failure);
-  background: color-mix(in srgb, var(--failure) 10%, transparent);
+  @apply text-failure bg-[color-mix(in_srgb,_var(--failure)_10%,_transparent)];
 }
 .markdown-result .hljs-emphasis {
   font-style: italic;
 }
 .markdown-result .hljs-strong {
-  font-weight: 650;
+  @apply font-[650];
 }
 .markdown-result .katex {
-  font-size: 1.1em;
+  @apply text-[1.1em];
 }
 .markdown-result .katex-display {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-block: 4px;
-  margin: 16px 0;
+  @apply overflow-x-auto;
+  @apply overflow-y-hidden py-1 my-4 mx-0;
 }
 .markdown-result .katex .base {
-  white-space: nowrap;
+  @apply whitespace-nowrap;
 }
 .mermaid-diagram {
-  min-width: 0;
-  max-width: 100%;
-  margin: 16px 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
+  @apply min-w-0 max-w-full my-4 mx-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] overflow-hidden;
 }
 .mermaid-diagram .mermaid-graphic {
-  overflow: auto;
-  padding: 12px;
+  @apply overflow-auto p-3;
 }
 .mermaid-diagram summary {
-  padding: 8px 12px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 11px;
+  @apply py-2 px-3 text-muted cursor-pointer text-[11px];
 }
 .mermaid-diagram details[open] summary {
-  border-bottom: 1px solid var(--border);
+  @apply [border-bottom:1px_solid_var(--border)];
 }
 .markdown-result .mermaid-diagram pre {
-  border: 0;
-  border-radius: 0;
-  margin: 0;
+  @apply [border:0];
+  @apply rounded-none m-0;
 }
 .mermaid-error {
-  padding: 8px 12px;
-  margin: 0;
-  color: var(--failure);
-  font-size: 12px;
+  @apply py-2 px-3 m-0 text-failure text-[12px];
 }
 .mermaid-graphic iframe {
-  display: block;
-  border: 0;
-  width: 100%;
+  @apply block [border:0] w-full;
 }

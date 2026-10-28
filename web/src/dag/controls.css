@@ -1,17 +1,11 @@
+@reference '../styles/tailwind.css';
+
 .dag-canvas-controls {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 3;
-  display: flex;
-  gap: 2px;
-  background: var(--canvas);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 3px;
+  @apply absolute top-4 right-4 z-3 flex gap-0.5 bg-canvas [border:1px_solid_var(--border)];
+  @apply rounded-[6px] p-[3px];
 }
 @media (max-width: 600px) {
   .dag-canvas-controls {
-    top: 12px;
+    @apply top-3;
   }
 }

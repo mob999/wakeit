@@ -43,7 +43,9 @@ export function DagRunResult({
       }
     >
       {!outputs?.length && (value == null || value === '') ? (
-        <p className="run-waiting quiet">{t(pending ? '等待执行输出…' : '未返回结果')}</p>
+        <p className="run-waiting quiet text-muted">
+          {t(pending ? '等待执行输出…' : '未返回结果')}
+        </p>
       ) : (
         <RunResult
           result={value}

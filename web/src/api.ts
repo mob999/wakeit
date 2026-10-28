@@ -4,6 +4,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public body?: unknown,
   ) {
     super(message)
   }
@@ -47,6 +48,7 @@ export async function api<T = any>(
       typeof value.error === 'string'
         ? apiErrorText(value.error, tr, (state) => stateNames[state] ?? state)
         : tr('请求失败 ({{v0}})', { v0: response.status }),
+      value,
     )
   return value
 }
@@ -143,6 +145,8 @@ export type TaskConfig = {
     misfire: 'skip' | 'latest'
   }
 }
+export type InstructionPart = { text: string } | { result: string }
+export type NodeInstruction = string | { parts: InstructionPart[] }
 export type DagNode = {
   id: string
   name: string
@@ -150,7 +154,7 @@ export type DagNode = {
   runner: string
   agent: string
   cwd: string
-  prompt: string
+  prompt: NodeInstruction
   parameters: Record<string, string>
   session?: { id: string } | null
   timeout: string

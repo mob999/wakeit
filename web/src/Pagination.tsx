@@ -19,7 +19,10 @@ export function Pagination({
   useTranslation()
   const pages = Math.max(1, Math.ceil(total / size))
   return (
-    <nav className="pagination" aria-label={tr('分页')}>
+    <nav
+      className="pagination flex shrink-0 items-center justify-between px-3 py-2 text-[10px] text-muted [border-top:1px_solid_var(--border)]"
+      aria-label={tr('分页')}
+    >
       <span>{tr('pagination.total', { count: total })}</span>
       <div>
         <IconButton

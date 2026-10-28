@@ -1,0 +1,11 @@
+@reference '../styles/tailwind.css';
+
+.dag-agent-summary {
+  @apply inline-flex items-center gap-[5px] min-w-0;
+}
+.dag-agent-summary > svg {
+  @apply flex-none;
+}
+.dag-agent-summary > span {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
+}

@@ -1,0 +1,389 @@
+@reference '../styles/tailwind.css';
+
+.modal.creation-modal {
+  @apply w-[min(1180px,_calc(100vw_-_40px))] h-[min(820px,_calc(100dvh_-_40px))] max-h-[calc(100dvh_-_40px)] rounded-[6px] text-ui;
+}
+.creation-modal > .modal-heading {
+  @apply min-h-11 py-0 px-3 items-center;
+}
+.creation-modal > .modal-heading h2 {
+  @apply text-[12px];
+  @apply font-[550];
+}
+.creation-modal .modal-heading-actions {
+  @apply w-full;
+}
+.creation-modal .modal-heading-actions > .detail-tabs {
+  @apply flex-1 min-w-0 p-0 [border:0];
+}
+.creation-panel {
+  @apply flex flex-col min-h-0;
+  @apply flex-1 overflow-hidden;
+  container-type: inline-size;
+  container-name: creation;
+}
+.creation-panel[hidden],
+.creation-task-fields [hidden],
+.preset-session[hidden],
+.dag-editor [hidden] {
+  @apply hidden!;
+}
+.creation-task-form,
+.creation-task-form > form {
+  @apply flex flex-col;
+  @apply flex-1 min-h-0 overflow-hidden;
+}
+.creation-task-fields {
+  @apply flex flex-col;
+  @apply flex-1 min-h-0 min-w-0 p-0 m-0 [border:0] overflow-hidden;
+}
+.creation-name-row,
+.creation-dag-name {
+  @apply flex items-center gap-3 min-h-11 py-[7px] px-4 [border-bottom:1px_solid_var(--border)] shrink-0;
+}
+.creation-name-row > .field {
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-center gap-3 w-full m-0;
+}
+.creation-name-row label,
+.creation-dag-name > label {
+  flex: 0 0 96px;
+  @apply text-[12px];
+  @apply font-medium;
+}
+.creation-name-row input,
+.creation-dag-name > input {
+  @apply flex-1 min-w-0 w-full h-7 min-h-7 py-1 px-2 text-[12px];
+}
+.creation-workspace {
+  @apply relative grid grid-cols-[minmax(0,_1fr)_var(--creation-side-width,_380px)] flex-1 min-w-0 min-h-0 overflow-hidden;
+}
+.creation-main-pane,
+.creation-side-pane {
+  @apply min-w-0 min-h-0 overflow-auto overscroll-contain;
+}
+.creation-side-pane {
+  @apply [border-left:1px_solid_var(--border)];
+}
+.creation-pane-heading {
+  @apply flex items-center gap-2 min-h-9 py-1 px-4 [border-bottom:1px_solid_var(--border)] shrink-0 text-[12px];
+}
+.creation-pane-body,
+.creation-section-body,
+.creation-task-properties {
+  @apply grid gap-3 py-3 px-4 min-w-0;
+}
+.creation-task-form .creation-side-pane .field,
+.creation-field-row {
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-center gap-[6px_12px] min-w-0 min-h-7.5 m-0 text-[12px];
+}
+.creation-task-form .creation-side-pane .field > label,
+.creation-field-row > label {
+  @apply min-w-0 text-[12px];
+  @apply font-medium [overflow-wrap:anywhere];
+}
+.creation-task-form .creation-side-pane .field > :not(label),
+.creation-field-row > :not(label) {
+  @apply min-w-0 col-[2];
+}
+.creation-task-form .creation-side-pane .form-grid {
+  @apply grid grid-cols-[minmax(0,_1fr)] gap-3;
+}
+.creation-task-instruction {
+  @apply py-3 px-4;
+}
+.creation-task-instruction > .field {
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-stretch gap-3 h-full min-h-60 m-0;
+}
+.creation-task-instruction > .field > label {
+  @apply pt-1.5 text-[12px];
+  @apply font-medium;
+}
+.creation-task-instruction textarea {
+  @apply h-full min-h-60 min-w-0;
+}
+.creation-section,
+.creation-task-form .creation-side-pane .advanced-settings {
+  @apply m-0 [border-top:1px_solid_var(--border)];
+}
+.creation-task-form .creation-side-pane > .creation-task-advanced {
+  @apply mt-0 mx-4 mb-4;
+}
+.creation-task-form .creation-side-pane > .creation-task-advanced > summary {
+  @apply px-3;
+}
+.creation-task-form .creation-side-pane > .creation-task-advanced > .creation-section-body {
+  @apply p-3;
+}
+.creation-section > summary {
+  @apply flex items-center gap-2 min-h-9 py-2 px-4 text-[12px];
+}
+.creation-task-form .creation-section-body > .advanced-settings > summary {
+  @apply py-2 px-0;
+}
+.creation-task-form .creation-section-body > .advanced-settings > .advanced-body {
+  @apply grid gap-3 pt-2;
+}
+.creation-task-form .creation-section-body > .preview {
+  @apply m-0;
+}
+.creation-pane-resizer {
+  @apply w-2 z-6;
+}
+.creation-modal .creation-footer,
+.creation-modal .modal-footer,
+.creation-modal .dag-editor-footer {
+  @apply flex items-center justify-end gap-2 min-h-11 py-[7px] px-4 [border-top:1px_solid_var(--border)] bg-raised shrink-0;
+}
+.creation-schedule-summary {
+  @apply inline-flex flex-wrap gap-[4px_8px] text-[11px];
+  @apply font-normal text-muted [overflow-wrap:anywhere];
+}
+.creation-dag-form {
+  @apply flex-1 min-h-0! w-full;
+}
+.creation-dag-form:not(.is-fullscreen) {
+  @apply h-auto;
+}
+.creation-section-tabs {
+  @apply h-11 min-h-11 py-0 px-4;
+}
+.creation-dag-form .dag-stepbar > .creation-section-tabs {
+  @apply [border:0];
+}
+.creation-section-tabs [role='tab'] {
+  @apply h-[43px];
+}
+.creation-task-form .field,
+.creation-modal .field > label,
+.creation-modal :is(input, textarea, select, .choice-selector) {
+  @apply text-ui;
+}
+.creation-modal :is(input:not([type='checkbox']):not([type='radio']), select, .choice-selector) {
+  @apply min-h-7;
+}
+.creation-schedule-scroll {
+  @apply flex-1 min-h-0 overflow-auto py-3 px-4;
+}
+.creation-schedule-scroll .dag-time-page > .content-card {
+  @apply m-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] [box-shadow:none];
+}
+.creation-schedule-scroll .dag-time-page > .content-card + .content-card {
+  @apply mt-3;
+}
+.creation-schedule-scroll .card-header {
+  @apply min-h-9 py-1 px-4;
+}
+.creation-schedule-scroll .dag-settings-rows > .field,
+.creation-schedule-scroll .dag-preview-row {
+  @apply grid-cols-[96px_minmax(0,_1fr)] gap-[8px_12px] py-2 px-4 min-h-11;
+}
+.creation-dag-form .dag-toolbar {
+  @apply gap-2;
+}
+.preset-creation,
+.preset-session {
+  @apply flex flex-col;
+  @apply flex-1 min-h-0 overflow-hidden;
+}
+.preset-choice-heading {
+  @apply flex items-center flex-wrap gap-[8px_12px] min-h-9 py-1 px-3 [border-bottom:1px_solid_var(--border)];
+  @apply shrink-0;
+}
+.preset-choice-heading.creation-name-row {
+  @apply min-h-11 py-[7px] px-4 flex-nowrap;
+}
+.preset-choice-title {
+  @apply flex items-center gap-1.5 flex-1 min-w-0;
+}
+.preset-choice-title > .choice-selector {
+  @apply min-w-0 text-ui;
+}
+.preset-choice-title > .icon-button {
+  @apply flex-none;
+}
+.preset-choice-heading > .button {
+  @apply flex-none text-ui;
+}
+.preset-choice-title > .choice-selector {
+  @apply w-[min(100%,_480px)] min-h-7 py-1 px-2;
+}
+.preset-selector-popover {
+  @apply flex flex-col w-[min(480px,_calc(100vw_-_32px))] max-w-[calc(100vw_-_32px)];
+}
+.preset-selector-popover .model-options {
+  @apply min-h-0 max-h-[min(260px,_calc(var(--radix-popover-content-available-height)_-_100px))];
+}
+.preset-selector-popover :is(.model-search, .choice-footer) {
+  @apply flex-none;
+}
+.preset-selector-popover .pagination {
+  @apply py-1.5 px-2;
+}
+.preset-session-fields {
+  @apply block flex-1 min-h-0 p-0 m-0 [border:0] overflow-hidden min-w-0;
+}
+.preset-creation .modal-footer {
+  @apply flex-wrap;
+}
+.creation-validation {
+  @apply flex-1 min-w-20 text-muted text-[11px];
+}
+.preset-catalog {
+  @apply flex flex-col min-h-0;
+  @apply flex-1;
+}
+.preset-search-field {
+  @apply flex items-center gap-2 my-3 mx-4 py-0 px-2 min-h-8 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] shrink-0 text-muted;
+}
+.preset-search-field:focus-within {
+  @apply border-muted;
+}
+.preset-search-field > .action-icon,
+.preset-search-field > svg {
+  @apply shrink-0;
+}
+.preset-search-field input {
+  @apply flex-1 min-w-0 py-1.5 px-0 [border:0] [box-shadow:none] bg-transparent text-[12px];
+}
+.preset-catalog-list {
+  @apply flex-1 min-h-0 overflow-auto py-0 px-3;
+}
+.preset-choice {
+  @apply w-full min-h-12 py-2 px-3 [border:1px_solid_transparent];
+  @apply rounded-[6px] grid grid-cols-[minmax(0,_1fr)_auto] gap-[4px_12px] text-left bg-transparent cursor-pointer text-ink;
+}
+.preset-choice:hover,
+.preset-choice.active {
+  @apply bg-hover;
+}
+.preset-choice.active {
+  @apply border-ui-border;
+}
+.preset-choice:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.preset-choice > strong {
+  @apply text-[12px];
+  @apply font-medium [overflow-wrap:anywhere];
+}
+.preset-choice > small {
+  @apply text-muted text-[11px];
+}
+.preset-choice > span {
+  @apply col-[1_/_-1] text-[11px] text-muted;
+}
+.preset-detail-state {
+  @apply flex-1 p-3;
+}
+@media (max-width: 600px) {
+  .modal.creation-modal {
+    @apply w-[100vw] h-dvh max-h-[100dvh] rounded-none;
+  }
+  .creation-task-form .form-grid {
+    @apply grid-cols-[1fr];
+  }
+  .creation-dag-name input {
+    @apply flex-1 min-w-0;
+  }
+  .creation-validation {
+    @apply basis-full;
+  }
+  .preset-choice {
+    @apply grid-cols-[minmax(0,_1fr)];
+  }
+}
+
+.creation-dag-form.is-fullscreen {
+  @apply absolute inset-0 z-25;
+}
+
+@container creation (max-width: 799px) {
+  .creation-workspace {
+    @apply flex flex-col overflow-auto;
+  }
+  .creation-main-pane,
+  .creation-side-pane {
+    @apply flex-none overflow-visible;
+  }
+  .creation-side-pane {
+    @apply [border-left:0];
+    @apply [border-top:1px_solid_var(--border)];
+  }
+  .creation-task-instruction > .field,
+  .creation-task-instruction textarea {
+    @apply min-h-45;
+  }
+  .creation-pane-resizer {
+    @apply hidden;
+  }
+  .creation-dag-form .dag-stepbar {
+    @apply flex-wrap;
+  }
+}
+@container creation (max-width: 499px) {
+  .creation-name-row,
+  .creation-dag-name {
+    @apply py-[7px] px-3;
+  }
+  .creation-name-row > .field,
+  .creation-task-form .creation-side-pane .field,
+  .creation-task-instruction > .field,
+  .creation-field-row {
+    @apply grid-cols-[72px_minmax(0,_1fr)] gap-x-2.5;
+  }
+  .creation-name-row label,
+  .creation-dag-name > label {
+    @apply basis-18;
+  }
+  .creation-task-instruction,
+  .creation-pane-body,
+  .creation-section-body,
+  .creation-task-properties {
+    @apply p-3;
+  }
+  .creation-section > summary {
+    @apply py-2 px-3;
+  }
+  .creation-task-form .creation-side-pane > .creation-task-advanced {
+    @apply mt-0 mx-3 mb-3;
+  }
+}
+.creation-dag-form .dag-floating-panel {
+  @apply top-0 right-0 bottom-0 [border:0];
+  @apply [border-left:1px_solid_var(--border)];
+  @apply rounded-none [box-shadow:none];
+}
+.creation-dag-form .dag-floating-header {
+  @apply min-h-9 py-1 px-4 rounded-none;
+}
+.creation-dag-form .dag-floating-body {
+  @apply rounded-none;
+}
+.creation-dag-form .dag-config-body .field,
+.creation-dag-form .dag-settings-rows > .field {
+  @apply grid-cols-[96px_minmax(0,_1fr)] gap-[8px_12px] py-2 px-4 min-h-11;
+}
+.creation-dag-form .dag-environment-fields {
+  @apply block;
+}
+.creation-dag-form .dag-environment-fields .field + .field {
+  @apply [border-left:0];
+}
+.creation-dag-form .dag-environment-fields .field > label {
+  @apply m-0 p-0;
+}
+@container creation (max-width: 499px) {
+  .creation-section-tabs {
+    @apply px-3;
+  }
+  .creation-schedule-scroll {
+    @apply p-3;
+  }
+  .creation-schedule-scroll .dag-settings-rows > .field,
+  .creation-schedule-scroll .dag-preview-row {
+    @apply grid-cols-[72px_minmax(0,_1fr)] px-3;
+  }
+}

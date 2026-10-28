@@ -11,7 +11,9 @@ export function DirectoryPicker({
   value,
   onChange,
   disabled = false,
+  compact = false,
 }: {
+  compact?: boolean
   runner?: Runner
   disabled?: boolean
   value: string
@@ -24,25 +26,32 @@ export function DirectoryPicker({
     if (disabled) setOpen(false)
   }, [disabled])
   return (
-    <div className="field" data-field="cwd">
-      <label htmlFor={id}>{tr('工作目录')}</label>
+    <div className={compact ? 'directory-browse-control' : 'field'} data-field="cwd">
+      {!compact && <label htmlFor={id}>{tr('工作目录')}</label>}
       <button
         id={id}
         type="button"
         aria-label={tr('选择目录')}
-        className="directory-selector"
+        className={compact ? 'directory-selector is-compact' : 'directory-selector'}
         disabled={disabled || !runner?.online || !runner.directory_roots?.length}
         onClick={() => setOpen(true)}
       >
         <Folder size={15} />
-        <span className={value ? 'directory-path mono' : 'directory-path quiet'} title={value}>
-          {value || (!runner ? tr('先选择 Runner') : tr('选择工作目录'))}
-        </span>
-        <span className="quiet">{tr('浏览')}</span>
-        <ChevronRight size={14} />
+        {!compact && (
+          <>
+            <span
+              className={value ? 'directory-path mono' : 'directory-path quiet text-muted'}
+              title={value}
+            >
+              {value || (!runner ? tr('先选择 Runner') : tr('选择工作目录'))}
+            </span>
+            <span className="quiet text-muted">{tr('浏览')}</span>
+            <ChevronRight size={14} />
+          </>
+        )}
       </button>
-      {runner && !runner.online && <small>{tr('设备离线，无法浏览。')}</small>}
-      {runner?.online && !runner.directory_roots?.length && (
+      {!compact && runner && !runner.online && <small>{tr('设备离线，无法浏览。')}</small>}
+      {!compact && runner?.online && !runner.directory_roots?.length && (
         <small>{tr('此设备尚未开放工作目录。')}</small>
       )}
       <Modal open={open} onOpenChange={setOpen} title={tr('选择工作目录')}>

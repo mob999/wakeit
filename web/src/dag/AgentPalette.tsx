@@ -80,7 +80,7 @@ export function AgentPalette({
                 className={'dag-device-dot ' + (r.online ? 'online' : '')}
                 aria-label={t(r.online ? '在线' : '离线')}
               />
-              {!r.online && <span className="quiet">{t('离线')}</span>}
+              {!r.online && <span className="quiet text-muted">{t('离线')}</span>}
             </button>
             {(!closed.includes(r.id) || !!query) &&
               r.agents.map((agent) => (
@@ -90,6 +90,7 @@ export function AgentPalette({
                   className="dag-agent-entry"
                   disabled={disabled}
                   aria-label={t('dag.agentOnDevice', { agent: agent.name, runner: r.name })}
+                  onDragStart={(event) => event.preventDefault()}
                   onPointerDown={(event) => {
                     if (disabled || event.button !== 0) return
                     event.currentTarget.setPointerCapture(event.pointerId)
@@ -103,6 +104,7 @@ export function AgentPalette({
                   onPointerMove={(e) => pointer(e, 'move')}
                   onPointerUp={(e) => pointer(e, 'drop')}
                   onPointerCancel={(e) => pointer(e, 'cancel')}
+                  onLostPointerCapture={(e) => pointer(e, 'cancel')}
                   onClick={(e) => {
                     if (e.detail === 0 && !disabled) onChoose({ runner: r, agent })
                   }}
@@ -113,7 +115,7 @@ export function AgentPalette({
               ))}
           </section>
         ))}
-        {!visible.length && <p className="quiet card-state">{t('dag.noAgents')}</p>}
+        {!visible.length && <p className="quiet text-muted card-state">{t('dag.noAgents')}</p>}
       </div>
     </div>
   )

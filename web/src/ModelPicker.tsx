@@ -4,7 +4,7 @@ import { EditorMemoryContext, useEditorValue } from './EditorMemory'
 import { useContext } from 'react'
 import { t as tr, parameterLabel } from './i18n'
 import { useTranslation } from 'react-i18next'
-import { useId, useEffect } from 'react'
+import { useId, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, Loader2 } from './icons'
 import { api, type Agent, type Runner, type ModelCatalog } from './api'
@@ -19,7 +19,9 @@ export function ModelPicker({
   onChange,
   onOptionsChange,
   submitting = false,
+  allowManualWithoutDirectory = false,
 }: {
+  allowManualWithoutDirectory?: boolean
   submitting?: boolean
   runner?: Runner
   agent?: Agent
@@ -32,6 +34,7 @@ export function ModelPicker({
   const id = useId()
   const memory = useContext(EditorMemoryContext)
   const [custom, setCustom] = useEditorValue('model.custom', false)
+  const [editing, setEditing] = useState(false)
   const catalog = useQuery<ModelCatalog>({
     queryKey: ['models', runner?.id, agent?.id, cwd, agent?.digest],
     enabled: memory?.active !== false && !!(runner?.online && agent?.models_supported && cwd),
@@ -56,7 +59,8 @@ export function ModelPicker({
     [selected?.parameter_options, onOptionsChange],
   )
   const ready = !!agent?.models_supported && !!runner?.online && !!cwd && !catalog.isFetching
-  const waiting = !!agent?.models_supported && (!cwd || catalog.isFetching)
+  const waiting =
+    !!agent?.models_supported && ((!cwd && !allowManualWithoutDirectory) || catalog.isFetching)
   const disabled = !agent || waiting
   const manual =
     !!agent?.parameters?.model &&
@@ -90,7 +94,7 @@ export function ModelPicker({
     <div className="field model-field" data-field="parameters.model">
       <label htmlFor={id}>{tr('模型')}</label>
       <div className="model-control">
-        {models.length && !custom ? (
+        {models.length && !custom && !editing ? (
           <ChoicePicker
             id={id}
             label={tr('模型')}
@@ -109,7 +113,7 @@ export function ModelPicker({
               { value: '__custom', label: tr('自定义模型 ID') },
             ]}
           />
-        ) : manual ? (
+        ) : manual || editing ? (
           <input
             id={id}
             aria-label={tr('模型')}
@@ -117,6 +121,11 @@ export function ModelPicker({
             disabled={submitting}
             value={values.model ?? ''}
             placeholder={agent?.parameters.model?.default ?? tr('Agent 默认')}
+            onFocus={() => {
+              setEditing(true)
+              setCustom(true)
+            }}
+            onBlur={() => setEditing(false)}
             onChange={(e) => {
               const next = { ...values }
               if (e.target.value) next.model = e.target.value

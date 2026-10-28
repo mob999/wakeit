@@ -154,7 +154,7 @@ export function ResultImage({
               </button>
             )
           ) : (
-            <span className="quiet">{t('正在加载…')}</span>
+            <span className="quiet text-muted">{t('正在加载…')}</span>
           )}
         </span>
       )}

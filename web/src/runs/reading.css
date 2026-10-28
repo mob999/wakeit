@@ -1,369 +1,257 @@
+@reference '../styles/tailwind.css';
+
 .run-page .run-trace .trace-row {
-  padding: 0;
-  min-height: 36px;
+  @apply p-0 min-h-9;
 }
 .run-page .run-trace .trace-heading,
 .run-page .run-trace .trace-operation > summary {
-  display: grid;
-  grid-template-columns: 14px 14px minmax(0, 1fr) 72px 48px;
-  align-items: center;
-  gap: 8px;
-  min-height: 35px;
-  padding: 6px 12px;
-  font-size: 12px;
+  @apply grid grid-cols-[14px_14px_minmax(0,_1fr)_72px_48px] items-center gap-2 min-h-[35px] py-1.5 px-3 text-[12px];
 }
 .run-trace .trace-heading > svg:first-child {
   visibility: hidden;
 }
 .run-trace .trace-label {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @apply min-w-0 flex items-center gap-2;
 }
 .run-trace .trace-title {
-  flex: 0 0 auto;
-  font-weight: 550;
-  max-width: calc(100% - 8px);
-  overflow-wrap: anywhere;
+  @apply flex-none font-[550] max-w-[calc(100%_-_8px)] [overflow-wrap:anywhere];
 }
 .run-trace .trace-summary {
   flex: 1 1 0%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .run-trace .trace-parent {
-  flex-shrink: 1;
-  font-size: 11px;
+  @apply shrink text-[11px];
 }
 .run-trace .trace-state {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  font-size: 11px;
+  @apply flex items-center justify-end gap-1 text-[11px];
 }
 .run-trace .trace-duration,
 .run-trace .trace-duration-empty {
-  font-size: 11px;
-  font-weight: 400;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+  @apply text-[11px];
+  @apply font-normal text-right;
+  @apply tabular-nums;
 }
 .run-page .run-trace .trace-message,
 .run-page .run-trace .trace-payload {
-  margin: 0 12px 10px 56px;
-  font-size: 12px;
-  min-width: 0;
+  @apply mt-0 mr-3 mb-2.5 ml-14 text-[12px] min-w-0;
 }
 .run-trace .trace-message > :first-child {
-  margin-top: 0;
+  @apply mt-0;
 }
 .run-trace .trace-message > :last-child {
-  margin-bottom: 0;
+  @apply mb-0;
 }
 .run-page .run-trace .trace-payload {
-  margin-bottom: 8px;
+  @apply mb-2;
 }
 .trace-payload-section {
-  min-width: 0;
+  @apply min-w-0;
 }
 .trace-payload-heading {
-  min-height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  @apply min-h-7 flex items-center justify-between gap-2;
 }
 .trace-payload-heading > button,
 .trace-payload-heading .trace-payload-full {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 20px;
-  min-height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  @apply [border:0] bg-transparent p-0 text-muted text-[12px] leading-[20px] min-h-7 inline-flex items-center gap-1;
 }
 .trace-payload-heading > span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @apply flex items-center gap-2;
 }
 .trace-payload-heading .expanded {
   transform: rotate(90deg);
 }
 .run-page .run-trace .trace-payload pre {
-  margin: 0;
-  padding: 4px 0 0;
-  font-size: 12px;
-  line-height: 20px;
-  white-space: pre;
-  overflow-x: auto;
-  overflow-wrap: normal;
-  max-width: 100%;
-  background: transparent;
+  @apply m-0 pt-1 px-0 pb-0 text-[12px] leading-[20px] whitespace-pre overflow-x-auto;
+  @apply [overflow-wrap:normal] max-w-full bg-transparent;
 }
 .run-trace .trace-payload .code-content {
-  max-width: 100%;
+  @apply max-w-full;
 }
 .run-page .run-trace .trace-payload-section > :is(pre, .code-content) {
-  margin-left: 16px;
+  @apply ml-4;
 }
 .run-page .run-trace .trace-payload code {
-  font-size: 12px;
-  line-height: 20px;
+  @apply text-[12px] leading-[20px];
 }
 .run-result-panel .result :is(pre, code),
 .run-result-panel pre.result {
-  background: transparent;
+  @apply bg-transparent;
 }
 .trace-retention {
-  margin: 0;
-  padding: 10px 12px;
-  font-size: 11px;
+  @apply m-0 py-2.5 px-3 text-[11px];
 }
 .trace-tail {
-  height: 1px;
+  @apply h-px;
 }
 .trace-new-updates,
 .result-ready {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-  padding: 4px 6px;
+  @apply [border:0] bg-transparent text-muted text-[11px] whitespace-nowrap py-1 px-1.5;
 }
 .trace-new-updates:hover,
 .result-ready:hover {
-  color: var(--ink);
-  text-decoration: underline;
+  @apply text-ink underline;
 }
 .result-ready {
-  display: block;
-  margin: 8px 0 12px auto;
+  @apply block mt-2 mr-0 mb-3 ml-auto;
 }
 .run-context {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
+  @apply flex justify-end items-center py-2 px-4 [border-bottom:1px_solid_var(--border)];
 }
 .run-context .status {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .run-reason {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 28px;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  text-align: right;
-  color: var(--muted);
-  font-size: 11px;
+  @apply flex items-center justify-end min-h-7 [border:0] p-0 bg-transparent text-right text-muted text-[11px];
 }
 .run-reason:focus-visible {
   outline: 1px solid var(--muted);
   outline-offset: 3px;
-  border-radius: 2px;
+  @apply rounded-[2px];
 }
 .tooltip.run-reason-tooltip {
-  max-width: min(420px, calc(100vw - 16px));
-  max-height: min(280px, 40dvh);
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-  font-weight: 400;
-  text-align: left;
+  @apply max-w-[min(420px,_calc(100vw_-_16px))] max-h-[min(280px,_40dvh)] overflow-auto whitespace-pre-wrap;
+  @apply [overflow-wrap:anywhere] text-[12px];
+  @apply font-normal text-left;
 }
 .dag-reading-tools {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
+  @apply flex items-center gap-1 min-w-0;
 }
 .dag-reading-tools input {
-  width: 140px;
-  min-width: 60px;
-  height: 28px;
-  font-size: 12px;
+  @apply w-35 min-w-15 h-7 text-[12px];
 }
 .dag-run-page .run-section {
-  overflow: clip;
+  @apply overflow-clip;
 }
 .dag-run-structure .dag-structure-content:not(.dag-structure-fullscreen) .dag-graph-scroll {
-  height: min(280px, 35dvh);
+  @apply h-[min(280px,_35dvh)];
 }
 .dag-run-structure .dag-structure-content:not(.dag-structure-fullscreen) .dag-node-table {
-  max-height: min(280px, 35dvh);
-  overflow: auto;
-  scrollbar-gutter: stable;
+  @apply max-h-[min(280px,_35dvh)] overflow-auto [scrollbar-gutter:stable];
 }
 .dag-run-structure .dag-table-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  @apply sticky top-0 z-2;
 }
 .dag-run-page .dag-node-process > .dag-node-context {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: var(--canvas);
-  border-top: 1px solid var(--border);
+  @apply sticky top-0 z-3 bg-canvas [border-top:1px_solid_var(--border)];
 }
 .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context {
-  grid-template-columns: minmax(100px, 1fr) auto auto auto;
-  row-gap: 6px;
+  @apply grid-cols-[minmax(100px,_1fr)_auto_auto_auto] gap-y-1.5;
 }
 .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .run-reason {
-  grid-column: 2;
-  grid-row: 1;
+  @apply col-[2];
+  @apply row-[1];
 }
 .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-node-duration {
-  grid-column: 3;
-  grid-row: 1;
+  @apply col-[3];
+  @apply row-[1];
 }
 .dag-run-page
   :is(.dag-node-process, .dag-node-details)
   > .dag-node-context
   > .dag-node-context-actions {
-  grid-column: 4;
-  grid-row: 1;
+  @apply col-[4];
+  @apply row-[1];
 }
 .dag-node-identity {
-  grid-column: 1;
-  grid-row: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+  @apply col-[1];
+  @apply row-[1] flex items-center gap-2 min-w-0;
 }
 .dag-node-identity > :first-child {
-  min-width: 0;
+  @apply min-w-0;
   flex: 0 1 auto;
 }
 .dag-node-identity > .choice-selector {
-  width: fit-content;
-  max-width: 480px;
-  min-height: 28px;
-  border-color: transparent;
-  background: transparent;
-  padding-left: 0;
-  font-weight: var(--ui-title-weight);
+  @apply w-[fit-content] max-w-120 min-h-7 border-transparent bg-transparent pl-0 font-title;
 }
 .dag-node-identity > strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .dag-node-identity .dag-attempt-picker {
-  width: 100px;
-  flex: 0 0 auto;
+  @apply w-25 flex-none;
 }
 .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-retry-time {
-  grid-column: 2 / 4;
-  grid-row: 2;
+  @apply col-[2_/_4];
+  @apply row-[2];
 }
 
 @media (max-width: 700px) {
   .dag-reading-tools input {
-    width: 88px;
+    @apply w-22;
   }
   .dag-run-structure .dag-structure-content:not(.dag-structure-fullscreen) .dag-graph-scroll {
-    height: min(220px, 35dvh);
+    @apply h-[min(220px,_35dvh)];
   }
   .dag-run-structure .dag-structure-content:not(.dag-structure-fullscreen) .dag-node-table {
-    max-height: min(220px, 35dvh);
+    @apply max-h-[min(220px,_35dvh)];
   }
   .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context {
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    @apply grid-cols-[minmax(0,_1fr)_auto_auto_auto];
   }
   .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-node-identity {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    @apply col-[1_/_-1];
+    @apply row-[1];
   }
   .dag-run-page
     :is(.dag-node-process, .dag-node-details)
     > .dag-node-context
     > :is(.status, .run-reason, .dag-node-state-placeholder) {
-    grid-column: 2;
-    grid-row: 2;
+    @apply col-[2];
+    @apply row-[2];
   }
   .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-node-duration {
-    grid-column: 3;
-    grid-row: 2;
+    @apply col-[3];
+    @apply row-[2];
   }
   .dag-run-page
     :is(.dag-node-process, .dag-node-details)
     > .dag-node-context
     > .dag-node-context-actions {
-    grid-column: 4;
-    grid-row: 2;
+    @apply col-[4];
+    @apply row-[2];
   }
   .dag-run-page :is(.dag-node-process, .dag-node-details) > .dag-node-context > .dag-retry-time {
-    grid-column: 3;
-    grid-row: 3;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    @apply col-[3];
+    @apply row-[3] min-w-0 overflow-hidden text-ellipsis;
   }
 
   .run-trace .trace-heading,
   .run-trace .trace-operation > summary {
-    grid-template-columns: 12px 12px minmax(0, 1fr) 60px 42px;
-    gap: 6px;
-    padding-inline: 10px;
+    @apply grid-cols-[12px_12px_minmax(0,_1fr)_60px_42px] gap-1.5 px-2.5;
   }
   .run-page .run-trace .trace-message,
   .run-page .run-trace .trace-payload {
-    margin-left: 46px;
-    margin-right: 10px;
+    @apply ml-11.5;
+    @apply mr-2.5;
   }
 }
 .result-ready-inline {
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font-size: 11px;
-  white-space: nowrap;
-  padding: 4px;
+  @apply [border:0] bg-transparent text-ink text-[11px] whitespace-nowrap p-1;
 }
 .result-ready-inline:hover {
-  text-decoration: underline;
+  @apply underline;
 }
 :is(.run-execution-page, .run-output-page) .run-section {
-  overflow: clip;
+  @apply overflow-clip;
 }
 :is(.run-execution-page, .run-output-page) .run-section-header {
-  position: sticky;
-  top: 0;
-  z-index: 3;
+  @apply sticky top-0 z-3;
 }
 .dag-node-context-actions {
-  flex-wrap: wrap;
+  @apply flex-wrap;
 }
 .run-trace {
-  width: 100%;
+  @apply w-full;
 }
 .run-trace .trace-row {
-  border-bottom: 1px solid var(--border);
+  @apply [border-bottom:1px_solid_var(--border)];
 }
 .run-trace .trace-operation > summary {
-  cursor: pointer;
+  @apply cursor-pointer;
   list-style: none;
 }
 .run-trace summary::-webkit-details-marker {
-  display: none;
+  @apply hidden;
 }
 .run-trace .trace-operation[open] > summary > svg:first-child {
   transform: rotate(90deg);
@@ -374,101 +262,77 @@
 }
 .run-trace summary > svg,
 .run-trace .trace-heading > svg {
-  color: var(--muted);
+  @apply text-muted;
 }
 .run-trace .trace-title {
-  white-space: normal;
+  @apply whitespace-normal;
 }
 .run-trace .trace-parent {
-  color: var(--muted);
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply text-muted max-w-40 overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .run-trace .trace-state,
 .run-trace .trace-duration,
 .run-trace .trace-duration-empty {
-  color: var(--muted);
+  @apply text-muted;
 }
 .run-trace .trace-state.succeeded {
-  color: var(--success);
+  @apply text-success;
 }
 .run-trace .trace-state.failed {
-  color: var(--failure);
+  @apply text-failure;
 }
 .run-trace .trace-payload {
-  display: grid;
-  gap: 8px;
+  @apply grid gap-2;
 }
 @media (max-width: 700px) {
   .run-page .run-trace .trace-heading,
   .run-page .run-trace .trace-operation > summary {
-    grid-template-columns: 12px 12px minmax(0, 1fr) 60px 42px;
-    gap: 6px;
-    padding-inline: 10px;
+    @apply grid-cols-[12px_12px_minmax(0,_1fr)_60px_42px] gap-1.5 px-2.5;
   }
   .run-trace .trace-parent {
-    display: none;
+    @apply hidden;
   }
 }
 .dag-node-state-placeholder {
-  grid-column: 2;
-  grid-row: 1;
-  font-size: 11px;
+  @apply col-[2];
+  @apply row-[1] text-[11px];
 }
 
 .model-popover.dag-attempt-menu {
-  width: 220px;
+  @apply w-55;
 }
 .dag-attempt-menu .model-options {
-  padding: 4px;
+  @apply p-1;
 }
 .dag-attempt-menu .model-options > button {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 88px;
-  gap: 12px;
-  min-height: 32px;
-  padding: 6px 8px;
-  font-size: var(--ui-text);
+  @apply grid grid-cols-[minmax(0,_1fr)_88px] gap-3 min-h-8 py-1.5 px-2 text-ui;
 }
 .dag-attempt-menu .choice-option-label,
 .dag-attempt-menu .choice-option-label > span {
-  white-space: nowrap;
+  @apply whitespace-nowrap;
 }
 .dag-attempt-menu .choice-option-meta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 13px;
-  width: 88px;
-  gap: 8px;
-  margin-left: 0;
-  white-space: nowrap;
-  font-size: var(--ui-meta);
+  @apply grid grid-cols-[minmax(0,_1fr)_13px] w-22 gap-2 ml-0 whitespace-nowrap text-meta;
 }
 .dag-attempt-menu .choice-option-meta > .quiet {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: right;
+  @apply overflow-hidden text-ellipsis text-right;
 }
 
 /* Put the initial inset in the scrolling flow: sticky bars must touch the
    viewport edge so scrolled report/Trace content cannot appear above them. */
 .run-page:is(.run-execution-page, .dag-run-page, .run-output-page) {
-  padding-top: 0;
+  @apply pt-0;
 }
 .run-page:is(.run-execution-page, .dag-run-page, .run-output-page)::before {
   content: '';
-  display: block;
-  height: 18px;
+  @apply block h-4.5;
 }
 @media (max-width: 720px) {
   .run-page:is(.run-execution-page, .dag-run-page, .run-output-page)::before {
-    height: 12px;
+    @apply h-3;
   }
 }
 
 .run-page .run-section:has(> .run-section-body > .run-result-panel) > .run-section-header {
-  position: sticky;
-  top: 0;
-  z-index: 4;
+  @apply sticky top-0 z-4;
 }

@@ -24,7 +24,9 @@ export function RunDetails({
           <RunIdentity run={r} agents={agents} />
         </dd>
         <dt>{tr('工作目录')}</dt>
-        <dd className="mono wrap">{r.execution_snapshot?.cwd ?? r.config.cwd}</dd>
+        <dd className="mono wrap [overflow-wrap:anywhere] [word-break:break-word]">
+          {r.execution_snapshot?.cwd ?? r.config.cwd}
+        </dd>
         <dt>{tr('模型')}</dt>
         <dd className="mono">
           {r.execution_snapshot?.model ?? parameters.model ?? tr('Agent 默认')}
@@ -35,13 +37,15 @@ export function RunDetails({
             <div className="run-parameters">
               {Object.entries(parameters).map(([key, value]) => (
                 <div key={key}>
-                  <span className="quiet mono">{key}</span>
-                  <span className="mono wrap">{value}</span>
+                  <span className="quiet text-muted mono">{key}</span>
+                  <span className="mono wrap [overflow-wrap:anywhere] [word-break:break-word]">
+                    {value}
+                  </span>
                 </div>
               ))}
             </div>
           ) : (
-            <span className="quiet">{tr('默认配置')}</span>
+            <span className="quiet text-muted">{tr('默认配置')}</span>
           )}
         </dd>
         {r.session && (
@@ -49,11 +53,15 @@ export function RunDetails({
             {r.session.title?.trim() && (
               <>
                 <dt>{tr('会话名称')}</dt>
-                <dd className="wrap">{r.session.title}</dd>
+                <dd className="wrap [overflow-wrap:anywhere] [word-break:break-word]">
+                  {r.session.title}
+                </dd>
               </>
             )}
             <dt>{tr('会话 ID')}</dt>
-            <dd className="mono wrap">{r.session.id}</dd>
+            <dd className="mono wrap [overflow-wrap:anywhere] [word-break:break-word]">
+              {r.session.id}
+            </dd>
             {!r.session.ready && r.session.reason && (
               <>
                 <dt>{tr('会话状态')}</dt>
@@ -81,17 +89,19 @@ export function RunDetails({
         {r.reason && (
           <>
             <dt>{tr('原因')}</dt>
-            <dd className="wrap">{r.reason}</dd>
+            <dd className="wrap [overflow-wrap:anywhere] [word-break:break-word]">{r.reason}</dd>
           </>
         )}
         <dt>{tr('Run ID')}</dt>
-        <dd className="mono wrap">{r.id}</dd>
+        <dd className="mono wrap [overflow-wrap:anywhere] [word-break:break-word]">{r.id}</dd>
         <dt>{tr('Task ID')}</dt>
-        <dd className="mono wrap">{r.task_id}</dd>
+        <dd className="mono wrap [overflow-wrap:anywhere] [word-break:break-word]">{r.task_id}</dd>
         {r.job_id && (
           <>
             <dt>{tr('外部任务 ID')}</dt>
-            <dd className="mono wrap">{r.job_id}</dd>
+            <dd className="mono wrap [overflow-wrap:anywhere] [word-break:break-word]">
+              {r.job_id}
+            </dd>
           </>
         )}
       </dl>
@@ -105,7 +115,7 @@ export function RunDetails({
           .filter((e) => e.kind === 'state')
           .map((e) => (
             <div className="timeline-row" key={e.id}>
-              <span className="quiet mono">{time(e.created_at)}</span>
+              <span className="quiet text-muted mono">{time(e.created_at)}</span>
               <Status state={e.data.state ?? ''} />
             </div>
           ))}

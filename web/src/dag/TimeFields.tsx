@@ -1,4 +1,3 @@
-import { ErrorToast } from '../Toast'
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api, time, type TaskConfig, type DagIssue } from '../api'
@@ -12,6 +11,7 @@ export function TimeFields({
   timezone,
   disabled,
   active = true,
+  hideExecution = false,
   onChange,
   validation,
 }: {
@@ -19,6 +19,7 @@ export function TimeFields({
   timezone: string
   disabled: boolean
   active?: boolean
+  hideExecution?: boolean
   onChange: (config: TaskConfig) => void
   validation?: MutableRefObject<() => DagIssue[]>
 }) {
@@ -41,8 +42,7 @@ export function TimeFields({
       config.schedule?.timezone || timezone,
     ),
   }))
-  const [editing, setEditing] = useState(false),
-    [settled, setSettled] = useState('')
+  const [settled, setSettled] = useState('')
   const zones = useQuery<string[]>({
     queryKey: ['timezones'],
     queryFn: () => api('/timezones'),
@@ -177,10 +177,7 @@ export function TimeFields({
                   type={kind === 'at' ? 'datetime-local' : 'text'}
                   step={kind === 'at' ? 1 : undefined}
                   value={drafts[kind as keyof typeof drafts]}
-                  onFocus={() => setEditing(true)}
-                  onBlur={() => setEditing(false)}
                   onChange={(e) => {
-                    setEditing(true)
                     apply(kind, { ...drafts, [kind]: e.target.value })
                   }}
                 />
@@ -195,103 +192,119 @@ export function TimeFields({
                       </div>
                     ))}
                   {(!preview.data || localError) && (
-                    <span className="quiet">{preview.isFetching ? t('正在加载…') : '—'}</span>
+                    <span className="quiet text-muted">
+                      {preview.isFetching ? t('正在加载…') : '—'}
+                    </span>
                   )}
                   {preview.error && <Button onClick={() => preview.refetch()}>{t('重试')}</Button>}
                 </div>
               </div>
-              {active && !editing && (localError || preview.error) && (
-                <ErrorToast>{localError || preview.error!.message}</ErrorToast>
-              )}
             </>
           )}
         </div>
       </section>
-      <section className="content-card">
-        <header className="card-header">
-          <h3>{t('dag.executionPolicy')}</h3>
-        </header>
-        <div className="dag-settings-rows">
-          <Field label={t('dag.graphTimeout')} fieldKey="execution.timeout">
-            <div className="dag-time-limit">
-              <label className="check">
+      {!hideExecution && (
+        <section className="content-card">
+          <header className="card-header">
+            <h3>{t('dag.executionPolicy')}</h3>
+          </header>
+          <div className="dag-settings-rows">
+            <Field
+              label={t(config.dag ? 'dag.graphTimeout' : '执行超时')}
+              fieldKey="execution.timeout"
+            >
+              {config.dag ? (
+                <div className="dag-time-limit">
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={config.execution.timeout != null}
+                      onChange={(e) =>
+                        onChange({
+                          ...config,
+                          execution: {
+                            ...config.execution,
+                            timeout: e.target.checked ? timeoutDraft : null,
+                          },
+                        })
+                      }
+                    />
+                    {t('启用')}
+                  </label>
+                  {config.execution.timeout != null && (
+                    <input
+                      aria-label={t('dag.graphTimeout')}
+                      value={config.execution.timeout}
+                      onChange={(e) => {
+                        setTimeoutDraft(e.target.value)
+                        onChange({
+                          ...config,
+                          execution: { ...config.execution, timeout: e.target.value },
+                        })
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
                 <input
-                  type="checkbox"
-                  checked={config.execution.timeout != null}
+                  value={config.execution.timeout ?? '1h'}
                   onChange={(e) =>
-                    onChange({
-                      ...config,
-                      execution: {
-                        ...config.execution,
-                        timeout: e.target.checked ? timeoutDraft : null,
-                      },
-                    })
-                  }
-                />
-                {t('启用')}
-              </label>
-              {config.execution.timeout != null && (
-                <input
-                  aria-label={t('dag.graphTimeout')}
-                  value={config.execution.timeout}
-                  onChange={(e) => {
-                    setTimeoutDraft(e.target.value)
                     onChange({
                       ...config,
                       execution: { ...config.execution, timeout: e.target.value },
                     })
-                  }}
+                  }
                 />
               )}
-            </div>
-          </Field>
-          <Field label={t('允许延迟')} fieldKey="execution.start_grace">
-            <input
-              value={config.execution.start_grace}
-              onChange={(e) =>
-                onChange({
-                  ...config,
-                  execution: { ...config.execution, start_grace: e.target.value },
-                })
-              }
-            />
-          </Field>
-          <Field label={t('错过执行')} fieldKey="execution.misfire">
-            <ChoicePicker
-              label={t('错过执行')}
-              disabled={disabled}
-              value={config.execution.misfire}
-              options={[
-                { value: 'skip', label: t('跳过') },
-                { value: 'latest', label: t('dag.latest') },
-              ]}
-              onChange={(value) =>
-                onChange({
-                  ...config,
-                  execution: { ...config.execution, misfire: value as 'skip' | 'latest' },
-                })
-              }
-            />
-          </Field>
-          <Field label={t('执行重叠')} fieldKey="execution.overlap">
-            <ChoicePicker
-              label={t('执行重叠')}
-              disabled={disabled}
-              value={config.execution.overlap}
-              options={[
-                { value: 'skip', label: t('跳过') },
-                { value: 'allow', label: t('允许并行') },
-              ]}
-              onChange={(value) =>
-                onChange({
-                  ...config,
-                  execution: { ...config.execution, overlap: value as 'skip' | 'allow' },
-                })
-              }
-            />
-          </Field>
-        </div>
-      </section>
+            </Field>
+            <Field label={t('允许延迟')} fieldKey="execution.start_grace">
+              <input
+                value={config.execution.start_grace}
+                onChange={(e) =>
+                  onChange({
+                    ...config,
+                    execution: { ...config.execution, start_grace: e.target.value },
+                  })
+                }
+              />
+            </Field>
+            <Field label={t('错过执行')} fieldKey="execution.misfire">
+              <ChoicePicker
+                label={t('错过执行')}
+                disabled={disabled}
+                value={config.execution.misfire}
+                options={[
+                  { value: 'skip', label: t('跳过') },
+                  { value: 'latest', label: t('dag.latest') },
+                ]}
+                onChange={(value) =>
+                  onChange({
+                    ...config,
+                    execution: { ...config.execution, misfire: value as 'skip' | 'latest' },
+                  })
+                }
+              />
+            </Field>
+            <Field label={t('执行重叠')} fieldKey="execution.overlap">
+              <ChoicePicker
+                label={t('执行重叠')}
+                disabled={disabled}
+                value={config.execution.overlap}
+                options={[
+                  { value: 'skip', label: t('跳过') },
+                  { value: 'allow', label: t('允许并行') },
+                ]}
+                onChange={(value) =>
+                  onChange({
+                    ...config,
+                    execution: { ...config.execution, overlap: value as 'skip' | 'allow' },
+                  })
+                }
+              />
+            </Field>
+          </div>
+        </section>
+      )}
     </fieldset>
   )
 }

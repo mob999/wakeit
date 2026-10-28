@@ -253,7 +253,7 @@ export function RunTrace({
           </Button>
         </ErrorToast>
       )}
-      {message && <p className="quiet trace-retention">{message}</p>}
+      {message && <p className="quiet text-muted trace-retention">{message}</p>}
       {entries.map(({ node }) => (
         <TraceRow
           key={node.id}

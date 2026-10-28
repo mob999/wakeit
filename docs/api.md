@@ -19,6 +19,13 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 | GET `/tasks` | 支持 page、page_size、q、runner、agent、enabled；含 last_run | Viewer |
 | GET `/tasks/{id}` | 单个 Task | Viewer |
 | POST `/tasks/validate` | `{config}`，只读完整校验，返回 `{errors}` | Operator |
+| GET `/task-templates` | 模板分页、搜索及归档筛选 | Viewer |
+| GET / PUT `/task-templates/{id}` | 模板定义和 revision / 保存完整定义 | Viewer / Operator |
+| POST `/task-templates/{id}/archive`、`/restore` | `{expected_revision}`，归档或恢复模板 | Operator |
+| POST `/task-template-preview` | `{definition,request}`，只读预览未保存草稿 | Viewer |
+| POST `/task-templates/{id}/preview` | InstanceRequest，只读生成最终配置、图和 source map | Viewer |
+| POST `/task-templates/{id}/instantiate` | InstanceRequest + Idempotency-Key，原子创建 Task 及可选 Run | Operator |
+| GET `/tasks/{id}/template` | 将现有 Task 转为新模板定义，保留文本和结果引用 | Viewer |
 | PUT `/tasks/{id}` | `{config,expected_revision}`；新建版本为 null，更新须匹配 | Operator |
 | POST `/tasks/{id}/archive`、`/tasks/{id}/restore` | `{expected_revision}`，归档或恢复为暂停 | Operator |
 | POST `/tasks/{id}/runs` | 返回 `{id}` | Operator |
@@ -54,11 +61,19 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 
 健康检查：`/health/live`、`/health/ready`。Prometheus 格式指标：`/metrics`，需要实例管理员会话，包含调度延迟、Outbox 积压、设备离线和各 Run 状态数量。
 
-动态 OpenAPI 文档位于 `/api/v1/openapi.json`。可用 `wakeit schema openapi`、`wakeit schema task`、`wakeit schema agent` 导出定义。
+动态 OpenAPI 文档位于 `/api/v1/openapi.json`。可用 `wakeit schema openapi`、`wakeit schema task`、`wakeit schema template`、`wakeit schema agent` 导出定义。
+
+## 任务模板
+
+InstanceRequest 包含 `expected_revision`、`values`、`unset`、命名 `bindings`，以及可选 `task_id`、字面 `name`、Schedule 覆盖、`run_now` 和预览 `request_id`。预览返回 `resolved_inputs`、`config`、`graph`、`source_map`、`used_bindings` 和 `issues`；有错误时 `config` 可为空，已生成的图仍可用于定位问题。预览不写 Task、Run、事件或 Outbox。
+
+实例化重新在服务端编译并检查 revision、归档状态、权限和绑定。成功返回 `{task_id,task_revision,run_id,template_revision}`；`run_now:false` 时 `run_id` 为 null，否则为新建 Run UUID。模板、Task 和 Run 保留创建时的来源快照，后续模板编辑或归档不会重新生成已有配置。
+
+实例化要求 `Idempotency-Key`。同一工作区、用户和键的相同已提交请求返回原 Task/Run ID，即使模板之后已修改或归档；重放前仍复核权限。同键不同请求、过期的新 revision 或冲突的 Task ID 返回 409。校验失败返回 422 和 `{error:"taskTemplate.validation",issues:[...]}`，issue 包含 code、逻辑 path、message，以及可用的 node_id、line、column，不产生部分写入。完整格式和示例见[任务模板指南](templates.md)。
 
 ## 即时能力 API
 
-- `GET /api/v1/meta`：公开返回 `{version:"0.3.1"}`。
+- `GET /api/v1/meta`：公开返回 `{version:"0.3.4"}`。
 - `GET /api/v1/workspaces/{workspace-id}/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
 - `POST /api/v1/workspaces/{workspace-id}/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
 

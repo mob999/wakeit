@@ -1,0 +1,66 @@
+version: 1
+id: repository-monitor
+name: 仓库检查
+inputs:
+  type: object
+  additionalProperties: false
+  required: [repositories, working_directory]
+  properties:
+    repositories:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required: [key, url]
+        properties:
+          key: { type: string, minLength: 1 }
+          url: { type: string, format: repository-url }
+          enabled: { type: boolean }
+    working_directory:
+      type: string
+      format: directory
+    include_summary:
+      type: boolean
+      default: true
+    note:
+      type: string
+      default: ''
+bindings:
+  worker:
+    title: 检查环境
+task:
+  name: { template: '检查 [[ inputs.repositories | length ]] 个仓库' }
+  schedule: null
+  dag:
+    nodes:
+      - group: review
+        for_each: { expr: inputs.repositories }
+        as: repo
+        key: key
+        when: { expr: 'repo.enabled | default(true)' }
+        node:
+          binding: worker
+          name: { template: '检查 [[ repo.key ]]' }
+          cwd: { template: '[[ inputs.working_directory ]]' }
+          timeout: 1h
+          prompt:
+            parts:
+              - template: |-
+                  检查仓库 [[ repo.url ]] 的新增提交，保留仓库名称和证据。
+                  [[ inputs.note ]]
+      - id: summarize
+        when: { expr: inputs.include_summary }
+        binding: worker
+        name: 汇总
+        cwd: { template: '[[ inputs.working_directory ]]' }
+        timeout: 1h
+        pre:
+          - { group: review, all: true }
+        prompt:
+          parts:
+            - text: "汇总实际生成的检查结果：\n"
+            - result: { group: review, all: true }
+              separator: "\n\n"
+    results:
+      - { node: summarize, when: { expr: inputs.include_summary } }
+      - { group: review, all: true, when: { expr: 'not inputs.include_summary' } }

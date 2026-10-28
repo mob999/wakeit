@@ -14,13 +14,19 @@ Define the instructions and timing, and Wakeit sends the task to a Runner on you
 - **Separate workspaces.** Keep tasks, runs, devices and permissions isolated across teams. See [workspace configuration and authentication](docs/workspaces.md).
 - **Host locally or in the cloud.** One Rust binary includes the Gateway, Runner and CLI; the WebUI ships with the Gateway.
 
-The latest published release is **0.3.3**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
+The latest published release is **0.3.4**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
 
 Local PNG/JPEG/WebP references render as thumbnails in reports and Markdown-file previews through the original Runner; clicking loads the original image on demand; relative image paths use the execution or Markdown directory and existing workspace/root permissions apply.
 
 ## Install
 
-Download the binary for your platform from the [v0.3.3 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.3), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
+On macOS or Linux GNU:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
+```
+
+The installer displays progress, downloads and verifies the release, installs Wakeit and configures your user PATH. Open a new terminal and run `wakeit --version`. See the [installation guide](docs/install.md) for Windows, a specific version, a different directory, or manual installation.
 
 To build from source, install Rust 1.89+ and Node.js 22.12+, then run:
 
@@ -117,5 +123,7 @@ Update checks use public GitHub Releases and require no GitHub sign-in. Regular 
 | Develop an Agent adapter | [Configuration and adapter protocol](docs/protocol.md) |
 | Call the API | [REST API](docs/api.md) |
 | Build and run tests | [Contributing](CONTRIBUTING.md) |
+| Create reusable tasks and generated DAGs | [Task templates](docs/templates.md) |
+| Review the task template design | [Task template RFC](docs/rfc-2-task-templates.md) |
 
 License: [Apache-2.0](LICENSE). See [third-party components](docs/third-party.md) for bundled skills and Windows service tooling.

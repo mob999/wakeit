@@ -1,234 +1,157 @@
-.task-detail-tabs {
-  min-height: var(--card-header-height);
-}
-.task-detail-tabs > button {
-  height: calc(var(--card-header-height) - 1px);
-}
+@reference '../styles/tailwind.css';
+
 .task-overview .task-overview-schedule {
-  justify-content: flex-start;
-  gap: 12px;
-  padding: 8px 16px;
+  @apply justify-start gap-3 py-2 px-4;
 }
 .task-overview-schedule > h3 {
-  flex: none;
+  @apply flex-none;
 }
 .task-overview-rule,
 .task-overview-next {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
+  @apply flex items-center gap-2.5 min-w-0;
 }
 .task-overview-rule {
-  flex-wrap: wrap;
-  overflow-wrap: anywhere;
+  @apply flex-wrap [overflow-wrap:anywhere];
 }
 .task-overview-rule > svg {
-  flex: none;
-  color: var(--muted);
+  @apply flex-none text-muted;
 }
 .task-overview-rule > .quiet,
 .task-overview-next > .quiet {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .task-overview-next {
-  margin-left: auto;
-  white-space: nowrap;
+  @apply ml-auto whitespace-nowrap;
 }
 .task-overview-next time {
-  font-variant-numeric: tabular-nums;
-  font-weight: 550;
+  @apply tabular-nums;
+  @apply font-[550];
 }
 .task-overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  @apply grid grid-cols-[minmax(0,_1fr)_280px];
 }
 .task-overview-primary,
 .task-overview-prompt,
 .task-overview-context {
-  min-width: 0;
+  @apply min-w-0;
 }
 .task-overview-context {
-  border-left: 1px solid var(--border);
+  @apply [border-left:1px_solid_var(--border)];
 }
 .task-overview-heading,
 .task-overview-prompt-head {
-  display: flex;
-  align-items: center;
-  min-height: 36px;
-  margin: 0;
-  padding: 4px 16px;
-  font-size: 12px;
-  font-weight: 550;
+  @apply flex items-center min-h-9 m-0 py-1 px-4 text-[12px];
+  @apply font-[550];
 }
 .task-overview-prompt {
-  padding-bottom: 12px;
-  scroll-margin-top: 12px;
+  @apply pb-3 scroll-mt-3;
 }
 .task-overview-prompt-head {
-  justify-content: space-between;
-  gap: 8px;
+  @apply justify-between gap-2;
 }
 .task-overview-prompt-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
+  @apply flex items-center gap-2 min-w-0 flex-1;
 }
 .task-overview-prompt-title > .quiet {
-  font-size: 11px;
-  font-weight: 400;
-  flex: none;
+  @apply text-[11px];
+  @apply font-normal flex-none;
 }
 .task-overview-prompt-title > .choice-selector {
-  min-width: 0;
-  width: auto;
-  flex: 1;
-  border: 0;
-  background: transparent;
-  height: 28px;
+  @apply min-w-0 w-auto flex-1 [border:0] bg-transparent h-7;
 }
 .task-overview .task-prompt {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  line-height: 20px;
-  margin: 0 16px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  @apply font-sans;
+  @apply text-[12px] leading-[20px] my-0 mx-4 whitespace-pre-wrap [overflow-wrap:anywhere];
 }
 .task-overview .task-prompt.is-preview {
-  max-height: 240px;
-  overflow: hidden;
+  @apply max-h-60 overflow-hidden;
 }
 .task-overview .task-prompt.is-preview.is-long {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }
 .task-overview-expand {
-  display: block;
-  padding: 0;
-  margin: 8px 16px 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  text-decoration: underline;
+  @apply block p-0 mt-2 mx-4 mb-0 [border:0] bg-transparent text-muted text-[11px] underline;
   text-underline-offset: 3px;
 }
 .task-overview-expand:hover {
-  color: var(--ink);
+  @apply text-ink;
 }
 .task-overview-properties {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  margin: 0;
-  padding: 0 16px 12px;
-  min-width: 0;
+  @apply grid grid-cols-[64px_minmax(0,_1fr)] m-0 pt-0 px-4 pb-3 min-w-0;
 }
 .task-overview-properties > dt,
 .task-overview-properties > dd {
-  display: flex;
-  align-items: center;
-  margin: 0;
-  padding: 4px 0;
-  min-height: 30px;
-  min-width: 0;
-  overflow-wrap: anywhere;
+  @apply flex items-center m-0 py-1 px-0 min-h-7.5 min-w-0 [overflow-wrap:anywhere];
 }
 .task-overview-properties > dt {
-  color: var(--muted);
-  font-size: 11px;
+  @apply text-muted text-[11px];
 }
 .task-overview-properties > dd {
-  gap: 6px;
-  font-size: 12px;
+  @apply gap-1.5 text-[12px];
 }
 .task-overview-properties > dd.mono {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .task-overview-properties > dd > svg,
 .task-overview-properties .agent-logo {
-  flex: none;
-  color: var(--muted);
-  width: 14px;
-  height: 14px;
+  @apply flex-none text-muted w-3.5 h-3.5;
 }
 .task-overview-properties > .task-overview-parameters-cell {
-  align-items: flex-start;
+  @apply items-start;
 }
 .task-overview-parameters {
-  width: 100%;
-  min-width: 0;
+  @apply w-full min-w-0;
 }
 .task-overview-parameters > summary {
-  color: var(--muted);
-  cursor: pointer;
-  min-height: 22px;
+  @apply text-muted cursor-pointer min-h-5.5;
 }
 .task-overview-parameter-copy {
-  display: flex;
-  justify-content: flex-end;
+  @apply flex justify-end;
 }
 .task-overview-parameters .code-content pre,
 .task-overview-parameters .code-content code {
-  font-size: 11px;
-  background: transparent;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  @apply text-[11px] bg-transparent p-0 [border:0];
+  @apply rounded-none whitespace-pre-wrap [overflow-wrap:anywhere];
 }
 .task-overview-structure {
-  border-bottom: 1px solid var(--border);
+  @apply [border-bottom:1px_solid_var(--border)];
 }
 .task-overview-structure .dag-structure-head {
-  min-height: 36px;
-  flex-wrap: wrap;
-  padding: 4px 16px;
+  @apply min-h-9 flex-wrap py-1 px-4;
 }
 .task-overview-structure .dag-structure-content:not(.dag-structure-fullscreen) .dag-graph-scroll {
-  height: min(220px, 28dvh);
+  @apply h-[min(220px,_28dvh)];
 }
 .task-overview-structure .dag-structure-content:not(.dag-structure-fullscreen) .dag-node-table {
-  max-height: min(220px, 28dvh);
-  overflow: auto;
+  @apply max-h-[min(220px,_28dvh)] overflow-auto;
 }
 .task-overview-structure .dag-table-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  @apply sticky top-0 z-2;
 }
 .task-overview .task-overview-history {
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  margin: 0;
+  @apply [border-top:1px_solid_var(--border)];
+  @apply rounded-none m-0;
 }
 .run-table-head .run-table-actions {
-  display: flex;
-  justify-content: flex-end;
+  @apply flex justify-end;
 }
 .task-overview[data-size='narrow'] .task-overview-grid,
 .task-overview[data-size='small'] .task-overview-grid {
-  display: flex;
-  flex-direction: column;
+  @apply flex flex-col;
 }
 .task-overview:not([data-size='wide']) .task-overview-context {
-  border-left: 0;
-  border-bottom: 1px solid var(--border);
+  @apply [border-left:0];
+  @apply [border-bottom:1px_solid_var(--border)];
   order: -1;
 }
 .task-overview[data-size='narrow'] .task-overview-properties {
-  grid-template-columns: 64px minmax(0, 1fr) 64px minmax(0, 1fr);
-  column-gap: 12px;
+  @apply grid-cols-[64px_minmax(0,_1fr)_64px_minmax(0,_1fr)] gap-x-3;
 }
 .task-overview:not([data-size='wide']) .task-overview-schedule {
-  flex-wrap: wrap;
-  gap: 4px 12px;
+  @apply flex-wrap gap-[4px_12px];
 }
 .task-overview:not([data-size='wide']) .task-overview-next {
-  margin-left: 0;
-  flex-basis: 100%;
+  @apply ml-0 basis-full;
 }
 .task-overview:not([data-size='wide']) .task-overview-history {
   --run-device-column: minmax(0, 1fr);
@@ -236,52 +159,45 @@
 }
 .task-overview[data-size='small'] .task-overview-heading,
 .task-overview[data-size='small'] .task-overview-prompt-head {
-  padding-inline: 12px;
+  @apply px-3;
 }
 .task-overview[data-size='small'] .task-overview-properties {
-  grid-template-columns: 64px minmax(0, 1fr);
-  padding-inline: 12px;
+  @apply grid-cols-[64px_minmax(0,_1fr)] px-3;
 }
 .task-overview[data-size='small'] .task-prompt {
-  margin-inline: 12px;
+  @apply mx-3;
 }
 .task-overview .task-overview-history > .run-table-row:not(.run-table-head) {
-  min-height: 48px;
-  padding-block: 8px;
+  @apply min-h-12 py-2;
 }
 .task-overview .task-overview-history .run-table-time,
 .task-overview .task-overview-history .run-device,
 .task-overview .task-overview-history .run-agent {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .task-overview .run-table-actions {
-  margin-left: auto;
+  @apply ml-auto;
 }
 .task-overview .task-overview-history {
-  grid-template-columns: 116px minmax(0, 1fr) minmax(0, 0.6fr) 160px 44px;
-  column-gap: 16px;
+  @apply grid-cols-[116px_minmax(0,_1fr)_minmax(0,_0.6fr)_160px_44px] gap-x-4;
 }
 .task-overview .run-table-head {
-  padding-block: 0;
-  min-height: var(--card-header-height);
+  @apply py-0 min-h-header;
 }
 .task-overview-history > .run-table-row > svg {
-  justify-self: end;
+  @apply justify-self-end;
 }
 .task-overview[data-size='small'] .task-overview-history {
-  display: block;
+  @apply block;
 }
 .task-overview[data-size='small'] .run-table-head {
-  display: flex;
+  @apply flex;
 }
 .task-overview[data-size='small'] .run-table-head > span:not(.run-table-actions) {
-  display: none;
+  @apply hidden;
 }
 .task-overview[data-size='small'] .task-overview-history > .run-table-row:not(.run-table-head) {
-  grid-template-columns: minmax(0, 1fr) max-content 13px;
-  gap: 4px 12px;
-  padding-block: 5px 6px;
-  line-height: 16px;
+  @apply grid-cols-[minmax(0,_1fr)_max-content_13px] gap-[4px_12px] py-[5px_6px] leading-[16px];
 }
 .task-overview[data-size='small'] .run-table-row > .status {
   grid-area: 1 / 1;
@@ -300,5 +216,5 @@
 }
 .task-overview[data-size='small'] .run-table-row > svg {
   grid-area: 1 / 3 / span 2;
-  justify-self: end;
+  @apply justify-self-end;
 }

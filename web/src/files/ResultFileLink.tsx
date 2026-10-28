@@ -146,7 +146,7 @@ export function ResultFileLink({
         >
           <div className="file-preview-content">
             {pending ? (
-              <p className="quiet">{t('正在加载…')}</p>
+              <p className="quiet text-muted">{t('正在加载…')}</p>
             ) : value ? (
               <>
                 <div className="file-preview-meta" title={value.modified_at ?? undefined}>
@@ -174,7 +174,7 @@ export function ResultFileLink({
                 ) : (
                   <pre className="code">{text}</pre>
                 )}
-                {!value.content && <p className="quiet">{t('filePreview.empty')}</p>}
+                {!value.content && <p className="quiet text-muted">{t('filePreview.empty')}</p>}
               </>
             ) : failed ? (
               <div className="file-preview-image-status" role="status">

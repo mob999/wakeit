@@ -2,6 +2,7 @@ import { useCallback, useEffect, type ReactNode, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRunReading } from './RunReading'
 import { runTab, type RunTab } from './readingModel'
+import { DetailTabs } from '../DetailTabs'
 import './RunTabs.css'
 
 const tabs = ['output', 'trace', 'details'] as const
@@ -36,51 +37,35 @@ export function RunTabs({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="run-tabs">
-      <div className="tabs" role="tablist" aria-label={t('运行内容')}>
-        {tabs.map((key, index) => (
-          <button
-            key={key}
-            id={`run-${id}-${key}-tab`}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            aria-controls={`run-${id}-${key}-panel`}
-            aria-describedby={key === 'output' && outputReady ? `run-${id}-ready` : undefined}
-            tabIndex={tab === key ? 0 : -1}
-            className={tab === key ? 'active' : ''}
-            onClick={() => onChange(key)}
-            onKeyDown={(event) => {
-              const next =
-                event.key === 'ArrowRight'
-                  ? (index + 1) % tabs.length
-                  : event.key === 'ArrowLeft'
-                    ? (index + tabs.length - 1) % tabs.length
-                    : event.key === 'Home'
-                      ? 0
-                      : event.key === 'End'
-                        ? tabs.length - 1
-                        : -1
-              if (next < 0) return
-              event.preventDefault()
-              onChange(tabs[next])
-              document.getElementById(`run-${id}-${tabs[next]}-tab`)?.focus()
-            }}
-          >
+    <DetailTabs<RunTab>
+      className="run-tabs"
+      idPrefix={`run-${id}`}
+      label={t('运行内容')}
+      value={tab}
+      onChange={onChange}
+      tabs={tabs.map((key) => ({
+        key,
+        describedBy: key === 'output' && outputReady ? `run-${id}-ready` : undefined,
+        label: (
+          <>
             {t(key === 'details' ? '详情' : `run.${key}`)}
             {key === 'output' && outputReady && (
               <span className="run-output-ready" aria-hidden="true" />
             )}
-          </button>
-        ))}
-      </div>
-      {outputReady && (
-        <span id={`run-${id}-ready`} className="sr-only" role="status">
-          {t('reading.resultReady')}
-        </span>
-      )}
-      {status}
-    </div>
+          </>
+        ),
+      }))}
+      status={
+        <>
+          {outputReady && (
+            <span id={`run-${id}-ready`} className="sr-only" role="status">
+              {t('reading.resultReady')}
+            </span>
+          )}
+          {status}
+        </>
+      }
+    />
   )
 }
 

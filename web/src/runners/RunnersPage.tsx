@@ -14,10 +14,11 @@ import { useFilters, runnerMatches, agentMatches } from '../Search'
 import { Split } from '../Workbench'
 import { Pagination } from '../Pagination'
 import { Button, IconButton, Modal } from '../ui'
-import { TaskEditor } from '../TaskEditor'
+import { CreateTaskDialog } from '../CreateTaskDialog'
 import { RunnerOverview } from './RunnerOverview'
 import { RunnerAgents } from './RunnerAgents'
 import { EnrollDialog } from './EnrollDialog'
+import { DetailTabs } from '../DetailTabs'
 
 export function RunnersPage({ user, toast }: { user: User; toast: (message: string) => void }) {
   useTranslation()
@@ -80,9 +81,11 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
       <Button onClick={() => runners.refetch()}>{tr('重试')}</Button>
     </ErrorToast>
   ) : runners.isPending ? (
-    <p className="quiet padded">{tr('正在加载…')}</p>
+    <p className="quiet text-muted padded p-5">{tr('正在加载…')}</p>
   ) : !filtered.length ? (
-    <p className="quiet padded">{runners.data?.length ? tr('无匹配设备') : tr('暂无设备')}</p>
+    <p className="quiet text-muted padded p-5">
+      {runners.data?.length ? tr('无匹配设备') : tr('暂无设备')}
+    </p>
   ) : null
   return (
     <>
@@ -183,36 +186,39 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
                 </Dropdown.Root>
               )}
             </PageActions>
-            <div className="tabs" role="tablist" aria-label={tr('设备详情')}>
-              {[
-                ['overview', tr('概览')],
-                ['agents', tr('Agents')],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={section === id}
-                  className={section === id ? 'active' : ''}
-                  onClick={() => choose(runner.id, id)}
-                >
-                  {label}
-                </button>
-              ))}
+            <DetailTabs
+              className="runner-detail-tabs"
+              idPrefix={`runner-${runner.id}`}
+              label={tr('设备详情')}
+              tabs={[
+                { key: 'overview', label: tr('概览') },
+                { key: 'agents', label: tr('Agents') },
+              ]}
+              value={section}
+              onChange={(value) => choose(runner.id, value)}
+            />
+            <div
+              className="detail-tab-panel flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden"
+              id={`runner-${runner.id}-${section}-panel`}
+              role="tabpanel"
+              aria-labelledby={`runner-${runner.id}-${section}-tab`}
+              tabIndex={0}
+            >
+              {section === 'agents' ? (
+                <RunnerAgents
+                  runner={runner}
+                  filters={filteringAgents ? agentFilters : {}}
+                  expanded={search.agent}
+                  onExpand={(id) => choose(runner.id, 'agents', id)}
+                  onCreate={
+                    editable ? (agent) => setEditor({ runner: runner.name, agent }) : undefined
+                  }
+                  createReady={!!settings.data}
+                />
+              ) : (
+                <RunnerOverview runner={runner} />
+              )}
             </div>
-            {section === 'agents' ? (
-              <RunnerAgents
-                runner={runner}
-                filters={filteringAgents ? agentFilters : {}}
-                expanded={search.agent}
-                onExpand={(id) => choose(runner.id, 'agents', id)}
-                onCreate={
-                  editable ? (agent) => setEditor({ runner: runner.name, agent }) : undefined
-                }
-                createReady={!!settings.data}
-              />
-            ) : (
-              <RunnerOverview runner={runner} />
-            )}
           </>
         ) : (
           <div className="empty">
@@ -230,9 +236,9 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
       </Split>
       {enroll && <EnrollDialog onClose={() => setEnroll(false)} toast={toast} />}
       {editor && settings.data && (
-        <TaskEditor
+        <CreateTaskDialog
           defaults={editor}
-          defaultTimezone={settings.data.timezone}
+          timezone={settings.data.timezone}
           onClose={() => setEditor(null)}
         />
       )}

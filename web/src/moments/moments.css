@@ -1,276 +1,192 @@
+@reference '../styles/tailwind.css';
+
 .moments-page {
-  height: 100%;
-  overflow: auto;
-  padding: 0 24px 24px;
+  @apply h-full overflow-auto pt-0 px-6 pb-6;
   overflow-anchor: auto;
   container-type: inline-size;
 }
 .moments-page::before {
   content: '';
-  display: block;
-  height: 16px;
+  @apply block h-4;
 }
 .moments-state {
-  padding: 16px 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
+  @apply py-4 px-0 flex items-center gap-3 text-[12px];
 }
 .moments-timeline {
-  position: relative;
+  @apply relative;
 }
 .moments-timeline:before {
   content: '';
-  position: absolute;
-  left: 49px;
-  top: 9px;
-  bottom: 20px;
-  width: 1px;
-  background: var(--border);
+  @apply absolute left-[49px] top-[9px] bottom-5 w-px bg-ui-border;
 }
 .moment-day + .moment-day {
-  margin-top: 16px;
+  @apply mt-4;
 }
 .moment-date {
-  display: grid;
-  grid-template-columns: 100px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  margin: 0 0 10px;
-  position: relative;
+  @apply grid grid-cols-[100px_minmax(0,_1fr)] items-center gap-3 mt-0 mx-0 mb-2.5 relative;
 }
 .moment-date-label {
-  justify-self: center;
-  position: relative;
+  @apply justify-self-center relative;
 }
 .moment-date h2 {
-  position: relative;
-  z-index: 1;
-  background: var(--canvas);
-  padding: 0 5px;
-  font-size: 12px;
-  font-weight: 550;
-  margin: 0;
+  @apply relative z-1 bg-canvas py-0 px-[5px] text-[12px];
+  @apply font-[550] m-0;
 }
 .moment-date-label > span {
-  position: absolute;
-  left: calc(100% + 2px);
-  top: 50%;
+  @apply absolute left-[calc(100%_+_2px)] top-[50%];
   transform: translateY(-50%);
-  white-space: nowrap;
-  color: var(--muted);
-  font-size: 11px;
+  @apply whitespace-nowrap text-muted text-[11px];
 }
 .moment-entry {
-  position: relative;
-  display: grid;
-  grid-template-columns: 34px 12px minmax(0, 1fr);
-  gap: 10px;
-  padding-bottom: 16px;
-  min-width: 0;
+  @apply relative grid grid-cols-[34px_12px_minmax(0,_1fr)] gap-2.5 pb-4 min-w-0;
 }
 .moment-time {
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  padding-top: 15px;
+  @apply text-[11px] text-muted;
+  @apply tabular-nums pt-[15px];
 }
 .moment-node {
-  position: relative;
-  z-index: 1;
-  width: 7px;
-  height: 7px;
-  margin: 18px 0 0 2px;
-  border: 1px solid var(--muted);
-  border-radius: 50%;
-  background: var(--canvas);
+  @apply relative z-1 w-[7px] h-[7px] mt-4.5 mr-0 mb-0 ml-0.5 [border:1px_solid_var(--muted)];
+  @apply rounded-[50%] bg-canvas;
 }
 .moment-card,
 .moment-card-host {
-  min-width: 0;
+  @apply min-w-0;
 }
 .content-card.moment-card {
-  overflow: clip;
+  @apply overflow-clip;
 }
 .moment-card > .card-header {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 6px 12px;
+  @apply sticky top-0 z-4 flex items-center gap-3 min-h-11 py-1.5 px-3;
 }
 .moment-card .card-header h3 {
-  min-width: 0;
-  flex: 1;
-  font-size: 12px;
-  font-weight: 550;
+  @apply min-w-0 flex-1 text-[12px];
+  @apply font-[550];
 }
 .moment-card .card-header h3 a {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: inherit;
-  text-decoration: none;
+  @apply block whitespace-nowrap overflow-hidden text-ellipsis text-inherit no-underline;
 }
 .moment-card .card-header h3 a:hover {
-  text-decoration: underline;
+  @apply underline;
 }
 .moment-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 4px;
+  @apply flex shrink-0 items-center gap-1;
 }
 .moment-actions .status {
-  margin-right: 4px;
-  font-size: 11px;
+  @apply mr-1 text-[11px];
 }
 .moment-actions .run-reason-trigger {
-  margin-left: 0;
+  @apply ml-0;
 }
 .moment-elapsed {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 8px;
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  @apply inline-flex items-center gap-1 mr-2 text-[11px] text-muted;
+  @apply tabular-nums whitespace-nowrap;
 }
 .moment-identity {
-  display: flex;
-  gap: 12px;
-  min-width: 0;
-  align-items: center;
+  @apply flex gap-3 min-w-0 items-center;
 }
 .moment-identity > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
+  @apply inline-flex items-center gap-[5px] min-w-0;
 }
 .moment-identity svg,
 .moment-identity .agent-logo {
-  width: 12px;
-  height: 12px;
-  flex: none;
+  @apply w-3 h-3 flex-none;
 }
 .moment-device {
-  max-width: 220px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  @apply max-w-55 overflow-hidden whitespace-nowrap text-ellipsis;
 }
 .moment-retries {
-  margin: 0 0 8px;
-  font-size: 11px;
+  @apply mt-0 mx-0 mb-2 text-[11px];
 }
 .moment-notice {
-  margin: 0 0 8px;
-  font-size: 11px;
+  @apply mt-0 mx-0 mb-2 text-[11px];
 }
 .moments-load {
-  display: flex;
-  margin: 4px auto 16px;
-  font-size: 12px;
+  @apply flex mt-1 mx-auto mb-4 text-[12px];
 }
 @media (max-width: 720px) {
   .moments-page {
-    padding: 0 12px 12px;
+    @apply pt-0 px-3 pb-3;
   }
   .moments-page::before {
-    height: 12px;
+    @apply h-3;
   }
   .moments-timeline:before {
-    left: 7px;
+    @apply left-[7px];
   }
   .moment-date {
-    display: flex;
-    padding-left: 20px;
-    margin-bottom: 10px;
+    @apply flex pl-5 mb-2.5;
   }
   .moment-date-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    @apply flex items-center gap-2;
   }
   .moment-date h2 {
-    padding: 0;
+    @apply p-0;
   }
   .moment-date-label > span {
-    position: static;
+    @apply static;
     transform: none;
   }
   .moment-entry {
-    grid-template-columns: 12px minmax(0, 1fr);
-    gap: 8px;
-    padding-bottom: 12px;
+    @apply grid-cols-[12px_minmax(0,_1fr)] gap-2 pb-3;
   }
   .moment-time {
-    grid-column: 2;
-    padding-top: 0;
+    @apply col-[2] pt-0;
   }
   .moment-node {
-    grid-column: 1;
-    grid-row: 2;
-    margin: 18px 0 0 4px;
+    @apply col-[1];
+    @apply row-[2] mt-4.5 mr-0 mb-0 ml-1;
   }
   .moment-card-host {
-    grid-column: 2;
-    grid-row: 2;
+    @apply col-[2];
+    @apply row-[2];
   }
   .moment-card > .card-header {
-    gap: 4px;
-    padding: 6px 8px;
+    @apply gap-1 py-1.5 px-2;
   }
   .moment-elapsed {
-    display: none;
+    @apply hidden;
   }
   .moment-actions {
-    gap: 0;
+    @apply gap-0;
   }
   .moment-identity {
-    gap: 8px;
+    @apply gap-2;
   }
   .moment-device {
-    max-width: 140px;
+    @apply max-w-35;
   }
 }
 .moment-card-host {
-  min-width: 0;
+  @apply min-w-0;
 }
 .moment-placeholder {
-  background: var(--canvas);
+  @apply bg-canvas;
 }
 /* Execution identity keeps its existing place at the right of each header. */
 .moment-identity {
   flex: 0 1 auto;
-  font-size: 11px;
-  color: var(--muted);
+  @apply text-[11px] text-muted;
 }
 .moment-identity > span {
-  white-space: nowrap;
+  @apply whitespace-nowrap;
+}
+.moment-identity:has(.dag-agent-summary) {
+  flex: 0 1 auto;
+  @apply max-w-[min(340px,_42%)];
 }
 @media (max-width: 720px) {
   .moment-card-host {
-    grid-column: 2;
-    grid-row: 2;
+    @apply col-[2];
+    @apply row-[2];
   }
   .moment-card > .card-header {
-    gap: 6px;
+    @apply gap-1.5;
   }
   .moment-identity {
-    gap: 6px;
-    flex: none;
+    @apply gap-1.5 flex-none;
   }
   .moment-identity .moment-device,
   .moment-identity .moment-agent-name {
-    display: none;
+    @apply hidden;
   }
 }

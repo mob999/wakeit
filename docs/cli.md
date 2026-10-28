@@ -71,6 +71,26 @@ WebUI 可在设置 → 归档任务恢复；成员关系和邀请在设置 → �
 
 一个 Task 可以通过内嵌 `dag` 定义整张 AND 图，多个根统一开始，不支持绕过依赖独立触发或取消节点。失败节点可在原 Run 内手动重试，保留成功节点。WebUI 提供两步图编辑器，CLI 使用相同 `task apply --file`、trigger 和 run watch 命令。配置、结果引用、输出选择、warning 与取消规则见 [DAG 指南](dag.md)，完整示例见 [task-dag.yaml](../examples/task-dag.yaml)。
 
+## 任务模板
+
+模板将类型化业务参数、环境绑定和普通/DAG 蓝图分开。Gateway 在创建前生成并校验完整 Task，之后不再运行模板引擎；已有 Task 和历史 Run 不随模板改动。完整定义与输入文件示例见[任务模板指南](templates.md)。
+
+```sh
+wakeit template validate --file examples/task-template.yaml
+wakeit template apply --file examples/task-template.yaml
+wakeit --json template list
+wakeit template get repository-monitor
+wakeit template preview repository-monitor \
+  --inputs-file values.yaml --bindings-file bindings.yaml
+wakeit --request-key create-review-001 --json task create \
+  --template repository-monitor --inputs-file values.yaml \
+  --bindings-file bindings.yaml --run
+```
+
+`validate` 离线检查定义和语法；`preview` 使用服务端编译器，但不创建 Task 或 Run。`apply --expect <revision>` 保护模板更新，`list --archived` 查询归档模板，`archive` / `restore` 只影响后续实例。`from-task <task-id> [--file <path>]` 将现有 Task 转为新模板定义，保留字面文本和具体上游结果引用，不覆盖已有文件。
+
+`task create --template` 支持 `--inputs-file`、`--bindings-file`、`--schedule-file`、`--id`、`--name`、`--expect` 和 `--run`。输入文件包含 `{values:{...},unset:[...]}`，保留实际 JSON 类型和显式省略；绑定文件按环境槽位提供 Runner、Agent 和适配参数。`--run` 原子创建 Task 和一次 Run，不加时只创建 Task。网络失败后的同一次重试应使用原请求和 `--request-key`，避免产生重复实例。模板定义 Schema 可由 `wakeit schema template` 导出。
+
 ## 查看、取消与重试
 
 ```sh

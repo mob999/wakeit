@@ -42,8 +42,8 @@ function AccountRow({
         <div className="settings-member-name">
           <span>{account.username}</span>
         </div>
-        <span className="quiet">{account.instance_admin ? tr('实例管理员') : '—'}</span>
-        <span className="quiet">{account.active ? tr('启用') : tr('已停用')}</span>
+        <span className="quiet text-muted">{account.instance_admin ? tr('实例管理员') : '—'}</span>
+        <span className="quiet text-muted">{account.active ? tr('启用') : tr('已停用')}</span>
         <Dropdown.Root>
           <Dropdown.Trigger asChild>
             <IconButton label={tr('{{v0}} 操作', { v0: account.username })}>
@@ -133,7 +133,7 @@ export function InstanceAccounts({ user }: { user: User }) {
             <Button onClick={() => void query.refetch()}>{tr('重试')}</Button>
           </div>
         ) : query.isPending ? (
-          <div className="quiet">{tr('加载中…')}</div>
+          <div className="quiet text-muted">{tr('加载中…')}</div>
         ) : (
           <>
             <div className="content-card settings-table settings-table-members">
