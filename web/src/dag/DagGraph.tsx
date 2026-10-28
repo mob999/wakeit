@@ -3,7 +3,6 @@ import { ErrorToast } from '../Toast'
 import { useEffect, useLayoutEffect, useRef, useState, useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import ELK, { type ElkNode } from 'elkjs/lib/elk-api'
-// @ts-expect-error Vite emits this worker as a separate local asset.
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url'
 import { CircleAlert, ChevronRight } from '../icons'
 import { t } from '../i18n'

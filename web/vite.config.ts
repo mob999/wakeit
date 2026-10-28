@@ -4,6 +4,7 @@ import tailwind from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwind()],
   server: {
+    fs: { allow: ['..'] },
     proxy: Object.fromEntries(
       ['/api', '/health'].map((path) => [
         path,
