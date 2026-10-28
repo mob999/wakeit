@@ -9,11 +9,11 @@ Improve confidence per unit of maintenance and runtime. Fewer test lines or a hi
 
 ## Audit before editing
 
-Read repository instructions, test commands, CI and the relevant production contracts. Run the affected suite before changing it when practical; record existing failures separately.
+Read repository instructions, test commands, CI and the relevant production contracts. Run a focused baseline only when needed to understand a test change or suspected existing failure; do not make a full local baseline a prerequisite for editing.
 
 Map each candidate to its trigger/input, observable outcome, risk and test layer. Two tests are redundant only when these match and neither protects a distinct boundary. Similar syntax, the same function, or a shared fixture is insufficient evidence.
 
-Keep pure transformations and state rules in fast unit tests. Retain integration coverage when correctness depends on transactions, serialization, migrations, process trees, locks, permissions or real dependency behavior. This repository does not maintain browser tests. Review visual changes with synthetic data and disposable local screenshot comparisons; keep their scripts and images outside version control and CI. Do not relabel mocked browser tests as unit tests.
+Keep pure transformations and state rules in fast unit tests. Retain integration coverage when correctness depends on transactions, serialization, migrations, process trees, locks, permissions or real dependency behavior. This repository does not maintain browser tests. Review ordinary visual changes through the shared dev preview. Use synthetic data and disposable local screenshot comparisons only for explicit visual-preservation work, broad styling migrations or a specific visual regression; keep their scripts and images outside version control and CI. Do not relabel mocked browser tests as unit tests.
 
 ## Refactor choices
 
@@ -31,7 +31,7 @@ Do not extract production code solely to make a trivial implementation easy to a
 
 ## Verify and report
 
-Run affected suites and formatting/type checks, then broaden checks when shared fixtures or CI wiring change. Verify changed cases can fail for the intended defect; a small, reversible mutation in an isolated checkout can help when an assertion was previously vacuous or self-derived. Restore mutations even if the command fails. Do not require a mutation framework for routine work.
+Use focused local checks to resolve questions introduced by the test changes; leave complete suites, platform coverage and service integration to CI. Do not repeat passing checks without a relevant new change or failure. Broaden only around affected shared fixtures or CI wiring. Investigate an assertion’s ability to catch its intended defect when there is concrete doubt, not as a mandatory mutation exercise for every test.
 
 Report concrete redundancies removed, coverage retained, meaningful gaps fixed, commands actually run and remaining limits. Distinguish executed checks from collection or source review. Install no new framework and introduce no coverage quota unless the task justifies it.
 
