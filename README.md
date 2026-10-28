@@ -20,7 +20,13 @@ Local PNG/JPEG/WebP references render as thumbnails in reports and Markdown-file
 
 ## Install
 
-Download the binary for your platform from the [v0.3.3 Release](https://github.com/mob999/wakeit/releases/tag/v0.3.3), along with `wakeit-release.json` and `SHA256SUMS`. Verify SHA-256 before installing it into your user bin directory. Linux, macOS and Windows are supported.
+On macOS or Linux GNU:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
+```
+
+The installer displays progress, downloads and verifies the release, installs Wakeit and configures your user PATH. Open a new terminal and run `wakeit --version`. See the [installation guide](docs/install.md) for Windows, a specific version, a different directory, or manual installation.
 
 To build from source, install Rust 1.89+ and Node.js 22.12+, then run:
 
