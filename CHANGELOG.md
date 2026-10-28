@@ -2,18 +2,14 @@
 
 ### Added
 
-- Create tasks from workspace presets and preview them after filling in parameters. Lists and conditions can generate DAG steps and dependencies; created tasks remain independent of later preset changes.
+- Search and select workspace presets in the task creation window, then preview a task after filling in parameters. Lists and conditions can generate DAG steps and dependencies; created tasks remain independent of later preset changes.
 - Install Wakeit or its Agent Skill with a separate single command on macOS and GNU Linux, with installation progress shown.
 
 ### Improved
 
-- Choose a task, DAG or preset in one creation window, with search and switching between presets.
+- Ordinary tasks and DAGs share a creation entry point and can be selected in the same window.
 - Ordinary and DAG runs share retry and session-continuation actions. For DAGs, choose a node or retry all nodes.
 - Agent Prompt provides separate Wakeit and Skill installation commands to copy to an Agent for setup.
-
-### Fixed
-
-- Filling in preset parameters no longer produces repeated errors before submitting an action.
 
 See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.4/docs/operations.md#upgrading-from-033) for installation updates.
 
@@ -21,7 +17,7 @@ See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.4/docs/operat
 
 ### Improved
 
-- Read reports with separate outline, content and reference columns, and drag either sidebar to adjust its width.
+- Read reports with separate outline, content and reference columns. The outline and references remain accessible while scrolling, and either sidebar can be resized.
 - View Output, Trace and Details separately on run pages, keeping the selected report and reading position when switching tabs.
 - Task overviews bring together scheduling, instructions, execution settings and recent runs. Select a DAG node to see its details.
 - Preview and copy the complete Agent Prompt in a dedicated window.
@@ -30,7 +26,6 @@ See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.4/docs/operat
 
 - The same image no longer appears more than once in report references.
 - Collapsing a Moments report returns to its original card when still reading that report, or keeps the current position after moving to another card.
-- Outlines and references no longer become obscured or leave large blank areas while scrolling through reports.
 - Fixed failures when archiving tasks while an execution was being updated.
 
 See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.3/docs/operations.md#upgrading-from-032) for installation updates.
@@ -77,13 +72,12 @@ See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.1/docs/operat
 ### Added
 
 - Create DAG tasks with multiple steps, parallel execution, dependencies, references to earlier results and a choice of final outputs.
-- Drag Agents onto a canvas, connect steps and edit their settings. Search, undo/redo, layout organization and a table view help manage larger tasks.
+- Drag Agents onto a canvas, connect steps and edit their settings. Search, undo/redo, layout organization, a table view, zoom and fullscreen help manage larger tasks.
 - View each DAG node's activity, logs, results and sessions. Successful output remains available when an independent branch fails.
 
 ### Improved
 
 - Switch between task settings without completing the current page first.
-- Zoom and view task graphs in fullscreen.
 
 ### Fixed
 
@@ -101,7 +95,6 @@ See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.3.0/docs/operat
 
 ### Improved
 
-- Switch workspaces from the account menu, and create or leave workspaces in Settings.
 - Member permissions clearly distinguish Admin, Read/write and Read-only access.
 
 ### Changed
@@ -126,8 +119,6 @@ See the [upgrade guide](https://github.com/mob999/wakeit/blob/v0.2.0/docs/worksp
 
 ### Fixed
 
-- Kimi shows live execution activity and saves titles for new sessions; continued sessions keep their original title and context.
-- Fixed Copilot activity display, Cline instruction delivery and Antigravity CLI detection.
 - Codex and Claude no longer submit duplicate final results.
 - Checking public releases no longer requires GitHub sign-in.
 
