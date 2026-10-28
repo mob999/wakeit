@@ -183,6 +183,15 @@
   margin: 0;
   border-top: 1px solid var(--border);
 }
+.creation-task-form .creation-side-pane > .creation-task-advanced {
+  margin: 0 16px 16px;
+}
+.creation-task-form .creation-side-pane > .creation-task-advanced > summary {
+  padding-inline: 12px;
+}
+.creation-task-form .creation-side-pane > .creation-task-advanced > .creation-section-body {
+  padding: 12px;
+}
 .creation-section > summary {
   display: flex;
   align-items: center;
@@ -526,6 +535,9 @@
   }
   .creation-section > summary {
     padding: 8px 12px;
+  }
+  .creation-task-form .creation-side-pane > .creation-task-advanced {
+    margin: 0 12px 12px;
   }
 }
 .creation-dag-form .dag-floating-panel {

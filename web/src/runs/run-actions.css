@@ -1,0 +1,35 @@
+.modal.run-node-modal {
+  width: min(800px, calc(100vw - 32px));
+  max-height: 85dvh;
+}
+.run-node-modal > .modal-body {
+  display: flex;
+  padding: 0;
+}
+.run-node-list {
+  border-top: 0;
+  max-height: min(520px, calc(85dvh - 120px));
+}
+.run-node-list .task-row {
+  min-height: 48px;
+}
+.run-node-list .status {
+  font-size: var(--ui-meta);
+}
+.run-node-list .task-row[aria-disabled='true'] {
+  color: var(--muted);
+  cursor: default;
+}
+.run-node-list .task-row[aria-disabled='true']:not(.active):hover {
+  background: transparent;
+}
+.run-node-all {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+}
+.run-node-all .row-title > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

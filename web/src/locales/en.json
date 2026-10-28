@@ -966,5 +966,9 @@
   "creation.resizeParameters": "Resize parameters pane",
   "creation.businessInputs": "Task parameters",
   "creation.resizeConfiguration": "Resize execution configuration",
-  "creation.parameterError": "{{name}}: {{message}}"
+  "creation.parameterError": "{{name}}: {{message}}",
+  "runActions.target": "Run target",
+  "runActions.entireGraph": "Retry all",
+  "runActions.graphRunning": "Wait until the graph has finished.",
+  "runActions.notUnknown": "Only unknown nodes need reconciliation."
 }

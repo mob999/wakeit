@@ -1,4 +1,3 @@
-import { ActionMenu, ActionMenuItem, CopyMenuItem } from '../actions/ActionMenu'
 import { ActionIcon } from '../actions/ActionIcon'
 import { ErrorToast } from '../Toast'
 import { apiUrl } from '../api'
@@ -6,26 +5,15 @@ import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { RefreshCw } from '../icons'
-import {
-  api,
-  terminal,
-  type Agent,
-  type Run,
-  type RunEvent,
-  type User,
-  type WorkspaceSettings,
-} from '../api'
+import { api, terminal, type Agent, type Run, type RunEvent, type User } from '../api'
 import { Button, IconButton, Field, Modal } from '../ui'
 import { RunResult, RunResultActions } from './RunResult'
 import { RunDetails } from './RunDetails'
 import { RunTrace, useRunTrace } from './RunTrace'
 import { RunSection } from './RunSection'
 import { RunLogs, RunLogActions } from './RunLogs'
-import { ResumeRun } from '../sessions/ResumeRun'
-import { PageActions } from '../PageHeader'
-import { CreateTaskDialog } from '../CreateTaskDialog'
+import { RunActions } from './RunActions'
 import { DagRunDetail } from '../dag/DagRunDetail'
 import { TraceActions } from './RunReading'
 import { RunTabs, RunPanel, useRunView } from './RunTabs'
@@ -69,21 +57,6 @@ function SingleRunDetail({
   useEffect(() => {
     if (run.data?.execution_snapshot?.trace_supported === false) updateReading({ follow })
   }, [run.data?.execution_snapshot?.trace_supported, follow, updateReading])
-  const [resolve, setResolve] = useState(false)
-  const [createTask, setCreateTask] = useState(false)
-  const settings = useQuery<WorkspaceSettings>({
-    queryKey: ['settings'],
-    queryFn: () => api('/settings'),
-    enabled: createTask,
-  })
-  useEffect(() => {
-    if (createTask && settings.error) {
-      toast(settings.error.message)
-      setCreateTask(false)
-    }
-  }, [createTask, settings.error, toast])
-  const navigate = useNavigate()
-  const editable = !run.data?.parent_run_id && user.role !== 'viewer'
   useEffect(() => {
     const source = new EventSource(apiUrl(`/runs/${id}/stream`))
     source.onopen = () => setLogError(false)
@@ -102,14 +75,6 @@ function SingleRunDetail({
     })
     return () => source.close()
   }, [id, client, trace.receive, logAttempt])
-  const action = useMutation({
-    mutationFn: (type: string) => api<{ id?: string }>(`/runs/${id}/${type}`, 'POST', {}),
-    onSuccess: (v) => {
-      client.invalidateQueries({ queryKey: ['run', id] })
-      if (v.id) navigate({ to: '/runs', search: { run: v.id } })
-    },
-    onError: (e) => toast(e.message),
-  })
   if (!run.data)
     return (
       <div className="empty">
@@ -126,13 +91,6 @@ function SingleRunDetail({
       </div>
     )
   const r = run.data
-  const cancellable =
-    r.state === 'queued' ||
-    agents.data?.find(
-      (a) =>
-        a.id === r.config.agent &&
-        (a.runner === r.config.runner || a.runner_id === r.config.runner),
-    )?.cancellable
   const logs = events
     .filter((e) => ['log', 'truncated', 'progress'].includes(e.kind))
     .map((e) => e.data.text ?? e.data.message ?? '')
@@ -140,61 +98,7 @@ function SingleRunDetail({
     .replace(/\x1b\[[0-9;]*m/g, '')
   return (
     <>
-      <PageActions>
-        <ResumeRun
-          run={r}
-          id={id}
-          available={terminal(r.state) && !!r.session?.ready}
-          toast={toast}
-        />
-        <div className="action-group" role="group" aria-label={tr('actions.execution')}>
-          {editable && ['queued', 'starting', 'running'].includes(r.state) && (
-            <IconButton
-              label={tr('取消执行')}
-              danger
-              disabled={!cancellable || r.cancel_requested || action.isPending}
-              disabledReason={
-                r.cancel_requested
-                  ? tr('取消已请求')
-                  : !cancellable
-                    ? tr('actions.cancelUnavailable')
-                    : undefined
-              }
-              loading={action.isPending && action.variables === 'cancel'}
-              onClick={() => action.mutate('cancel')}
-            >
-              <ActionIcon name="stop" />
-            </IconButton>
-          )}
-          {editable && !r.task_archived && terminal(r.state) && (
-            <IconButton
-              label={tr('actions.rerun')}
-              text={tr('actions.rerun')}
-              onClick={() => action.mutate('retry')}
-              loading={action.isPending}
-            >
-              <ActionIcon name="retry" />
-            </IconButton>
-          )}
-          {editable && r.state === 'unknown' && (
-            <IconButton label={tr('核对状态')} onClick={() => setResolve(true)}>
-              <ActionIcon name="reconcile" />
-            </IconButton>
-          )}
-        </div>
-        <ActionMenu label={tr('actions.runMenu')}>
-          {editable && terminal(r.state) && r.session?.ready && (
-            <ActionMenuItem
-              icon="add"
-              disabled={createTask && settings.isPending}
-              onSelect={() => setCreateTask(true)}
-            >
-              {tr('从此会话创建任务')}
-            </ActionMenuItem>
-          )}
-          <CopyMenuItem label={tr('复制 Run ID')} value={id} toast={toast} />
-        </ActionMenu>
-      </PageActions>
+      <RunActions run={r} user={user} agents={agents.data} toast={toast} />
       <RunTabs id={id} tab={tab} onChange={setTab} outputReady={reading.resultReady} />
       <RunPanel id={id} tab="output" active={tab} className="run-output-page">
         <RunSection
@@ -287,20 +191,6 @@ function SingleRunDetail({
           <RunDetails run={r} agents={agents.data} events={events} />
         </RunSection>
       </RunPanel>
-      {resolve && <ResolveDialog id={id} onClose={() => setResolve(false)} />}
-      {createTask && settings.data && r.session?.ready && (
-        <CreateTaskDialog
-          timezone={settings.data.timezone}
-          defaults={{
-            runner: r.session.runner_id,
-            agent: r.session.agent,
-            cwd: r.session.cwd,
-            parameters: r.execution_snapshot?.parameters ?? r.config.parameters,
-            session: { id: r.session.id },
-          }}
-          onClose={() => setCreateTask(false)}
-        />
-      )}
     </>
   )
 }

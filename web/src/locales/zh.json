@@ -966,5 +966,9 @@
   "creation.resizeParameters": "调整参数区宽度",
   "creation.businessInputs": "业务参数",
   "creation.resizeConfiguration": "调整执行配置宽度",
-  "creation.parameterError": "{{name}}：{{message}}"
+  "creation.parameterError": "{{name}}：{{message}}",
+  "runActions.target": "运行目标",
+  "runActions.entireGraph": "全部重试",
+  "runActions.graphRunning": "请等待整图执行结束。",
+  "runActions.notUnknown": "仅未知状态的节点需要核对。"
 }

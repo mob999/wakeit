@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 const zh = JSON.parse(readFileSync(new URL('../src/locales/zh.json', import.meta.url), 'utf8'))
 const en = JSON.parse(readFileSync(new URL('../src/locales/en.json', import.meta.url), 'utf8'))
+test.use({ channel: 'msedge' })
 const workspace = '11111111-1111-4111-8111-111111111111'
 const id = '00000000-0000-4000-8000-000000000001'
 const child = '00000000-0000-4000-8000-000000000002'
@@ -189,9 +190,7 @@ function finish(f: ReturnType<typeof fixture>) {
   f.run.nodes[0].state = 'succeeded'
   f.execution.state = 'succeeded'
 }
-test('DAG highlights output once, preserves trace expansion and uses only whole-graph actions', async ({
-  page,
-}) => {
+test('DAG highlights output once and preserves trace expansion', async ({ page }) => {
   const f = fixture(),
     writes = await mock(page, f)
   await page.goto(`/w/${workspace}/runs?run=${id}`)
@@ -718,7 +717,7 @@ for (const [width, language, theme] of [
   })
 }
 
-test('manual retry uses the current guard, preserves selection and requires explicit stopped confirmation', async ({
+test('manual retry uses the current guard, preserves selection and resumes stopped nodes directly', async ({
   page,
 }) => {
   const f = fixture()
@@ -771,20 +770,9 @@ test('manual retry uses the current guard, preserves selection and requires expl
   }
   await expect(page.getByRole('button', { name: '恢复节点', exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: '恢复节点', exact: true }).first().click()
-  const dialog = page.getByRole('dialog')
-  await expect(dialog).toContainText('保留成功节点')
-  await expect(dialog.getByRole('table')).toContainText('Downstream report')
-  expect(requests).toHaveLength(1)
-  for (const width of [1440, 390]) {
-    await page.setViewportSize({ width, height: 900 })
-    await expect(dialog).toBeVisible()
-    await page.screenshot({ path: `../.local/review/recovery-dialog-${width}.png` })
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  }
-  await dialog.getByRole('button', { name: '恢复节点', exact: true }).click()
   await expect.poll(() => requests.length).toBe(2)
   expect(requests[1]).toEqual({ execution_id: child, resume_stopped: true })
-  await expect(dialog).toBeVisible() // conflict retains context instead of silently switching attempts
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
 test('uncreated failed execution supports retry and historical attempts do not expose the action', async ({
@@ -807,7 +795,7 @@ test('uncreated failed execution supports retry and historical attempts do not e
 })
 
 for (const language of ['zh', 'en'] as const) {
-  test(`node retry controls, confirmation, blockers and Toast follow ${language} and live language changes`, async ({
+  test(`node retry controls, blockers and Toast follow ${language} and live language changes`, async ({
     page,
   }) => {
     const messages = language === 'zh' ? zh : en
@@ -890,14 +878,7 @@ for (const language of ['zh', 'en'] as const) {
       affected: [{ id: 'after', name: 'Downstream report', state: 'cancelled' }],
     }
     await page.getByRole('button', { name: messages['retry.resume'], exact: true }).first().click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toContainText(messages['retry.preserve'])
-    await expect(
-      dialog.getByRole('columnheader').filter({ hasText: messages['操作'] }),
-    ).toBeVisible()
-    await expect(
-      dialog.getByRole('cell', { name: messages['retry.continue'], exact: true }),
-    ).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
     await page.evaluate(
       async (language) => {
         const module = await import('/src/i18n.ts')
@@ -905,27 +886,26 @@ for (const language of ['zh', 'en'] as const) {
       },
       language === 'zh' ? 'en' : 'zh',
     )
-    await expect(dialog.getByRole('heading')).toHaveText(other['retry.resume'])
-    await expect(dialog).toContainText(other['retry.preserve'])
-    await dialog.getByRole('button', { name: other['取消'], exact: true }).click()
+    await expect(
+      page.getByRole('button', { name: other['retry.resume'], exact: true }).first(),
+    ).toBeVisible()
     ;(f as any).retry = {
       action: null,
       reason: 'Node in state succeeded cannot be retried',
       affected: [],
     }
-    const blocked = other['retry.error.state'].replace('{{state}}', other['成功'])
-    await expect(page.getByRole('button', { name: blocked, exact: true }).first()).toBeDisabled()
+    const blocked = page.getByRole('button', { name: other['retry.node'], exact: true }).first()
+    await expect(blocked).toBeDisabled()
+    await blocked.hover()
+    await expect(page.getByRole('tooltip')).toContainText(
+      other['retry.error.state'].replace('{{state}}', other['成功']),
+    )
     await page.evaluate(async (language) => {
       const module = await import('/src/i18n.ts')
       await module.setLanguage(language)
     }, language)
     await expect(
-      page
-        .getByRole('button', {
-          name: messages['retry.error.state'].replace('{{state}}', messages['成功']),
-          exact: true,
-        })
-        .first(),
+      page.getByRole('button', { name: messages['retry.node'], exact: true }).first(),
     ).toBeDisabled()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   })
@@ -1093,3 +1073,250 @@ for (const [width, language, theme] of [
     expect(writes).toEqual([])
   })
 }
+
+test.describe('unified run actions', () => {
+  for (const [language, messages] of [
+    ['zh', zh],
+    ['en', en],
+  ] as const) {
+    test(`${language}: ordinary and DAG toolbars share actions and menus; graph and node retries use distinct endpoints`, async ({
+      page,
+    }) => {
+      await page.addInitScript(
+        (language) => localStorage.setItem('wakeit-language', language),
+        language,
+      )
+      const f = fixture()
+      finish(f)
+      ;(f as any).retry = { action: 'retry', affected: [] }
+      const writes = await mock(page, f)
+      const toolbar = page.locator('.page-actions-buttons')
+      await page.goto(`/w/${workspace}/runs?run=${id}`)
+      const labels = () =>
+        toolbar
+          .locator('button')
+          .evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))
+      await expect(
+        toolbar.getByRole('button', { name: messages['续聊'], exact: true }),
+      ).toBeVisible()
+      const dagLabels = await labels()
+      await expect(
+        toolbar
+          .getByRole('button', { name: messages['actions.rerun'], exact: true })
+          .locator('.action-label'),
+      ).toHaveCount(0)
+      await toolbar.getByRole('button', { name: messages['actions.runMenu'], exact: true }).click()
+      await expect(
+        page.getByRole('menuitem', { name: messages['从此会话创建任务'], exact: true }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('menuitem', { name: messages['actions.rerunGraph'], exact: true }),
+      ).toHaveCount(0)
+      await page.keyboard.press('Escape')
+      await page.route(`**/runs/${id}`, (route) =>
+        route.fulfill({ json: { ...f.execution, id, parent_run_id: null } }),
+      )
+      await page.reload()
+      await expect(
+        toolbar.getByRole('button', { name: messages['续聊'], exact: true }),
+      ).toBeVisible()
+      expect(await labels()).toEqual(dagLabels)
+      await page.unroute(`**/runs/${id}`)
+      await page.reload()
+      const requests: any[] = []
+      await page.route('**/nodes/collect/retry', (route) => {
+        requests.push({ target: 'node', body: route.request().postDataJSON() })
+        return route.fulfill({ json: { id: child, parent_run_id: id, node_id: 'collect' } })
+      })
+      await page.route(`**/runs/${id}/retry`, (route) => {
+        requests.push({ target: 'graph' })
+        return route.fulfill({ json: { id } })
+      })
+      for (const target of ['Collect sources', messages['runActions.entireGraph']]) {
+        await toolbar.getByRole('button', { name: messages['actions.rerun'], exact: true }).click()
+        const dialog = page.getByRole('dialog')
+        await expect(
+          dialog.getByRole('button', { name: messages['actions.rerun'], exact: true }),
+        ).toBeDisabled()
+        expect(requests).toHaveLength(target === 'Collect sources' ? 0 : 1)
+        await dialog
+          .locator('.run-node-list')
+          .getByRole('button', { name: new RegExp(target) })
+          .click()
+        await dialog
+          .locator('.modal-footer')
+          .getByRole('button', {
+            name:
+              target === 'Collect sources'
+                ? messages['actions.rerun']
+                : messages['runActions.entireGraph'],
+            exact: true,
+          })
+          .click()
+        await expect(dialog).toHaveCount(0)
+        await expect(page).toHaveURL(new RegExp(`run=${id}$`))
+      }
+      expect(requests).toEqual([
+        { target: 'node', body: { execution_id: child, resume_stopped: false } },
+        { target: 'graph' },
+      ])
+      expect(writes).toEqual([])
+    })
+  }
+
+  test('DAG continuation always selects a node first, including single-node graphs; viewer remains command-only', async ({
+    page,
+  }) => {
+    const f = fixture()
+    finish(f)
+    const writes = await mock(page, f, 'viewer')
+    const toolbar = page.locator('.page-actions-buttons')
+    for (const multiple of [false, true]) {
+      if (multiple) {
+        f.run.nodes.push({ ...f.run.nodes[0], id: 'report', name: 'Write report' })
+        await page.route('**/nodes/report', (route) =>
+          route.fulfill({
+            json: {
+              execution: {
+                ...f.execution,
+                id: 'report-run',
+                session: { ...f.execution.session, command: 'pi --resume report-session' },
+              },
+            },
+          }),
+        )
+      }
+      await page.goto(`/w/${workspace}/runs?run=${id}`)
+      await toolbar.getByRole('button', { name: '续聊', exact: true }).click()
+      const dialog = page.getByRole('dialog')
+      await expect(dialog.getByRole('button', { name: '续聊', exact: true })).toBeDisabled()
+      await expect(dialog.locator('.session-terminal')).toHaveCount(0)
+      await dialog
+        .getByRole('button', { name: new RegExp(multiple ? 'Write report' : 'Collect sources') })
+        .click()
+      await dialog.getByRole('button', { name: '续聊', exact: true }).click()
+      await expect(page.getByRole('dialog')).toContainText(
+        multiple ? 'pi --resume report-session' : 'pi --resume native-session',
+      )
+      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
+    }
+    await expect(toolbar.getByRole('button', { name: '重新运行', exact: true })).toHaveCount(0)
+    await toolbar.getByRole('button', { name: '运行操作', exact: true }).click()
+    await expect(page.getByRole('menuitem', { name: '从此会话创建任务', exact: true })).toHaveCount(
+      0,
+    )
+    expect(writes).toEqual([])
+  })
+
+  test('DAG recovery uses the sidebar list, retains context on conflict, and fits narrow screens', async ({
+    page,
+  }) => {
+    const f = fixture()
+    f.run.state = f.execution.state = f.run.nodes[0].state = 'cancelled'
+    ;(f as any).retry = {
+      action: 'resume',
+      affected: [{ id: 'after', name: 'Downstream report', state: 'cancelled' }],
+    }
+    const writes: any[] = []
+    await mock(page, f)
+    await page.route('**/nodes/collect/retry', (route) => {
+      writes.push(route.request().postDataJSON())
+      return route.fulfill({
+        status: 409,
+        json: { error: 'Execution changed; refresh before retrying' },
+      })
+    })
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    await page
+      .locator('.page-actions-buttons')
+      .getByRole('button', { name: '重新运行', exact: true })
+      .click()
+    const dialog = page.getByRole('dialog')
+    await dialog
+      .locator('.run-node-list')
+      .getByRole('button', { name: /Collect sources/ })
+      .click()
+    await expect(dialog.getByRole('table')).toHaveCount(0)
+    await expect(dialog).not.toContainText(zh['retry.preserve'])
+    expect(writes).toEqual([])
+    await page.setViewportSize({ width: 390, height: 844 })
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await dialog.getByRole('button', { name: '恢复节点', exact: true }).click()
+    await expect(page.getByRole('alert')).toContainText('当前执行已变更')
+    expect(writes).toEqual([{ execution_id: child, resume_stopped: true }])
+    await expect(dialog).toBeVisible()
+  })
+
+  test('active graphs block whole-graph rerun; node restrictions remain visible without writes', async ({
+    page,
+  }) => {
+    const f = fixture()
+    ;(f as any).retry = {
+      action: null,
+      reason: 'All predecessors must succeed before retrying',
+      affected: [],
+    }
+    const writes = await mock(page, f)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    await page.getByRole('button', { name: '页面操作', exact: true }).click()
+    const toolbar = page.locator('.page-actions-buttons')
+    await expect(toolbar.getByRole('button', { name: '取消执行', exact: true })).toBeVisible()
+    await toolbar.getByRole('button', { name: '重新运行', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(
+      dialog.locator('.run-node-list').getByRole('button', { name: /全部重试/ }),
+    ).toBeDisabled()
+    const node = dialog.locator('.run-node-list').getByRole('button', { name: /Collect sources/ })
+    await expect(node).toBeDisabled()
+    await node.hover()
+    await expect(page.getByRole('tooltip')).toContainText(
+      zh['All predecessors must succeed before retrying'],
+    )
+    await expect(dialog.getByRole('button', { name: '重新运行', exact: true })).toBeDisabled()
+    expect(writes).toEqual([])
+  })
+
+  test('DAG session-derived tasks choose the actual node session; archived tasks cannot rerun', async ({
+    page,
+  }) => {
+    const f = fixture()
+    finish(f)
+    f.run.task_archived = true
+    const writes = await mock(page, f)
+    await page.route('**/agents', (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: 'pi',
+            name: 'Pi',
+            runner: 'Preview device',
+            runner_id: 'preview-device',
+            available: true,
+            parameters: {},
+            session_supported: true,
+          },
+        ],
+      }),
+    )
+    await page.goto(`/w/${workspace}/runs?run=${id}`)
+    const toolbar = page.locator('.page-actions-buttons')
+    await expect(toolbar.getByRole('button', { name: '重新运行', exact: true })).toHaveCount(0)
+    await toolbar.getByRole('button', { name: '运行操作', exact: true }).click()
+    await page.getByRole('menuitem', { name: '从此会话创建任务', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog
+      .locator('.run-node-list')
+      .getByRole('button', { name: /Collect sources/ })
+      .click()
+    await dialog.getByRole('button', { name: '从此会话创建任务', exact: true }).click()
+    const editor = page.getByRole('dialog', { name: '新建任务', exact: true })
+    await expect(editor.getByLabel('任务名称', { exact: true })).toBeEmpty()
+    await expect(editor.getByLabel('指令', { exact: true })).toBeEmpty()
+    await editor.locator('summary:visible').filter({ hasText: '高级设置' }).click()
+    await expect(editor.getByRole('combobox', { name: '会话', exact: true })).toContainText(
+      'native-session',
+    )
+    expect(writes).toEqual([])
+  })
+})
