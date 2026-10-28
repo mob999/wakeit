@@ -2,6 +2,12 @@
 
 Keep tests that protect business behavior, data boundaries and real integrations. Do not maintain browser suites, CSS-class assertions, markup snapshots or tests that only repeat a layout constant. Use the repository's [Unit Test Review skill](../.agents/skills/unit-test-review/SKILL.md) when reviewing coverage.
 
+## Local work and CI
+
+Use the dev preview and focused checks to resolve concrete questions during implementation. Full builds, complete suites, platform coverage, real-service integration and packaging belong to CI. Do not reproduce that pipeline locally for each edit or wait for it before continuing unrelated implementation. A development handoff may report CI as pending; merging and releasing require the current commit's required checks to pass.
+
+For ordinary UI or copy changes, inspect the affected page and interactions through Vite hot reload. A production build is useful when investigating a bundling/type issue, not a mandatory finish step for every UI edit. Run or add a test when it protects meaningful behavior; widen checks only when a changed boundary or failure justifies it.
+
 ## Maintained coverage
 
 | Contract | Owner |
@@ -17,7 +23,7 @@ Tests are redundant only when their input, outcome and boundary are the same. Si
 
 ## Visual changes
 
-Visual acceptance is a local review activity, not a maintained browser test suite or CI job. For a broad styling migration:
+Visual acceptance is a local review activity, not a maintained browser test suite or CI job. Ordinary UI work uses the shared dev preview. Use the following comparison process only for explicitly requested visual preservation, a broad styling migration or a specific visual regression; select the pages and states affected by that work:
 
 1. Freeze the original source revision and any preview overlays before editing. Preserve its dependency lock and the synthetic data used to render it.
 2. Run the original and candidate separately, using the same browser build, fonts, viewport, scale, language and theme. Fix dates and API responses; wait for fonts and images and disable animations while capturing.
@@ -29,6 +35,8 @@ Visual acceptance is a local review activity, not a maintained browser test suit
 Existing appearance defects are separate changes. A styling migration preserves the accepted baseline; it does not silently redesign the page.
 
 ## Commands
+
+These are available commands, not a mandatory local checklist. Choose the relevant check; let CI run the complete workflow.
 
 ```sh
 npm --prefix web test

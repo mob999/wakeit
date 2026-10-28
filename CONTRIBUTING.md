@@ -10,6 +10,8 @@ Wakeit 当前版本为 0.3.4。产品与包版本随发布同步，配置和消�
 
 需要 Rust 1.89+、Node.js 22.12+，文档及发布检查使用 Python 3.12；完整服务测试需要 PostgreSQL 16+ 和 NATS 2.15。
 
+以下是按需使用的命令参考，不是每次改动的本地必跑清单。全量测试、跨平台构建、服务集成和发布打包交给 CI；本地只运行能回答当前具体疑问的检查，已通过的检查不重复运行。仅在依赖或环境变化时重新安装依赖。
+
 ```sh
 npm --prefix web ci
 npm --prefix web run test:unit
@@ -20,7 +22,9 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked --all-targets
 ```
 
-WebUI 资源嵌入 Rust 二进制，修改生产资源后需要重新构建 Rust。热重载见 [运维指南](docs/operations.md#webui-热重载)。
+UI 开发默认由一个 Vite dev 服务直接提供当前工作树的 `web/`，保存后通过热重载观察相关页面和交互；你我使用同一预览地址，不在多份源码之间反复复制。普通前端修改不要求逐次构建或重启后端；生产发布时才将构建资源嵌入 Rust 二进制。热重载见 [运维指南](docs/operations.md#webui-热重载)。
+
+实现或准备 PR 的任务完成必要的局部验证后即可推送，让 CI 异步运行并继续开发；合并和发布时等待当前提交的必需 CI。只在结果、具体阻塞或需要决定时报告，不逐阶段播报 CI。
 
 前端单元测试直接使用 Node test runner，不需要 Gateway 或浏览器，随现有 OS 矩阵在 CI 中运行。测试分层与覆盖归属见 [测试策略](docs/test-strategy.md)；审查和重构测试时可使用 [Unit Test Review skill](.agents/skills/unit-test-review/SKILL.md)。
 
@@ -41,7 +45,7 @@ python3 scripts/integration.py --pg-bin /path/to/postgresql/bin --keep-running
 
 首次使用按浏览器语言选择中文或英文，之后使用浏览器保存的 `wakeit-language`。顶栏版本号右侧可切换，登录页也提供同一入口。复制的 Agent Prompt 独立于界面语言。
 
-翻译目录与插值由前端单元测试检查。界面验收覆盖中英文、浅色/深色和宽窄布局，使用合成账号、报告和设备，不为文案位置或控件尺寸增加长期维护的测试。
+翻译目录与插值由前端单元测试检查。界面观察范围随改动确定：修改翻译、主题或响应式布局时查看对应状态，不对每个小改动机械遍历全部语言、主题和宽度组合。截图使用合成账号、报告和设备，不为文案位置或控件尺寸增加长期维护的测试。
 
 发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。`v0.3.4` 为正式 Release，`v0.1.0` 保留为历史预览版；普通更新检查忽略预览版。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
 
