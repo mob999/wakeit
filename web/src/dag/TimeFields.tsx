@@ -192,7 +192,9 @@ export function TimeFields({
                       </div>
                     ))}
                   {(!preview.data || localError) && (
-                    <span className="quiet">{preview.isFetching ? t('正在加载…') : '—'}</span>
+                    <span className="quiet text-muted">
+                      {preview.isFetching ? t('正在加载…') : '—'}
+                    </span>
                   )}
                   {preview.error && <Button onClick={() => preview.refetch()}>{t('重试')}</Button>}
                 </div>

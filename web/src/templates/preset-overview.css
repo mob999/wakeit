@@ -1,152 +1,98 @@
+@reference '../styles/tailwind.css';
+
 .preset-overview-summary {
-  justify-content: space-between;
-  gap: 8px 16px;
-  flex-wrap: wrap;
+  @apply justify-between gap-[8px_16px] flex-wrap;
 }
 .preset-overview-summary > h3 {
-  min-width: 0;
-  overflow-wrap: anywhere;
+  @apply min-w-0 [overflow-wrap:anywhere];
 }
 .preset-overview-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  font-size: 11px;
+  @apply flex items-center flex-wrap gap-[6px_12px] text-[11px];
 }
 .preset-overview-description {
-  margin: 0;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
+  @apply m-0 py-3 px-4 [border-bottom:1px_solid_var(--border)] text-[12px] leading-[20px] [overflow-wrap:anywhere];
 }
 .preset-overview-sections {
-  display: grid;
-  gap: 12px;
-  padding: 0 16px 16px;
+  @apply grid gap-3 pt-0 px-4 pb-4;
 }
 .preset-overview-parameter {
-  min-width: 0;
-  margin: 0;
+  @apply min-w-0 m-0;
 }
 .preset-overview-parameter-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 36px;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 500;
+  @apply flex items-center justify-between gap-3 min-h-9 py-1 px-3 [border-bottom:1px_solid_var(--border)] text-[12px];
+  @apply font-medium;
 }
 .preset-overview-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  overflow-wrap: anywhere;
+  @apply inline-flex items-center gap-1 min-w-0 [overflow-wrap:anywhere];
 }
 .preset-overview-info {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: help;
+  @apply inline-flex items-center justify-center flex-none w-7 h-7 p-0 [border:0];
+  @apply rounded-[6px] bg-transparent text-muted cursor-help;
 }
 .preset-overview-info:hover,
 .preset-overview-info:focus-visible {
-  color: var(--ink);
+  @apply text-ink;
 }
 .preset-overview-info:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: -2px;
 }
 .preset-overview-type {
-  font-size: 11px;
-  font-weight: 400;
-  overflow-wrap: anywhere;
+  @apply text-[11px];
+  @apply font-normal [overflow-wrap:anywhere];
 }
 .preset-overview-parameter-head > .preset-overview-type {
-  flex-shrink: 0;
-  max-width: 50%;
-  text-align: right;
+  @apply shrink-0 max-w-[50%] text-right;
 }
 .preset-overview-parameter-body {
-  padding: 4px 12px;
-  min-width: 0;
+  @apply py-1 px-3 min-w-0;
 }
 .preset-overview.task-overview .preset-overview-fields {
-  grid-template-columns: minmax(72px, 112px) minmax(0, 1fr);
-  padding: 0;
+  @apply grid-cols-[minmax(72px,_112px)_minmax(0,_1fr)] p-0;
 }
 .preset-overview .preset-overview-fields > dt {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 8px 6px 0;
+  @apply flex flex-col items-start justify-center gap-0.5 pt-1.5 pr-2 pb-1.5 pl-0;
 }
 .preset-overview .preset-overview-fields > dd {
-  display: block;
-  padding: 6px 0;
+  @apply block py-1.5 px-0;
 }
 .preset-overview .preset-overview-fields > dt:not(:first-of-type),
 .preset-overview .preset-overview-fields > dd:not(:first-of-type) {
-  border-top: 1px solid var(--border);
+  @apply [border-top:1px_solid_var(--border)];
 }
 .preset-overview-value {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-  line-height: 20px;
+  @apply whitespace-pre-wrap [overflow-wrap:anywhere] text-[12px] leading-[20px];
 }
 .preset-overview-options {
-  border-top: 1px solid var(--border);
+  @apply [border-top:1px_solid_var(--border)];
 }
 .preset-overview-item {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  margin: 8px 0;
-  padding: 6px 10px;
+  @apply [border:1px_solid_var(--border)];
+  @apply rounded-[6px] my-2 mx-0 py-1.5 px-2.5;
 }
 .preset-overview-environment + .preset-overview-environment {
-  border-top: 1px solid var(--border);
+  @apply [border-top:1px_solid_var(--border)];
 }
 .preset-overview-environment > h4 {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
+  @apply text-[11px];
+  @apply font-medium text-muted;
 }
 .preset-overview-empty {
-  margin: 0;
-  padding: 8px 16px 16px;
-  font-size: 12px;
+  @apply m-0 pt-2 px-4 pb-4 text-[12px];
 }
 .preset-overview-sections > .preset-overview-empty {
-  padding-inline: 0;
+  @apply px-0;
 }
 .preset-overview[data-size='small'] .preset-overview-sections,
 .preset-overview[data-size='small'] .preset-overview-description {
-  padding-inline: 12px;
+  @apply px-3;
 }
 .preset-overview[data-size='small'] .preset-overview-fields {
-  grid-template-columns: 72px minmax(0, 1fr);
+  @apply grid-cols-[72px_minmax(0,_1fr)];
 }
 .preset-overview[data-size='small'] .preset-overview-fields .preset-overview-fields {
-  grid-template-columns: minmax(0, 1fr);
+  @apply grid-cols-[minmax(0,_1fr)];
 }
 .preset-overview[data-size='small'] .preset-overview-fields .preset-overview-fields > dd {
-  padding-top: 0;
-  border-top: 0;
+  @apply pt-0 [border-top:0];
 }

@@ -81,9 +81,11 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
       <Button onClick={() => runners.refetch()}>{tr('重试')}</Button>
     </ErrorToast>
   ) : runners.isPending ? (
-    <p className="quiet padded">{tr('正在加载…')}</p>
+    <p className="quiet text-muted padded p-5">{tr('正在加载…')}</p>
   ) : !filtered.length ? (
-    <p className="quiet padded">{runners.data?.length ? tr('无匹配设备') : tr('暂无设备')}</p>
+    <p className="quiet text-muted padded p-5">
+      {runners.data?.length ? tr('无匹配设备') : tr('暂无设备')}
+    </p>
   ) : null
   return (
     <>
@@ -196,7 +198,7 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               onChange={(value) => choose(runner.id, value)}
             />
             <div
-              className="detail-tab-panel"
+              className="detail-tab-panel flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden"
               id={`runner-${runner.id}-${section}-panel`}
               role="tabpanel"
               aria-labelledby={`runner-${runner.id}-${section}-tab`}

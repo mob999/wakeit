@@ -88,7 +88,9 @@ export function DagRunStatus({
                 <span>{t('状态')}</span>
               </div>
               {issues.map(row)}
-              {!issues.length && <p className="dag-issues-empty quiet">{t('dag.noNodeIssues')}</p>}
+              {!issues.length && (
+                <p className="dag-issues-empty quiet text-muted">{t('dag.noNodeIssues')}</p>
+              )}
               {issues.length > 0 && skipped.length > 0 && (
                 <Menu.Group>
                   <Menu.Label className="dag-issue-group-label">{t('已跳过')}</Menu.Label>

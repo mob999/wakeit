@@ -281,7 +281,7 @@ function Login() {
             <ErrorToast>{tr('GitHub 授权已取消')}</ErrorToast>
           )}
           {meta.isPending ? (
-            <span className="quiet">{tr('加载中…')}</span>
+            <span className="quiet text-muted">{tr('加载中…')}</span>
           ) : meta.error ? (
             <>
               <ErrorToast>{meta.error.message}</ErrorToast>
@@ -501,7 +501,7 @@ function TasksPage() {
               {tasks.error ? (
                 <ErrorToast>{tasks.error.message}</ErrorToast>
               ) : tasks.isPending ? (
-                <p className="quiet padded">{tr('正在加载…')}</p>
+                <p className="quiet text-muted padded p-5">{tr('正在加载…')}</p>
               ) : tasks.data?.total === 0 ? (
                 <Empty title={tr('暂无任务')} />
               ) : (
@@ -550,7 +550,7 @@ function TasksPage() {
         ) : (
           <>
             <PageActions>
-              {task.archived_at && <span className="quiet">{tr('已归档')}</span>}
+              {task.archived_at && <span className="quiet text-muted">{tr('已归档')}</span>}
               {editable && !task.archived_at && (
                 <>
                   <div

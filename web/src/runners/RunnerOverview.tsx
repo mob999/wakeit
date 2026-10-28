@@ -23,7 +23,7 @@ export function RunnerOverview({ runner }: { runner: Runner }) {
             {(runner.info.active ?? 0) + (runner.info.unknown ?? 0)} /{' '}
             {runner.info.concurrency ?? '—'}
             {runner.info.unknown ? (
-              <span className="quiet">
+              <span className="quiet text-muted">
                 {' '}
                 · {tr('runner.needsVerification', { count: runner.info.unknown })}
               </span>
@@ -40,7 +40,7 @@ export function RunnerOverview({ runner }: { runner: Runner }) {
                 </div>
               ))
             ) : (
-              <span className="quiet">{tr('未配置')}</span>
+              <span className="quiet text-muted">{tr('未配置')}</span>
             )}
           </dd>
         </dl>

@@ -1,6 +1,5 @@
+@reference '../styles/tailwind.css';
+
 .run-output-ready {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
+  @apply w-[5px] h-[5px] rounded-[50%] bg-current;
 }

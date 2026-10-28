@@ -77,7 +77,7 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
           {secret ? (
             <>
               <SecretValue label={tr('API Key')} value={secret} />
-              <p className="quiet">{tr('仅显示一次，请保存')}</p>
+              <p className="quiet text-muted">{tr('仅显示一次，请保存')}</p>
             </>
           ) : (
             <>
@@ -185,10 +185,10 @@ export function TokenSettings() {
                   <span className="settings-token-name">
                     {token.name}
                     {token.expires_at && new Date(token.expires_at).getTime() < Date.now() && (
-                      <small className="quiet">{tr('已过期')}</small>
+                      <small className="quiet text-muted">{tr('已过期')}</small>
                     )}
                   </span>
-                  <span className="mono quiet">
+                  <span className="mono quiet text-muted">
                     {token.expires_at
                       ? new Date(token.expires_at).toLocaleString(locale())
                       : tr('不过期')}

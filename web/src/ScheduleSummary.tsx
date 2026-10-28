@@ -16,8 +16,8 @@ export function ScheduleSummary({
   return (
     <span className="creation-schedule-summary">
       <span>{rule}</span>
-      {schedule && <span className="quiet">{schedule.timezone}</span>}
-      {enabled === false && <span className="quiet">{t('actions.taskDisabled')}</span>}
+      {schedule && <span className="quiet text-muted">{schedule.timezone}</span>}
+      {enabled === false && <span className="quiet text-muted">{t('actions.taskDisabled')}</span>}
     </span>
   )
 }

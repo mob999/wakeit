@@ -1,659 +1,450 @@
+@reference '../styles/tailwind.css';
+
 .list-pane .task-row.preset-row {
-  min-height: 36px;
+  @apply min-h-9;
 }
 .preset-row .row-title {
-  min-height: 20px;
+  @apply min-h-5;
 }
 .template-instance {
-  display: grid;
-  position: relative;
-  grid-template-columns: var(--template-parameter-width, 560px) minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
+  @apply grid relative grid-cols-[var(--template-parameter-width,_560px)_minmax(0,_1fr)] h-full min-h-0 min-w-0;
 }
 .template-parameters-pane,
 .template-preview-pane {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
+  @apply flex flex-col min-w-0 min-h-0;
 }
 .template-parameters-pane {
-  border-right: 1px solid var(--border);
+  @apply [border-right:1px_solid_var(--border)];
 }
 .template-pane-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  @apply flex items-center justify-between gap-2 min-h-9 py-0 px-3 [border-bottom:1px_solid_var(--border)] shrink-0;
 }
 .template-pane-heading strong {
-  font-size: 12px;
-  font-weight: 550;
+  @apply text-[12px];
+  @apply font-[550];
 }
 .template-pane-heading small {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .template-pane-scroll {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  @apply flex-1 min-h-0 min-w-0 overflow-auto overscroll-contain;
 }
 .template-mobile-switch {
-  display: none;
+  @apply hidden;
 }
 .template-raw-menu {
-  position: relative;
-  font-size: 11px;
+  @apply relative text-[11px];
 }
 .template-raw-menu summary {
-  cursor: pointer;
+  @apply cursor-pointer;
 }
 .template-value-modes {
-  display: flex;
-  gap: 4px;
-  padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--canvas);
-  position: absolute;
-  top: 24px;
-  right: 0;
-  z-index: 3;
+  @apply flex gap-1 p-1.5 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] bg-canvas absolute top-6 right-0 z-3;
 }
 .template-value-modes .button {
-  min-height: 28px;
-  font-size: 11px;
-  padding: 2px 6px;
+  @apply min-h-7 text-[11px] py-0.5 px-1.5;
 }
 .template-value-modes .button[aria-pressed='true'],
 .template-mobile-switch .button[aria-pressed='true'] {
-  text-decoration: underline;
+  @apply underline;
   text-underline-offset: 6px;
-  color: var(--ink);
+  @apply text-ink;
 }
 .template-inputs {
-  min-width: 0;
+  @apply min-w-0;
   container-type: inline-size;
   container-name: preset-inputs;
 }
 .template-input-row {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  @apply py-2 px-3 [border-bottom:1px_solid_var(--border)];
 }
 .template-input-heading {
-  display: flex;
-  align-items: center;
+  @apply flex items-center;
   align-self: start;
-  gap: 4px;
-  min-height: 30px;
-  min-width: 0;
+  @apply gap-1 min-h-7.5 min-w-0;
 }
 .template-input-heading > label {
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
-  min-width: 0;
-  overflow-wrap: anywhere;
+  @apply text-[12px];
+  @apply font-medium leading-[18px] min-w-0 [overflow-wrap:anywhere];
 }
 .template-input-heading > .template-field-info {
-  flex-shrink: 0;
+  @apply shrink-0;
 }
 .template-field-info.button.icon-button {
-  width: 20px;
-  height: 20px;
-  min-height: 20px;
-  padding: 2px;
-  color: var(--muted);
+  @apply w-5 h-5 min-h-5 p-0.5 text-muted;
 }
 .template-value-state {
-  padding: 4px 8px;
-  font-size: 11px;
-  color: var(--muted);
+  @apply py-1 px-2 text-[11px] text-muted;
 }
 .template-value-field {
-  display: grid;
-  grid-template-columns: minmax(76px, 0.3fr) minmax(0, 1fr);
+  @apply grid grid-cols-[minmax(76px,_0.3fr)_minmax(0,_1fr)];
   align-items: start;
-  gap: 8px 12px;
-  min-width: 0;
+  @apply gap-[8px_12px] min-w-0;
 }
 .template-value-field input:not([type='checkbox']),
 .template-value-field textarea,
 .template-value-field select {
   box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  font-size: 12px;
+  @apply w-full min-w-0 text-[12px];
 }
 .template-value-field input:not([type='checkbox']),
 .template-value-field select {
-  min-height: 30px;
-  padding: 4px 8px;
+  @apply min-h-7.5 py-1 px-2;
 }
 .template-field-error {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-  overflow-wrap: anywhere;
-  color: var(--failure);
+  @apply block mt-1 text-[11px] [overflow-wrap:anywhere] text-failure;
 }
 .template-boolean {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  font-size: 11px;
+  @apply flex items-center gap-2 min-h-7 text-[11px];
 }
 .template-boolean input {
   accent-color: var(--ink);
-  width: 28px;
-  height: 16px;
-  cursor: pointer;
+  @apply w-7 h-4 cursor-pointer;
 }
 .template-null {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  min-height: 30px;
-  flex-wrap: wrap;
-  font-size: 12px;
+  @apply flex items-center gap-2 text-muted min-h-7.5 flex-wrap text-[12px];
 }
 .template-null > .button {
-  min-height: 28px;
-  padding: 2px 4px;
-  font-size: 11px;
+  @apply min-h-7 py-0.5 px-1 text-[11px];
 }
 .template-object {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px;
+  @apply flex flex-col gap-2 min-w-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] p-2;
 }
 .template-object > .template-value-field {
-  grid-template-columns: minmax(64px, 0.3fr) minmax(0, 1fr);
-  gap: 6px 8px;
+  @apply grid-cols-[minmax(64px,_0.3fr)_minmax(0,_1fr)] gap-[6px_8px];
 }
 .template-directory-field {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
+  @apply flex flex-wrap gap-1.5 min-w-0;
 }
 .template-directory-device {
   flex: 1 1 100px;
-  min-width: 0;
-  max-width: 100%;
+  @apply min-w-0 max-w-full;
 }
 .template-directory-device .model-selector {
-  width: 100%;
-  min-height: 30px;
-  height: 30px;
-  font-size: 12px;
+  @apply w-full min-h-7.5 h-7.5 text-[12px];
 }
 .template-directory-path {
-  display: flex;
+  @apply flex;
   flex: 3 1 150px;
-  gap: 4px;
-  min-width: 0;
+  @apply gap-1 min-w-0;
 }
 .template-directory-path > input {
-  flex: 1;
+  @apply flex-1;
 }
 .template-directory-path .directory-browse-control {
-  flex-shrink: 0;
+  @apply shrink-0;
 }
 .template-directory-path .directory-selector.is-compact {
-  width: 30px;
-  height: 30px;
-  min-height: 0;
-  padding: 6px;
-  justify-content: center;
+  @apply w-7.5 h-7.5 min-h-0 p-1.5 justify-center;
 }
 .template-array {
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 2px 6px;
+  @apply min-w-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] py-0.5 px-1.5;
 }
 .template-array-main,
 .template-array-columns {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 28px;
-  gap: 4px;
+  @apply grid grid-cols-[20px_minmax(0,_1fr)_28px] gap-1;
   align-items: start;
 }
 .template-array.is-table .template-array-main,
 .template-array-columns {
-  grid-template-columns: 20px var(--template-columns) 28px;
+  @apply grid-cols-[20px_var(--template-columns)_28px];
 }
 .template-array-columns {
-  color: var(--muted);
-  font-size: 11px;
-  padding: 6px 0;
+  @apply text-muted text-[11px] py-1.5 px-0;
 }
 .template-array-columns > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .template-array-row {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
+  @apply py-1.5 px-0 [border-bottom:1px_solid_var(--border)];
 }
 .template-array-row[data-dragging] {
-  opacity: 0.45;
+  @apply opacity-[0.45];
 }
 .template-array-grip.button.icon-button {
-  width: 20px;
-  height: 30px;
-  min-height: 30px;
-  padding: 0;
-  color: var(--muted);
-  cursor: grab;
+  @apply w-5 h-7.5 min-h-7.5 p-0 text-muted cursor-grab;
 }
 .template-array-grip:active {
-  cursor: grabbing;
+  @apply cursor-grabbing;
 }
 .template-array-grip-dots {
-  display: block;
-  width: 10px;
-  height: 15px;
+  @apply block w-2.5 h-[15px];
   background-image: radial-gradient(currentColor 1px, transparent 1px);
   background-size: 5px 5px;
 }
 .template-value-field.is-compact,
 .template-value-field.is-unlabeled {
-  display: block;
+  @apply block;
 }
 .template-value-field.is-unlabeled > .template-input-heading,
 .template-array.is-table .is-compact > .template-input-heading {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
+  @apply absolute w-px h-px overflow-hidden;
   clip-path: inset(50%);
 }
 .template-array-row > details {
-  margin: 6px 0 0 24px;
-  font-size: 11px;
+  @apply mt-1.5 mr-0 mb-0 ml-6 text-[11px];
 }
 .template-array-row > details > .template-value-field {
-  margin-top: 8px;
+  @apply mt-2;
 }
 .template-array-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 28px;
+  @apply flex items-center justify-end min-h-7;
 }
 .template-bindings {
-  border-top: 1px solid var(--border);
+  @apply [border-top:1px_solid_var(--border)];
 }
 .template-binding {
-  border-bottom: 1px solid var(--border);
+  @apply [border-bottom:1px_solid_var(--border)];
 }
 .template-binding > summary {
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 12px;
+  @apply py-2 px-3 cursor-pointer text-[12px];
 }
 .template-binding > summary > small {
-  font-size: 11px;
-  margin-left: 8px;
-  overflow-wrap: anywhere;
+  @apply text-[11px] ml-2 [overflow-wrap:anywhere];
 }
 .template-binding-body {
-  padding: 4px 12px 12px;
+  @apply pt-1 px-3 pb-3;
 }
 .template-binding-heading {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-  gap: 8px;
+  @apply flex items-center justify-end mb-2 gap-2;
 }
 .template-binding-heading .button {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .template-binding .field {
-  margin-bottom: 8px;
+  @apply mb-2;
 }
 .template-binding-advanced {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .template-binding-advanced > summary {
-  padding: 4px 0;
-  cursor: pointer;
+  @apply py-1 px-0 cursor-pointer;
 }
 .template-raw-values {
-  padding: 12px;
+  @apply p-3;
 }
 .template-values {
-  display: block;
-  width: 100%;
-  min-height: 240px;
+  @apply block w-full min-h-60;
   font: 12px/1.6 var(--font-mono, monospace);
-  background: transparent;
+  @apply bg-transparent;
 }
 .template-preview-context {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  min-height: 32px;
-  padding: 4px 12px;
-  font-size: 11px;
-  border-bottom: 1px solid var(--border);
+  @apply flex items-center justify-between flex-wrap gap-[4px_12px] min-h-8 py-1 px-3 text-[11px] [border-bottom:1px_solid_var(--border)];
 }
 .template-pane-heading strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .template-field-control {
-  display: flex;
-  gap: 4px;
-  align-items: flex-start;
-  min-width: 0;
+  @apply flex gap-1 items-start min-w-0;
 }
 .template-field-control > :first-child {
-  flex: 1;
-  min-width: 0;
+  @apply flex-1 min-w-0;
 }
 .template-field-control > .icon-button {
-  flex: none;
+  @apply flex-none;
 }
 .template-preview-pane .dag-structure {
-  border: 0;
-  border-radius: 0;
+  @apply [border:0];
+  @apply rounded-none;
 }
 .template-generated-instruction {
-  padding: 12px;
+  @apply p-3;
 }
 .template-node-heading {
-  margin-bottom: 8px;
-  overflow-wrap: anywhere;
+  @apply mb-2 [overflow-wrap:anywhere];
 }
 .template-node-heading strong {
-  font-size: 12px;
-  font-weight: 550;
+  @apply text-[12px];
+  @apply font-[550];
 }
 .template-generated-instruction .properties {
-  margin: 8px 0;
+  @apply my-2 mx-0;
 }
 .template-generated-instruction .properties > dt,
 .template-generated-instruction .properties > dd {
-  min-height: 28px;
-  font-size: 11px;
-  padding: 5px 0;
+  @apply min-h-7 text-[11px] py-[5px] px-0;
 }
 .template-generated-instruction .properties > dd {
-  overflow-wrap: anywhere;
+  @apply [overflow-wrap:anywhere];
 }
 .template-instruction-tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--muted);
+  @apply flex items-center justify-between mt-2 text-[11px] text-muted;
 }
 .template-prompt {
-  max-width: 100%;
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  @apply max-w-full m-0 whitespace-pre-wrap [overflow-wrap:anywhere];
   font: 12px/1.65 var(--font-mono, monospace);
-  background: transparent;
+  @apply bg-transparent;
 }
 
 @container creation (max-width: 799px) {
   .template-instance {
-    display: flex;
-    flex-direction: column;
+    @apply flex flex-col;
   }
   .template-mobile-switch {
-    display: flex;
-    min-height: 36px;
-    gap: 12px;
-    padding: 0 12px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
+    @apply flex min-h-9 gap-3 py-0 px-3 [border-bottom:1px_solid_var(--border)] shrink-0;
   }
   .template-parameters-pane,
   .template-preview-pane {
-    flex: 1;
-    border: 0;
+    @apply flex-1 [border:0];
   }
   .template-instance[data-pane='parameters'] .template-preview-pane,
   .template-instance[data-pane='preview'] .template-parameters-pane {
-    display: none;
+    @apply hidden;
   }
 }
 
 .template-instance {
-  position: relative;
+  @apply relative;
 }
 .template-generated-instruction .properties {
-  gap: 0 16px;
+  @apply gap-[0_16px];
 }
 .template-preview-pane .dag-structure {
-  max-height: none;
+  @apply max-h-none;
 }
 .template-preview-pane .dag-graph-scroll {
-  height: min(236px, calc(35dvh - 44px));
+  @apply h-[min(236px,_calc(35dvh_-_44px))];
 }
 .template-preview-pane .dag-node-table {
-  max-height: min(236px, calc(35dvh - 44px));
-  overflow: auto;
+  @apply max-h-[min(236px,_calc(35dvh_-_44px))] overflow-auto;
 }
 .template-preview-pane .dag-table-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  @apply sticky top-0 z-2;
 }
 .template-preview-pane .dag-node-columns {
-  min-width: 580px;
+  @apply min-w-145;
 }
 .template-instance .dag-structure-fullscreen {
-  position: absolute;
-  inset: 0;
-  z-index: 25;
+  @apply absolute inset-0 z-25;
 }
 .template-instance .dag-structure-fullscreen .dag-graph-scroll {
-  height: 100%;
+  @apply h-full;
 }
 
 @container creation (max-width: 799px) {
   .template-parameters-pane > .template-pane-heading {
-    position: absolute;
-    right: 12px;
-    top: 0;
-    min-height: 36px;
-    padding: 0;
-    border: 0;
+    @apply absolute right-3 top-0 min-h-9 p-0 [border:0];
   }
   .template-parameters-pane > .template-pane-heading > strong {
-    display: none;
+    @apply hidden;
   }
   .template-preview-pane > .template-pane-heading {
-    min-height: 36px;
+    @apply min-h-9;
   }
   .template-pane-heading small {
-    max-width: 110px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    @apply max-w-27.5 overflow-hidden text-ellipsis whitespace-nowrap;
   }
 }
 @container preset-inputs (max-width: 620px) {
   .template-array.is-table .template-array-columns {
-    display: none;
+    @apply hidden;
   }
   .template-array.is-table .template-array-main {
-    grid-template-columns: 20px minmax(0, 1fr) 28px;
-    gap: 6px 4px;
+    @apply grid-cols-[20px_minmax(0,_1fr)_28px] gap-[6px_4px];
   }
   .template-array.is-table .template-array-main > .template-value-field {
-    display: grid;
-    grid-column: 2;
-    grid-template-columns: minmax(60px, 0.35fr) minmax(0, 1fr);
-    gap: 4px 8px;
+    @apply grid col-[2];
+    @apply grid-cols-[minmax(60px,_0.35fr)_minmax(0,_1fr)] gap-[4px_8px];
   }
   .template-array.is-table .is-compact > .template-input-heading {
-    position: static;
-    width: auto;
-    height: auto;
+    @apply static w-auto h-auto;
     clip-path: none;
   }
   .template-array.is-table .template-array-grip {
-    grid-column: 1;
-    grid-row: 1;
+    @apply col-[1];
+    @apply row-[1];
   }
   .template-array.is-table .template-array-actions {
-    grid-column: 3;
-    grid-row: 1;
+    @apply col-[3];
+    @apply row-[1];
   }
 }
 @container preset-inputs (max-width: 420px) {
   .template-input-row {
-    padding: 8px 10px;
+    @apply py-2 px-2.5;
   }
   .template-value-field {
-    grid-template-columns: minmax(64px, 0.27fr) minmax(0, 1fr);
-    column-gap: 8px;
+    @apply grid-cols-[minmax(64px,_0.27fr)_minmax(0,_1fr)] gap-x-2;
   }
   .template-object {
-    padding: 6px;
+    @apply p-1.5;
   }
   .template-object > .template-value-field,
   .template-array.is-table .template-array-main > .template-value-field {
-    grid-template-columns: minmax(48px, 0.32fr) minmax(0, 1fr);
-    column-gap: 6px;
+    @apply grid-cols-[minmax(48px,_0.32fr)_minmax(0,_1fr)] gap-x-1.5;
   }
 }
 
 .template-section-heading {
-  display: flex;
-  align-items: center;
-  min-height: 36px;
-  margin: 0;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 500;
+  @apply flex items-center min-h-9 m-0 py-0 px-4 [border-bottom:1px_solid_var(--border)] text-[11px] text-muted;
+  @apply font-medium;
 }
 .template-business-inputs {
-  margin: 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
+  @apply m-3 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] overflow-hidden;
 }
 .template-business-inputs .template-input-row:last-child {
-  border-bottom: 0;
+  @apply [border-bottom:0];
 }
 .template-bindings {
-  margin: 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
+  @apply m-3 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] overflow-hidden;
 }
 .template-binding:last-child {
-  border-bottom: 0;
+  @apply [border-bottom:0];
 }
 .template-binding-body .field {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-center gap-3;
 }
 .template-binding-body .field > label {
-  margin: 0;
+  @apply m-0;
 }
 
 .template-binding > summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  min-height: 36px;
+  @apply flex flex-wrap items-center gap-2 py-2 px-3 min-h-9;
   list-style: none;
 }
 .template-binding > summary::-webkit-details-marker {
-  display: none;
+  @apply hidden;
 }
 .template-binding-chevron {
-  flex: none;
+  @apply flex-none;
   transition: transform 120ms;
 }
 .template-binding[open] > summary > .template-binding-chevron {
   transform: rotate(90deg);
 }
 .template-binding-title {
-  font-weight: 500;
+  @apply font-medium;
 }
 .template-binding-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  margin-left: auto;
-  min-width: 0;
-  max-width: 100%;
+  @apply flex flex-wrap gap-[6px_12px] ml-auto min-w-0 max-w-full;
 }
 .template-binding-summary > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-size: 11px;
+  @apply inline-flex items-center gap-1.5 min-w-0 text-[11px];
 }
 .template-binding-summary > span > :is(svg, .agent-logo) {
-  flex: none;
-  width: 14px;
-  height: 14px;
+  @apply flex-none w-3.5 h-3.5;
 }
 .template-binding-summary > span > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .template-preview-status {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
+  @apply inline-flex items-center flex-none;
 }
 .template-ready {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  color: var(--success);
-  border-radius: 4px;
+  @apply inline-flex items-center justify-center w-7 h-7 text-success rounded-[4px];
 }
 .template-ready:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: -2px;
 }
 .template-binding-body > [data-input-path] + [data-input-path] {
-  margin-top: 12px;
+  @apply mt-3;
 }
 .template-binding-body .field > label {
-  font-weight: 500;
+  @apply font-medium;
 }

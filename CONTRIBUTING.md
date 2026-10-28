@@ -31,15 +31,9 @@ cargo build --locked --examples
 python3 scripts/integration.py --pg-bin /path/to/postgresql/bin --keep-running
 ```
 
-浏览器回归不在 CI 中运行。需要本地验证界面时，保持该隔离测试栈运行，另一个终端执行：
+不维护浏览器测试套件。界面改动使用合成数据进行人工验收；大规模样式迁移使用本地一次性脚本，对同一浏览器、字体、视口、语言和主题下的迁移前后页面截图做对比。脚本、基线、截图和差异图放在忽略目录 `.local/`，不提交，也不上传到 GitHub。具体流程见 [测试策略](docs/test-strategy.md)。
 
-```sh
-cd web
-npx playwright install chromium
-npm test
-```
-
-测试凭据和端口保存在忽略目录 `.local/`，不得提交。测试栈与日常预览独立，退出测试时关闭临时服务。
+测试凭据和端口保存在忽略目录 `.local/`，不得提交。测试栈与日常预览独立，退出验收时关闭临时服务。
 
 ## WebUI 翻译
 
@@ -47,7 +41,7 @@ npm test
 
 首次使用按浏览器语言选择中文或英文，之后使用浏览器保存的 `wakeit-language`。顶栏版本号右侧可切换，登录页也提供同一入口。复制的 Agent Prompt 独立于界面语言。
 
-本地双语回归：`WAKEIT_TEST_URL=http://127.0.0.1:55426 WAKEIT_TEST_STACK=/tmp/wakeit-no-stack.json npm --prefix web test -- tests/languages.spec.ts tests/onboarding.spec.ts`。这些场景模拟 API，不使用真实账号、报告或设备；浏览器回归仍不进入 CI。
+翻译目录与插值由前端单元测试检查。界面验收覆盖中英文、浅色/深色和宽窄布局，使用合成账号、报告和设备，不为文案位置或控件尺寸增加长期维护的测试。
 
 发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。`v0.3.1` 为正式 Release，`v0.1.0` 保留为历史预览版；普通更新检查忽略预览版。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
 

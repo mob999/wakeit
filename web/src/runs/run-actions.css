@@ -1,40 +1,29 @@
+@reference '../styles/tailwind.css';
+
 .modal.run-node-modal {
-  width: min(800px, calc(100vw - 32px));
-  height: min(600px, calc(100dvh - 40px));
-  max-height: calc(100dvh - 40px);
+  @apply w-[min(800px,_calc(100vw_-_32px))] h-[min(600px,_calc(100dvh_-_40px))] max-h-[calc(100dvh_-_40px)];
 }
 .run-node-modal > .modal-body {
-  display: flex;
-  flex: 1;
-  padding: 0;
-  overflow: hidden;
-}
-.run-node-picker {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
+  @apply flex flex-1 p-0 overflow-hidden;
 }
 .run-node-picker > .pagination {
-  flex-shrink: 0;
+  @apply shrink-0;
 }
 .run-node-list {
-  border-top: 0;
+  @apply [border-top:0];
 }
 .run-node-list .task-row {
-  min-height: 48px;
+  @apply min-h-12;
 }
 .run-node-list .status {
-  font-size: var(--ui-meta);
+  @apply text-meta;
 }
 .run-node-list .task-row[aria-disabled='true'] {
-  color: var(--muted);
-  cursor: default;
+  @apply text-muted cursor-default;
 }
 .run-node-list .task-row[aria-disabled='true']:not(.active):hover {
-  background: transparent;
+  @apply bg-transparent;
 }
 .run-node-all-action {
-  margin-right: auto;
+  @apply mr-auto;
 }

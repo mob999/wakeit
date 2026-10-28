@@ -70,7 +70,7 @@ export function Layout({
   }
   return (
     <PageHeaderContext.Provider value={{ breadcrumbs, actions }}>
-      <div className="app">
+      <div className="app flex h-dvh flex-col overflow-hidden bg-canvas">
         <header className="topbar">
           <div
             className={`header-navigation ${collapsed ? 'header-navigation-collapsed' : ''}`}
@@ -114,7 +114,7 @@ export function Layout({
             </div>
           </div>
         </header>
-        <div className="workbench">
+        <div className="workbench relative flex min-h-0 flex-1">
           {narrow && mobileOpen && (
             <button
               className="navigation-backdrop"

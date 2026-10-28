@@ -113,7 +113,7 @@ function LegacyNodePrompt({
                 >
                   <span>
                     {nodeName(n)}
-                    <small className="quiet mono">{shortId(n.id)}</small>
+                    <small className="quiet text-muted mono">{shortId(n.id)}</small>
                   </span>
                 </Menu.Item>
               ))}
@@ -230,7 +230,7 @@ function StructuredNodePrompt({
         {parts.map((part, index) => (
           <div key={index} className="instruction-part">
             <div className="instruction-part-head">
-              <span className="quiet">
+              <span className="quiet text-muted">
                 {t('text' in part ? 'taskTemplate.text' : 'taskTemplate.resultPart')}
               </span>
               <IconButton

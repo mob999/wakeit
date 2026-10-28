@@ -345,7 +345,7 @@ export function DagGraph({
                 {inlineNodeId === n.id && <div className="dag-inline-node">{inline}</div>}
               </div>
             ))}
-            {!visible.length && <p className="card-state quiet">{t('dag.noMatches')}</p>}
+            {!visible.length && <p className="card-state quiet text-muted">{t('dag.noMatches')}</p>}
           </div>
         ) : (
           <>
@@ -360,7 +360,7 @@ export function DagGraph({
                   }
                 }}
               >
-                {!layout && <p className="quiet padded">{t('正在加载…')}</p>}
+                {!layout && <p className="quiet text-muted padded p-5">{t('正在加载…')}</p>}
                 {layout && (
                   <div
                     className="dag-graph-surface"

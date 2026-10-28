@@ -39,7 +39,7 @@ export function RunTable({
       {error ? (
         <ErrorToast>{error.message}</ErrorToast>
       ) : pending ? (
-        <p className="quiet card-state">{tr('正在加载…')}</p>
+        <p className="quiet text-muted card-state">{tr('正在加载…')}</p>
       ) : runs.length ? (
         <>
           {runs.map((r) => (
@@ -61,7 +61,7 @@ export function RunTable({
           ))}
         </>
       ) : (
-        <p className="quiet card-state">{tr('暂无执行记录')}</p>
+        <p className="quiet text-muted card-state">{tr('暂无执行记录')}</p>
       )}
     </section>
   )

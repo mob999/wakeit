@@ -440,7 +440,7 @@ function ReportNavigation({
         <section className="report-outline-section">
           <h4>
             {t('moments.outline')}
-            {incomplete && <span className="quiet">{t('moments.excerpt')}</span>}
+            {incomplete && <span className="quiet text-muted">{t('moments.excerpt')}</span>}
           </h4>
           <nav
             className="report-outline-list"

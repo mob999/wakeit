@@ -109,7 +109,7 @@ function SingleRunDetail({
           {hasResult ? (
             <RunResult result={r.result} raw={raw} source={{ runId: r.id }} cwd={r.config.cwd} />
           ) : (
-            <p className="run-waiting quiet">
+            <p className="run-waiting quiet text-muted">
               {tr(terminal(r.state) ? '未返回结果' : '等待执行输出…')}
             </p>
           )}
@@ -117,7 +117,7 @@ function SingleRunDetail({
       </RunPanel>
       <RunPanel id={id} tab="trace" active={tab} className="run-execution-page" ref={execution}>
         {['queued', 'starting'].includes(r.state) && (
-          <p className="run-waiting quiet content-card">{tr('等待执行')}</p>
+          <p className="run-waiting quiet text-muted content-card">{tr('等待执行')}</p>
         )}
         <RunSection
           title={tr('run.trace')}

@@ -1,106 +1,71 @@
+@reference '../styles/tailwind.css';
+
 .directory-quick-picker {
-  padding: 12px 16px 0;
-  min-width: 0;
+  @apply pt-3 px-4 pb-0 min-w-0;
 }
 .directory-quick-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 12px;
-  min-width: 0;
+  @apply flex items-center gap-1 mb-3 min-w-0;
 }
 .directory-input {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  font-size: 12px;
+  @apply flex-1 min-w-0 h-8 text-[12px];
 }
 .directory-quick-results {
-  height: 320px;
-  overflow: auto;
-  margin: 0 -8px;
-  padding: 0 4px 8px;
+  @apply h-80 overflow-auto my-0 mx-[-8px] pt-0 px-1 pb-2;
 }
 .directory-quick-list {
-  min-width: 0;
+  @apply min-w-0;
 }
 .directory-quick-row {
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  gap: 4px;
-  padding-right: 4px;
-  min-width: 0;
+  @apply flex items-center rounded-[4px] gap-1 pr-1 min-w-0;
 }
 .directory-quick-row:hover {
-  background: var(--item-hover);
+  @apply bg-item-hover;
 }
 .directory-quick-row.selected {
-  background: var(--item-selected);
+  @apply bg-item-selected;
 }
 .directory-quick-row.selected:hover {
-  background: var(--item-selected-hover);
+  @apply bg-item-selected-hover;
 }
 .directory-quick-row > button[role='option'] {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: transparent;
-  text-align: left;
-  padding: 8px;
-  font-size: 12px;
-  color: var(--ink);
+  @apply flex-1 min-w-0 flex items-center gap-2 [border:0] bg-transparent text-left p-2 text-[12px] text-ink;
 }
 .directory-quick-row > button[role='option'] > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .directory-quick-row svg {
-  flex-shrink: 0;
-  color: var(--muted);
+  @apply shrink-0 text-muted;
 }
 .directory-state {
-  font-size: 12px;
-  padding: 12px 8px;
-  margin: 0;
+  @apply text-[12px] py-3 px-2 m-0;
 }
 .directory-load {
-  display: flex;
-  margin: 8px auto;
+  @apply flex my-2 mx-auto;
 }
 .directory-quick-footer {
-  gap: 8px;
+  @apply gap-2;
 }
 .directory-quick-footer output {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
 }
 @media (max-width: 600px) {
   .directory-quick-picker {
-    padding: 12px 12px 0;
+    @apply pt-3 px-3 pb-0;
   }
   .directory-quick-toolbar {
-    flex-wrap: wrap;
+    @apply flex-wrap;
   }
   .directory-input {
     order: -1;
-    flex-basis: 100%;
+    @apply basis-full;
   }
   .directory-quick-results {
-    height: min(320px, 45dvh);
+    @apply h-[min(320px,_45dvh)];
   }
   .directory-quick-footer {
-    flex-wrap: wrap;
-    padding: 12px;
+    @apply flex-wrap p-3;
   }
   .directory-quick-footer output {
-    flex-basis: 100%;
-    height: 16px;
+    @apply basis-full h-4;
   }
 }

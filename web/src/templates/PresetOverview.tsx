@@ -35,7 +35,7 @@ export function PresetOverview({ record, runners }: { record: TemplateRecord; ru
     >
       <header className="card-header preset-overview-summary">
         <h3>{definition.name}</h3>
-        <div className="preset-overview-meta quiet">
+        <div className="preset-overview-meta quiet text-muted">
           <span>{definition.task.dag ? 'DAG' : t('任务')}</span>
           <span>{t('creation.revision', { count: record.revision })}</span>
           {record.updated_at && (
@@ -64,7 +64,9 @@ export function PresetOverview({ record, runners }: { record: TemplateRecord; ru
                       schema={schema}
                       required={definition.inputs.required?.includes(name)}
                     />
-                    <span className="quiet preset-overview-type">{typeLabel(schema)}</span>
+                    <span className="quiet text-muted preset-overview-type">
+                      {typeLabel(schema)}
+                    </span>
                   </div>
                   <div className="preset-overview-parameter-body">
                     <SchemaValue schema={schema} />
@@ -72,7 +74,7 @@ export function PresetOverview({ record, runners }: { record: TemplateRecord; ru
                 </section>
               ))
             ) : (
-              <p className="quiet preset-overview-empty">{t('preset.noInputs')}</p>
+              <p className="quiet text-muted preset-overview-empty">{t('preset.noInputs')}</p>
             )}
           </div>
         </section>
@@ -86,7 +88,7 @@ export function PresetOverview({ record, runners }: { record: TemplateRecord; ru
               </section>
             ))
           ) : (
-            <p className="quiet preset-overview-empty">{t('preset.noBindings')}</p>
+            <p className="quiet text-muted preset-overview-empty">{t('preset.noBindings')}</p>
           )}
         </aside>
       </div>
@@ -163,7 +165,7 @@ function SchemaValue({
                   schema={child}
                   required={schema.required?.includes(name)}
                 />
-                <small className="quiet preset-overview-type">{typeLabel(child)}</small>
+                <small className="quiet text-muted preset-overview-type">{typeLabel(child)}</small>
               </dt>
               <dd>
                 <SchemaValue
@@ -221,7 +223,7 @@ function SchemaValue({
 
 function DefaultValue({ value, inline = false }: { value?: Json; inline?: boolean }) {
   const content = (
-    <span className={value === undefined ? 'quiet' : 'preset-overview-value'}>
+    <span className={value === undefined ? 'quiet text-muted' : 'preset-overview-value'}>
       {value === undefined ? '—' : formatValue(value)}
     </span>
   )
@@ -269,13 +271,13 @@ function Environment({ defaults, runners }: { defaults: Binding; runners: Runner
       {showModel && (
         <>
           <dt>{t('模型')}</dt>
-          <dd>{model || <span className="quiet">{t('taskOverview.default')}</span>}</dd>
+          <dd>{model || <span className="quiet text-muted">{t('taskOverview.default')}</span>}</dd>
         </>
       )}
       {parameters.map(([name, value]) => (
         <Fragment key={name}>
           <dt>{parameterLabel(agent?.parameters[name]?.label || name)}</dt>
-          <dd>{value || <span className="quiet">{t('taskOverview.default')}</span>}</dd>
+          <dd>{value || <span className="quiet text-muted">{t('taskOverview.default')}</span>}</dd>
         </Fragment>
       ))}
     </dl>

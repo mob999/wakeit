@@ -1,0 +1,172 @@
+@layer base {
+  :root {
+    --font-sans:
+      system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans',
+      'Liberation Sans', Arial, sans-serif;
+    --font-mono:
+      'SF Mono', Monaco, Consolas, 'Ubuntu Mono', 'Liberation Mono', 'Courier New', monospace;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: #0a0a0a;
+    background: #fff;
+    --ui-text: 12px;
+    --ui-meta: 11px;
+    --ui-title-weight: 550;
+    --card-radius: 6px;
+    --card-gap: 16px;
+    --card-header-height: 44px;
+    --card-row-height: 48px;
+    --canvas: #fff;
+    --surface: #f5f5f5;
+    --list-surface: #fafafa;
+    --item-hover: color-mix(in srgb, var(--ink) 4%, transparent);
+    --item-selected: color-mix(in srgb, var(--ink) 10%, transparent);
+    --item-selected-surface: color-mix(in srgb, var(--ink) 10%, var(--canvas));
+    --item-selected-hover: color-mix(in srgb, var(--ink) 14%, transparent);
+    --reading-current: color-mix(in srgb, var(--ink) 6%, transparent);
+    --list-hover: var(--item-hover);
+    --list-selected: var(--item-selected);
+    --raised: #ffffff;
+    --border: #e5e5e5;
+    --ink: #0a0a0a;
+    --muted: #525252;
+    --faint: #737373;
+    --success: #1f883d;
+    --pending: #bf8700;
+    --control-edit: #0969da;
+    --failure: #cf222e;
+    --neutral: #8c959f;
+    --accent-hover: #333333;
+    --accent: #0a0a0a;
+    --accent-text: #fff;
+    --hover: #f0f0f0;
+    color-scheme: light;
+  }
+  :root[data-theme='dark'] {
+    --canvas: #0a0a0a;
+    --surface: #171717;
+    --list-surface: #121212;
+    --item-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+    --item-selected: color-mix(in srgb, var(--ink) 18%, transparent);
+    --item-selected-surface: color-mix(in srgb, var(--ink) 18%, var(--canvas));
+    --item-selected-hover: color-mix(in srgb, var(--ink) 22%, transparent);
+    --reading-current: color-mix(in srgb, var(--ink) 12%, transparent);
+    --raised: #1f1f1f;
+    --border: #262626;
+    --ink: #fafafa;
+    --muted: #a3a3a3;
+    --faint: #787878;
+    --success: #3fb950;
+    --pending: #d29922;
+    --control-edit: #58a6ff;
+    --failure: #f85149;
+    --neutral: #6e7681;
+    --accent-hover: #d4d4d4;
+    --accent: #fafafa;
+    --accent-text: #0a0a0a;
+    --hover: #202020;
+    color: #fafafa;
+    background: #0a0a0a;
+    color-scheme: dark;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  /* Keep native scrolling and match ghdiff's inset thumb. */
+  @media (forced-colors: none) {
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--faint) transparent;
+    }
+    @supports selector(::-webkit-scrollbar) {
+      * {
+        scrollbar-width: auto;
+        scrollbar-color: auto;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track,
+      ::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        min-height: 32px;
+        border: 2px solid transparent;
+        border-radius: 999px;
+        background: var(--faint);
+        background-clip: padding-box;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--muted);
+      }
+      ::-webkit-scrollbar-thumb:active {
+        background-color: var(--ink);
+      }
+    }
+  }
+  html,
+  body {
+    height: 100%;
+    background: var(--canvas);
+    overscroll-behavior: none;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  button,
+  a {
+    touch-action: manipulation;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--muted);
+    outline-offset: 2px;
+  }
+  button {
+    color: inherit;
+  }
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  h1 {
+    font-size: 17px;
+    letter-spacing: -0.4px;
+    font-weight: 650;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 620;
+    letter-spacing: -0.5px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  small {
+    font-size: 11px;
+  }
+}

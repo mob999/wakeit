@@ -85,10 +85,10 @@ export function RunResult({
         outputs={outputs}
         selectedOutput={selectedOutput}
         onSelectOutput={onSelectOutput}
-        notice={truncated && <p className="quiet">{tr('结果已截断')}</p>}
+        notice={truncated && <p className="quiet text-muted">{tr('结果已截断')}</p>}
       >
         {empty ? (
-          <p className="quiet">{tr('未返回结果')}</p>
+          <p className="quiet text-muted">{tr('未返回结果')}</p>
         ) : raw || typeof text !== 'string' ? (
           <CodeContent
             text={rawSource ?? ''}

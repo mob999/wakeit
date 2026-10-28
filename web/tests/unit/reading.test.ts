@@ -6,7 +6,6 @@ import {
   inputSummary,
   previewLines,
   isExpanded,
-  followingTail,
   runTab,
 } from '../../src/runs/readingModel.ts'
 
@@ -50,11 +49,6 @@ test('payload preview truncates only beyond twelve lines and full mode preserves
   assert.deepEqual(previewLines(text, false), { text: boundary, truncated: true })
   assert.equal(previewLines(text, true).text, text)
 })
-test('tail following includes 48 pixels and stops immediately above that distance', () => {
-  assert.equal(followingTail(48), true)
-  assert.equal(followingTail(49), false)
-})
-
 test('run tabs default to Trace while waiting and Output when available', () => {
   const state = freshReading()
   assert.equal(runTab(state, false), 'trace')

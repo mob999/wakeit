@@ -1,3 +1,5 @@
+@reference '../styles/tailwind.css';
+
 .report-reader {
   --report-viewport-height: 100dvh;
   --report-sticky-top: 44px;
@@ -6,410 +8,264 @@
     calc(var(--report-viewport-height) - var(--report-sticky-top))
   );
   container-type: inline-size;
-  min-width: 0;
+  @apply min-w-0;
 }
 .report-grid {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  @apply relative grid grid-cols-[minmax(0,_1fr)];
   grid-template-areas: 'tools' 'body' 'references';
-  min-width: 0;
+  @apply min-w-0;
   align-items: start;
 }
 .report-grid > .resize-handle {
-  display: none;
-  z-index: 2;
+  @apply hidden z-2;
 }
 .report-grid::before,
 .report-grid::after {
   content: '';
-  display: none;
-  width: 1px;
-  align-self: stretch;
-  background: var(--border);
-  pointer-events: none;
-  z-index: 1;
+  @apply hidden w-px self-stretch bg-ui-border pointer-events-none z-1;
 }
 .report-grid::before {
   grid-area: navigation;
-  justify-self: end;
+  @apply justify-self-end;
 }
 .report-grid::after {
   grid-area: references;
-  justify-self: start;
+  @apply justify-self-start;
 }
 .report-reading-body {
   grid-area: body;
-  min-width: 0;
-  padding: 12px 16px;
+  @apply min-w-0 py-3 px-4;
   align-self: start;
 }
 .report-content {
-  min-width: 0;
-  overflow-wrap: anywhere;
+  @apply min-w-0 [overflow-wrap:anywhere];
 }
 .report-content-preview {
-  max-height: 138px;
-  overflow: hidden;
+  @apply max-h-34.5 overflow-hidden;
 }
 .report-content > .markdown-result {
-  margin: 0;
-  padding: 0;
-  max-width: 100%;
-  font-size: 12px;
-  line-height: 1.65;
+  @apply m-0 p-0 max-w-full text-[12px] leading-[1.65];
 }
 .report-content > .markdown-result > :first-child {
-  margin-top: 0;
+  @apply mt-0;
 }
 .report-content > .markdown-result > :last-child {
-  margin-bottom: 0;
+  @apply mb-0;
 }
 .report-content :is(h1, h2, h3, h4, h5, h6) {
-  scroll-margin-top: 56px;
+  @apply scroll-mt-14;
 }
 .report-content :is(pre, .code-content) {
-  max-width: 100%;
-  overflow-x: auto;
+  @apply max-w-full overflow-x-auto;
 }
 .report-content pre {
-  background: transparent;
+  @apply bg-transparent;
 }
 .report-tools {
   grid-area: tools;
-  padding: 6px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  border-bottom: 1px solid var(--border);
+  @apply py-1.5 px-3 flex items-center gap-2 min-w-0 [border-bottom:1px_solid_var(--border)];
 }
 .report-navigation-trigger {
-  min-height: 28px;
-  gap: 6px;
-  font-size: 11px;
-  padding: 2px 0;
-  flex: none;
+  @apply min-h-7 gap-1.5 text-[11px] py-0.5 px-0 flex-none;
 }
 .report-current-output {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  color: var(--muted);
+  @apply overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted;
 }
 .report-navigation {
   grid-area: navigation;
-  display: none;
-  min-width: 0;
-  padding: 12px;
-  font-size: 11px;
+  @apply hidden min-w-0 p-3 text-[11px];
 }
 .report-navigation h4,
 .report-reader .result-references h4 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 5px;
-  font-size: 11px;
-  line-height: 18px;
-  font-weight: 550;
+  @apply flex items-center gap-2 mt-0 mx-0 mb-[5px] text-[11px] leading-[18px];
+  @apply font-[550];
 }
 .report-navigation section {
-  min-width: 0;
+  @apply min-w-0;
 }
 .report-navigation section + section {
-  margin-top: 12px;
+  @apply mt-3;
 }
 .report-output-list {
-  max-height: min(160px, 20dvh);
-  overflow: auto;
-  scrollbar-gutter: stable;
+  @apply max-h-[min(160px,_20dvh)] overflow-auto [scrollbar-gutter:stable];
 }
 .report-output-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  width: 100%;
-  min-height: 28px;
-  padding: 4px 6px;
-  gap: 8px;
-  align-items: center;
-  text-align: left;
-  font-size: 12px;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  @apply relative grid grid-cols-[minmax(0,_1fr)_auto] w-full min-h-7 py-1 px-1.5 gap-2 items-center text-left text-[12px] [border:1px_solid_transparent];
+  @apply rounded-[4px];
 }
 .report-output-row > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .report-output-row small {
-  display: block;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--muted);
+  @apply block text-[11px];
+  @apply font-normal text-muted;
 }
 .report-output-row .status {
-  font-size: 11px;
+  @apply text-[11px];
 }
 .report-output-row:has(.report-output-select):hover {
-  background: var(--item-hover);
+  @apply bg-item-hover;
 }
 .report-output-row.selected {
-  background: var(--item-selected);
+  @apply bg-item-selected;
 }
 .report-output-row.selected:hover {
-  background: var(--item-selected-hover);
+  @apply bg-item-selected-hover;
 }
 .report-output-row:has(.report-output-select:focus-visible) {
   outline: 2px solid var(--ink);
   outline-offset: -2px;
 }
 .report-output-row .run-reason {
-  position: relative;
-  z-index: 1;
-  margin: 0;
-  min-height: 18px;
+  @apply relative z-1 m-0 min-h-4.5;
 }
 .report-output-select {
-  min-width: 0;
-  text-align: left;
-  font-size: inherit;
-  padding: 0;
+  @apply min-w-0 text-left text-[inherit] p-0;
 }
 .report-output-select::after {
   content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  @apply absolute inset-0 rounded-[inherit];
 }
 .report-output-select:focus-visible {
   outline: none;
 }
 .report-output-row.selected .report-output-select {
-  font-weight: 550;
+  @apply font-[550];
 }
 .report-output-select > span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply block overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .report-outline-section {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  @apply min-h-0 flex flex-col;
 }
 .report-outline-list {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: min(360px, 40dvh);
-  overflow: auto;
-  scrollbar-gutter: stable;
+  @apply flex flex-col min-h-0 max-h-[min(360px,_40dvh)] overflow-auto [scrollbar-gutter:stable];
 }
 .report-outline-list button {
-  flex: none;
-  min-width: 0;
-  min-height: 24px;
-  padding: 3px 6px;
-  border-radius: 4px;
-  line-height: 18px;
-  text-align: left;
-  font-size: 11px;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply flex-none min-w-0 min-h-6 py-[3px] px-1.5 rounded-[4px] leading-[18px] text-left text-[11px] text-muted overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .report-outline-list button:hover {
-  color: var(--ink);
-  background: var(--item-hover);
+  @apply text-ink bg-item-hover;
 }
 .report-outline-list button[aria-current] {
-  color: var(--ink);
-  background: var(--reading-current);
-  font-weight: 550;
+  @apply text-ink bg-reading-current font-[550];
 }
 .report-outline-list button[aria-current]:hover {
-  background: var(--item-selected);
+  @apply bg-item-selected;
 }
 .report-outline-list button:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: -2px;
 }
 .report-more {
-  flex: none;
-  display: block;
-  padding: 2px 0;
-  margin-top: 4px;
-  min-height: 22px;
-  line-height: 18px;
-  font-size: 11px;
-  color: var(--muted);
-  text-align: left;
+  @apply flex-none block py-0.5 px-0 mt-1 min-h-5.5 leading-[18px] text-[11px] text-muted text-left;
 }
 .report-more:hover {
-  color: var(--ink);
-  text-decoration: underline;
+  @apply text-ink underline;
 }
 .report-reader .result-references {
   grid-area: references;
-  min-width: 0;
-  border-left: 0;
-  border-top: 1px solid var(--border);
-  padding: 12px;
-  font-size: 11px;
+  @apply min-w-0 [border-left:0];
+  @apply [border-top:1px_solid_var(--border)] p-3 text-[11px];
 }
 .report-reader .result-reference-list {
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
-  min-width: 0;
-  min-height: 0;
-  max-height: min(520px, 60dvh);
-  scrollbar-gutter: stable;
+  @apply flex flex-col overflow-auto min-w-0 min-h-0 max-h-[min(520px,_60dvh)] [scrollbar-gutter:stable];
 }
 .report-reader .result-reference-list > div {
-  flex: none;
-  min-width: 0;
+  @apply flex-none min-w-0;
 }
 .report-reader .result-reference-list > [hidden] {
-  display: none;
+  @apply hidden;
 }
 .report-reader .result-reference-list > div > :is(a, button) {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  padding: 4px 0;
-  font-size: 11px;
-  line-height: 18px;
-  text-align: left;
-  color: var(--ink);
-  text-decoration: none;
+  @apply flex items-center gap-1.5 w-full min-w-0 py-1 px-0 text-[11px] leading-[18px] text-left text-ink no-underline;
 }
 .report-reader .result-reference-list > div > :is(a, button):hover span {
-  text-decoration: underline;
+  @apply underline;
 }
 .report-reader .result-reference-list > div > :is(a, button) > span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .report-reader .result-reference-list svg {
-  flex: none;
-  color: var(--muted);
+  @apply flex-none text-muted;
 }
 .report-reader .result-references-more {
-  font-size: 11px;
-  line-height: 18px;
-  margin-top: 4px;
-  padding: 2px 0;
-  min-height: 22px;
-  color: var(--muted);
+  @apply text-[11px] leading-[18px] mt-1 py-0.5 px-0 min-h-5.5 text-muted;
 }
 .report-reader .result-references-more[hidden] {
-  display: none;
+  @apply hidden;
 }
 .report-nav-popover {
-  width: min(340px, calc(100vw - 24px));
-  max-height: min(640px, calc(100dvh - 80px));
-  overflow: auto;
-  background: var(--canvas);
-  color: var(--ink);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  @apply w-[min(340px,_calc(100vw_-_24px))] max-h-[min(640px,_calc(100dvh_-_80px))] overflow-auto bg-canvas text-ink [border:1px_solid_var(--border)];
+  @apply rounded-[6px];
   box-shadow: 0 4px 16px #00000014;
-  z-index: 60;
+  @apply z-60;
 }
 .report-navigation.report-navigation-popup {
-  display: block;
-  position: static;
+  @apply block static;
 }
 @container (min-width:740px) {
   .report-grid > .report-references-resize {
-    display: block;
+    @apply block;
   }
   .report-grid.has-references::after {
-    display: block;
+    @apply block;
   }
   .report-grid.has-references {
-    grid-template-columns: minmax(0, 1fr) var(--report-references-width);
+    @apply grid-cols-[minmax(0,_1fr)_var(--report-references-width)];
     grid-template-areas: 'tools tools' 'body references';
   }
   .report-reader .result-references {
-    border-top: 0;
-    border-left: 0;
-    position: sticky;
-    top: var(--report-sticky-top);
-    max-height: var(--report-rail-height);
-    display: flex;
-    flex-direction: column;
+    @apply [border-top:0];
+    @apply [border-left:0] sticky top-[var(--report-sticky-top)] max-h-[var(--report-rail-height)] flex flex-col;
   }
   .report-reader .result-reference-list {
     flex: 1 1 auto;
-    max-height: none;
+    @apply max-h-none;
   }
   .report-reader.is-preview .result-references {
-    position: static;
-    max-height: var(--report-reading-height);
+    @apply static max-h-[var(--report-reading-height)];
   }
   .report-reader.is-preview .result-reference-list {
-    flex: 1;
+    @apply flex-1;
   }
 }
 @container (min-width:1080px) {
   .report-grid > .report-navigation-resize {
-    display: block;
+    @apply block;
   }
   .report-grid.has-navigation::before {
-    display: block;
+    @apply block;
   }
   .report-grid.has-navigation {
-    grid-template-columns: var(--report-navigation-width) minmax(0, 1fr);
+    @apply grid-cols-[var(--report-navigation-width)_minmax(0,_1fr)];
     grid-template-areas: 'navigation body';
   }
   .report-grid.has-navigation.has-references {
-    grid-template-columns: var(--report-navigation-width) minmax(0, 1fr) var(
-        --report-references-width
-      );
+    @apply grid-cols-[var(--report-navigation-width)_minmax(0,_1fr)_var(--report-references-width)];
     grid-template-areas: 'navigation body references';
   }
   .report-grid .report-tools {
-    display: none;
+    @apply hidden;
   }
   .report-navigation {
-    display: flex;
-    flex-direction: column;
-    position: sticky;
-    top: var(--report-sticky-top);
-    max-height: var(--report-rail-height);
-    overflow: auto;
+    @apply flex flex-col sticky top-[var(--report-sticky-top)] max-h-[var(--report-rail-height)] overflow-auto;
   }
   .report-grid > .report-navigation .report-output-section {
-    flex: none;
+    @apply flex-none;
   }
   .report-grid > .report-navigation .report-outline-section {
     flex: 1 1 auto;
   }
   .report-grid > .report-navigation .report-outline-list {
     flex: 1 1 auto;
-    max-height: none;
+    @apply max-h-none;
   }
   .report-reader:not(.is-preview)
     .report-grid
     > .report-navigation:not(:has(.report-outline-section))
     .report-output-section {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+    @apply flex flex-col min-h-0;
     flex: 1 1 auto;
   }
   .report-reader:not(.is-preview)
@@ -417,33 +273,26 @@
     > .report-navigation:not(:has(.report-outline-section))
     .report-output-list {
     flex: 1 1 auto;
-    max-height: none;
+    @apply max-h-none;
   }
   .report-reader.is-preview .report-navigation {
-    display: flex;
-    flex-direction: column;
-    position: static;
-    max-height: var(--report-reading-height);
-    overflow: hidden;
+    @apply flex flex-col static max-h-[var(--report-reading-height)] overflow-hidden;
   }
   .report-reader.is-preview .report-output-section {
-    flex: none;
+    @apply flex-none;
   }
   .report-reader.is-preview .report-output-list {
-    max-height: 60px;
+    @apply max-h-15;
   }
   .report-reader.is-preview .report-outline-section {
-    flex: 1;
+    @apply flex-1;
   }
   .report-reader.is-preview .report-outline-list {
-    flex: 1;
+    @apply flex-1;
   }
 }
 @container (max-width:739px) {
   .report-reader .result-reference-list {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 12px;
-    max-height: 240px;
+    @apply grid grid-cols-[repeat(2,_minmax(0,_1fr))] gap-[0_12px] max-h-60;
   }
 }

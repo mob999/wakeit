@@ -1,44 +1,41 @@
-# Test ownership and review
+# Test ownership and visual acceptance
 
-Use [.agents/skills/unit-test-review](../.agents/skills/unit-test-review/SKILL.md) when auditing or refactoring the suite. It is a development skill, independent of the packaged Wakeit operation skill. Copy the whole directory to your Agent's skills directory to install it.
+Keep tests that protect business behavior, data boundaries and real integrations. Do not maintain browser suites, CSS-class assertions, markup snapshots or tests that only repeat a layout constant. Use the repository's [Unit Test Review skill](../.agents/skills/unit-test-review/SKILL.md) when reviewing coverage.
 
-## Layers
+## Maintained coverage
 
-| Contract                                           | Primary owner                            | Integration protection to retain                                                    |
-| -------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| Diagnostic routing                                 | `web/tests/unit/api-error-text.test.ts`  | Toast rendering and permission errors in browser/API checks                         |
-| Translation keys and interpolation                 | `web/tests/unit/locale-contract.test.ts` | Live language switching and accessible labels                                       |
-| Recording causes                                   | `web/tests/unit/recordingInfo.test.ts`   | Runner diagnostics, log persistence and toolbar presentation                        |
-| Summaries, payload previews, folding and following | `web/tests/unit/reading.test.ts`         | Polling, late events, scroll anchors and rendered Markdown                          |
-| Reference identity and reading state               | `web/tests/unit/report-reading.test.ts`  | Sanitized DOM extraction, real image/link clicks, layout and execution ownership    |
-| Native adapter normalization                       | `crates/wakeit/tests/*_adapter.rs`       | CLI framing, actual exit status and pipe draining                                   |
-| Session and DAG lifecycle                          | Rust and service integration suites      | Transactions, local locks, migration compatibility, restart and concurrent requests |
-| Task Template compilation and instantiation        | `crates/wakeit/tests/task_templates.rs`  | Real migrations, cross-Gateway idempotency, authorization, frozen Runs and CLI      |
-| Preset workbench and template instance interaction | `web/tests/templates.spec.ts`            | Definition management, inline creation, typed drafts, stale responses and i18n      |
-| Card and toolbar appearance                        | Local browser suites                     | Geometry, transparency, keyboard access, themes and narrow layouts                  |
+| Contract | Owner |
+| --- | --- |
+| Diagnostic routing and interpolation | Frontend unit tests with independent diagnostic cases and real i18next |
+| Typed preset inputs and prompt references | Frontend parser tests and Rust template compilation tests |
+| Reference identity, deduplication and reading-state isolation | Frontend unit tests |
+| Run status, retries, session identity and recording causes | Frontend state tests, Rust and service integration tests |
+| Transactions, permissions, migrations, message delivery and process cleanup | Rust and service integration tests using the real boundaries |
+| Release packaging, checksums and standalone skill contents | Packaging and native replacement checks |
 
-The same risk can justify tests at two layers when they exercise different boundaries. Do not remove service tests in favor of mocks for database constraints, authorization, NATS delivery or process-tree cleanup.
+Tests are redundant only when their input, outcome and boundary are the same. Similar fixtures or function names are not sufficient grounds for deletion. Preserve historical inputs for Unicode, escaping, missing data, late events, retries and restart behavior. Do not replace real database, filesystem or process behavior with a second implementation in a mock.
 
-## Review rules
+## Visual changes
 
-List input, outcome and boundary before deleting a test. Share repeated fixture construction or assertions rather than deleting distinct scenarios. Use descriptive table cases so failures name the input that failed. A complete final-report assertion checks exactly one record, its kind and its value; checking only the first result or applying `all` to an unchecked collection cannot protect this contract.
+Visual acceptance is a local review activity, not a maintained browser test suite or CI job. For a broad styling migration:
 
-Expected cause lists come from the protocol contract, independently of the production allowlist. Diagnostic routing is checked once independently of language; catalogs and real i18next interpolation are checked separately. No test-local interpolation implementation is needed.
+1. Freeze the original source revision and any preview overlays before editing. Preserve its dependency lock and the synthetic data used to render it.
+2. Run the original and candidate separately, using the same browser build, fonts, viewport, scale, language and theme. Fix dates and API responses; wait for fonts and images and disable animations while capturing.
+3. Capture representative pages and states with a disposable script. Cover Tasks, Runs, devices, presets, Moments, settings, creation flows, menus, Tooltips and dialogs; include long content, narrow layouts, both languages and both themes.
+4. Compare paired images. Investigate every changed region, especially typography, wrapping, borders, whitespace, sticky headers and overflow. A migrated image must not replace the baseline to make a difference disappear.
+5. Exercise scrolling, resizing, DAG dragging, focus and dialog pagination in the same local review. Reuse the current interactions without adding assertions about every element's coordinates.
+6. Keep the script, screenshots, differences and review notes under `.local/`. Do not commit them, upload them to GitHub or add them to CI. The PR records the reviewed scope and any remaining limits in text.
 
-Pixel dimensions and transparent backgrounds that encode the design specification are intentional visual contracts. Large-output, session identity, literal argv/stdin, cancellation and retry tests protect different failure modes even when their setup looks similar. Keep those scenarios.
+Existing appearance defects are separate changes. A styling migration preserves the accepted baseline; it does not silently redesign the page.
 
 ## Commands
 
 ```sh
-npm --prefix web run test:unit
+npm --prefix web test
 npm --prefix web run build
 cargo fmt --all --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked --all-targets
 ```
 
-Frontend unit tests type-check with `web/tsconfig.unit.json`, then use Node's existing test runner. They need no Gateway, browser, database or native Agent login. CI runs these on the existing OS matrix. Browser suites stay local-only; use the isolated test stack described in [Contributing](../CONTRIBUTING.md). Test collection is not evidence that a browser scenario passed.
-
-For a previously weak assertion, a reversible mutation can check whether the test detects the defect. Restore the source in a `finally` block and rerun the clean suite. Mutation checks are diagnostic tools, not a test-count or coverage target.
-
-The review approach draws on [TestRail's unit-testing article](https://www.testrail.com/blog/how-to-write-unit-tests/). Preserve exact error and schema contracts when consumers depend on them, and use as many assertions as one coherent outcome requires.
+`npm test` runs the frontend unit suite; `test:unit` remains an equivalent explicit entry. It needs no browser, Gateway, database or native Agent login. Run the affected suites after a behavioral change, and broaden verification only when shared boundaries change. Do not add a test framework, coverage quota or duplicate test just to increase the count.

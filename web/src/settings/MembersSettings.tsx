@@ -97,7 +97,7 @@ function MemberRow({
           </Dropdown.Root>
           {change.error && <ErrorToast>{change.error.message}</ErrorToast>}
         </div>
-        <span className="quiet">
+        <span className="quiet text-muted">
           {member.account_active === false
             ? tr('账号已停用')
             : member.active
@@ -238,7 +238,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
           {link ? (
             <>
               <SecretValue label={tr('邀请链接')} value={link} />
-              <p className="quiet">{tr('一次性链接，48 小时内有效')}</p>
+              <p className="quiet text-muted">{tr('一次性链接，48 小时内有效')}</p>
             </>
           ) : (
             <Field label={tr('邀请角色')}>

@@ -39,10 +39,13 @@ export function DirectoryPicker({
         <Folder size={15} />
         {!compact && (
           <>
-            <span className={value ? 'directory-path mono' : 'directory-path quiet'} title={value}>
+            <span
+              className={value ? 'directory-path mono' : 'directory-path quiet text-muted'}
+              title={value}
+            >
               {value || (!runner ? tr('先选择 Runner') : tr('选择工作目录'))}
             </span>
-            <span className="quiet">{tr('浏览')}</span>
+            <span className="quiet text-muted">{tr('浏览')}</span>
             <ChevronRight size={14} />
           </>
         )}

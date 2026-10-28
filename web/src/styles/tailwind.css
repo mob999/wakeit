@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+/* Keep the existing pixel scale and runtime light/dark palette. */
+@theme inline {
+  --spacing: 4px;
+  --text-ui: var(--ui-text);
+  --text-meta: var(--ui-meta);
+  --font-weight-title: var(--ui-title-weight);
+  --radius-card: var(--card-radius);
+  --spacing-header: var(--card-header-height);
+  --spacing-row: var(--card-row-height);
+  --spacing-card: var(--card-gap);
+  --spacing-action: var(--action-size);
+  --spacing-icon: var(--action-icon-size);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-list-surface: var(--list-surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-ui-border: var(--border);
+  --color-success: var(--success);
+  --color-pending: var(--pending);
+  --color-failure: var(--failure);
+  --color-neutral: var(--neutral);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-hover: var(--hover);
+  --color-item-hover: var(--item-hover);
+  --color-item-selected: var(--item-selected);
+  --color-item-selected-hover: var(--item-selected-hover);
+  --color-item-selected-surface: var(--item-selected-surface);
+  --color-reading-current: var(--reading-current);
+  --color-control-edit: var(--control-edit);
+  --color-list-hover: var(--list-hover);
+  --color-list-selected: var(--list-selected);
+}

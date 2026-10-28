@@ -107,7 +107,7 @@ function TimezonePicker({
                     </button>
                   ))}
                 {!zones.data?.some((z) => z.toLowerCase().includes(search.toLowerCase())) && (
-                  <p className="quiet padded">{tr('无匹配时区')}</p>
+                  <p className="quiet text-muted padded p-5">{tr('无匹配时区')}</p>
                 )}
               </div>
             )}

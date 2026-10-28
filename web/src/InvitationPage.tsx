@@ -75,14 +75,14 @@ export function InvitationPage({ user }: { user?: User }) {
         <h1 className="card-header">{tr('加入工作区')}</h1>
         <div className="card-body">
           {invitation.isPending ? (
-            <p className="quiet">{tr('加载中…')}</p>
+            <p className="quiet text-muted">{tr('加载中…')}</p>
           ) : invitation.error ? (
             <ErrorToast>{invitation.error.message}</ErrorToast>
           ) : (
             <>
               <div className="invite-target">
                 <strong>{invitation.data.workspace}</strong>
-                <span className="quiet">{roleName(invitation.data.role)}</span>
+                <span className="quiet text-muted">{roleName(invitation.data.role)}</span>
               </div>
               {user ? (
                 <p>{user.username}</p>

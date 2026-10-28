@@ -1,31 +1,19 @@
+@reference '../styles/tailwind.css';
+
 .dag-run-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-  min-height: 38px;
+  @apply flex items-center gap-3 ml-auto min-h-9.5;
 }
 .dag-run-meta .status {
-  font-size: 11px;
-  white-space: nowrap;
+  @apply text-[11px] whitespace-nowrap;
 }
 .dag-node-issues-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  @apply inline-flex items-center gap-1 h-7 p-0 [border:0];
+  @apply rounded-[4px] bg-transparent text-muted text-[12px];
+  @apply tabular-nums whitespace-nowrap;
 }
 .dag-node-issues-trigger:hover,
 .dag-node-issues-trigger[data-state='open'] {
-  color: var(--ink);
+  @apply text-ink;
 }
 .dag-node-issues-trigger:focus-visible,
 .dag-node-context:focus-visible,
@@ -34,60 +22,33 @@
   outline-offset: -1px;
 }
 .dropdown.dag-node-issues-menu {
-  width: 380px;
-  max-width: calc(100vw - 24px);
-  max-height: min(420px, var(--radix-dropdown-menu-content-available-height, 70dvh));
-  padding: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  @apply w-95 max-w-[calc(100vw_-_24px)] max-h-[min(420px,_var(--radix-dropdown-menu-content-available-height,_70dvh))] p-0 overflow-y-auto;
+  @apply overflow-x-hidden overscroll-contain [scrollbar-gutter:stable];
 }
 .dag-node-issues-menu .dag-issue-head,
 .dropdown.dag-node-issues-menu [role='menuitem'] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 120px;
-  gap: 12px;
-  align-items: center;
-  padding: 6px 12px;
+  @apply grid grid-cols-[minmax(0,_1fr)_120px] gap-3 items-center py-1.5 px-3;
 }
 .dag-issue-head {
-  position: sticky;
-  top: 0;
-  min-height: 28px;
-  background: var(--canvas);
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--muted);
+  @apply sticky top-0 min-h-7 bg-canvas [border-bottom:1px_solid_var(--border)] text-[11px] text-muted;
 }
 .dag-issue-head > :last-child,
 .dag-node-issues-menu .status {
-  justify-self: end;
-  font-size: 11px;
-  white-space: nowrap;
+  @apply justify-self-end text-[11px] whitespace-nowrap;
 }
 .dropdown.dag-node-issues-menu [role='menuitem'] {
-  min-height: 36px;
-  border-radius: 0;
-  font-size: 12px;
+  @apply min-h-9 rounded-none text-[12px];
 }
 .dag-issue-identity {
-  display: grid;
-  min-width: 0;
+  @apply grid min-w-0;
 }
 .dag-issue-identity > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .dag-issue-identity > small {
-  color: var(--muted);
-  font-size: 11px;
+  @apply text-muted text-[11px];
 }
 .dag-issue-group-label,
 .dag-issues-empty {
-  margin: 0;
-  padding: 6px 12px;
-  font-size: 11px;
-  color: var(--muted);
+  @apply m-0 py-1.5 px-3 text-[11px] text-muted;
 }

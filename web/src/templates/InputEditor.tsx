@@ -107,7 +107,7 @@ export function InputEditor({
           )
         })}
       {!Object.keys(schema.properties ?? {}).length && (
-        <p className="quiet padded">{t('preset.noInputs')}</p>
+        <p className="quiet text-muted padded p-5">{t('preset.noInputs')}</p>
       )}
     </div>
   )
@@ -250,7 +250,7 @@ function ValueField({
           checked={value === true}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className="quiet">
+        <span className="quiet text-muted">
           {t(value === undefined ? 'creation.notSet' : value ? 'creation.yes' : 'creation.no')}
         </span>
       </div>

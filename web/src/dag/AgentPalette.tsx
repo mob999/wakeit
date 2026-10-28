@@ -80,7 +80,7 @@ export function AgentPalette({
                 className={'dag-device-dot ' + (r.online ? 'online' : '')}
                 aria-label={t(r.online ? '在线' : '离线')}
               />
-              {!r.online && <span className="quiet">{t('离线')}</span>}
+              {!r.online && <span className="quiet text-muted">{t('离线')}</span>}
             </button>
             {(!closed.includes(r.id) || !!query) &&
               r.agents.map((agent) => (
@@ -115,7 +115,7 @@ export function AgentPalette({
               ))}
           </section>
         ))}
-        {!visible.length && <p className="quiet card-state">{t('dag.noAgents')}</p>}
+        {!visible.length && <p className="quiet text-muted card-state">{t('dag.noAgents')}</p>}
       </div>
     </div>
   )

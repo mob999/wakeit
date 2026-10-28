@@ -278,7 +278,7 @@ export function ChoicePicker({
                       </span>
                     </span>
                     <span className="choice-option-meta">
-                      {option.status && <span className="quiet">{option.status}</span>}
+                      {option.status && <span className="quiet text-muted">{option.status}</span>}
                       {(multiple ? multiple.includes(option.value) : value === option.value) && (
                         <Check size={13} />
                       )}

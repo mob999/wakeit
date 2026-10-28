@@ -207,7 +207,7 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
               <Button onClick={() => void workspaces.refetch()}>{tr('重试')}</Button>
             </div>
           ) : workspaces.isPending ? (
-            <div className="card-body quiet">{tr('加载中…')}</div>
+            <div className="card-body quiet text-muted">{tr('加载中…')}</div>
           ) : (
             <>
               {workspaces.data.items.map((workspace) => (
@@ -219,7 +219,7 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
                 </a>
               ))}
               {!workspaces.data.items.length && !workspaces.data.demo && (
-                <div className="card-body quiet">{tr('暂无工作区')}</div>
+                <div className="card-body quiet text-muted">{tr('暂无工作区')}</div>
               )}
               {workspaces.data.demo && (
                 <a className="workspace-home-row" href={`/w/${workspaces.data.demo.id}/`}>

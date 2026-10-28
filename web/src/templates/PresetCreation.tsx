@@ -163,7 +163,7 @@ export function PresetCreation({
           </div>
           <div className="preset-catalog-list">
             {list.isPending ? (
-              <p className="quiet padded" role="status">
+              <p className="quiet text-muted padded p-5" role="status">
                 {t('正在加载…')}
               </p>
             ) : list.error ? (
@@ -172,7 +172,9 @@ export function PresetCreation({
                 <Button onClick={() => list.refetch()}>{t('重试')}</Button>
               </ErrorToast>
             ) : !list.data?.items.length ? (
-              <p className="quiet padded">{t(query ? '无匹配结果' : 'preset.empty')}</p>
+              <p className="quiet text-muted padded p-5">
+                {t(query ? '无匹配结果' : 'preset.empty')}
+              </p>
             ) : (
               list.data.items.map((row) => (
                 <button

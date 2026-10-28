@@ -1072,7 +1072,7 @@ export function DagEditor({
                         return (
                           <div key={id}>
                             <span>{n ? nodeName(n) : id}</span>
-                            <span className="quiet mono">
+                            <span className="quiet text-muted mono">
                               {n ? shortId(n.id) : t('dag.missingOutput')}
                             </span>
                             <IconButton

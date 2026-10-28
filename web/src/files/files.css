@@ -1,134 +1,78 @@
+@reference '../styles/tailwind.css';
+
 .result-file-link {
-  display: inline;
-  padding: 0;
-  border: 0;
+  @apply inline p-0 [border:0];
   background: none;
-  color: inherit;
-  text-decoration: underline;
+  @apply text-inherit underline;
   text-underline-offset: 2px;
   font: inherit;
   text-align: inherit;
-  overflow-wrap: anywhere;
+  @apply [overflow-wrap:anywhere];
 }
 .result-file-link:hover {
-  color: var(--muted);
+  @apply text-muted;
 }
 .modal.file-preview-modal {
-  width: min(1000px, calc(100vw - 32px));
-  max-height: 85dvh;
-  border-radius: 6px;
+  @apply w-[min(1000px,_calc(100vw_-_32px))] max-h-[85dvh] rounded-[6px];
 }
 .file-preview-modal .modal-heading {
-  min-height: 44px;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
+  @apply min-h-11 items-center gap-3 py-1.5 px-3;
 }
 .file-preview-modal .modal-heading > div:first-child {
-  min-width: 0;
+  @apply min-w-0;
 }
 .file-preview-modal .modal-heading h2 {
-  font-size: var(--ui-text);
-  font-weight: var(--ui-title-weight);
-  line-height: 20px;
-  letter-spacing: normal;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply text-ui;
+  @apply font-title leading-[20px] tracking-[normal] overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .file-preview-device {
-  font-size: var(--ui-meta);
-  color: var(--muted);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply text-meta text-muted max-w-50 overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .file-preview-content {
-  padding: 12px;
-  overflow: auto;
-  min-height: 120px;
-  font-size: var(--ui-text);
+  @apply p-3 overflow-auto min-h-30 text-ui;
 }
 .file-preview-meta {
-  display: flex;
-  gap: 12px;
-  font-size: var(--ui-meta);
-  color: var(--muted);
-  margin-bottom: 12px;
+  @apply flex gap-3 text-meta text-muted mb-3;
 }
 .file-preview-image {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: auto;
+  @apply block max-w-full h-auto m-auto;
 }
 @media (max-width: 720px) {
   .modal.file-preview-modal {
-    width: calc(100vw - 16px);
-    max-height: calc(100dvh - 16px);
+    @apply w-[calc(100vw_-_16px)] max-h-[calc(100dvh_-_16px)];
   }
   .file-preview-device {
-    display: none;
+    @apply hidden;
   }
 }
 .result-inline-image {
-  display: block;
-  min-width: 0;
-  max-width: 100%;
-  margin: 8px 0;
+  @apply block min-w-0 max-w-full my-2 mx-0;
 }
 .result-image-open {
-  display: inline-block;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: zoom-in;
+  @apply inline-block max-w-full p-0 [border:0] bg-transparent cursor-zoom-in;
   vertical-align: top;
 }
 .result-inline-image > img,
 .result-image-open img {
-  display: block;
-  max-width: 100%;
-  max-height: min(480px, 60dvh);
-  width: auto;
-  height: auto;
-  object-fit: contain;
+  @apply block max-w-full max-h-[min(480px,_60dvh)] w-auto h-auto object-contain;
 }
 .result-image-placeholder {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 64px;
-  font-size: 11px;
-  overflow-wrap: anywhere;
+  @apply flex items-center flex-wrap gap-2 min-h-16 text-[11px] [overflow-wrap:anywhere];
 }
 .result-image-placeholder button {
-  flex: none;
-  color: var(--muted);
-  text-decoration: underline;
+  @apply flex-none text-muted underline;
   text-underline-offset: 2px;
 }
 
 .result-image-error {
-  color: var(--muted);
+  @apply text-muted;
 }
 .file-preview-image-status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: var(--muted);
-  font-size: var(--ui-text);
+  @apply flex flex-wrap items-center gap-2 mb-3 text-muted text-ui;
 }
 .file-preview-image-status > button {
-  border: 0;
-  background: transparent;
-  color: inherit;
+  @apply [border:0] bg-transparent text-inherit;
   font: inherit;
-  text-decoration: underline;
+  @apply underline;
   text-underline-offset: 2px;
 }

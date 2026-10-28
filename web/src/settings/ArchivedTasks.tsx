@@ -88,7 +88,7 @@ export function ArchivedTasks() {
                       </span>
                     </>
                   )}
-                  <span className="mono quiet">
+                  <span className="mono quiet text-muted">
                     {task.archived_at ? new Date(task.archived_at).toLocaleString(locale()) : '—'}
                   </span>
                   <IconButton

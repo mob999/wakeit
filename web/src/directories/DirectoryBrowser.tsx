@@ -238,7 +238,7 @@ export function DirectoryBrowser({
             </ErrorToast>
           )}
           {listing.isPending ? (
-            <p className="quiet directory-state">{tr('正在读取目录…')}</p>
+            <p className="quiet text-muted directory-state">{tr('正在读取目录…')}</p>
           ) : (
             <div
               id={listId}
@@ -281,7 +281,7 @@ export function DirectoryBrowser({
                 </div>
               ))}
               {!entries.length && !listing.error && (
-                <p className="quiet directory-state">
+                <p className="quiet text-muted directory-state">
                   {needle ? tr('无匹配目录') : tr('没有子目录')}
                 </p>
               )}

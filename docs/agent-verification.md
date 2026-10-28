@@ -39,6 +39,6 @@ Kimi 从聚合的 print 输出改用自有 loopback Server API 子进程，确�
 
 ## 自动回归与限制
 
-`cargo test --all-targets` 覆盖独立 argv/stdin、中文分片、实时转发、重复及乱序节点、隐藏推理过滤、失败退出、缺少终态、进程取消、会话互斥和持久化。`cargo clippy --all-targets -- -D warnings` 检查 Rust 代码。新增 Copilot 合成 JSONL 及 Kimi 本地服务 fixture，不包含真实录制内容；浏览器测试不加入 CI。
+`cargo test --all-targets` 覆盖独立 argv/stdin、中文分片、实时转发、重复及乱序节点、隐藏推理过滤、失败退出、缺少终态、进程取消、会话互斥和持久化。`cargo clippy --all-targets -- -D warnings` 检查 Rust 代码。Copilot 合成 JSONL 及 Kimi 本地服务 fixture 不包含真实录制内容；界面采用本地人工验收，不维护浏览器测试套件。
 
 本轮没有对每个真实 Agent 注入网络故障、取消或离线恢复；这些路径的保证来自现有自动回归，不能声称每个平台、每个原生版本的真实故障组合均已验收。新增 CLI 版本应重新执行上述测试，尤其是 Cursor 与 Antigravity 补齐原生登录后。

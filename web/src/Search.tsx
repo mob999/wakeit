@@ -291,9 +291,9 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
         {error ? (
           <ErrorToast>{error.message}</ErrorToast>
         ) : loading || q !== debounced ? (
-          <p className="quiet">{tr('正在加载…')}</p>
+          <p className="quiet text-muted">{tr('正在加载…')}</p>
         ) : !items.length ? (
-          <p className="quiet search-empty">{tr('无匹配结果')}</p>
+          <p className="quiet text-muted search-empty">{tr('无匹配结果')}</p>
         ) : (
           items.map((item) => (
             <button className="search-result" key={item.id} onClick={() => result(scope, item.id)}>

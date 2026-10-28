@@ -439,14 +439,14 @@ function NodeExecution({
           )}
         </div>
         {chosen && !run ? (
-          <span className="dag-node-state-placeholder quiet">{t('正在加载…')}</span>
+          <span className="dag-node-state-placeholder quiet text-muted">{t('正在加载…')}</span>
         ) : (
           <RunReason key={executionId ?? node} state={run?.state ?? state} reason={displayedReason}>
             <Status state={run?.state ?? state} />
           </RunReason>
         )}
         {!chosen && current?.retry_at && (
-          <span className="quiet dag-retry-time">
+          <span className="quiet text-muted dag-retry-time">
             {t('retry.waiting')}{' '}
             <time dateTime={current.retry_at}>
               {new Date(current.retry_at).toLocaleTimeString(locale(), { hour12: false })}
@@ -454,7 +454,7 @@ function NodeExecution({
           </span>
         )}
         {startedAt && finishedAt && (
-          <span className="dag-node-duration quiet mono">
+          <span className="dag-node-duration quiet text-muted mono">
             {Math.max(0, (Date.parse(finishedAt) - Date.parse(startedAt)) / 1000).toFixed(1)}s
           </span>
         )}
@@ -513,7 +513,7 @@ function NodeExecution({
         </div>
       </div>
       {!executionId ? (
-        <p className="quiet dag-node-empty">
+        <p className="quiet text-muted dag-node-empty">
           {reason || stateNames[state] || t('dag.noExecution')}
         </p>
       ) : execution.error ? (
@@ -525,7 +525,7 @@ function NodeExecution({
           </Button>
         </ErrorToast>
       ) : !run ? (
-        <p className="quiet dag-node-empty">{t('正在加载…')}</p>
+        <p className="quiet text-muted dag-node-empty">{t('正在加载…')}</p>
       ) : mode === 'trace' ? (
         run.execution_snapshot?.trace_supported === false ? (
           <>

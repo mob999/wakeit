@@ -39,7 +39,7 @@ export function RunNodeList({
     if (list.current) list.current.scrollTop = 0
   }, [page])
   return (
-    <div className="run-node-picker">
+    <div className="run-node-picker flex flex-col flex-1 min-w-0 min-h-0">
       <div ref={list} className="list-scroll run-node-list" aria-label={t('dag.selectNode')}>
         {options.map((option, index) => {
           const blocked = disabled || option.disabled || option.pending

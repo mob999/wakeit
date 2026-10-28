@@ -1,34 +1,24 @@
+@reference '../styles/tailwind.css';
+
 .modal.creation-modal {
-  width: min(1180px, calc(100vw - 40px));
-  height: min(820px, calc(100dvh - 40px));
-  max-height: calc(100dvh - 40px);
-  border-radius: 6px;
-  font-size: var(--ui-text);
+  @apply w-[min(1180px,_calc(100vw_-_40px))] h-[min(820px,_calc(100dvh_-_40px))] max-h-[calc(100dvh_-_40px)] rounded-[6px] text-ui;
 }
 .creation-modal > .modal-heading {
-  min-height: 44px;
-  padding: 0 12px;
-  align-items: center;
+  @apply min-h-11 py-0 px-3 items-center;
 }
 .creation-modal > .modal-heading h2 {
-  font-size: 12px;
-  font-weight: 550;
+  @apply text-[12px];
+  @apply font-[550];
 }
 .creation-modal .modal-heading-actions {
-  width: 100%;
+  @apply w-full;
 }
 .creation-modal .modal-heading-actions > .detail-tabs {
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  border: 0;
+  @apply flex-1 min-w-0 p-0 [border:0];
 }
 .creation-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
+  @apply flex flex-col min-h-0;
+  @apply flex-1 overflow-hidden;
   container-type: inline-size;
   container-name: creation;
 }
@@ -36,554 +26,364 @@
 .creation-task-fields [hidden],
 .preset-session[hidden],
 .dag-editor [hidden] {
-  display: none !important;
+  @apply hidden!;
 }
 .creation-task-form,
 .creation-task-form > form {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  @apply flex flex-col;
+  @apply flex-1 min-h-0 overflow-hidden;
 }
 .creation-task-fields {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  overflow: hidden;
+  @apply flex flex-col;
+  @apply flex-1 min-h-0 min-w-0 p-0 m-0 [border:0] overflow-hidden;
 }
 .creation-name-row,
 .creation-dag-name {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 7px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  @apply flex items-center gap-3 min-h-11 py-[7px] px-4 [border-bottom:1px_solid_var(--border)] shrink-0;
 }
 .creation-name-row > .field {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  margin: 0;
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-center gap-3 w-full m-0;
 }
 .creation-name-row label,
 .creation-dag-name > label {
   flex: 0 0 96px;
-  font-size: 12px;
-  font-weight: 500;
+  @apply text-[12px];
+  @apply font-medium;
 }
 .creation-name-row input,
 .creation-dag-name > input {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-  height: 28px;
-  min-height: 28px;
-  padding: 4px 8px;
-  font-size: 12px;
+  @apply flex-1 min-w-0 w-full h-7 min-h-7 py-1 px-2 text-[12px];
 }
 .creation-workspace {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--creation-side-width, 380px);
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+  @apply relative grid grid-cols-[minmax(0,_1fr)_var(--creation-side-width,_380px)] flex-1 min-w-0 min-h-0 overflow-hidden;
 }
 .creation-main-pane,
 .creation-side-pane {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  @apply min-w-0 min-h-0 overflow-auto overscroll-contain;
 }
 .creation-side-pane {
-  border-left: 1px solid var(--border);
+  @apply [border-left:1px_solid_var(--border)];
 }
 .creation-pane-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 4px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  font-size: 12px;
+  @apply flex items-center gap-2 min-h-9 py-1 px-4 [border-bottom:1px_solid_var(--border)] shrink-0 text-[12px];
 }
 .creation-pane-body,
 .creation-section-body,
 .creation-task-properties {
-  display: grid;
-  gap: 12px;
-  padding: 12px 16px;
-  min-width: 0;
+  @apply grid gap-3 py-3 px-4 min-w-0;
 }
 .creation-task-form .creation-side-pane .field,
 .creation-field-row {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: center;
-  gap: 6px 12px;
-  min-width: 0;
-  min-height: 30px;
-  margin: 0;
-  font-size: 12px;
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-center gap-[6px_12px] min-w-0 min-h-7.5 m-0 text-[12px];
 }
 .creation-task-form .creation-side-pane .field > label,
 .creation-field-row > label {
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
+  @apply min-w-0 text-[12px];
+  @apply font-medium [overflow-wrap:anywhere];
 }
 .creation-task-form .creation-side-pane .field > :not(label),
 .creation-field-row > :not(label) {
-  min-width: 0;
-  grid-column: 2;
+  @apply min-w-0 col-[2];
 }
 .creation-task-form .creation-side-pane .form-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  @apply grid grid-cols-[minmax(0,_1fr)] gap-3;
 }
 .creation-task-instruction {
-  padding: 12px 16px;
+  @apply py-3 px-4;
 }
 .creation-task-instruction > .field {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: stretch;
-  gap: 12px;
-  height: 100%;
-  min-height: 240px;
-  margin: 0;
+  @apply grid grid-cols-[96px_minmax(0,_1fr)] items-stretch gap-3 h-full min-h-60 m-0;
 }
 .creation-task-instruction > .field > label {
-  padding-top: 6px;
-  font-size: 12px;
-  font-weight: 500;
+  @apply pt-1.5 text-[12px];
+  @apply font-medium;
 }
 .creation-task-instruction textarea {
-  height: 100%;
-  min-height: 240px;
-  min-width: 0;
+  @apply h-full min-h-60 min-w-0;
 }
 .creation-section,
 .creation-task-form .creation-side-pane .advanced-settings {
-  margin: 0;
-  border-top: 1px solid var(--border);
+  @apply m-0 [border-top:1px_solid_var(--border)];
 }
 .creation-task-form .creation-side-pane > .creation-task-advanced {
-  margin: 0 16px 16px;
+  @apply mt-0 mx-4 mb-4;
 }
 .creation-task-form .creation-side-pane > .creation-task-advanced > summary {
-  padding-inline: 12px;
+  @apply px-3;
 }
 .creation-task-form .creation-side-pane > .creation-task-advanced > .creation-section-body {
-  padding: 12px;
+  @apply p-3;
 }
 .creation-section > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 8px 16px;
-  font-size: 12px;
+  @apply flex items-center gap-2 min-h-9 py-2 px-4 text-[12px];
 }
 .creation-task-form .creation-section-body > .advanced-settings > summary {
-  padding: 8px 0;
+  @apply py-2 px-0;
 }
 .creation-task-form .creation-section-body > .advanced-settings > .advanced-body {
-  display: grid;
-  gap: 12px;
-  padding-top: 8px;
+  @apply grid gap-3 pt-2;
 }
 .creation-task-form .creation-section-body > .preview {
-  margin: 0;
+  @apply m-0;
 }
 .creation-pane-resizer {
-  width: 8px;
-  z-index: 6;
+  @apply w-2 z-6;
 }
 .creation-modal .creation-footer,
 .creation-modal .modal-footer,
 .creation-modal .dag-editor-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  min-height: 44px;
-  padding: 7px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--raised);
-  flex-shrink: 0;
+  @apply flex items-center justify-end gap-2 min-h-11 py-[7px] px-4 [border-top:1px_solid_var(--border)] bg-raised shrink-0;
 }
 .creation-schedule-summary {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--muted);
-  overflow-wrap: anywhere;
+  @apply inline-flex flex-wrap gap-[4px_8px] text-[11px];
+  @apply font-normal text-muted [overflow-wrap:anywhere];
 }
 .creation-dag-form {
-  flex: 1;
-  min-height: 0 !important;
-  width: 100%;
+  @apply flex-1 min-h-0! w-full;
 }
 .creation-dag-form:not(.is-fullscreen) {
-  height: auto;
+  @apply h-auto;
 }
 .creation-section-tabs {
-  height: 44px;
-  min-height: 44px;
-  padding: 0 16px;
+  @apply h-11 min-h-11 py-0 px-4;
 }
 .creation-dag-form .dag-stepbar > .creation-section-tabs {
-  border: 0;
+  @apply [border:0];
 }
 .creation-section-tabs [role='tab'] {
-  height: 43px;
+  @apply h-[43px];
 }
 .creation-task-form .field,
 .creation-modal .field > label,
 .creation-modal :is(input, textarea, select, .choice-selector) {
-  font-size: var(--ui-text);
+  @apply text-ui;
 }
 .creation-modal :is(input:not([type='checkbox']):not([type='radio']), select, .choice-selector) {
-  min-height: 28px;
+  @apply min-h-7;
 }
 .creation-schedule-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px 16px;
+  @apply flex-1 min-h-0 overflow-auto py-3 px-4;
 }
 .creation-schedule-scroll .dag-time-page > .content-card {
-  margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: none;
+  @apply m-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] [box-shadow:none];
 }
 .creation-schedule-scroll .dag-time-page > .content-card + .content-card {
-  margin-top: 12px;
+  @apply mt-3;
 }
 .creation-schedule-scroll .card-header {
-  min-height: 36px;
-  padding: 4px 16px;
+  @apply min-h-9 py-1 px-4;
 }
 .creation-schedule-scroll .dag-settings-rows > .field,
 .creation-schedule-scroll .dag-preview-row {
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 8px 12px;
-  padding: 8px 16px;
-  min-height: 44px;
+  @apply grid-cols-[96px_minmax(0,_1fr)] gap-[8px_12px] py-2 px-4 min-h-11;
 }
 .creation-dag-form .dag-toolbar {
-  gap: 8px;
+  @apply gap-2;
 }
 .preset-creation,
 .preset-session {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  @apply flex flex-col;
+  @apply flex-1 min-h-0 overflow-hidden;
 }
 .preset-choice-heading {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  min-height: 36px;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  @apply flex items-center flex-wrap gap-[8px_12px] min-h-9 py-1 px-3 [border-bottom:1px_solid_var(--border)];
+  @apply shrink-0;
 }
 .preset-choice-heading.creation-name-row {
-  min-height: 44px;
-  padding: 7px 16px;
-  flex-wrap: nowrap;
+  @apply min-h-11 py-[7px] px-4 flex-nowrap;
 }
 .preset-choice-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
+  @apply flex items-center gap-1.5 flex-1 min-w-0;
 }
 .preset-choice-title > .choice-selector {
-  min-width: 0;
-  font-size: var(--ui-text);
+  @apply min-w-0 text-ui;
 }
 .preset-choice-title > .icon-button {
-  flex: none;
+  @apply flex-none;
 }
 .preset-choice-heading > .button {
-  flex: none;
-  font-size: var(--ui-text);
+  @apply flex-none text-ui;
 }
 .preset-choice-title > .choice-selector {
-  width: min(100%, 480px);
-  min-height: 28px;
-  padding: 4px 8px;
+  @apply w-[min(100%,_480px)] min-h-7 py-1 px-2;
 }
 .preset-selector-popover {
-  display: flex;
-  flex-direction: column;
-  width: min(480px, calc(100vw - 32px));
-  max-width: calc(100vw - 32px);
+  @apply flex flex-col w-[min(480px,_calc(100vw_-_32px))] max-w-[calc(100vw_-_32px)];
 }
 .preset-selector-popover .model-options {
-  min-height: 0;
-  max-height: min(260px, calc(var(--radix-popover-content-available-height) - 100px));
+  @apply min-h-0 max-h-[min(260px,_calc(var(--radix-popover-content-available-height)_-_100px))];
 }
 .preset-selector-popover :is(.model-search, .choice-footer) {
-  flex: none;
+  @apply flex-none;
 }
 .preset-selector-popover .pagination {
-  padding: 6px 8px;
+  @apply py-1.5 px-2;
 }
 .preset-session-fields {
-  display: block;
-  flex: 1;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  overflow: hidden;
-  min-width: 0;
+  @apply block flex-1 min-h-0 p-0 m-0 [border:0] overflow-hidden min-w-0;
 }
 .preset-creation .modal-footer {
-  flex-wrap: wrap;
+  @apply flex-wrap;
 }
 .creation-validation {
-  flex: 1;
-  min-width: 80px;
-  color: var(--muted);
-  font-size: 11px;
+  @apply flex-1 min-w-20 text-muted text-[11px];
 }
 .preset-catalog {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
+  @apply flex flex-col min-h-0;
+  @apply flex-1;
 }
 .preset-search-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 12px 16px;
-  padding: 0 8px;
-  min-height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  flex-shrink: 0;
-  color: var(--muted);
+  @apply flex items-center gap-2 my-3 mx-4 py-0 px-2 min-h-8 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] shrink-0 text-muted;
 }
 .preset-search-field:focus-within {
-  border-color: var(--muted);
+  @apply border-muted;
 }
 .preset-search-field > .action-icon,
 .preset-search-field > svg {
-  flex-shrink: 0;
+  @apply shrink-0;
 }
 .preset-search-field input {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 0;
-  border: 0;
-  box-shadow: none;
-  background: transparent;
-  font-size: 12px;
+  @apply flex-1 min-w-0 py-1.5 px-0 [border:0] [box-shadow:none] bg-transparent text-[12px];
 }
 .preset-catalog-list {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 0 12px;
+  @apply flex-1 min-h-0 overflow-auto py-0 px-3;
 }
 .preset-choice {
-  width: 100%;
-  min-height: 48px;
-  padding: 8px 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 12px;
-  text-align: left;
-  background: transparent;
-  cursor: pointer;
-  color: var(--ink);
+  @apply w-full min-h-12 py-2 px-3 [border:1px_solid_transparent];
+  @apply rounded-[6px] grid grid-cols-[minmax(0,_1fr)_auto] gap-[4px_12px] text-left bg-transparent cursor-pointer text-ink;
 }
 .preset-choice:hover,
 .preset-choice.active {
-  background: var(--hover);
+  @apply bg-hover;
 }
 .preset-choice.active {
-  border-color: var(--border);
+  @apply border-ui-border;
 }
 .preset-choice:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: -2px;
 }
 .preset-choice > strong {
-  font-size: 12px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
+  @apply text-[12px];
+  @apply font-medium [overflow-wrap:anywhere];
 }
 .preset-choice > small {
-  color: var(--muted);
-  font-size: 11px;
+  @apply text-muted text-[11px];
 }
 .preset-choice > span {
-  grid-column: 1 / -1;
-  font-size: 11px;
-  color: var(--muted);
+  @apply col-[1_/_-1] text-[11px] text-muted;
 }
 .preset-detail-state {
-  flex: 1;
-  padding: 12px;
+  @apply flex-1 p-3;
 }
 @media (max-width: 600px) {
   .modal.creation-modal {
-    width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
-    border-radius: 0;
+    @apply w-[100vw] h-dvh max-h-[100dvh] rounded-none;
   }
   .creation-task-form .form-grid {
-    grid-template-columns: 1fr;
+    @apply grid-cols-[1fr];
   }
   .creation-dag-name input {
-    flex: 1;
-    min-width: 0;
+    @apply flex-1 min-w-0;
   }
   .creation-validation {
-    flex-basis: 100%;
+    @apply basis-full;
   }
   .preset-choice {
-    grid-template-columns: minmax(0, 1fr);
+    @apply grid-cols-[minmax(0,_1fr)];
   }
 }
 
 .creation-dag-form.is-fullscreen {
-  position: absolute;
-  inset: 0;
-  z-index: 25;
+  @apply absolute inset-0 z-25;
 }
 
 @container creation (max-width: 799px) {
   .creation-workspace {
-    display: flex;
-    flex-direction: column;
-    overflow: auto;
+    @apply flex flex-col overflow-auto;
   }
   .creation-main-pane,
   .creation-side-pane {
-    flex: none;
-    overflow: visible;
+    @apply flex-none overflow-visible;
   }
   .creation-side-pane {
-    border-left: 0;
-    border-top: 1px solid var(--border);
+    @apply [border-left:0];
+    @apply [border-top:1px_solid_var(--border)];
   }
   .creation-task-instruction > .field,
   .creation-task-instruction textarea {
-    min-height: 180px;
+    @apply min-h-45;
   }
   .creation-pane-resizer {
-    display: none;
+    @apply hidden;
   }
   .creation-dag-form .dag-stepbar {
-    flex-wrap: wrap;
+    @apply flex-wrap;
   }
 }
 @container creation (max-width: 499px) {
   .creation-name-row,
   .creation-dag-name {
-    padding: 7px 12px;
+    @apply py-[7px] px-3;
   }
   .creation-name-row > .field,
   .creation-task-form .creation-side-pane .field,
   .creation-task-instruction > .field,
   .creation-field-row {
-    grid-template-columns: 72px minmax(0, 1fr);
-    column-gap: 10px;
+    @apply grid-cols-[72px_minmax(0,_1fr)] gap-x-2.5;
   }
   .creation-name-row label,
   .creation-dag-name > label {
-    flex-basis: 72px;
+    @apply basis-18;
   }
   .creation-task-instruction,
   .creation-pane-body,
   .creation-section-body,
   .creation-task-properties {
-    padding: 12px;
+    @apply p-3;
   }
   .creation-section > summary {
-    padding: 8px 12px;
+    @apply py-2 px-3;
   }
   .creation-task-form .creation-side-pane > .creation-task-advanced {
-    margin: 0 12px 12px;
+    @apply mt-0 mx-3 mb-3;
   }
 }
 .creation-dag-form .dag-floating-panel {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  border: 0;
-  border-left: 1px solid var(--border);
-  border-radius: 0;
-  box-shadow: none;
+  @apply top-0 right-0 bottom-0 [border:0];
+  @apply [border-left:1px_solid_var(--border)];
+  @apply rounded-none [box-shadow:none];
 }
 .creation-dag-form .dag-floating-header {
-  min-height: 36px;
-  padding: 4px 16px;
-  border-radius: 0;
+  @apply min-h-9 py-1 px-4 rounded-none;
 }
 .creation-dag-form .dag-floating-body {
-  border-radius: 0;
+  @apply rounded-none;
 }
 .creation-dag-form .dag-config-body .field,
 .creation-dag-form .dag-settings-rows > .field {
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 8px 12px;
-  padding: 8px 16px;
-  min-height: 44px;
+  @apply grid-cols-[96px_minmax(0,_1fr)] gap-[8px_12px] py-2 px-4 min-h-11;
 }
 .creation-dag-form .dag-environment-fields {
-  display: block;
+  @apply block;
 }
 .creation-dag-form .dag-environment-fields .field + .field {
-  border-left: 0;
+  @apply [border-left:0];
 }
 .creation-dag-form .dag-environment-fields .field > label {
-  margin: 0;
-  padding: 0;
+  @apply m-0 p-0;
 }
 @container creation (max-width: 499px) {
   .creation-section-tabs {
-    padding-inline: 12px;
+    @apply px-3;
   }
   .creation-schedule-scroll {
-    padding: 12px;
+    @apply p-3;
   }
   .creation-schedule-scroll .dag-settings-rows > .field,
   .creation-schedule-scroll .dag-preview-row {
-    grid-template-columns: 72px minmax(0, 1fr);
-    padding-inline: 12px;
+    @apply grid-cols-[72px_minmax(0,_1fr)] px-3;
   }
 }

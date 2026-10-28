@@ -1,99 +1,62 @@
+@reference '../styles/tailwind.css';
+
 .dag-node-card {
-  display: grid;
-  grid-template-rows: 26px minmax(0, 1fr) 26px;
-  padding: 0;
-  gap: 0;
+  @apply grid grid-rows-[26px_minmax(0,_1fr)_26px] p-0 gap-0;
 }
 .dag-node-card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 0 12px;
-  color: var(--muted);
-  font-size: var(--ui-meta);
-  line-height: 16px;
+  @apply flex items-center gap-2 min-w-0 py-0 px-3 text-muted text-meta leading-[16px];
 }
 .dag-node-card-runner,
 .dag-node-card-agent {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
+  @apply flex items-center gap-[5px] min-w-0;
 }
 .dag-node-card-runner {
-  flex: 1;
+  @apply flex-1;
 }
 .dag-node-card-agent {
   flex: 0 1 auto;
-  max-width: 82px;
+  @apply max-w-20.5;
 }
 .dag-node-card-runner > span,
 .dag-node-card-agent > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @apply overflow-hidden text-ellipsis whitespace-nowrap;
 }
 .dag-node-card-runner > svg,
 .dag-node-card-agent .agent-logo {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
+  @apply w-3 h-3 shrink-0;
 }
 .dag-node-card-actions {
-  display: flex;
-  flex-shrink: 0;
-  margin-right: -8px;
+  @apply flex shrink-0 mr-[-8px];
 }
 .dag-node-card-name {
-  display: flex;
-  align-items: flex-start;
-  min-width: 0;
-  min-height: 0;
-  padding: 6px 12px 0;
+  @apply flex items-start min-w-0 min-h-0 pt-1.5 px-3 pb-0;
 }
 .dag-node-card-name strong {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: var(--ui-text);
-  font-weight: 550;
-  line-height: 18px;
+  @apply overflow-hidden;
+  @apply [overflow-wrap:anywhere] text-ui;
+  @apply font-[550] leading-[18px];
 }
 .dag-node-card-footer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 4px 12px;
+  @apply flex items-center gap-1.5 min-w-0 py-1 px-3;
 }
 .dag-node-card-status {
-  min-width: 0;
-  margin-left: auto;
+  @apply min-w-0 ml-auto;
 }
 .dag-node-card-status .status {
-  font-size: var(--ui-meta);
+  @apply text-meta;
 }
 .dag-node-card-invalid {
-  display: inline-flex;
-  color: var(--failure);
+  @apply inline-flex text-failure;
 }
 .dag-output-badge {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 3px;
-  height: 18px;
-  color: #0969da;
-  font-size: var(--ui-meta);
-  font-weight: 500;
-  line-height: 16px;
-  white-space: nowrap;
+  @apply inline-flex items-center shrink-0 gap-[3px] h-4.5 text-[#0969da] text-meta;
+  @apply font-medium leading-[16px] whitespace-nowrap;
 }
 .dag-output-badge > svg {
-  flex-shrink: 0;
+  @apply shrink-0;
   fill: currentColor;
 }
 :root[data-theme='dark'] .dag-output-badge {

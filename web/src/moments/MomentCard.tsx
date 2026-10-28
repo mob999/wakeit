@@ -367,9 +367,11 @@ function MomentContent({
         notice={
           <>
             {retries > 0 && (
-              <p className="moment-retries quiet">{t('moments.retried', { count: retries })}</p>
+              <p className="moment-retries quiet text-muted">
+                {t('moments.retried', { count: retries })}
+              </p>
             )}
-            {truncated && <p className="quiet moment-notice">{t('结果已截断')}</p>}
+            {truncated && <p className="quiet text-muted moment-notice">{t('结果已截断')}</p>}
           </>
         }
         onOverflowChange={setOverflow}
@@ -383,9 +385,9 @@ function MomentContent({
             </article>
           )
         ) : incomplete ? (
-          <p className="quiet">{t('moments.loadOutput')}</p>
+          <p className="quiet text-muted">{t('moments.loadOutput')}</p>
         ) : (
-          <p className="quiet">{t('未返回结果')}</p>
+          <p className="quiet text-muted">{t('未返回结果')}</p>
         )}
       </ReportReader>
     </div>

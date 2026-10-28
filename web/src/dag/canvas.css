@@ -1,196 +1,107 @@
+@reference '../styles/tailwind.css';
+
 .dag-canvas-editor .dag-stepbar {
-  flex-wrap: wrap;
-  min-height: 44px;
+  @apply flex-wrap min-h-11;
 }
 .dag-toolbar {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  gap: 12px;
-  min-width: 0;
-  padding: 6px 16px 6px 0;
-  justify-content: flex-end;
+  @apply flex items-center flex-1 gap-3 min-w-0 pt-1.5 pr-4 pb-1.5 pl-0 justify-end;
 }
 .dag-breadcrumb-title {
-  height: 28px;
-  width: clamp(136px, 24vw, 360px);
-  max-width: 100%;
-  min-width: 0;
-  padding: 3px 6px;
+  @apply h-7 w-[clamp(136px,_24vw,_360px)] max-w-full min-w-0 py-[3px] px-1.5;
   font: inherit;
-  font-size: 12px;
-  color: var(--ink);
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 6px;
-  text-overflow: ellipsis;
+  @apply text-[12px] text-ink [border:1px_solid_transparent] bg-transparent;
+  @apply rounded-[6px] text-ellipsis;
 }
 .dag-breadcrumb-title:hover,
 .dag-breadcrumb-title:focus {
-  border-color: var(--border);
+  @apply border-ui-border;
 }
 .dag-breadcrumb-title[aria-invalid='true'] {
-  border-color: var(--failure);
+  @apply border-failure;
 }
 .dag-toolbar-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 1;
-  min-width: 0;
-  max-width: 100%;
-  gap: var(--action-group-gap);
-  flex-wrap: wrap;
+  @apply flex items-center shrink min-w-0 max-w-full gap-[var(--action-group-gap)];
+  @apply flex-wrap;
 }
 .dag-toolbar-actions > .action-group {
-  margin-left: 0;
+  @apply ml-0;
 }
 .dag-canvas-body {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  @apply relative flex-1 min-h-0 overflow-hidden;
 }
 .dag-task-stage {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  overflow: hidden;
-  min-height: 0;
+  @apply absolute inset-0 flex overflow-hidden min-h-0;
 }
 .dag-palette-dock {
-  width: 200px;
+  @apply w-50;
   flex: 0 0 200px;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  background: var(--canvas);
-  min-height: 0;
+  @apply [border-right:1px_solid_var(--border)] flex flex-col bg-canvas min-h-0;
 }
 .dag-palette-dock > header {
-  min-height: 44px;
-  padding: 12px 16px;
-  font-size: 12px;
-  font-weight: 550;
-  border-bottom: 1px solid var(--border);
+  @apply min-h-11 py-3 px-4 text-[12px];
+  @apply font-[550] [border-bottom:1px_solid_var(--border)];
 }
 .dag-agent-palette {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  font-size: 12px;
+  @apply flex flex-col;
+  @apply flex-1 min-h-0 text-[12px];
 }
 .dag-palette-search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px;
-  padding: 0 6px;
-  height: 30px;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--muted);
+  @apply flex items-center gap-1.5 m-2 py-0 px-1.5 h-7.5 shrink-0 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] text-muted;
 }
 .dag-palette-search input {
-  background: transparent;
-  border: 0;
+  @apply bg-transparent [border:0];
   outline: 0;
-  padding: 0;
-  height: 28px;
-  width: 100%;
-  min-width: 0;
-  font-size: 12px;
+  @apply p-0 h-7 w-full min-w-0 text-[12px];
 }
 .dag-palette-groups {
-  overflow: auto;
-  flex: 1;
-  padding: 0 8px 8px;
+  @apply overflow-auto flex-1 pt-0 px-2 pb-2;
 }
 .dag-palette-runner {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  background: transparent;
-  border: 0;
-  text-align: left;
-  font-size: 11px;
-  color: var(--muted);
-  min-height: 36px;
-  padding: 6px 2px;
-  cursor: pointer;
+  @apply flex items-center gap-1.5 w-full bg-transparent [border:0] text-left text-[11px] text-muted min-h-9 py-1.5 px-0.5 cursor-pointer;
 }
 .dag-palette-runner > span:first-of-type {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap flex-1;
 }
 .dag-palette-runner svg.collapsed {
   transform: rotate(-90deg);
 }
 .dag-device-dot {
-  width: 5px;
-  height: 5px;
+  @apply w-[5px] h-[5px];
   flex: 0 0 5px;
-  border-radius: 50%;
-  background: var(--muted);
+  @apply rounded-[50%] bg-muted;
 }
 .dag-device-dot.online {
-  background: var(--success);
+  @apply bg-success;
 }
 .dag-agent-entry {
-  width: 100%;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  text-align: left;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  cursor: grab;
+  @apply w-full min-h-10 flex items-center gap-2 p-2 text-left [border:1px_solid_transparent];
+  @apply rounded-[6px] bg-transparent text-ink cursor-grab;
   touch-action: none;
-  user-select: none;
-  font-size: 12px;
+  @apply select-none text-[12px];
 }
 .dag-agent-entry:hover,
 .dag-agent-entry:focus-visible {
-  background: var(--hover);
-  border-color: var(--border);
+  @apply bg-hover border-ui-border;
 }
 .dag-agent-entry:active {
-  cursor: grabbing;
+  @apply cursor-grabbing;
 }
 .dag-agent-entry .agent-logo {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
+  @apply w-3.5 h-3.5 shrink-0;
 }
 .dag-agent-palette.compact {
-  min-height: 160px;
-  max-height: 60vh;
-  padding: 4px 8px 12px;
+  @apply min-h-40 max-h-[60vh] pt-1 px-2 pb-3;
 }
 .dag-scene {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+  @apply relative flex-1 min-w-0 min-h-0 overflow-hidden;
 }
 .dag-canvas-mount,
 .dag-interactive-canvas {
-  position: absolute;
-  inset: 0;
-  min-height: 0;
+  @apply absolute inset-0 min-h-0;
 }
 .dag-interactive-canvas {
-  background: var(--canvas);
+  @apply bg-canvas;
 }
 .dag-interactive-canvas .react-flow {
   --xy-node-color: var(--ink);
@@ -205,273 +116,166 @@
   --xy-selection-border: 1px solid var(--muted);
   --xy-background-color: var(--canvas);
   font-family: inherit;
-  font-size: 12px;
+  @apply text-[12px];
 }
 .dag-canvas-node {
-  width: 240px;
-  height: 96px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--canvas);
-  color: var(--ink);
+  @apply w-60 h-24 [border:1px_solid_var(--border)];
+  @apply rounded-[6px] bg-canvas text-ink;
 }
 .dag-canvas-node.selected {
-  background: var(--item-selected-surface);
-  border-color: var(--ink);
+  @apply bg-item-selected-surface border-ink;
 }
 .dag-canvas-node.matched .dag-node-card-name strong {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
 .dag-canvas-node.invalid {
-  border-color: var(--failure);
+  @apply border-failure;
 }
 .react-flow__node:focus-visible .dag-canvas-node {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 .dag-canvas-node .react-flow__handle {
-  width: 9px;
-  height: 9px;
-  border: 1px solid var(--muted);
-  border-radius: 50%;
-  background: var(--canvas);
+  @apply w-[9px] h-[9px] [border:1px_solid_var(--muted)];
+  @apply rounded-[50%] bg-canvas;
 }
 .dag-canvas-node .react-flow__handle:hover,
 .dag-canvas-node .react-flow__handle.connectingto {
-  background: var(--ink);
+  @apply bg-ink;
 }
 .dag-canvas-node-add {
-  position: absolute;
-  right: -40px;
-  top: 33px;
-  opacity: 0;
+  @apply absolute right-[-40px] top-[33px] opacity-[0];
 }
 .dag-canvas-node:hover .dag-canvas-node-add,
 .dag-canvas-node:focus-within .dag-canvas-node-add {
-  opacity: 1;
+  @apply opacity-[1];
 }
 .dag-canvas-node-add .icon-button {
-  border: 1px solid var(--border);
-  background: var(--canvas);
+  @apply [border:1px_solid_var(--border)] bg-canvas;
 }
 .dag-canvas-empty {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+  @apply absolute top-[50%] left-[50%];
   transform: translate(-50%, -50%);
-  pointer-events: none;
-  font-size: 12px;
-  color: var(--muted);
+  @apply pointer-events-none text-[12px] text-muted;
 }
 .dag-agent-ghost {
-  position: fixed;
-  z-index: 100;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  width: 240px;
-  min-height: 96px;
-  padding: 16px;
-  border: 1px solid var(--muted);
-  border-radius: 6px;
-  background: var(--canvas);
-  color: var(--ink);
+  @apply fixed z-100 pointer-events-none flex items-center flex-wrap gap-2 w-60 min-h-24 p-4 [border:1px_solid_var(--muted)];
+  @apply rounded-[6px] bg-canvas text-ink;
   box-shadow: 0 4px 16px #0002;
-  font-size: 12px;
+  @apply text-[12px];
 }
 .dag-agent-ghost > span:last-child {
-  width: 100%;
-  color: var(--muted);
+  @apply w-full text-muted;
 }
 .dag-floating-panel {
-  position: absolute;
-  top: 16px;
-  bottom: 16px;
-  right: 16px;
-  z-index: 5;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: visible;
-  min-height: 0;
-  background: var(--canvas);
+  @apply absolute top-4 bottom-4 right-4 z-5 m-0 flex flex-col overflow-visible min-h-0 bg-canvas;
   box-shadow: 0 5px 24px #0002;
 }
 .dag-floating-header {
-  min-height: 44px;
-  flex-shrink: 0;
-  border-radius: 6px 6px 0 0;
-  padding: 7px 12px;
-  gap: 6px;
-  flex-wrap: nowrap;
+  @apply min-h-11 shrink-0 rounded-[6px_6px_0_0] py-[7px] px-3 gap-1.5;
+  @apply flex-nowrap;
 }
 .creation-dag-form .dag-floating-panel {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  border-top: 0;
-  border-right: 0;
-  border-bottom: 0;
-  border-radius: 0;
-  box-shadow: none;
+  @apply top-0 right-0 bottom-0 [border-top:0];
+  @apply [border-right:0];
+  @apply [border-bottom:0];
+  @apply rounded-none [box-shadow:none];
 }
 .creation-dag-form .dag-floating-header,
 .creation-dag-form .dag-floating-body {
-  border-radius: 0;
+  @apply rounded-none;
 }
 .dag-floating-header > strong {
-  flex: 1;
-  min-width: 0;
+  @apply flex-1 min-w-0;
 }
 .dag-floating-header > .choice-selector {
-  flex: 1;
-  max-width: none;
-  min-width: 0;
+  @apply flex-1 max-w-none min-w-0;
 }
 .dag-floating-header > .icon-button:last-child {
-  margin-left: 0;
+  @apply ml-0;
 }
 .dag-floating-body {
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-  border-radius: 0 0 6px 6px;
-  overscroll-behavior: contain;
+  @apply overflow-auto flex-1 min-h-0 rounded-[0_0_6px_6px] overscroll-contain;
 }
 .dag-panel-resizer {
-  position: absolute;
-  left: -4px !important;
-  right: auto !important;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  z-index: 6;
+  @apply absolute left-[-4px]! right-auto! top-0 bottom-0 w-2 z-6;
 }
 .dag-floating-panel .dag-config-body .field {
-  padding: 10px 12px;
-  grid-template-columns: 108px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 48px;
+  @apply py-2.5 px-3 grid-cols-[108px_minmax(0,_1fr)] gap-2.5 min-h-12;
 }
 .dag-floating-panel .dag-config-body .field > label {
-  font-weight: 500;
+  @apply font-medium;
 }
 .dag-floating-panel .dag-config-body .dag-instruction {
-  display: block;
+  @apply block;
 }
 .dag-floating-panel .dag-prompt-head {
-  padding: 0 0 6px;
-  min-height: 28px;
-  font-weight: 500;
+  @apply pt-0 px-0 pb-1.5 min-h-7 font-medium;
 }
 .dag-prompt-actions {
-  display: flex;
-  gap: 2px;
-  align-items: center;
+  @apply flex gap-0.5 items-center;
 }
 .dag-floating-panel .dag-config-body textarea {
-  min-height: 180px;
-  font-size: 12px;
+  @apply min-h-45 text-[12px];
 }
 .dag-environment-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-bottom: 1px solid var(--border);
+  @apply grid grid-cols-[1fr_1fr] [border-bottom:1px_solid_var(--border)];
 }
 .dag-floating-panel .dag-environment-fields .field {
-  display: block;
-  border-bottom: 0;
+  @apply block [border-bottom:0];
 }
 .dag-environment-fields .field > label {
-  display: block;
-  margin-bottom: 6px;
-  padding: 0;
+  @apply block mb-1.5 p-0;
 }
 .dag-environment-fields .field + .field {
-  border-left: 1px solid var(--border);
+  @apply [border-left:1px_solid_var(--border)];
 }
 .dag-floating-panel .dag-advanced > summary {
-  min-height: 44px;
-  padding: 10px 12px;
+  @apply min-h-11 py-2.5 px-3;
 }
 .dag-output-settings > .field {
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-  margin: 0;
+  @apply p-3 [border-bottom:1px_solid_var(--border)] m-0;
 }
 .dag-output-settings .field > label {
-  display: block;
-  font-size: 12px;
-  margin-bottom: 8px;
+  @apply block text-[12px] mb-2;
 }
 .dag-output-settings .dag-output-rows {
-  padding: 0 12px;
+  @apply py-0 px-3;
 }
 .dag-table-stage {
-  height: 100%;
-  overflow: auto;
-  padding: 16px;
+  @apply h-full overflow-auto p-4;
 }
 .dag-time-scroll {
-  position: absolute;
-  inset: 0;
-  height: 100%;
+  @apply absolute inset-0 h-full;
 }
 .dag-prompt-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  background: #0003;
+  @apply absolute inset-0 z-10 bg-[#0003];
 }
 .dag-prompt-focus {
-  position: absolute;
-  inset: 16px;
-  z-index: 11;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--canvas);
-  min-height: 0;
+  @apply absolute inset-4 z-11 m-0 flex flex-col bg-canvas min-h-0;
 }
 .dag-prompt-focus .card-header {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+  @apply flex gap-2 shrink-0;
 }
 .dag-prompt-focus .card-header > h2 {
-  font-size: 12px;
-  flex: 1;
-  font-weight: 550;
-  margin: 0;
+  @apply text-[12px] flex-1;
+  @apply font-[550] m-0;
 }
 .dag-prompt-focus-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  gap: 8px;
+  @apply p-4 flex flex-col;
+  @apply flex-1 min-h-0 gap-2;
 }
 .dag-prompt-focus-body label {
-  font-size: 12px;
+  @apply text-[12px];
 }
 .dag-prompt-focus-body textarea {
-  flex: 1;
-  min-height: 0;
-  width: 100%;
-  font-size: 12px;
-  resize: none;
+  @apply flex-1 min-h-0 w-full text-[12px] resize-none;
 }
 @container (max-width:959px) {
   .dag-floating-panel {
-    inset: 0;
-    width: auto;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
+    @apply inset-0 w-auto [border:0];
+    @apply rounded-none [box-shadow:none];
   }
 }
 .dag-canvas-body {
@@ -479,44 +283,32 @@
 }
 @media (max-width: 600px) {
   .dag-toolbar {
-    flex-basis: 100%;
-    padding: 0 12px 6px;
-    gap: 4px;
+    @apply basis-full pt-0 px-3 pb-1.5 gap-1;
   }
   .dag-toolbar-actions {
-    margin-left: auto;
-    gap: 6px 12px;
-    justify-content: flex-end;
+    @apply ml-auto gap-[6px_12px] justify-end;
   }
   .dag-table-stage {
-    padding: 12px;
+    @apply p-3;
   }
   .dag-floating-panel .dag-config-body .field {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
+    @apply grid-cols-[minmax(0,_1fr)] gap-1.5;
   }
   .dag-floating-panel .dag-config-body .field > label {
-    padding: 0;
+    @apply p-0;
   }
   .dag-prompt-focus {
-    inset: 0;
-    border: 0;
-    border-radius: 0;
+    @apply inset-0 [border:0];
+    @apply rounded-none;
   }
   .dag-prompt-focus-body {
-    padding: 12px;
+    @apply p-3;
   }
   .dag-floating-panel .dag-environment-fields .field {
-    display: block;
-    min-width: 0;
+    @apply block min-w-0;
   }
 }
 
 .dag-canvas-editor.is-fullscreen {
-  position: fixed;
-  inset: 44px 0 0;
-  z-index: 35;
-  background: var(--canvas);
-  width: auto;
-  height: auto;
+  @apply fixed inset-[44px_0_0] z-35 bg-canvas w-auto h-auto;
 }

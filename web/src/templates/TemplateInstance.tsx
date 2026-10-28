@@ -441,13 +441,13 @@ export function TemplateInstanceView({
           {definition && visibleBindings.length > 0 && (
             <section className="template-bindings" aria-label={t('taskTemplate.bindings')}>
               {runners.isPending ? (
-                <p className="quiet padded" role="status">
+                <p className="quiet text-muted padded p-5" role="status">
                   {t('正在加载…')}
                 </p>
               ) : runners.error ? (
                 <Button onClick={() => runners.refetch()}>{t('重试')}</Button>
               ) : !allRunners.length ? (
-                <p className="quiet padded">{t('暂无设备')}</p>
+                <p className="quiet text-muted padded p-5">{t('暂无设备')}</p>
               ) : (
                 visibleBindings.map((slot) => {
                   const context = instance.fresh ? instance.preview : preview
@@ -543,7 +543,7 @@ export function TemplateInstanceView({
                 </span>
               </TooltipTarget>
             ) : (
-              <small className="quiet">
+              <small className="quiet text-muted">
                 {t(pendingPreview ? 'taskTemplate.updating' : 'creation.incomplete')}
               </small>
             )}
@@ -551,7 +551,7 @@ export function TemplateInstanceView({
         </header>
         <div className="template-pane-scroll">
           {preview?.config && generated && (
-            <div className="template-preview-context quiet">
+            <div className="template-preview-context quiet text-muted">
               {t('dag.nodeCount', { count: generated.nodes.length })} ·{' '}
               {t('moments.outputs', { count: outputs(generated).length })}
             </div>
@@ -612,7 +612,7 @@ export function TemplateInstanceView({
             </section>
           )}
           {!preview && (
-            <p className="quiet padded">
+            <p className="quiet text-muted padded p-5">
               {t(pendingPreview ? 'taskTemplate.updating' : 'taskTemplate.fillInputs')}
             </p>
           )}
