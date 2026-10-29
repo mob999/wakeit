@@ -9,7 +9,7 @@ Install Wakeit Gateway on macOS / Linux GNU.
 Usage: sh deploy-gateway.sh [--version VERSION] [--bin-dir PATH]
        [--config PATH] [--env-file PATH] [--start]
 
-  --version VERSION  Gateway release (default: 0.4.1)
+  --version VERSION  Gateway release (default: 0.4.2)
   --bin-dir PATH     Binary directory (default: $HOME/.local/bin)
   --config PATH      Apply database updates using this existing Gateway config
   --env-file PATH    Load Gateway environment from this file
@@ -24,7 +24,7 @@ fail() { printf 'Gateway installation failed: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"; }
 step() { printf '\n[%s/5] %s\n' "$1" "$2" >&2; }
 main() {
-  requested=0.4.1
+  requested=0.4.2
   bin_dir=${HOME:?HOME is required}/.local/bin
   config=
   env_file=
@@ -50,7 +50,7 @@ main() {
   need curl
   need awk
   need sed
-  printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable Gateway version such as 0.4.1'
+  printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable Gateway version such as 0.4.2'
   step 1 'Detecting platform'
   case "$(uname -m)" in x86_64|amd64) arch=x86_64 ;; arm64|aarch64) arch=aarch64 ;; *) fail 'Unsupported architecture' ;; esac
   case "$(uname -s)" in

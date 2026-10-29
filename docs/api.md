@@ -73,7 +73,7 @@ InstanceRequest 包含 `expected_revision`、`values`、`unset`、命名 `bindin
 
 ## 即时能力 API
 
-- `GET /api/v1/meta`：公开返回 Gateway 版本（如 `version:"0.4.1"`）、公开地址和登录方式。该版本不代表 CLI/Runner 版本。
+- `GET /api/v1/meta`：公开返回 Gateway 版本（如 `version:"0.4.2"`）、公开地址和登录方式。该版本不代表 CLI/Runner 版本。
 - `GET /api/v1/workspaces/{workspace-id}/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
 - `POST /api/v1/workspaces/{workspace-id}/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
 

@@ -159,9 +159,9 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
     def test_gateway_installer_has_separate_binary_version_and_operations(self):
         name = 'wakeit-gateway-aarch64-apple-darwin'
         binary = self.fixture / name
-        binary.write_text('#!/bin/sh\nif [ "$1" = --version ]; then echo "wakeit-gateway 0.4.1"; else printf "%s\\n" "$*" >> "$FIXTURE_INVOCATIONS"; fi\n')
+        binary.write_text('#!/bin/sh\nif [ "$1" = --version ]; then echo "wakeit-gateway 0.4.2"; else printf "%s\\n" "$*" >> "$FIXTURE_INVOCATIONS"; fi\n')
         digest = hashlib.sha256(binary.read_bytes()).hexdigest()
-        manifest = {'product': 'gateway', 'version': '0.4.1', 'assets': {
+        manifest = {'product': 'gateway', 'version': '0.4.2', 'assets': {
             'aarch64-apple-darwin': {'name': name, 'sha256': digest},
         }}
         (self.fixture / 'wakeit-gateway-release.json').write_text(json.dumps(manifest, indent=2))
@@ -180,7 +180,7 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
             'migrate --config gateway.yaml --env-file gateway.env',
             'start --config gateway.yaml --env-file gateway.env',
         ])
-        self.assertIn('/gateway-v0.4.1/', (self.root / 'requests').read_text())
+        self.assertIn('/gateway-v0.4.2/', (self.root / 'requests').read_text())
 
 
     def test_bash_and_fish_configuration_preserves_existing_content(self):
