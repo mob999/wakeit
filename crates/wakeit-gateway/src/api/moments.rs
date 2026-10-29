@@ -28,6 +28,26 @@ pub struct EntriesQuery {
     limit: Option<i64>,
     timezone: Option<String>,
 }
+#[derive(Deserialize)]
+pub struct OverviewQuery {
+    days: Option<i64>,
+}
+pub async fn overview(
+    State(s): State<App>,
+    h: HeaderMap,
+    Query(q): Query<OverviewQuery>,
+) -> Result<Json<Value>> {
+    let workspace = user(&s, &h, "viewer", false).await?.workspace()?;
+    let days = limit(q.days, 7, 31)?;
+    let zone: String =
+        sqlx::query_scalar("SELECT data->>'timezone' FROM settings WHERE workspace_id=$1")
+            .bind(workspace)
+            .fetch_one(&s.pool)
+            .await?;
+    Ok(Json(
+        crate::store::moments::overview(&s.pool, workspace, &zone, days).await?,
+    ))
+}
 fn date(value: &str) -> Result<NaiveDate> {
     let parsed =
         NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| Error::bad("invalid date"))?;
@@ -112,7 +132,7 @@ pub async fn entries(
         return Err(Error::conflict("工作区时区已变更，请刷新动态"));
     }
     let rows = sqlx::query(&format!(
-        "SELECT r.id,r.finished_at,r.result AS dag_result,r.config->'dag' AS dag_definition,jsonb_build_object('id',r.id,'task_id',r.task_id,'name',r.config->>'name','continuation_available',((COALESCE(r.session->>'ready'='true',false) AND COALESCE(length(r.session->>'command')>0,false)) OR EXISTS(SELECT 1 FROM runs child WHERE child.parent_run_id=r.id AND COALESCE(child.session->>'ready'='true',false) AND COALESCE(length(child.session->>'command')>0,false))),'state',r.state,'reason',r.reason,'finished_at',r.finished_at,'runner',d.name,'agent',COALESCE(a.data->>'name',r.config->>'agent'),'logo',a.data->'logo','preview',left(p.body,2048),'format',CASE WHEN jsonb_typeof(r.result)='string' OR (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') THEN 'markdown' ELSE 'json' END,'has_more',char_length(p.body)>2048,'truncated',COALESCE((jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result)='object',false)) AS item FROM runs r LEFT JOIN runners d ON d.id=r.runner_id LEFT JOIN LATERAL (SELECT data FROM jsonb_array_elements(d.agents) data WHERE data->>'id'=r.config->>'agent' LIMIT 1) a ON true CROSS JOIN LATERAL (SELECT CASE WHEN r.result IS NULL OR r.result='null'::jsonb THEN NULL WHEN jsonb_typeof(r.result)='string' THEN r.result#>>'{{}}' WHEN (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result->'preview')='string' THEN r.result->>'preview' ELSE jsonb_pretty(r.result) END AS body) p WHERE r.workspace_id=$6 AND {ELIGIBLE} AND (r.finished_at AT TIME ZONE $1)::date=$2 AND ($3::timestamptz IS NULL OR (r.finished_at,r.id)<($3,$4::uuid)) ORDER BY r.finished_at DESC,r.id DESC LIMIT $5"
+        "SELECT r.id,r.finished_at,r.result AS dag_result,r.config->'dag' AS dag_definition,jsonb_build_object('id',r.id,'task_id',r.task_id,'creator',CASE WHEN u.id IS NULL THEN NULL ELSE jsonb_build_object('id',u.id,'username',u.username) END,'name',r.config->>'name','continuation_available',((COALESCE(r.session->>'ready'='true',false) AND COALESCE(length(r.session->>'command')>0,false)) OR EXISTS(SELECT 1 FROM runs child WHERE child.parent_run_id=r.id AND COALESCE(child.session->>'ready'='true',false) AND COALESCE(length(child.session->>'command')>0,false))),'state',r.state,'reason',r.reason,'finished_at',r.finished_at,'runner',d.name,'agent',COALESCE(a.data->>'name',r.config->>'agent'),'logo',a.data->'logo','preview',left(p.body,2048),'format',CASE WHEN jsonb_typeof(r.result)='string' OR (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') THEN 'markdown' ELSE 'json' END,'has_more',char_length(p.body)>2048,'truncated',COALESCE((jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result)='object',false)) AS item FROM runs r LEFT JOIN tasks t ON t.workspace_id=r.workspace_id AND t.id=r.task_id LEFT JOIN users u ON u.id=t.created_by LEFT JOIN runners d ON d.id=r.runner_id LEFT JOIN LATERAL (SELECT data FROM jsonb_array_elements(d.agents) data WHERE data->>'id'=r.config->>'agent' LIMIT 1) a ON true CROSS JOIN LATERAL (SELECT CASE WHEN r.result IS NULL OR r.result='null'::jsonb THEN NULL WHEN jsonb_typeof(r.result)='string' THEN r.result#>>'{{}}' WHEN (jsonb_typeof(r.result)='object' AND r.result->'truncated'='true'::jsonb AND jsonb_typeof(r.result->'preview')='string') AND jsonb_typeof(r.result->'preview')='string' THEN r.result->>'preview' ELSE jsonb_pretty(r.result) END AS body) p WHERE r.workspace_id=$6 AND {ELIGIBLE} AND (r.finished_at AT TIME ZONE $1)::date=$2 AND ($3::timestamptz IS NULL OR (r.finished_at,r.id)<($3,$4::uuid)) ORDER BY r.finished_at DESC,r.id DESC LIMIT $5"
     )).bind(&zone).bind(day).bind(after.map(|v|v.0)).bind(after.map(|v|v.1)).bind(limit+1).bind(workspace).fetch_all(&mut *tx).await?;
     let has_more = rows.len() > limit as usize;
     let rows = rows.into_iter().take(limit as usize).collect::<Vec<_>>();

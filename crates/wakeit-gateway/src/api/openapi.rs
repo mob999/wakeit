@@ -240,6 +240,7 @@ pub fn document() -> Value {
         ("/tasks/{id}/archive", vec!["post"]),
         ("/tasks/{id}/restore", vec!["post"]),
         ("/moments/days", vec!["get"]),
+        ("/moments/overview", vec!["get"]),
         ("/moments", vec!["get"]),
         ("/runs", vec!["get"]),
         ("/runs/{id}", vec!["get"]),
@@ -382,6 +383,9 @@ pub fn document() -> Value {
             if path == "/changelog" {
                 parameters.push(json!({"name":"lang","in":"query","schema":{"type":"string","enum":["en","zh"],"default":"en"}}));
             }
+            if path == "/moments/overview" {
+                parameters.push(json!({"name":"days","in":"query","schema":{"type":"integer","minimum":1,"maximum":31,"default":7}}));
+            }
             if matches!(path, "/moments" | "/moments/days") {
                 parameters.push(json!({"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":if path.ends_with("days") {14} else {20}}}));
                 if path == "/moments/days" {
@@ -517,6 +521,26 @@ pub fn document() -> Value {
             if path == "/changelog" {
                 op["responses"]["200"] = json!({"description":"Curated Markdown bundled with this Gateway, current version first.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Changelog"}}}});
             }
+            if path == "/moments/overview" {
+                op["description"] = json!(
+                    "Workspace overview. Historical counts use parent Runs only and completion dates in the workspace timezone. Success rate uses succeeded / (succeeded + warning + failed); failed counts include timed_out and interrupted. Attention and upcoming lists contain at most five items."
+                );
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{
+                    "type":"object","required":["timezone","as_of","daily","current","attention","attention_total","upcoming"],"properties":{
+                        "timezone":{"type":"string"},"as_of":{"type":"string","format":"date-time"},
+                        "daily":{"type":"array","items":{"type":"object","required":["date","succeeded","failed","warning"],"properties":{
+                            "date":{"type":"string","format":"date"},"succeeded":{"type":"integer"},"failed":{"type":"integer"},"warning":{"type":"integer"}
+                        }}},
+                        "current":{"type":"object","required":["running","queued"],"properties":{"running":{"type":"integer"},"queued":{"type":"integer"}}},
+                        "attention_total":{"type":"integer"},
+                        "attention":{"type":"array","maxItems":5,"items":{"oneOf":[
+                            {"type":"object","required":["kind","id","name","state","reason"],"properties":{"kind":{"enum":["unknown","run"]},"id":{"type":"string","format":"uuid"},"name":{"type":"string"},"state":{"type":"string"},"reason":{"type":["string","null"]}}},
+                            {"type":"object","required":["kind","id","name","task_count","run_count"],"properties":{"kind":{"const":"runner"},"id":{"type":"string","format":"uuid"},"name":{"type":"string"},"task_count":{"type":"integer"},"run_count":{"type":"integer"}}}
+                        ]}},
+                        "upcoming":{"type":"array","maxItems":5,"items":{"type":"object","required":["id","name","next_at"],"properties":{"id":{"type":"string"},"name":{"type":"string"},"next_at":{"type":"string","format":"date-time"}}}}
+                    }
+                }}});
+            }
             if path == "/moments/days" {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["timezone","today","total_runs","days","next_before"],"properties":{"timezone":{"type":"string"},"today":{"type":"string","format":"date"},"total_runs":{"type":"integer"},"days":{"type":"array","items":{"type":"object","required":["date","count"],"properties":{"date":{"type":"string","format":"date"},"count":{"type":"integer"}}}},"next_before":{"type":["string","null"],"format":"date"}}}}});
             }
@@ -524,6 +548,11 @@ pub fn document() -> Value {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["timezone","date","items","next_cursor"],"properties":{"timezone":{"type":"string"},"date":{"type":"string","format":"date"},"next_cursor":{"type":["string","null"]},"items":{"type":"array","items":{"type":"object","required":["id","task_id","name","state","reason","finished_at","runner","agent","logo","preview","format","has_more","truncated"],"properties":{"id":{"type":"string","format":"uuid"},"task_id":{"type":"string"},"name":{"type":"string"},"state":{"type":"string"},"reason":{"type":["string","null"]},"finished_at":{"type":"string","format":"date-time"},"runner":{"type":"string"},"agent":{"type":"string"},"logo":{"type":["string","null"]},"preview":{"type":["string","null"],"maxLength":2048},"format":{"enum":["markdown","json"]},"has_more":{"type":"boolean"},"truncated":{"type":"boolean"}}}}}}}});
                 let item = &mut op["responses"]["200"]["content"]["application/json"]["schema"]["properties"]
                     ["items"]["items"];
+                item["properties"]["creator"] = json!({"type":["object","null"],"required":["id","username"],"properties":{"id":{"type":"string","format":"uuid"},"username":{"type":"string"}},"description":"Task creator, not the Run initiator."});
+                item["required"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!("creator"));
                 item["properties"]["runner"] = json!({"type":["string","null"]});
                 item["properties"]["agent"] = json!({"type":["string","null"]});
                 item["properties"]["format"] = json!({"enum":["markdown","json","dag"]});

@@ -45,6 +45,7 @@ export function ReportReader({
   selectedOutput,
   onSelectOutput,
   preview = false,
+  fill = false,
   incomplete = false,
   onExpand,
   notice,
@@ -60,6 +61,7 @@ export function ReportReader({
   selectedOutput?: string
   onSelectOutput?: (id: string) => void
   preview?: boolean
+  fill?: boolean
   incomplete?: boolean
   onExpand?: () => void
   notice?: ReactNode
@@ -96,6 +98,7 @@ export function ReportReader({
     unresolved: boolean
   } | null>(null)
   const pendingOutput = useRef<string | null>(null)
+  const restored = useRef<string | null>(null)
   const suppressReturnFocus = useRef(false)
   const pin = useContext(PreviewActivity),
     pinId = useId()
@@ -195,15 +198,21 @@ export function ReportReader({
       }
       pendingHeading.current = null
     }
-    if (pendingOutput.current === selectedOutput && report.current) {
+    if (
+      (pendingOutput.current === selectedOutput || (fill && restored.current !== key)) &&
+      report.current
+    ) {
       const parent = scrollParent(report.current),
         anchor = state.anchor
       const element = anchor?.heading ? target(anchor.heading) : report.current
-      parent.scrollTop +=
-        (element ?? report.current).getBoundingClientRect().top -
-        parent.getBoundingClientRect().top -
-        (anchor?.offset ?? 12)
+      if (fill && !anchor) parent.scrollTop = 0
+      else
+        parent.scrollTop +=
+          (element ?? report.current).getBoundingClientRect().top -
+          parent.getBoundingClientRect().top -
+          (anchor?.offset ?? 12)
       pendingOutput.current = null
+      restored.current = key
     }
   }, [identity, selectedOutput, preview, incomplete, index])
   function select(id: string) {
@@ -253,13 +262,14 @@ export function ReportReader({
   }
   return (
     <div
-      className={`report-reader${preview ? ' is-preview' : ''}`}
+      className={`report-reader${preview ? ' is-preview' : ''}${fill ? ' is-filled' : ''}`}
       style={
         {
           '--report-reading-height': `${Math.max(0, height)}px`,
           '--report-viewport-height': viewportHeight == null ? undefined : `${viewportHeight}px`,
           '--report-navigation-width': `${widths.navigation}px`,
           '--report-references-width': `${widths.references}px`,
+          ...(fill ? { '--report-sticky-top': hasNavigation && room < 1080 ? '32px' : '0px' } : {}),
         } as CSSProperties
       }
     >

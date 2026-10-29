@@ -27,7 +27,7 @@ export function PageBreadcrumbs({
   crumbs = [],
   onBack,
 }: {
-  label: string
+  label: ReactNode
   crumbs?: Breadcrumb[]
   onBack?: () => void
 }) {
