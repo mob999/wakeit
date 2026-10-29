@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { t } from '../i18n'
-import { ChoicePicker } from '../ChoicePicker'
-import { ModelPicker, ParameterFields } from '../ModelPicker'
-import { Field, Button } from '../ui'
-import { AgentLogo } from '../AgentLogo'
-import { ChevronRight, Monitor } from '../icons'
-import type { Runner } from '../api'
+import { ChoicePicker } from '../components/ChoicePicker'
+import { ModelPicker, ParameterFields } from '../runners/ModelPicker'
+import { Field, Button } from '../components/ui'
+import { AgentLogo } from '../components/AgentLogo'
+import { ChevronRight, Monitor } from '../components/icons'
+import type { Runner } from '../api/types'
 import type { Binding, TemplateIssue } from './types'
 
 export function BindingFields({

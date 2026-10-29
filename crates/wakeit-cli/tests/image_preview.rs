@@ -2,7 +2,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
 use serde_json::Value;
 use std::{fs, io::Cursor};
-use wakeit::image_preview::{self, Mode, Request};
+use wakeit::runner::image_preview::{self, Mode, Request};
 
 fn fixture(format: ImageFormat) -> (tempfile::TempDir, std::path::PathBuf, Vec<u8>) {
     let dir = tempfile::tempdir().unwrap();
@@ -29,7 +29,7 @@ fn fixture(format: ImageFormat) -> (tempfile::TempDir, std::path::PathBuf, Vec<u
 fn large_png_jpeg_webp_have_bounded_thumbnails_and_byte_identical_originals() {
     for format in [ImageFormat::Png, ImageFormat::Jpeg, ImageFormat::WebP] {
         let (dir, path, original) = fixture(format);
-        assert!(original.len() > wakeit::result_files::MAX_BYTES);
+        assert!(original.len() > wakeit::runner::result_files::MAX_BYTES);
         let roots = [dir.path().to_owned()];
         let read = |image, offset, revision| {
             image_preview::read(

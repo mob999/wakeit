@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { workspaceId, type User } from '../api'
+import { workspaceId } from '../api/client'
+import { type User } from '../api/types'
 import { t } from '../i18n'
-import { useToast } from '../Toast'
+import { useToast } from '../components/Toast'
 import { executionId, readOriginal, type ImageSource, type Preview } from './preview'
 
 // Mounted only inside an open preview. Original bytes and object URLs are

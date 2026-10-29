@@ -1,9 +1,9 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { MarkdownContent } from './MarkdownContent'
+import { MarkdownContent } from '../markdown/MarkdownContent'
 import { CopyValue } from './CopyValue'
 import type { FileSource } from '../files/links'
-import { CodeContent, isJsonCode } from './CodeContent'
+import { CodeContent, isJsonCode } from '../markdown/CodeContent'
 import { ReportReader, type ReportOutput } from '../reports/ReportReader'
 export function resultData(result: unknown) {
   const truncated =

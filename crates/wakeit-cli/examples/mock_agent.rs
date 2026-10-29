@@ -92,7 +92,7 @@ fn main() -> Result<()> {
     }
     if matches!(mode, "session-inspect" | "session-interactive") {
         let id = args.get(2).context("session id required")?;
-        wakeit::sessions::validate_id(id)?;
+        wakeit::runner::sessions::validate_id(id)?;
         let data = std::fs::read_to_string(root.join("sessions").join(format!("{id}.json")))
             .context("fixture session does not exist")?;
         let info: Value = serde_json::from_str(&data)?;
@@ -144,7 +144,7 @@ fn main() -> Result<()> {
             let session_info = if mode.starts_with("session-") {
                 let id = if mode == "session-resume" {
                     let id = args.get(2).context("bound session id required")?.clone();
-                    wakeit::sessions::validate_id(&id)?;
+                    wakeit::runner::sessions::validate_id(&id)?;
                     anyhow::ensure!(
                         root.join("sessions").join(format!("{id}.json")).exists(),
                         "bound session does not exist"
@@ -156,7 +156,7 @@ fn main() -> Result<()> {
                         .map(str::to_owned)
                         .unwrap_or_else(|| format!("ses_{}", uuid::Uuid::new_v4().simple()))
                 };
-                wakeit::sessions::validate_id(&id)?;
+                wakeit::runner::sessions::validate_id(&id)?;
                 let directory = root.join("sessions");
                 std::fs::create_dir_all(&directory)?;
                 let cwd = std::env::current_dir()?
@@ -179,7 +179,7 @@ fn main() -> Result<()> {
                 std::fs::write(directory.join(format!("{id}.json")), info.to_string())?;
                 let mut reported = info;
                 if let Some(id) = options["reported_session_id"].as_str() {
-                    wakeit::sessions::validate_id(id)?;
+                    wakeit::runner::sessions::validate_id(id)?;
                     reported["id"] = json!(id);
                 }
                 if options["omit_session"] == true {

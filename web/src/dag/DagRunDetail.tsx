@@ -1,30 +1,29 @@
 import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast } from '../Toast'
-import { EditorMemoryContext, useEditorValue, type EditorMemory } from '../EditorMemory'
+import { ErrorToast } from '../components/Toast'
+import { EditorMemoryContext, useEditorValue, type EditorMemory } from '../components/EditorMemory'
 import { shortId } from './identity'
 import { outputs } from './model'
 import { useEffect, useRef, useState, useCallback, type RefObject, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw } from '../icons'
+import { RefreshCw } from '../components/icons'
 import { useTranslation } from 'react-i18next'
 import { t, locale } from '../i18n'
-import { apiErrorText } from '../apiErrorText'
+import { apiErrorText } from '../api/errorText'
+import { api, apiUrl } from '../api/client'
+import { terminal } from '../runs/state'
+import { stateNames } from '../i18n'
 import {
-  api,
-  apiUrl,
-  terminal,
-  stateNames,
   type Run,
   type RunEvent,
   type DagRunNode,
   type User,
   type Agent,
   type Runner,
-} from '../api'
-import { IconButton, Button } from '../ui'
+} from '../api/types'
+import { IconButton, Button } from '../components/ui'
 import { RunActions } from '../runs/RunActions'
-import { Status } from '../Status'
-import { ChoicePicker } from '../ChoicePicker'
+import { Status } from '../components/Status'
+import { ChoicePicker } from '../components/ChoicePicker'
 import { RunSection } from '../runs/RunSection'
 import { RunResult } from '../runs/RunResult'
 import { RunTrace, useRunTrace } from '../runs/RunTrace'

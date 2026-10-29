@@ -1,6 +1,6 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { IconButton } from '../ui'
+import { IconButton } from '../components/ui'
 import { ActionIcon } from '../actions/ActionIcon'
 import { useCopy } from '../actions/useCopy'
 export function CopyValue({

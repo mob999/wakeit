@@ -3,7 +3,7 @@ use support::assert_single_report;
 
 use serde_json::{Value, json};
 use wakeit::{
-    gemini_adapter::GeminiNormalizer,
+    adapters::gemini::GeminiNormalizer,
     trace::{RecordData, TraceKind, TraceState},
 };
 

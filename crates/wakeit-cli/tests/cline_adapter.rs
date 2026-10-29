@@ -3,7 +3,7 @@ use support::assert_single_report;
 
 use serde_json::{Value, json};
 use wakeit::{
-    cline_adapter::ClineNormalizer,
+    adapters::cline::ClineNormalizer,
     trace::{RECORD_LIMIT, RecordData, TraceKind, TraceState},
 };
 

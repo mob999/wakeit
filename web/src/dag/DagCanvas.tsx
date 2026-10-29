@@ -27,8 +27,8 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import type { Agent, DagNode, EditorLayout, Runner } from '../api'
-import { IconButton } from '../ui'
+import type { Agent, DagNode, EditorLayout, Runner } from '../api/types'
+import { IconButton } from '../components/ui'
 import { t } from '../i18n'
 import { nodeName, runnerName } from './identity'
 import { arrangeNodes, NODE_HEIGHT, NODE_WIDTH } from './layout'

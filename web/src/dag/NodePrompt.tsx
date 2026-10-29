@@ -4,9 +4,9 @@ import * as Dialog from '@radix-ui/react-dialog'
 import * as Menu from '@radix-ui/react-dropdown-menu'
 
 import { t } from '../i18n'
-import { IconButton } from '../ui'
-import { useEditorValue } from '../EditorMemory'
-import type { Dag, DagNode, NodeInstruction } from '../api'
+import { IconButton } from '../components/ui'
+import { useEditorValue } from '../components/EditorMemory'
+import type { Dag, DagNode, NodeInstruction } from '../api/types'
 import { ancestors } from './model'
 import { nodeName, shortId } from './identity'
 type Props = {

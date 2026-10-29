@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { DagRunNode } from '../api'
+import type { DagRunNode } from '../api/types'
 import { RunSection } from '../runs/RunSection'
 import { RunResult, RunResultActions, dagOutputs } from '../runs/RunResult'
 

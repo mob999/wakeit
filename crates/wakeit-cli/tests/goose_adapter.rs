@@ -3,7 +3,7 @@ use support::assert_single_report;
 
 use serde_json::{Value, json};
 use wakeit::{
-    goose_adapter::GooseNormalizer,
+    adapters::goose::GooseNormalizer,
     trace::{RecordData, TraceKind, TraceState},
 };
 

@@ -1,12 +1,12 @@
 import { ActionIcon } from '../actions/ActionIcon'
 import { t as tr, parameterLabel } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, ChevronRight } from '../icons'
-import { type Runner } from '../api'
-import { agentMatches, type Filters } from '../Search'
-import { DetailBody } from '../Workbench'
-import { AgentLogo } from '../AgentLogo'
-import { IconButton } from '../ui'
+import { ChevronDown, ChevronRight } from '../components/icons'
+import { type Runner } from '../api/types'
+import { agentMatches, type Filters } from '../search/filters'
+import { DetailBody } from '../components/Workbench'
+import { AgentLogo } from '../components/AgentLogo'
+import { IconButton } from '../components/ui'
 export function RunnerAgents({
   runner,
   filters,

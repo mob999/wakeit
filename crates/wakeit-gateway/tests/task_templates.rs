@@ -1,7 +1,7 @@
 use serde_json::json;
 #[test]
 fn remote_directory_scopes_use_path_components_not_text_prefixes() {
-    use wakeit_gateway::template_api::directory_in_roots as within;
+    use wakeit_gateway::api::templates::directory_in_roots as within;
     assert!(within("/work/projects/../report", &json!(["/work"]), false));
     assert!(!within("/work-else/report", &json!(["/work"]), false));
     assert!(!within("/work/../../etc", &json!(["/work"]), false));

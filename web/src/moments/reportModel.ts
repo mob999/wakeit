@@ -1,4 +1,4 @@
-import type { Run } from '../api'
+import type { Run } from '../api/types'
 export function duration(start?: string | null, end?: string | null) {
   if (!start || !end) return null
   const ms = Date.parse(end) - Date.parse(start)

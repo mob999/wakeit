@@ -1,4 +1,4 @@
-import { type DagIssue } from '../api'
+import { type DagIssue } from '../api/types'
 export function issueField(issue: DagIssue) {
   if (!issue.node_id) return issue.path
   return issue.path.replace(/^dag\.nodes(?:\[[^\]]+\]|\.[^.]+)\./, '')

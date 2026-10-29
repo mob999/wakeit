@@ -1,5 +1,5 @@
 import { promptReferences, promptBlank } from './prompt'
-import { type Dag, type DagIssue } from '../api'
+import { type Dag, type DagIssue } from '../api/types'
 import { t } from '../i18n'
 
 export function ancestors(dag: Dag, id: string) {

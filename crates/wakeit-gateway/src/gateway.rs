@@ -1,17 +1,13 @@
 use crate::{
-    api::{App, router},
-    bus,
-    config::GatewayConfig,
-    nats_auth::Authority,
-    protocol::RunEvent,
-    store,
+    api::router, config::GatewayConfig, protocol::RunEvent, state::App, store,
+    transport::authority::Authority, transport::streams as bus,
 };
 use anyhow::Result;
 use futures::StreamExt;
 use std::{sync::Arc, time::Duration};
 
 pub async fn start(config: GatewayConfig) -> Result<()> {
-    crate::github_auth::validate(&config)?;
+    crate::auth::credentials::validate_github(&config)?;
     anyhow::ensure!(
         config.version == 1,
         "unsupported Gateway configuration version"
@@ -22,7 +18,7 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
         .execute(&pool)
         .await?;
     if config.auth.demo_workspace {
-        crate::demo::seed(&pool).await?;
+        crate::store::demo::seed(&pool).await?;
     }
     let client = bus::connect(
         &config.nats_url,
@@ -49,7 +45,7 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
         async move {
             let mut tick = tokio::time::interval(Duration::from_secs(1));
             loop {
-                tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{if let Err(e)=store::tick(&s.pool).await{tracing::error!(error=%e,"scheduler tick failed")}}}
+                tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{if let Err(e)=store::scheduler::tick(&s.pool).await{tracing::error!(error=%e,"scheduler tick failed")}}}
             }
         }
     });
@@ -59,7 +55,7 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
         async move {
             let mut tick = tokio::time::interval(Duration::from_millis(250));
             loop {
-                tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{if let Err(e)=store::dispatch(&s.pool,&s.js).await{tracing::warn!(error=%e,"outbox publication deferred")}}}
+                tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{if let Err(e)=store::outbox::dispatch(&s.pool,&s.js).await{tracing::warn!(error=%e,"outbox publication deferred")}}}
             }
         }
     });
@@ -86,7 +82,7 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
             loop {
                 tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{
                     if let Err(e)=s.authority.sync_revocations(&s.config.nats_url,&s.pool).await{tracing::warn!(error=%e,"NATS revocation sync deferred")}
-                    if let Err(e)=crate::terminal_api::maintain(&s).await{tracing::warn!(error=%e.1,"terminal lifecycle reconciliation deferred")}
+                    if let Err(e)=crate::store::terminals::maintain(&s).await{tracing::warn!(error=%e,"terminal lifecycle reconciliation deferred")}
                     if let Err(e)=cleanup(&s).await{tracing::warn!(error=%e,"retention cleanup failed")}
                 }}
             }
@@ -122,13 +118,13 @@ async fn consume_events(s: &App, cancel: &tokio_util::sync::CancellationToken) -
     loop {
         tokio::select! {_=cancel.cancelled()=>break,msg=messages.next()=>{let Some(msg)=msg else{break};let msg=msg?;
             let e=match serde_json::from_slice::<RunEvent>(&msg.payload){Ok(e) if e.version==1 && e.seq>0 && msg.subject.as_str()==crate::protocol::event_subject(e.runner_id)=>e,_=>{tracing::warn!("discarding malformed execution event");msg.ack_with(async_nats::jetstream::AckKind::Term).await.map_err(|e|anyhow::anyhow!(e.to_string()))?;continue}};
-            match store::ingest(&s.pool,&e,s.config.log_limit_bytes).await {Ok(())=>msg.double_ack().await.map_err(|e|anyhow::anyhow!(e.to_string()))?,Err(e)=>{tracing::error!(error=%e,"event persistence deferred");msg.ack_with(async_nats::jetstream::AckKind::Nak(Some(Duration::from_secs(2)))).await.map_err(|e|anyhow::anyhow!(e.to_string()))?;}}
+            match store::events::ingest(&s.pool,&e,s.config.log_limit_bytes).await {Ok(())=>msg.double_ack().await.map_err(|e|anyhow::anyhow!(e.to_string()))?,Err(e)=>{tracing::error!(error=%e,"event persistence deferred");msg.ack_with(async_nats::jetstream::AckKind::Nak(Some(Duration::from_secs(2)))).await.map_err(|e|anyhow::anyhow!(e.to_string()))?;}}
         }}
     }
     Ok(())
 }
 async fn cleanup(s: &App) -> Result<()> {
-    store::clear_completed_messages(&s.pool, &s.js).await?;
+    store::outbox::clear_completed_messages(&s.pool, &s.js).await?;
     use sqlx::Row;
     let settings = sqlx::query("SELECT workspace_id,data FROM settings")
         .fetch_all(&s.pool)

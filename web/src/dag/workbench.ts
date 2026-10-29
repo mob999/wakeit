@@ -1,4 +1,4 @@
-import type { Agent, Dag, DagNode, EditorLayout, Runner } from '../api'
+import type { Agent, Dag, DagNode, EditorLayout, Runner } from '../api/types'
 import { ancestors } from './model'
 export type Point = { x: number; y: number }
 export type GraphDraft = { dag: Dag; layout: EditorLayout }

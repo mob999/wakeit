@@ -1,16 +1,17 @@
 import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
 
-import { api, type Member, type User } from '../api'
+import { api } from '../api/client'
+import { type Member, type User } from '../api/types'
 import { t as tr } from '../i18n'
-import { Button, IconButton, Modal } from '../ui'
-import { LanguageSwitch } from '../LanguageSwitch'
-import { Pagination } from '../Pagination'
-import { type PageResult } from '../Search'
+import { Button, IconButton, Modal } from '../components/ui'
+import { LanguageSwitch } from '../components/LanguageSwitch'
+import { Pagination } from '../components/Pagination'
+import { type PageResult } from '../api/types'
 import { AccountDialog } from './AccountDialog'
 
 function AccountRow({

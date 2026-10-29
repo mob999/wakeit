@@ -1,4 +1,4 @@
-import { type DagNode, type Runner, type Agent } from '../api'
+import { type DagNode, type Runner, type Agent } from '../api/types'
 import { t } from '../i18n'
 export const nodeName = (node: Pick<DagNode, 'name'>) => node.name || t('dag.unnamed')
 export const shortId = (id: string) => (id.length > 16 ? id.slice(0, 16) : id)

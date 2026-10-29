@@ -2,11 +2,11 @@ use chrono::Utc;
 use serde_json::{Value, json};
 use uuid::Uuid;
 use wakeit::{
+    adapters::stream::Normalizer,
     config::{self, AgentConfig, TaskConfig},
-    journal::Journal,
     protocol::{Assignment, RunEvent},
-    sessions::{RunSession, SessionInfo},
-    stream_adapter::Normalizer,
+    runner::journal::Journal,
+    runner::sessions::{RunSession, SessionInfo},
     trace::{Lines, RecordData, StreamRecord},
 };
 
@@ -233,10 +233,14 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
         let (directory, journal, run) = fixture(false).await;
         let cwd = directory.path().to_string_lossy().into_owned();
         journal.record_session(run, info(ID, &cwd)).await.unwrap();
-        assert!(wakeit::sessions::lock_for(directory.path(), journal.runner, "pi", ID).is_err());
+        assert!(
+            wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).is_err()
+        );
         let shared = journal.clone();
         drop(journal);
-        assert!(wakeit::sessions::lock_for(directory.path(), shared.runner, "pi", ID).is_err());
+        assert!(
+            wakeit::runner::sessions::lock_for(directory.path(), shared.runner, "pi", ID).is_err()
+        );
         if via_event {
             shared
                 .emit(run, "state", json!({"state":"succeeded"}), Some("done"))
@@ -245,7 +249,8 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
         } else {
             shared.phase(run, "done", None).await.unwrap();
         }
-        let guard = wakeit::sessions::lock_for(directory.path(), shared.runner, "pi", ID).unwrap();
+        let guard =
+            wakeit::runner::sessions::lock_for(directory.path(), shared.runner, "pi", ID).unwrap();
         drop(guard);
     }
     let (directory, journal, run) = fixture(false).await;
@@ -257,19 +262,25 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
         .emit(run, "state", json!({"state":"unknown"}), Some("unknown"))
         .await
         .unwrap();
-    let _guard = wakeit::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
-    let config:config::RunnerConfig=serde_json::from_value(json!({"version":1,"gateway":"http://localhost:1","id":journal.runner,"name":"fixture","token_file":"unused","nats_url":"nats://localhost:1","credentials_file":"unused","data_dir":directory.path(),"agents":[],"allowed_roots":[directory.path()]})).unwrap();
+    let _guard =
+        wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
+    let config:wakeit::runner::config::RunnerConfig=serde_json::from_value(json!({"version":1,"gateway":"http://localhost:1","id":journal.runner,"name":"fixture","token_file":"unused","nats_url":"nats://localhost:1","credentials_file":"unused","data_dir":directory.path(),"agents":[],"allowed_roots":[directory.path()]})).unwrap();
     assert!(
-        wakeit::sessions::ensure_idle(&config, &journal.session(run).await.unwrap().unwrap(), None)
-            .await
-            .is_err()
+        wakeit::runner::sessions::ensure_idle(
+            &config,
+            &journal.session(run).await.unwrap().unwrap(),
+            None
+        )
+        .await
+        .is_err()
     );
 }
 
 #[tokio::test]
 async fn fresh_session_lock_conflicts_are_durable_and_bound_runs_reuse_the_runner_guard() {
     let (directory, journal, run) = fixture(false).await;
-    let guard = wakeit::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
+    let guard =
+        wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
     journal
         .record_session(run, info(ID, &directory.path().to_string_lossy()))
         .await
@@ -289,7 +300,7 @@ async fn fresh_session_lock_conflicts_are_durable_and_bound_runs_reuse_the_runne
     );
     let (directory, journal, run) = fixture(true).await;
     let _runner_guard =
-        wakeit::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
+        wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
     journal
         .record_session(run, info(ID, &directory.path().to_string_lossy()))
         .await

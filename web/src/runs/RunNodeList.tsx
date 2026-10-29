@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Status } from '../Status'
+import { Status } from '../components/Status'
 import { t } from '../i18n'
-import { TooltipTarget } from '../ui'
-import { Pagination } from '../Pagination'
+import { TooltipTarget } from '../components/ui'
+import { Pagination } from '../components/Pagination'
 import './run-actions.css'
 
 export const RUN_NODE_PAGE_SIZE = 8

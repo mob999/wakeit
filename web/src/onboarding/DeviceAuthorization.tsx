@@ -1,11 +1,12 @@
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { t as tr, roleName } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, type User } from '../api'
-import { Modal, Button, Field } from '../ui'
-import { LanguageSwitch } from '../LanguageSwitch'
+import { api } from '../api/client'
+import { type User } from '../api/types'
+import { Modal, Button, Field } from '../components/ui'
+import { LanguageSwitch } from '../components/LanguageSwitch'
 type Request = {
   gateway: string
   state: string

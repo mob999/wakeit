@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { nodeIssues } from '../../src/dag/nodeIssues.ts'
-import type { DagRunNode } from '../../src/api.ts'
+import type { DagRunNode } from '../../src/api/types.ts'
 
 test('current failed executions precede skipped descendants; old failures and pending retries are not counted', () => {
   const nodes = [

@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react'
-import { ChevronRight } from '../icons'
+import { ChevronRight } from '../components/icons'
 export function RunSection({
   title,
   open,

@@ -1,11 +1,11 @@
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { api } from '../api'
+import { api } from '../api/client'
 import { CopyValue } from '../runs/CopyValue'
-import { Button, Field, Modal } from '../ui'
+import { Button, Field, Modal } from '../components/ui'
 export function EnrollDialog({
   onClose,
   toast,

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { api, apiUrl, ApiError } from '../api'
+import { api, apiUrl, ApiError } from '../api/client'
 import { t as tr } from '../i18n'
 import './terminal.css'
 

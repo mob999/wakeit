@@ -1,4 +1,5 @@
-import { api, type Run } from '../api'
+import { api } from '../api/client'
+import { type Run } from '../api/types'
 import { t } from '../i18n'
 import type { FileSource } from './links'
 

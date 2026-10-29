@@ -1,10 +1,11 @@
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, type Member } from '../api'
-import { Button, Field, Modal } from '../ui'
+import { api } from '../api/client'
+import { type Member } from '../api/types'
+import { Button, Field, Modal } from '../components/ui'
 export function AccountDialog({
   member,
   self,

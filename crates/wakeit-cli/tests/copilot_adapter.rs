@@ -3,8 +3,8 @@ use support::assert_single_report;
 
 use serde_json::json;
 use wakeit::{
-    copilot_adapter::CopilotNormalizer,
-    stream_adapter::Normalizer,
+    adapters::copilot::CopilotNormalizer,
+    adapters::stream::Normalizer,
     trace::{RecordData, TraceState},
 };
 #[test]

@@ -1,6 +1,6 @@
 #[test]
 fn openapi_references_resolve_in_the_document() {
-    let doc = wakeit_gateway::openapi::document();
+    let doc = wakeit_gateway::api::openapi::document();
     fn check(value: &serde_json::Value, doc: &serde_json::Value) {
         match value {
             serde_json::Value::Object(map) => {
@@ -33,7 +33,7 @@ fn openapi_references_resolve_in_the_document() {
 }
 #[test]
 fn openapi_exposes_task_template_contract() {
-    let doc = wakeit_gateway::openapi::document();
+    let doc = wakeit_gateway::api::openapi::document();
     let base = "/api/v1/workspaces/{workspace}";
     for (path, method) in [
         ("/task-templates", "get"),

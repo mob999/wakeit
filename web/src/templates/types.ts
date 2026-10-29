@@ -1,4 +1,4 @@
-import type { Dag, TaskConfig } from '../api'
+import type { Dag, TaskConfig } from '../api/types'
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 export type InputSchema = {
   type: string | string[]

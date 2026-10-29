@@ -1,12 +1,12 @@
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useId, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as Popover from '@radix-ui/react-popover'
-import { Check, ChevronDown, Search } from '../icons'
-import { api } from '../api'
-import { Button } from '../ui'
+import { Check, ChevronDown, Search } from '../components/icons'
+import { api } from '../api/client'
+import { Button } from '../components/ui'
 import { RequestState } from './shared'
 export type WorkspaceDraft = {
   timezone: string

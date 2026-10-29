@@ -1,9 +1,10 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import YAML from 'yaml'
-import { type Agent, type Run, type RunEvent, time } from '../api'
-import { Status } from '../Status'
-import { DetailBody } from '../Workbench'
+import { type Agent, type Run, type RunEvent } from '../api/types'
+import { time } from '../i18n'
+import { Status } from '../components/Status'
+import { DetailBody } from '../components/Workbench'
 import { RunIdentity } from './RunListRow'
 export function RunDetails({
   run: r,
