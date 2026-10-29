@@ -9,13 +9,13 @@ Runner 调用设备上已安装、已登录的原生 CLI，不安装 Agent、不
 | `pi` | `pi` | 支持 | 原生查询或手填 | 支持 |
 | `opencode` | `opencode` | 工具完成后更新 | 原生查询或手填 | 支持 |
 | `kimi-code` | `kimi`，Kimi Code 2.x | 支持 | 手填 | 只读查询原生会话、精确绑定及原生命令续聊 |
-| `agy` | Google Antigravity CLI 的 `agy` | 支持 | 原生 `models` 查询或手填 | 本轮不声明 |
-| `gemini-cli` | `gemini` | 支持 | 手填 | 本轮不声明 |
-| `cursor` | `cursor-agent` | 支持 | 手填 | 不声明 |
-| `copilot` | `copilot` | 支持 | 手填 | 不声明 |
-| `cline` | `cline` | 支持 | 手填 | 不声明 |
-| `goose` | `goose`（AAIF / Block） | 支持 | 手填 | 不声明 |
-| `qwen-code` | `qwen` | 支持 | 手填 | 不声明 |
+| `agy` | Google Antigravity CLI 的 `agy` | 支持 | 原生 `models` 查询或手填 | 不支持 |
+| `gemini-cli` | `gemini` | 支持 | 手填 | 不支持 |
+| `cursor` | `cursor-agent` | 支持 | 手填 | 不支持 |
+| `copilot` | `copilot` | 支持 | 手填 | 不支持 |
+| `cline` | `cline` | 支持 | 手填 | 不支持 |
+| `goose` | `goose`（AAIF / Block） | 支持 | 手填 | 不支持 |
+| `qwen-code` | `qwen` | 支持 | 手填 | 不支持 |
 
 没有模型接口时只显示输入框；查询失败或空列表也不会用静态目录补齐。模型 ID、推理强度和原生权限由实际 CLI 决定，配置目录不是账号调用权限的保证。
 
@@ -47,7 +47,7 @@ wakeit adapter detect gemini-cli
 
 ## Kimi Code
 
-使用 `wakeit adapter kimi` 驱动已安装的 Kimi Code 2.x。普通 `--prompt --output-format stream-json` 会聚合完整消息，不能保证逐步实时输出，因此不再用于此适配。
+使用 `wakeit adapter kimi` 驱动已安装的 Kimi Code 2.x。
 
 辅助命令为每次执行启动一个仅监听 `127.0.0.1` 的 `kimi web --no-open` 子进程，通过[官方本地 Server API](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/server-api.html)订阅真实 `assistant.delta`、`tool.call.started`、`tool.result` 和 `turn.ended`。先确认订阅成功再提交一次指令，并处理原生心跳；绑定已有会话先通过空的会话级配置调用加载原生上下文，不覆盖已有配置。消息以完整快照更新，工具输出不混入最终报告；只有原生 `completed` 及正常进程退出才发布报告。子进程与 Runner 共用进程树，取消或失败时结束本次执行及其本地服务，不连接用户自行启动的 Kimi 服务，也不打开浏览器。
 
@@ -63,13 +63,13 @@ wakeit adapter detect gemini-cli
 
 模型查询使用 `agy --output-format json models`，只解析实际返回的目录；全局参数在子命令之前，见[上游确认](https://github.com/google-antigravity/antigravity-cli/issues/777)。模板不设置跳过权限的参数，沿用原生权限策略；需要确认而未获授权的工具可能被原生拒绝，用户应按 Agent 的实际配置处理。
 
-虽然原生支持 `--conversation ID`，本轮未验证可满足精确 ID、真实目录和持久化检查的机器接口，因此不开放 Wakeit 的会话绑定或续聊入口，也不把 `init` 事件直接当作已持久化证明。未打包 Antigravity 二进制，其使用遵循 Google 原生条款。
+虽然原生支持 `--conversation ID`，适配尚未接入精确 ID、目录和持久化检查，因此不提供 Wakeit 的会话绑定或续聊入口，也不把 `init` 事件直接当作已持久化证明。未打包 Antigravity 二进制，其使用遵循 Google 原生条款。
 
 ## Gemini CLI
 
 使用[官方 headless 流式输出](https://geminicli.com/docs/cli/headless/)，通过标准输入传递指令，并显式设置 `--prompt '' --output-format stream-json`。工具执行遵循已安装 CLI 的权限策略，不添加 `--yolo`。消息增量合并成完整快照，工具与命令分开显示；只有原生成功终态对应的最终消息作为报告。缺少终态、原生失败或输出中断不伪报成功。
 
-本轮没有真实模型发现接口，也没有足够稳定的精确会话持久化检查，因此只提供手填模型及独立执行。Google 已宣布 [Gemini CLI 向 Antigravity CLI 过渡](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli)；此模板面向仍在使用 `gemini` 的设备，不假设两者的事件格式兼容。
+当前适配提供手填模型及独立执行，不提供模型目录或会话绑定。Google 已宣布 [Gemini CLI 向 Antigravity CLI 过渡](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli)；此模板面向仍在使用 `gemini` 的设备，不假设两者的事件格式兼容。
 
 ## Cursor、GitHub Copilot CLI 与 Qwen Code
 
@@ -93,10 +93,6 @@ wakeit adapter detect gemini-cli
 
 使用 [AAIF / Block Goose 的官方 CLI](https://github.com/aaif-goose/goose/blob/main/documentation/docs/guides/goose-cli-commands.md)：`goose run --instructions - --output-format stream-json`。从标准输入接收指令，转换真实消息、工具调用及结果；需要原生完成记录及成功退出才能生成最终报告，不与其他同名产品混用。Provider 和模型可手填，不读取认证配置，也不通过创建会话猜测模型目录。工具授权沿用原生无人值守策略。
 
-## 扩展优先级
+## 设备检测
 
-2026-10-16 核对公开仓库关注度后，这一批只新增 Cursor CLI、GitHub Copilot CLI、Cline、Goose、Qwen Code。开源候选的公开参考值为 [Cline](https://github.com/cline/cline)约 7.0 万星、[Goose](https://github.com/aaif-goose/goose)约 5.5 万星、[Qwen Code](https://github.com/QwenLM/qwen-code)约 2.9 万星；同时考虑维护活跃度与独立 CLI 的适用性。Cursor 和 Copilot 的闭源产品使用面单独判断，不与仓库星数直接混排，也不把平台、SDK 或 IDE 仓库的全部关注度视为 CLI 用户数。
-
-Aider、Continue、OpenHands、Crush、Kilo、Droid、Amp、Vibe、Auggie、Qoder、Kiro 本轮只保留调研记录，不新增模板。没有非交互 CLI 的 IDE 产品也不通过编辑器启动器伪装为无人值守适配。
-
-新增的原生协议 fixtures 均为按官方结构编写的合成数据，不含用户会话或凭据。完整的逐 Agent 真实调用、Magpie 兼容性、功能缺口及认证限制见 [适配验收记录](agent-verification.md)。任务编辑器只列出所选 Runner 检测到的 Agent；Runner 的 Agents 页仍显示完整检测状态。已有任务绑定不会因检测状态变化而自动替换。
+任务编辑器只列出所选 Runner 检测到的 Agent；设备详情仍显示完整检测状态。已有任务不会因检测变化而自动替换 Agent。检测成功只代表原生命令可用，实际调用仍取决于 Agent 的登录、供应商和工具权限配置。

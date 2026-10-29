@@ -16,9 +16,10 @@ For ordinary UI or copy changes, inspect the affected page and interactions thro
 | --- | --- |
 | `web/**` | Frontend build and unit tests; package manifests also check release metadata |
 | Markdown, `docs/**`, `.agents/**` | Documentation links/examples and bilingual changelog structure |
-| `crates/wakeit-cli/**`, `agents/**` | CLI checks on Linux/macOS/Windows and service integration |
-| `crates/wakeit-gateway/**`, database fixtures | Gateway checks on Linux/macOS/Windows and service integration |
-| `crates/wakeit-core/**`, shared Cargo configuration/lockfile | Both products, shared core checks and service integration; package metadata also checks packaging |
+| `crates/wakeit-*/tests/**` | Owning package checks only; Gateway still builds embedded WebUI assets |
+| CLI source/configuration, `agents/**` | CLI checks on Linux/macOS/Windows and service integration |
+| Gateway source/configuration, database fixtures | Gateway checks on Linux/macOS/Windows and service integration |
+| Core source/configuration, shared Cargo configuration/lockfile | Both products, shared core checks and service integration; package metadata also checks packaging |
 | `schemas/**` | Frontend, Rust, service integration, documentation examples and packaging |
 | Runtime/deployment examples and `skills/wakeit/assets/**` | Rust/service integration and documentation; Skill assets also check packaging |
 | Skill instructions | Documentation and standalone Skill packaging |
@@ -27,6 +28,8 @@ For ordinary UI or copy changes, inspect the affected page and interactions thro
 | Native-check script / service-integration scripts | Native Rust checks / service integration respectively |
 
 Unknown code/configuration paths run all checks until their owner is added in `scripts/ci_scope.py`. CLI and Gateway have independent check jobs. The CLI job requires no Node, WebUI assets or Gateway build; integration builds both programs to exercise their connection. Frontend-only and documentation-only changes do not start Rust or service checks.
+
+Rust formatting runs once per affected package on Linux; compilation and behavior tests retain all three platforms. Unpublished database repair scripts are retired; published migrations and their preservation checks remain.
 
 The frontend is built once per workflow. Gateway and integration jobs download those assets for the embedded WebUI; frontend unit tests run only when their scope is selected. The required `verify-result` job always runs and rejects failed, cancelled or unexpectedly skipped selected jobs, including failed scope detection. Unselected checks may be skipped. Release/tag builds remain independent and continue to build all published targets.
 

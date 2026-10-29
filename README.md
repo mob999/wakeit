@@ -2,135 +2,68 @@
 
 English | [简体中文](README-zh.md)
 
-Run Agent tasks on a schedule, on your own machines.
+Schedule Agent tasks on your own machines, and read their results in one place.
 
-Define the instructions and timing, and Wakeit sends the task to a Runner on your device. The Gateway manages scheduling, workspace membership and execution history; the WebUI shows progress, logs and results.
+Wakeit connects the Agents you already use—such as Codex, Claude Code, Kimi Code and Pi—to scheduled work. A **Gateway** hosts the WebUI, schedules tasks and keeps execution history. A **Runner** on each device executes tasks using locally installed Agents. Devices connect outbound; no inbound ports are needed.
 
-- **Use your existing Agents.** Built-in adapters cover Codex, Claude Code, Pi, OpenCode, Kimi Code, Antigravity CLI, Gemini CLI, Cursor, GitHub Copilot CLI, Cline, Goose and Qwen Code. [Capabilities](docs/agents.md) depend on each native interface; custom adapters use command configuration.
-- **Execute on your own devices.** Runners connect outbound to the Gateway on Linux, macOS and Windows. Devices need no inbound ports.
-- **Schedule work and read the results.** Use Cron, fixed intervals, one-time schedules or manual runs. View live execution traces and Markdown reports with syntax highlighting, math and Mermaid diagrams. Moments collects results on a compact completion-time timeline, with report outlines, linked files and per-DAG output selection. Open supported local file links through the original Runner to preview report files within its allowed directories.
-- **Compose Agent DAGs.** Drag Agents onto the canvas or apply one YAML definition, connect AND dependencies and reference upstream results. Run the complete graph with selected output reports and configurable node retries with exponential backoff. See [DAG tasks](docs/dag.md).
-- **Keep the conversation going.** Bind tasks to supported native Agent sessions. Continue them in the browser terminal, copy the original command, or use `wakeit run resume <run-id>` on the Runner device. See [session continuation](docs/cli.md#绑定会话与本机续聊).
-- **Separate workspaces.** Keep tasks, runs, devices and permissions isolated across teams. See [workspace configuration and authentication](docs/workspaces.md).
-- **Host locally or in the cloud.** Deploy the Gateway with its WebUI, and install the CLI with its Runner on your devices.
+## What you can do
 
-Gateway/WebUI **0.4.0** and CLI/Runner **0.1.0** are versioned and released independently under Apache-2.0. Gateway releases use `gateway-v*` tags; CLI releases use `cli-v*`. Their version numbers do not need to match.
+- Run tasks manually, once, at fixed intervals or with Cron.
+- Connect multiple Agents in a DAG and pass results between dependent steps.
+- Create tasks from reusable presets with configurable parameters.
+- Follow progress, read reports and continue supported Agent sessions.
+- Manage devices, tasks and access across separate workspaces.
 
-Local PNG/JPEG/WebP references render as thumbnails in reports and Markdown-file previews through the original Runner; clicking loads the original image on demand; relative image paths use the execution or Markdown directory and existing workspace/root permissions apply.
+Runner supports Linux, macOS and Windows. See [supported Agents and capabilities](docs/agents.md).
 
-## Install the CLI
+## Get started
 
-On macOS or Linux GNU:
+### 1. Have a Gateway ready
+
+Use an existing Gateway, or follow the [deployment guide](docs/operations.md) to host your own with Docker Compose. For a native installation, see [Gateway services](docs/gateway-service.md).
+
+### 2. Connect your device
+
+Install and sign in to your preferred Agent on the device. Then install the Wakeit CLI on macOS or Linux GNU:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-The installer displays progress, downloads and verifies CLI 0.1.0 by default, installs `wakeit` with Runner support and configures your user PATH. It does not deploy Gateway. Open a new terminal and run `wakeit --version`. See the [installation guide](docs/install.md) for Windows, a specific version, a different directory, or manual installation.
-
-To build the CLI from source, install Rust 1.89+, then run:
+Open a new terminal and connect to your Gateway. Replace `WORKSPACE_ID` with the workspace UUID in its WebUI URL, and choose the directory where tasks may run:
 
 ```sh
-git clone https://github.com/mob999/wakeit.git
-cd wakeit
-cargo install --locked --path crates/wakeit-cli
+wakeit setup --gateway https://wakeit.example.com \
+  --workspace WORKSPACE_ID --allow-root /path/to/projects
 ```
 
-## Connect to a Gateway
+Approve the request in your browser. Setup registers the Runner and configures user-level autostart. [Windows and other installation options →](docs/install.md)
 
-With an existing Gateway, click `{}` in the WebUI toolbar to copy the Agent Prompt. Give it to your Agent to install the CLI and Wakeit skill, request browser authorization, register the device and configure user-level autostart. Review and approve the request in your browser.
+You can also open **Agent Prompt** in the WebUI and give it to your Agent to complete setup. The [Wakeit skill](docs/skills.md) lets your Agent manage tasks and runs for you.
 
-Replace `WORKSPACE_ID` with the workspace UUID from its WebUI URL:
+### 3. Create a task
 
-```sh
-wakeit setup --gateway https://wakeit.example.com --workspace WORKSPACE_ID
-# Optional: --runner-name dev-server --allow-root /path/to/projects
-wakeit connection list
-wakeit runner list
-```
+In the WebUI, click **+** and choose a task, DAG or preset. Select the device, Agent and working directory, enter instructions, and set the schedule. Save it or run it immediately; progress and results appear in Runs.
 
-The default device name is the hostname, and the default execution scope is the current directory. Admin and Read/write members can register Runners; only Admin can revoke them. Setup preserves existing Agent installations and authentication, and does not create or execute tasks.
-
-For CLI access only, use `wakeit login --gateway URL --workspace WORKSPACE_ID`; Read-only members can use this too. Connections are stored by Gateway, workspace and account in the platform's standard configuration directory and work across directories. API Keys have no expiry by default and can be revoked in Settings → API Key. Use `wakeit connection use NAME` to switch connections. Explicit arguments and `WAKEIT_*` environment variables remain available.
-
-Workspace Admins manage memberships and invitations in Settings → Members. Instance administrators manage global accounts, account activation and local password resets through Instance accounts. Disabling an account or resetting its password revokes its sessions and API Keys.
-
-## Host your own Gateway
-
-Gateway is a separate `wakeit-gateway` program; `wakeit` has no Gateway deployment commands. For a full single-host deployment, install Docker Compose v2 and run these commands from the repository root:
-
-```sh
-cp .env.example .env
-# Set WAKEIT_POSTGRES_PASSWORD in .env to a generated alphanumeric password.
-docker compose build
-docker compose up -d
-export WAKEIT_PASSWORD='replace-with-a-generated-admin-password'
-docker compose run --rm -e WAKEIT_PASSWORD gateway \
-  bootstrap --config /app/gateway.yaml --username admin
-unset WAKEIT_PASSWORD
-```
-
-Open <http://localhost:8080> and sign in. Compose persists PostgreSQL, NATS data and device identities, and restarts services automatically. On Linux, enable Docker at system startup as well.
-
-To install the native Gateway program on macOS or Linux GNU:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh
-```
-
-The script installs the server program; PostgreSQL/NATS configuration and system-service setup are described in the [Gateway guide](docs/gateway-service.md).
-
-Docker Desktop starting at login on macOS or Windows does not provide startup before a user signs in. For system-level startup, use the [native Gateway service guide](docs/gateway-service.md). For remote devices, configure the Gateway's public URL and the NATS WSS endpoint; see [deployment and operations](docs/operations.md).
-
-## Create your first task
-
-Install and sign in to the Agent you want to use on the Runner device, then run `wakeit setup --gateway URL --workspace WORKSPACE_ID`. Once user-level autostart is installed, you can close the terminal. `--allow-root` defines the permitted execution directories; without an allowed scope, directory browsing and task execution are blocked. Manual enrollment and autostart options are covered in the [Runner guide](skills/wakeit/references/runner.md).
-
-In the WebUI, create a task: enter its name and instructions, choose a Runner, directory, Agent and model, then continue to the Time step to configure the schedule and save.
-
-You can also import the [example task](examples/task.yaml) through the CLI. Adjust its device, directory and instructions first:
-
-```sh
-wakeit task apply --file examples/task.yaml
-wakeit --json task trigger daily-review
-wakeit run watch <run-id>
-wakeit task pause daily-review
-```
-
-Tasks are stored in the Gateway's PostgreSQL database; YAML files are inputs for creating or updating them. Model discovery depends on the adapter; enter a model manually when no discovery interface is available. Ordinary tasks are not automatically rerun. DAG nodes can opt into bounded retries with `max_retries`; queued retries can be started immediately without adding attempts. Manually retry a failed node with `wakeit run retry RUN --node NODE` to preserve successful nodes and continue downstream in the same frozen Run. DAG total timeout is optional and disabled by default. An execution whose outcome cannot be confirmed enters `unknown`; check its actual state before deciding whether to retry.
-
-Archive a task from its detail view to stop future scheduling while preserving history and letting active runs finish. Restore it from Settings → Archived tasks; restored tasks remain paused. CLI equivalents are `wakeit task archive <id>`, `wakeit task list --archived` and `wakeit task restore <id>`.
-
-## Let an Agent help you use Wakeit
-
-The repository includes an independently installable [Wakeit skill](skills/wakeit/SKILL.md). Install the entire `skills/wakeit` directory into your Agent's skill directory, then invoke `$wakeit`:
-
-> Connect to my existing Gateway, register this device, and create a task that reviews the repository every day at 09:00.
-
-The skill loads guides for connections, deployment, Runners, tasks, runs, adapters and updates as needed. It distinguishes connecting to an existing service from deploying a new Gateway. See the [skill installation guide](docs/skills.md).
+For CLI workflows, start with the [task example](examples/task.yaml) and [CLI guide](docs/cli.md).
 
 ## Update
 
 ```sh
-wakeit update --check
 wakeit update
 ```
 
-Update checks select public `cli-v*` GitHub Releases and require no GitHub sign-in. Regular updates exclude prereleases and compare release versions; a different commit with the same version does not trigger an update. After verification, the CLI replaces only `wakeit`, preserving data and configuration. Restart the Runner separately. Update Gateway through its deployment script, Compose or source build; `wakeit update` does not update it.
+Restart the Runner after updating. Gateway/WebUI and CLI/Runner are released independently; update your Gateway using its [deployment method](docs/operations.md).
 
 ## Documentation
 
-| Goal | Guide |
+| Topic | Guide |
 |---|---|
-| Manage tasks and runs from the CLI | [CLI guide](docs/cli.md) |
-| Configure workspaces, membership and GitHub login | [Workspaces](docs/workspaces.md) |
-| Configure system startup | [Gateway services](docs/gateway-service.md) |
-| Deploy, back up, restore and upgrade | [Operations](docs/operations.md) |
-| Develop an Agent adapter | [Configuration and adapter protocol](docs/protocol.md) |
-| Call the API | [REST API](docs/api.md) |
-| Build and run tests | [Contributing](CONTRIBUTING.md) |
-| Create reusable tasks and generated DAGs | [Task templates](docs/templates.md) |
-| Review the task template design | [Task template RFC](docs/rfc-2-task-templates.md) |
-| Review independent product releases | [Release split RFC](docs/rfc-3-independent-products.md) |
+| Installation and deployment | [CLI](docs/install.md) · [Gateway](docs/operations.md) |
+| Tasks, runs and automation | [CLI](docs/cli.md) · [DAGs](docs/dag.md) · [Presets](docs/templates.md) |
+| Agents and custom adapters | [Supported Agents](docs/agents.md) · [Adapter protocol](docs/protocol.md) |
+| Teams and access | [Workspaces](docs/workspaces.md) |
+| Development and integrations | [Contributing](CONTRIBUTING.md) · [REST API](docs/api.md) |
+| Release notes | [Gateway](CHANGELOG.md) · [CLI](CHANGELOG.cli.md) |
 
-License: [Apache-2.0](LICENSE). See [third-party components](docs/third-party.md) for bundled skills and Windows service tooling.
+[Apache-2.0](LICENSE) · [Third-party components](docs/third-party.md)
