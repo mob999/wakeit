@@ -80,7 +80,7 @@ def verify(api,base,other,sql,tokens,check,ws):
         cli('connection','use','does-not-exist',success=False)
         token=ws.call(base,'/tokens','POST',{'name':'registration-fixture'},tokens['operator'])['token']
         file=root/'fixture.key';file.touch(mode=0o600);file.write_text(token)
-        p=subprocess.run([str(ROOT/'target/debug/examples/registration_probe'),base,str(file),directory],text=True,capture_output=True)
+        p=subprocess.run([str(ROOT/'target/debug/examples/registration_probe'),base,str(file),directory,workspace],text=True,capture_output=True)
         assert p.returncode==0,p.stderr
         # No service manager on PATH: registration and profiles survive the failed install.
         restricted=dict(env,PATH=str(empty))

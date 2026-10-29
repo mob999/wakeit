@@ -9,7 +9,6 @@ async fn main() -> Result<()> {
     let root = args.next().expect("root");
     let workspace: uuid::Uuid = args
         .next()
-        .or_else(|| std::env::var("WAKEIT_TEST_WORKSPACE").ok())
         .expect("workspace UUID")
         .parse()?;
     let token = std::fs::read_to_string(token_file)?;
