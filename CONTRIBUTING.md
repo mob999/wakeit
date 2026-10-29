@@ -1,6 +1,6 @@
 # 开发 Wakeit
 
-Gateway 当前版本为 0.4.1，CLI（含 Runner）为 0.1.1，两者独立发布。配置和消息协议保持 version: 1；已发布的数据库迁移基线不可改写，后续结构变更通过新增迁移交付。开发约定见 [AGENTS.md](AGENTS.md)。
+Gateway 当前版本为 0.4.2，CLI（含 Runner）为 0.1.1，两者独立发布。配置和消息协议保持 version: 1；已发布的数据库迁移基线不可改写，后续结构变更通过新增迁移交付。开发约定见 [AGENTS.md](AGENTS.md)。
 
 ## 提交流程
 
@@ -64,7 +64,7 @@ python3 scripts/integration.py --pg-bin /path/to/postgresql/bin --keep-running
 
 翻译目录与插值由前端单元测试检查。界面观察范围随改动确定：修改翻译、主题或响应式布局时查看对应状态，不对每个小改动机械遍历全部语言、主题和宽度组合。截图使用合成账号、报告和设备，不为文案位置或控件尺寸增加长期维护的测试。
 
-发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。Gateway 标签使用 `gateway-v0.4.1`，CLI 使用 `cli-v0.1.1`。手动运行选择产品；CLI 不构建 WebUI，Skill 随 CLI 发布。安装脚本各自默认版本随对应产品发布更新；CLI 更新器只读取 `cli-v*` 正式发布。历史 `v*` 标签保持不变。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
+发布产物构建使用 `.github/workflows/release.yml` 的手动运行，默认只构建并上传 Actions artifacts。只有匹配包版本的正式标签才发布 Release。Gateway 标签使用 `gateway-v0.4.2`，CLI 使用 `cli-v0.1.1`。手动运行选择产品；CLI 不构建 WebUI，Skill 随 CLI 发布。安装脚本各自默认版本随对应产品发布更新；CLI 更新器只读取 `cli-v*` 正式发布。历史 `v*` 标签保持不变。发布前同步中英文 changelog，发布正文只提取目标版本条目。已推送标签不改写；后续发布通过 Issue、feature branch 和 PR 准备。
 
 [README Crafter skill](.agents/skills/readme-crafter-skill/SKILL.md) 是维护 README 的仓库内技能；写完核对命令、配置、链接和真实发布状态。
 

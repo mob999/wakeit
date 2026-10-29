@@ -12,7 +12,7 @@ macOS / Linux GNU 可运行：
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh
 ```
 
-脚本安装独立的 `wakeit-gateway`。`--version 0.4.1` 固定 Gateway 版本；`--bin-dir` 选择目录。已有配置可传 `--config` 和 `--env-file` 应用数据库更新，`--start` 前台启动。没有配置时只安装程序。Windows 从 `gateway-v*` Release 获取原生服务端；源码构建见[仓库部署指南](https://github.com/mob999/wakeit/blob/main/docs/gateway-service.md)。
+脚本安装独立的 `wakeit-gateway`。`--version 0.4.2` 固定 Gateway 版本；`--bin-dir` 选择目录。已有配置可传 `--config` 和 `--env-file` 应用数据库更新，`--start` 前台启动。没有配置时只安装程序。Windows 从 `gateway-v*` Release 获取原生服务端；源码构建见[仓库部署指南](https://github.com/mob999/wakeit/blob/main/docs/gateway-service.md)。
 
 ## 选择部署路径
 
@@ -64,7 +64,7 @@ wakeit-gateway service --config /persistent/wakeit/gateway.yaml \
 
 不为测试而擅自重启用户机器；能实际重启的环境验证重启后就绪，其他环境只报告已验证的服务配置/启动，并注明重启未实测。给出系统服务名、数据/日志路径、停止与卸载方法。卸载只移除服务，不删数据库、身份或 Agent 凭据。
 
-默认日志保留 7 天、运行记录 90 天；升级先备份 PostgreSQL、NATS 数据和身份，再独立迁移与重启。安装使用官方 gateway-v0.4.1 Release 或源码构建，校验发布清单；不要使用 Actions 临时产物代替公开安装包。
+默认日志保留 7 天、运行记录 90 天；升级先备份 PostgreSQL、NATS 数据和身份，再独立迁移与重启。安装使用官方 gateway-v0.4.2 Release 或源码构建，校验发布清单；不要使用 Actions 临时产物代替公开安装包。
 
 ## 多工作区与 GitHub 登录
 

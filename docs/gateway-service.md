@@ -1,13 +1,13 @@
 # Gateway 系统服务
 
-Gateway 0.4.1 使用独立的 `wakeit-gateway`，不依赖 CLI 安装。CLI/Runner 0.1.1 的 `wakeit` 只负责接入和操作 Wakeit。
+Gateway 0.4.2 使用独立的 `wakeit-gateway`，不依赖 CLI 安装。CLI/Runner 0.1.1 的 `wakeit` 只负责接入和操作 Wakeit。
 
 ## 安装程序
 
 macOS / Linux GNU：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh -s -- --version 0.4.1
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh -s -- --version 0.4.2
 ```
 
 脚本显示下载、校验和安装进度，默认安装到 `~/.local/bin`，可通过 `--bin-dir` 指定目录。已有 PostgreSQL/NATS 和配置时，可传 `--config`、`--env-file` 应用数据库更新，并用 `--start` 前台启动；不传配置时只安装程序。全栈部署继续使用仓库的 Docker Compose。

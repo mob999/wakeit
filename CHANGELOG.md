@@ -1,3 +1,15 @@
+## 0.4.2
+
+### Added
+
+- View execution trends, current workload, items needing attention and upcoming tasks alongside the activity timeline.
+
+### Improved
+
+- Scan compact activity summaries with author names, open reports in a full-height reader, and return to the same timeline position. Adjust the space between activity and the overview, or switch views on narrow screens.
+- Read preset parameters in consistent name, type and default-value columns, including nested objects and lists. Notes and constraints are available in tooltips.
+- Times consistently use the 24-hour clock in both English and Chinese.
+
 ## 0.4.1
 
 - Simplified documentation and Agent setup instructions.

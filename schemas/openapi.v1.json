@@ -5789,7 +5789,7 @@
   },
   "info": {
     "title": "wakeit API",
-    "version": "0.4.1"
+    "version": "0.4.2"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -9045,6 +9045,26 @@
                             "description": "This completed Run has an actual, ready session. Fetch its Run details before displaying continuation commands.",
                             "type": "boolean"
                           },
+                          "creator": {
+                            "description": "Task creator, not the Run initiator.",
+                            "properties": {
+                              "id": {
+                                "format": "uuid",
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "username"
+                            ],
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
                           "finished_at": {
                             "format": "date-time",
                             "type": "string"
@@ -9125,6 +9145,7 @@
                           "format",
                           "has_more",
                           "truncated",
+                          "creator",
                           "continuation_available"
                         ],
                         "type": "object"
@@ -9309,6 +9330,273 @@
                     "total_runs",
                     "days",
                     "next_before"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid JSON shape"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/moments/overview": {
+      "get": {
+        "description": "Workspace overview. Historical counts use parent Runs only and completion dates in the workspace timezone. Success rate uses succeeded / (succeeded + warning + failed); failed counts include timed_out and interrupted. Attention and upcoming lists contain at most five items.",
+        "operationId": "get__moments_overview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "default": 7,
+              "maximum": 31,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "as_of": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "attention": {
+                      "items": {
+                        "oneOf": [
+                          {
+                            "properties": {
+                              "id": {
+                                "format": "uuid",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "enum": [
+                                  "unknown",
+                                  "run"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "reason": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "state": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "name",
+                              "state",
+                              "reason"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "properties": {
+                              "id": {
+                                "format": "uuid",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "const": "runner"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "run_count": {
+                                "type": "integer"
+                              },
+                              "task_count": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "id",
+                              "name",
+                              "task_count",
+                              "run_count"
+                            ],
+                            "type": "object"
+                          }
+                        ]
+                      },
+                      "maxItems": 5,
+                      "type": "array"
+                    },
+                    "attention_total": {
+                      "type": "integer"
+                    },
+                    "current": {
+                      "properties": {
+                        "queued": {
+                          "type": "integer"
+                        },
+                        "running": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "running",
+                        "queued"
+                      ],
+                      "type": "object"
+                    },
+                    "daily": {
+                      "items": {
+                        "properties": {
+                          "date": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "failed": {
+                            "type": "integer"
+                          },
+                          "succeeded": {
+                            "type": "integer"
+                          },
+                          "warning": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "succeeded",
+                          "failed",
+                          "warning"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "timezone": {
+                      "type": "string"
+                    },
+                    "upcoming": {
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "next_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "next_at"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 5,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "timezone",
+                    "as_of",
+                    "daily",
+                    "current",
+                    "attention",
+                    "attention_total",
+                    "upcoming"
                   ],
                   "type": "object"
                 }
