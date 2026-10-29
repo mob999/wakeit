@@ -54,7 +54,7 @@ export const time = (value: string | null | undefined, timezone?: string) =>
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false,
+        hourCycle: 'h23',
         ...(timezone ? { timeZone: timezone } : {}),
       })
     : '—'

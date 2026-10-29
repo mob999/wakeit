@@ -448,7 +448,7 @@ function NodeExecution({
           <span className="quiet text-muted dag-retry-time">
             {t('retry.waiting')}{' '}
             <time dateTime={current.retry_at}>
-              {new Date(current.retry_at).toLocaleTimeString(locale(), { hour12: false })}
+              {new Date(current.retry_at).toLocaleTimeString(locale(), { hourCycle: 'h23' })}
             </time>
           </span>
         )}

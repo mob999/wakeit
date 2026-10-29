@@ -19,6 +19,26 @@ def verify(api, base, other, sql, task, apply, role_tokens, runner_id, check, ws
         sql(f"INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,state,reason,source,scheduled_at,deadline,finished_at,result,started_at) SELECT workspace_id,'{id}',id,revision,runner_id,config,'{state}','actual failure reason','{source}',now(),now()+interval '1 hour',{stamp},'{literal}'::jsonb,'{at}'::timestamptz-interval '10 hours' FROM tasks WHERE id='moments-fixture'")
         return id
     try:
+        before = api('/moments/overview')
+        stamp = dt.datetime.now(dt.timezone.utc).isoformat()
+        parents = [insert(stamp, state) for state in ['succeeded','failed','timed_out','interrupted','warning','cancelled','skipped']]
+        child = insert(stamp)
+        sql(f"UPDATE runs SET parent_run_id='{parents[0]}',node_id='summary' WHERE id='{child}'")
+        overview = api('/moments/overview')
+        totals = lambda value: tuple(sum(day[key] for day in value['daily']) for key in ['succeeded','failed','warning'])
+        assert tuple(a-b for a,b in zip(totals(overview),totals(before))) == (1,3,1)
+        assert len(overview['daily']) == 7 and overview['timezone'] == settings['timezone']
+        assert len(api('/moments/overview?days=1')['daily']) == 1
+        directory = api('/moments/days')
+        recent = api('/moments?date='+directory['days'][0]['date'])['items']
+        assert len(recent) == 7 and all(row['creator']['username'] == 'admin' for row in recent)
+        for role,token in role_tokens.items():
+            assert totals(ws.call(base,'/moments/overview',token=token)) == totals(overview), role
+        expect_status(lambda:ws.call(base,'/moments/overview'),401)
+        for bound in [0,32]: expect_status(lambda:api('/moments/overview?days='+str(bound)),400)
+        sql("DELETE FROM runs WHERE task_id='moments-fixture'")
+        ids.clear()
+        check('Moments overview counts parent Runs, excludes cancellations/skips, uses creator identity and supports Viewer access')
         api('/settings','PUT',dict(settings, timezone='America/New_York',run_retention_days=3650))
         insert('2026-11-01T05:30:00Z', result='你好🙂' * 900)
         days = api('/moments/days')

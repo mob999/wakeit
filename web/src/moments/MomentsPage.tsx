@@ -1,8 +1,3 @@
-import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast } from '../components/Toast'
-import { t as tr } from '../i18n'
-import { useTranslation } from 'react-i18next'
-import { PageBreadcrumbs, PageActions } from '../components/PageHeader'
 import {
   createContext,
   useContext,
@@ -11,46 +6,47 @@ import {
   useLayoutEffect,
   useEffect,
   type ReactNode,
+  type CSSProperties,
 } from 'react'
-import { useInfiniteQuery, useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query'
-import { RefreshCw } from '../components/icons'
+import { useInfiniteQuery, useQueryClient, useIsFetching } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { ActionIcon } from '../actions/ActionIcon'
+import { ErrorToast } from '../components/Toast'
+import { PageBreadcrumbs, PageActions } from '../components/PageHeader'
+import { ChoicePicker } from '../components/ChoicePicker'
+import { PaneResizeHandle } from '../components/PaneResizeHandle'
 import { api } from '../api/client'
-import { type MomentDays, type MomentEntries } from '../api/types'
+import type { MomentDays, MomentEntries, MomentEntry } from '../api/types'
 import { IconButton, Button } from '../components/ui'
-import './moments.css'
-import { MomentCard } from './MomentCard'
+import { MomentRow } from './MomentRow'
+import { MomentReader } from './MomentReader'
+import { MomentsOverview } from './MomentsOverview'
 import { ReportVisit } from '../reports/ReportVisit'
+import './moments.css'
 
-// This state lives only for the authenticated app visit, including trips to Run details.
+type Anchor = { id: string; offset: number; position: number }
 export const VisitContext = createContext<{
-  expanded: Set<string>
-  setExpanded: (id: string, value: boolean) => void
+  selected: MomentEntry | null
+  setSelected: (entry: MomentEntry | null) => void
   scroll: { current: number }
+  origin: { current: Anchor | null }
   outputs: { current: Map<string, string> }
-  heights: { current: Map<string, number> }
+  ratio: number
+  setRatio: (ratio: number) => void
+  view: string
+  setView: (view: string) => void
 }>(null!)
 export function MomentsVisit({ children }: { children: ReactNode }) {
-  useTranslation()
-  const [expanded, setExpanded] = useState(new Set<string>())
-  const scroll = useRef(0)
-  const heights = useRef(new Map<string, number>())
+  const [selected, setSelected] = useState<MomentEntry | null>(null)
+  const [ratio, setRatio] = useState(0.65)
+  const [view, setView] = useState('feed')
+  const scroll = useRef(0),
+    origin = useRef<Anchor | null>(null)
   const outputs = useRef(new Map<string, string>())
   return (
     <ReportVisit>
       <VisitContext.Provider
-        value={{
-          expanded,
-          scroll,
-          outputs,
-          heights,
-          setExpanded: (id, value) =>
-            setExpanded((previous) => {
-              const next = new Set(previous)
-              if (value) next.add(id)
-              else next.delete(id)
-              return next
-            }),
-        }}
+        value={{ selected, setSelected, scroll, origin, outputs, ratio, setRatio, view, setView }}
       >
         {children}
       </VisitContext.Provider>
@@ -65,23 +61,21 @@ export const manual = {
   refetchOnMount: false,
   retry: false,
 } as const
+
 export function MomentsPage({ toast }: { toast: (message: string) => void }) {
-  useTranslation()
-  const client = useQueryClient()
-  const visit = useContext(VisitContext)
-  const viewport = useRef<HTMLDivElement>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const fetching = useIsFetching({ queryKey: ['moments'] })
-  const anchor = useRef<{ id: string; top: number; position: number } | null>(null)
-  useLayoutEffect(() => {
-    if (refreshing || fetching || !anchor.current || !viewport.current) return
-    const saved = anchor.current
-    const node = viewport.current.querySelector<HTMLElement>(`[data-moment-id="${saved.id}"]`)
-    if (node) viewport.current.scrollTop += node.getBoundingClientRect().top - saved.top
-    else viewport.current.scrollTop = saved.position
-    anchor.current = null
-    viewport.current.style.overflowAnchor = ''
-  }, [refreshing, fetching])
+  const { t } = useTranslation()
+  const client = useQueryClient(),
+    visit = useContext(VisitContext)
+  const viewport = useRef<HTMLDivElement>(null),
+    layout = useRef<HTMLDivElement>(null)
+  const [room, setRoom] = useState(0),
+    [refreshing, setRefreshing] = useState(false)
+  const fetching = useIsFetching({ queryKey: ['moments', 'entries'] })
+  const refreshAnchor = useRef<Anchor | null>(null)
+  const returning = useRef(false)
+  const selected = visit.selected
+  const narrow = room < 860
+  const left = Math.max(420, Math.min(room * visit.ratio, room - 324))
   const days = useInfiniteQuery({
     queryKey: ['moments', 'days'],
     queryFn: ({ pageParam }) =>
@@ -92,32 +86,94 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
   })
   const first = days.data?.pages[0]
   useLayoutEffect(() => {
+    if (!layout.current) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width) setRoom(entry.contentRect.width)
+    })
+    observer.observe(layout.current)
     if (viewport.current) viewport.current.scrollTop = visit.scroll.current
+    return () => observer.disconnect()
   }, [])
+  function saveAnchor(id?: string): Anchor {
+    const pane = viewport.current!
+    const nodes = [...pane.querySelectorAll<HTMLElement>('[data-moment-id]')]
+    const top = pane.getBoundingClientRect().top
+    const node = id
+      ? nodes.find((node) => node.dataset.momentId === id)
+      : nodes.find((node) => node.getBoundingClientRect().bottom > top)
+    return {
+      id: node?.dataset.momentId ?? '',
+      offset: node ? node.getBoundingClientRect().top - top : 0,
+      position: pane.scrollTop,
+    }
+  }
+  function restore(saved: Anchor, focus = false) {
+    const pane = viewport.current
+    if (!pane) return
+    const node = [...pane.querySelectorAll<HTMLElement>('[data-moment-id]')].find(
+      (node) => node.dataset.momentId === saved.id,
+    )
+    pane.scrollTop = saved.position
+    if (node) {
+      pane.scrollTop +=
+        node.getBoundingClientRect().top - pane.getBoundingClientRect().top - saved.offset
+      if (focus)
+        node.querySelector<HTMLButtonElement>('.moment-summary')?.focus({ preventScroll: true })
+    }
+  }
+  useLayoutEffect(() => {
+    if (!selected && returning.current) {
+      if (visit.origin.current) restore(visit.origin.current, true)
+      returning.current = false
+    }
+    if (refreshing || fetching || !refreshAnchor.current || selected) return
+    restore(refreshAnchor.current)
+    refreshAnchor.current = null
+  }, [selected, refreshing, fetching])
+  function open(entry: MomentEntry) {
+    visit.origin.current = saveAnchor(entry.id)
+    visit.setSelected(entry)
+  }
+  function close() {
+    returning.current = true
+    visit.setSelected(null)
+  }
+  useEffect(() => {
+    if (!selected) return
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        event.key !== 'Escape' ||
+        event.defaultPrevented ||
+        document.querySelector(
+          '[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]',
+        )
+      )
+        return
+      event.preventDefault()
+      close()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [selected])
   async function refresh() {
     if (refreshing) return
+    refreshAnchor.current = saveAnchor()
     setRefreshing(true)
-    if (viewport.current) viewport.current.style.overflowAnchor = 'none'
-    const position = viewport.current?.scrollTop ?? 0
-    const bounds = viewport.current?.getBoundingClientRect()
-    const visible = Array.from(
-      viewport.current?.querySelectorAll<HTMLElement>('[data-moment-id]') ?? [],
-    ).find((node) => node.getBoundingClientRect().bottom > (bounds?.top ?? 0))
-    anchor.current = {
-      id: visible?.dataset.momentId ?? '',
-      top: visible?.getBoundingClientRect().top ?? 0,
-      position,
-    }
     try {
       const result = await days.refetch()
       if (result.error) throw result.error
-      await client.refetchQueries(
-        { queryKey: ['moments', 'entries', result.data?.pages[0].timezone], type: 'all' },
-        { throwOnError: true },
-      )
-      await client.invalidateQueries({ queryKey: ['moments', 'report'], refetchType: 'active' })
-    } catch (e) {
-      toast((e as Error).message)
+      await Promise.all([
+        client.refetchQueries(
+          { queryKey: ['moments', 'entries', result.data?.pages[0].timezone], type: 'all' },
+          { throwOnError: true },
+        ),
+        client.refetchQueries(
+          { queryKey: ['moments', 'overview'], type: 'active' },
+          { throwOnError: true },
+        ),
+      ])
+    } catch (error) {
+      toast((error as Error).message)
     } finally {
       setRefreshing(false)
     }
@@ -126,85 +182,131 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
   yesterday?.setUTCDate(yesterday.getUTCDate() - 1)
   const yesterdayKey = yesterday?.toISOString().slice(0, 10)
   return (
-    <div
-      className="moments-page"
-      ref={viewport}
-      onWheel={() => {
-        anchor.current = null
-        if (viewport.current) viewport.current.style.overflowAnchor = ''
-      }}
-      onTouchStart={() => {
-        anchor.current = null
-        if (viewport.current) viewport.current.style.overflowAnchor = ''
-      }}
-      onScroll={(event) => {
-        visit.scroll.current = event.currentTarget.scrollTop
-      }}
-    >
-      <PageBreadcrumbs label={tr('Moments')} />
-      <PageActions>
-        <IconButton
-          label={tr('刷新动态')}
-          onClick={refresh}
-          loading={refreshing}
-          disabled={days.isFetching}
-        >
-          <ActionIcon name="refresh" />
-        </IconButton>
-      </PageActions>
-      {days.isPending && <p className="quiet text-muted moments-state">{tr('正在加载…')}</p>}
-      {days.error && <RequestError error={days.error} retry={() => days.refetch()} />}
-      {first?.total_runs === 0 && (
-        <p className="quiet text-muted moments-state">{tr('暂无执行结果')}</p>
+    <div className="moments-page">
+      <PageBreadcrumbs
+        label={
+          narrow && !selected ? (
+            <span className="moments-view-switch">
+              <ChoicePicker
+                label={t('moments.switchView')}
+                value={visit.view}
+                onChange={visit.setView}
+                options={[
+                  { value: 'feed', label: t('moments.latest') },
+                  { value: 'dashboard', label: t('moments.overview') },
+                ]}
+              />
+            </span>
+          ) : (
+            t('Moments')
+          )
+        }
+      />
+      {!selected && (
+        <PageActions>
+          <IconButton
+            label={t('刷新动态')}
+            onClick={refresh}
+            loading={refreshing}
+            disabled={days.isFetching}
+          >
+            <ActionIcon name="refresh" />
+          </IconButton>
+        </PageActions>
       )}
-      {first && (
-        <div className="moments-timeline">
-          {days.data?.pages
-            .flatMap((page) => page.days)
-            .map((day) => (
-              <section
-                className="moment-day"
-                key={`${first.timezone}:${day.date}`}
-                aria-label={day.date}
-              >
-                <div className="moment-date">
-                  <div className="moment-date-label">
-                    <h2>
-                      {day.date === first.today
-                        ? tr('今天')
-                        : day.date === yesterdayKey
-                          ? tr('昨天')
-                          : day.date}
-                    </h2>
-                    <span>{tr('moments.runCount', { count: day.count })}</span>
-                  </div>
-                </div>
-                <DayEntries date={day.date} timezone={first.timezone} toast={toast} />
-              </section>
-            ))}
-          {days.hasNextPage && (
-            <Button
-              className="moments-load"
-              loading={days.isFetchingNextPage}
-              onClick={() => days.fetchNextPage()}
-            >
-              {tr('加载更早')}
-            </Button>
+      <div
+        ref={layout}
+        hidden={!!selected}
+        className={`moments-layout${narrow ? ' is-narrow' : ''}`}
+        style={{ '--moments-feed-width': `${left}px` } as CSSProperties}
+      >
+        <div
+          className="moments-feed"
+          ref={viewport}
+          hidden={narrow && visit.view !== 'feed'}
+          onWheel={() => {
+            refreshAnchor.current = null
+          }}
+          onTouchStart={() => {
+            refreshAnchor.current = null
+          }}
+          onScroll={(event) => {
+            if (!selected && (!narrow || visit.view === 'feed'))
+              visit.scroll.current = event.currentTarget.scrollTop
+          }}
+        >
+          {days.isPending && <p className="quiet text-muted moments-state">{t('正在加载…')}</p>}
+          {days.error && <RequestError error={days.error} retry={() => days.refetch()} />}
+          {first?.total_runs === 0 && (
+            <p className="quiet text-muted moments-state">{t('暂无执行结果')}</p>
+          )}
+          {first && (
+            <div className="moments-timeline">
+              {days.data?.pages
+                .flatMap((page) => page.days)
+                .map((day) => (
+                  <section
+                    className="moment-day"
+                    key={`${first.timezone}:${day.date}`}
+                    aria-label={day.date}
+                  >
+                    <div className="moment-date">
+                      <div className="moment-date-label">
+                        <h2>
+                          {day.date === first.today
+                            ? t('今天')
+                            : day.date === yesterdayKey
+                              ? t('昨天')
+                              : day.date}
+                        </h2>
+                        <span>{t('moments.runCount', { count: day.count })}</span>
+                      </div>
+                    </div>
+                    <DayEntries date={day.date} timezone={first.timezone} onOpen={open} />
+                  </section>
+                ))}
+              {days.hasNextPage && (
+                <Button
+                  className="moments-load"
+                  loading={days.isFetchingNextPage}
+                  onClick={() => days.fetchNextPage()}
+                >
+                  {t('加载更早')}
+                </Button>
+              )}
+            </div>
           )}
         </div>
+        {!narrow && (
+          <PaneResizeHandle
+            label={t('moments.resizeFeed')}
+            width={left + 12}
+            min={432}
+            max={room - 312}
+            style={{ left: `${left + 8}px` }}
+            onResize={(width) => visit.setRatio((width - 12) / room)}
+            onReset={() => visit.setRatio(0.65)}
+          />
+        )}
+        <div className="moments-dashboard" hidden={narrow && visit.view !== 'dashboard'}>
+          <MomentsOverview />
+        </div>
+      </div>
+      {selected && (
+        <MomentReader key={selected.id} entry={selected} toast={toast} onClose={close} />
       )}
     </div>
   )
 }
 function RequestError({ error, retry }: { error: Error; retry: () => unknown }) {
-  useTranslation()
+  const { t } = useTranslation()
   return (
     <ErrorToast
       error={error.message}
       actions={
         <Button onClick={() => retry()}>
-          <RefreshCw size={14} />
-          {tr('重试')}
+          <ActionIcon name="refresh" />
+          {t('重试')}
         </Button>
       }
     />
@@ -213,13 +315,13 @@ function RequestError({ error, retry }: { error: Error; retry: () => unknown }) 
 function DayEntries({
   date,
   timezone,
-  toast,
+  onOpen,
 }: {
   date: string
   timezone: string
-  toast: (s: string) => void
+  onOpen: (entry: MomentEntry) => void
 }) {
-  useTranslation()
+  const { t } = useTranslation()
   const entries = useInfiniteQuery({
     queryKey: ['moments', 'entries', timezone, date],
     queryFn: ({ pageParam }) =>
@@ -232,12 +334,12 @@ function DayEntries({
   })
   return (
     <>
-      {entries.isPending && <p className="quiet text-muted moments-state">{tr('正在加载…')}</p>}
+      {entries.isPending && <p className="quiet text-muted moments-state">{t('正在加载…')}</p>}
       {entries.error && <RequestError error={entries.error} retry={() => entries.refetch()} />}
       {entries.data?.pages
         .flatMap((page) => page.items)
         .map((entry) => (
-          <MomentCard key={entry.id} entry={entry} timezone={timezone} toast={toast} />
+          <MomentRow key={entry.id} entry={entry} timezone={timezone} onOpen={onOpen} />
         ))}
       {entries.hasNextPage && (
         <Button
@@ -245,7 +347,7 @@ function DayEntries({
           loading={entries.isFetchingNextPage}
           onClick={() => entries.fetchNextPage()}
         >
-          {tr('加载更多')}
+          {t('加载更多')}
         </Button>
       )}
     </>

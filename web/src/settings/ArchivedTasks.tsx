@@ -90,7 +90,9 @@ export function ArchivedTasks() {
                     </>
                   )}
                   <span className="mono quiet text-muted">
-                    {task.archived_at ? new Date(task.archived_at).toLocaleString(locale()) : '—'}
+                    {task.archived_at
+                      ? new Date(task.archived_at).toLocaleString(locale(), { hourCycle: 'h23' })
+                      : '—'}
                   </span>
                   <IconButton
                     label={tr('恢复 {{v0}}', { v0: task.config.name })}

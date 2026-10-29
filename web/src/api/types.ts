@@ -222,6 +222,7 @@ export type MomentDays = {
   next_before: string | null
 }
 export type MomentEntry = {
+  creator: { id: string; username: string } | null
   continuation_available: boolean
   id: string
   task_id: string
@@ -253,6 +254,20 @@ export type MomentEntries = {
   date: string
   items: MomentEntry[]
   next_cursor: string | null
+}
+
+export type MomentTrendDay = { date: string; succeeded: number; failed: number; warning: number }
+export type MomentAttention =
+  | { kind: 'run' | 'unknown'; id: string; name: string; state: string; reason: string | null }
+  | { kind: 'runner'; id: string; name: string; task_count: number; run_count: number }
+export type MomentOverview = {
+  timezone: string
+  as_of: string
+  daily: MomentTrendDay[]
+  current: { running: number; queued: number }
+  attention: MomentAttention[]
+  attention_total: number
+  upcoming: { id: string; name: string; next_at: string }[]
 }
 
 export type PageResult<T> = { items: T[]; total: number; page: number; page_size: number }

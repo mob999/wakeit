@@ -191,7 +191,7 @@ export function TokenSettings() {
                   </span>
                   <span className="mono quiet text-muted">
                     {token.expires_at
-                      ? new Date(token.expires_at).toLocaleString(locale())
+                      ? new Date(token.expires_at).toLocaleString(locale(), { hourCycle: 'h23' })
                       : tr('不过期')}
                   </span>
                   <IconButton

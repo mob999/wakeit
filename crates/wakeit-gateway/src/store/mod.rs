@@ -3,6 +3,7 @@ pub(crate) mod dag_recovery;
 pub(crate) mod dag_retry;
 pub(crate) mod demo;
 pub(crate) mod events;
+pub(crate) mod moments;
 pub(crate) mod outbox;
 pub(crate) mod runners;
 pub(crate) mod runs;

@@ -16,6 +16,26 @@
   @apply min-w-0;
   align-items: start;
 }
+.report-reader.is-filled {
+  --report-rail-height: calc(var(--report-viewport-height) - var(--report-sticky-top));
+  @apply min-h-full;
+}
+.report-reader.is-filled .report-grid {
+  min-height: var(--report-viewport-height);
+}
+.report-reader.is-filled .report-tools {
+  @apply sticky top-0 z-3 bg-canvas h-8 min-h-8 py-0;
+}
+@container (min-width:740px) {
+  .report-reader.is-filled .result-references {
+    height: var(--report-rail-height);
+  }
+}
+@container (min-width:1080px) {
+  .report-reader.is-filled .report-grid > .report-navigation {
+    height: var(--report-rail-height);
+  }
+}
 .report-grid > .resize-handle {
   @apply hidden z-2;
 }

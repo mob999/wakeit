@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { reportIndex, referenceIdentity } from '../../src/moments/reportModel.ts'
 import { ReportReadingStore } from '../../src/reports/readingState.ts'
 import { defaultReportWidths } from '../../src/reports/layout.ts'
-import { momentCollapseAnchor } from '../../src/moments/collapsePosition.ts'
 
 test('report width preferences are shared within a workspace visit and isolated across workspaces', () => {
   const store = new ReportReadingStore()
@@ -11,40 +10,6 @@ test('report width preferences are shared within a workspace visit and isolated 
   assert.deepEqual(store.getLayout('a'), { navigation: 320, references: 420 })
   assert.deepEqual(store.getLayout('b'), defaultReportWidths)
   assert.deepEqual(new ReportReadingStore().getLayout('a'), defaultReportWidths)
-})
-test('collapsing returns to the original card until the leading reading edge reaches another moment', () => {
-  const positions = [
-    { id: 'a', top: -500, bottom: 800 },
-    { id: 'b', top: 800, bottom: 1100 },
-  ]
-  assert.deepEqual(momentCollapseAnchor('a', positions, 0, 120, 44), { id: 'a', top: 120 })
-  assert.deepEqual(momentCollapseAnchor('a', positions, 0, -80, 44), { id: 'a', top: 0 })
-  assert.deepEqual(
-    momentCollapseAnchor(
-      'a',
-      [
-        { id: 'a', top: -1300, bottom: 12 },
-        { id: 'b', top: 12, bottom: 800 },
-      ],
-      0,
-      120,
-      44,
-    ),
-    { id: 'b', top: 12 },
-  )
-  assert.deepEqual(
-    momentCollapseAnchor(
-      'a',
-      [
-        { id: 'a', top: -1300, bottom: -500 },
-        { id: 'b', top: -500, bottom: 800 },
-      ],
-      0,
-      120,
-      44,
-    ),
-    { id: 'b', top: -500 },
-  )
 })
 
 const local = (href: string, cwd?: string) => referenceIdentity(href, true, cwd)

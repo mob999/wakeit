@@ -120,6 +120,7 @@ pub fn router(app: App) -> Router {
         .route("/tasks/{id}/restore", post(tasks::restore_task))
         .route("/schedule/preview", post(settings::preview))
         .route("/moments/days", get(crate::api::moments::days))
+        .route("/moments/overview", get(crate::api::moments::overview))
         .route("/moments", get(crate::api::moments::entries))
         .route("/runs", get(runs::runs))
         .route("/runs/{id}", get(runs::run))
