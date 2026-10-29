@@ -17,3 +17,11 @@ Keep README.md in English and README-zh.md in Chinese with reciprocal language l
 - Keep meaningful behavior tests and protections for data, credentials, permissions, migrations and execution identity. Tie backups to actual data replacement; do not add process steps or defensive code for hypothetical risks.
 - Push development work and let CI run asynchronously while continuing useful work. Wait for required CI on the current commit when merging or releasing; do not reproduce the CI suite locally while waiting.
 - Keep updates concise and about outcomes, concrete blockers or decisions. Avoid step-by-step CI narration and repeated requests for already-authorized work.
+
+## Source organization
+
+- Gateway: `api/` owns HTTP handlers, `auth/` owns identity and permissions, `store/` owns persistence and background state changes, and `transport/` owns NATS communication. Shared application state lives in `state.rs`; background work must not depend on HTTP handlers.
+- CLI: `commands/` owns command parsing and dispatch, `runner/` owns device execution, and `adapters/` owns native Agent integration. Keep `main.rs` as the entry point.
+- Core: share task/Agent configuration and protocol types. Gateway and Runner startup configuration belongs to its product; native executable resolution belongs to CLI adapters.
+- WebUI: `app/` owns application/router setup, `api/` owns HTTP and DTOs, `components/` owns shared UI, and business pages stay in their existing feature directories. Keep page modules independent of the router singleton.
+- Group by responsibility with shallow directories. Do not introduce forwarding modules, blanket re-exports, or service wrappers solely to organize files.

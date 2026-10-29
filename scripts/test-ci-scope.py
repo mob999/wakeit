@@ -18,7 +18,7 @@ class ScopeChecks(unittest.TestCase):
         self.assertEqual(self.selected('docs/operations.md', 'CHANGELOG.md'), {'docs'})
 
     def test_backend_shared_contracts_and_installation_keep_their_coverage(self):
-        self.assertEqual(self.selected('crates/wakeit-cli/src/runner.rs'), {'cli', 'integration', 'web'})
+        self.assertEqual(self.selected('crates/wakeit-cli/src/runner/mod.rs'), {'cli', 'integration', 'web'})
         self.assertEqual(self.selected('scripts/integration.py'), {'integration', 'web'})
         self.assertEqual(self.selected('schemas/task.v1.json'),
                          {'frontend', 'cli', 'gateway', 'core', 'integration', 'web', 'docs', 'packaging'})
@@ -30,7 +30,7 @@ class ScopeChecks(unittest.TestCase):
         self.assertEqual(self.selected('skills/wakeit/SKILL.md'), {'docs', 'packaging'})
         self.assertEqual(self.selected('skills/wakeit/assets/gateway.yaml'),
                          {'cli', 'gateway', 'core', 'integration', 'web', 'docs', 'packaging'})
-        self.assertEqual(self.selected('web/src/main.tsx', 'crates/wakeit-gateway/src/api.rs'),
+        self.assertEqual(self.selected('web/src/main.tsx', 'crates/wakeit-gateway/src/api/tasks.rs'),
                          {'frontend', 'gateway', 'integration', 'web'})
 
     def test_package_tests_do_not_start_service_integration(self):
