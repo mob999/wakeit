@@ -1,12 +1,11 @@
-import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { time } from '../i18n'
+import { time, t, parameterLabel } from '../i18n'
 import { type Runner } from '../api/types'
-import { t, parameterLabel } from '../i18n'
 import { Monitor } from '../components/icons'
 import { AgentLogo } from '../components/AgentLogo'
 import { ActionIcon } from '../actions/ActionIcon'
-import { TooltipTarget } from '../components/ui'
+import { Button, TooltipTarget } from '../components/ui'
 import type { Binding, InputSchema, Json, TemplateRecord } from './types'
 import '../tasks/overview.css'
 import './preset-overview.css'
@@ -57,23 +56,25 @@ export function PresetOverview({ record, runners }: { record: TemplateRecord; ru
           <h3 className="task-overview-heading">{t('taskTemplate.inputs')}</h3>
           <div className="preset-overview-sections">
             {inputs.length ? (
-              inputs.map(([name, schema]) => (
-                <section className="preset-overview-parameter content-card" key={name}>
-                  <div className="preset-overview-parameter-head">
-                    <SchemaLabel
-                      name={name}
-                      schema={schema}
-                      required={definition.inputs.required?.includes(name)}
-                    />
-                    <span className="quiet text-muted preset-overview-type">
-                      {typeLabel(schema)}
-                    </span>
-                  </div>
-                  <div className="preset-overview-parameter-body">
-                    <SchemaValue schema={schema} />
-                  </div>
-                </section>
-              ))
+              <div
+                className="preset-overview-table"
+                role="table"
+                aria-label={t('taskTemplate.inputs')}
+              >
+                <div className="preset-overview-row preset-overview-table-head" role="row">
+                  <span role="columnheader">{t('preset.parameter')}</span>
+                  <span role="columnheader">{t('类型')}</span>
+                  <span role="columnheader">{t('creation.default')}</span>
+                </div>
+                {inputs.map(([name, schema]) => (
+                  <SchemaField
+                    key={name}
+                    name={name}
+                    schema={schema}
+                    required={definition.inputs.required?.includes(name)}
+                  />
+                ))}
+              </div>
             ) : (
               <p className="quiet text-muted preset-overview-empty">{t('preset.noInputs')}</p>
             )}
@@ -84,7 +85,7 @@ export function PresetOverview({ record, runners }: { record: TemplateRecord; ru
           {bindings.length ? (
             bindings.map(([name, binding]) => (
               <section className="preset-overview-environment" key={name}>
-                <h4 className="task-overview-heading">{binding.title || name}</h4>
+                <h4>{binding.title || name}</h4>
                 <Environment defaults={binding.defaults ?? {}} runners={runners} />
               </section>
             ))
@@ -108,6 +109,12 @@ function SchemaLabel({
 }) {
   const constraints = [
     schema.description,
+    schema.format === 'directory'
+      ? t('preset.formatDirectory')
+      : schema.format === 'repository-url'
+        ? t('preset.formatRepository')
+        : '',
+
     schema.minimum != null || schema.maximum != null
       ? t('creation.range', { min: schema.minimum ?? '−∞', max: schema.maximum ?? '∞' })
       : '',
@@ -117,6 +124,7 @@ function SchemaLabel({
     schema.minLength != null || schema.maxLength != null
       ? t('creation.textRange', { min: schema.minLength ?? 0, max: schema.maxLength ?? '∞' })
       : '',
+    schema.enum?.length ? `${t('可选值')}: ${schema.enum.map(formatValue).join(', ')}` : '',
   ]
     .filter(Boolean)
     .join('\n')
@@ -137,106 +145,161 @@ function SchemaLabel({
   )
 }
 
-function SchemaValue({
+function schemaKind(schema: InputSchema) {
+  return (Array.isArray(schema.type) ? schema.type : [schema.type]).find((type) => type !== 'null')
+}
+
+function SchemaField({
+  name,
   schema,
+  required,
   value,
-  nested = false,
 }: {
+  name: string
   schema: InputSchema
+  required?: boolean
   value?: Json
-  nested?: boolean
 }) {
   const current = value === undefined ? schema.default : value
-  const kind = (Array.isArray(schema.type) ? schema.type : [schema.type]).find(
-    (type) => type !== 'null',
+  return (
+    <div className="preset-overview-field" role="rowgroup">
+      <div className="preset-overview-row" role="row">
+        <div className="preset-overview-name" role="rowheader">
+          <SchemaLabel name={name} schema={schema} required={required} />
+        </div>
+        <span className="preset-overview-type" role="cell">
+          {typeLabel(schema)}
+        </span>
+        <div className="preset-overview-default" role="cell">
+          <SchemaValue schema={schema} value={current} />
+        </div>
+      </div>
+      <SchemaChildren schema={schema} value={current} />
+    </div>
   )
-  const properties = Object.entries(schema.properties ?? {})
-  let content: ReactNode
-  if (kind === 'object' && properties.length) {
-    const object = current && typeof current === 'object' && !Array.isArray(current) ? current : {}
-    content = (
-      <>
-        {current === null && <DefaultValue value={null} inline={nested} />}
-        <dl className="task-overview-properties preset-overview-fields">
-          {properties.map(([name, child]) => (
-            <Fragment key={name}>
-              <dt>
-                <SchemaLabel
-                  name={name}
-                  schema={child}
-                  required={schema.required?.includes(name)}
-                />
-                <small className="quiet text-muted preset-overview-type">{typeLabel(child)}</small>
-              </dt>
-              <dd>
-                <SchemaValue
-                  schema={child}
-                  value={
-                    Object.prototype.hasOwnProperty.call(object, name) ? object[name] : undefined
-                  }
-                  nested
-                />
-              </dd>
-            </Fragment>
-          ))}
-        </dl>
-      </>
+}
+
+function SchemaChildren({ schema, value }: { schema: InputSchema; value?: Json }) {
+  const kind = schemaKind(schema)
+  if (kind === 'object' && Object.keys(schema.properties ?? {}).length) {
+    const object = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+    return (
+      <div className="preset-overview-item" role="rowgroup">
+        {Object.entries(schema.properties!).map(([name, child]) => (
+          <SchemaField
+            key={name}
+            name={name}
+            schema={child}
+            required={schema.required?.includes(name)}
+            value={Object.prototype.hasOwnProperty.call(object, name) ? object[name] : undefined}
+          />
+        ))}
+      </div>
     )
-  } else if (kind === 'array' && schema.items) {
-    const values = Array.isArray(current) ? current : []
-    content = (
+  }
+  if (
+    kind === 'array' &&
+    schema.items &&
+    ['object', 'array'].includes(schemaKind(schema.items) ?? '')
+  ) {
+    const items = Array.isArray(value) && value.length ? value : [undefined]
+    return (
       <div className="preset-overview-items">
-        {values.length ? (
-          values.map((item, index) => (
-            <div className="preset-overview-item" key={index}>
-              <SchemaValue schema={schema.items!} value={item} nested />
-            </div>
-          ))
-        ) : (
-          <>
-            <DefaultValue value={current} inline={nested} />
-            {(schema.items.properties || schema.items.items) && (
-              <div className="preset-overview-item-schema">
-                <SchemaValue schema={schema.items} nested />
+        {items.map((item, index) =>
+          schemaKind(schema.items!) === 'object' &&
+          Object.keys(schema.items!.properties ?? {}).length > 0 &&
+          item !== null ? (
+            <SchemaChildren key={index} schema={schema.items!} value={item} />
+          ) : (
+            <div className="preset-overview-item" role="rowgroup" key={index}>
+              <div className="preset-overview-row" role="row">
+                <span role="cell" />
+                <span className="preset-overview-type" role="cell">
+                  {typeLabel(schema.items!)}
+                </span>
+                <div className="preset-overview-default" role="cell">
+                  <SchemaValue schema={schema.items!} value={item} />
+                </div>
               </div>
-            )}
-          </>
+              <SchemaChildren schema={schema.items!} value={item} />
+            </div>
+          ),
         )}
       </div>
     )
-  } else {
-    content = <DefaultValue value={current} inline={nested} />
+  }
+  return null
+}
+
+function SchemaValue({ schema, value }: { schema: InputSchema; value?: Json }) {
+  const kind = schemaKind(schema)
+  if (value !== null && typeof value === 'object') {
+    if (Array.isArray(value)) {
+      if (!value.length) return <span className="quiet text-muted">{t('preset.emptyList')}</span>
+      if (schema.items && ['object', 'array'].includes(schemaKind(schema.items) ?? '')) return null
+      return (
+        <div className="preset-overview-list">
+          {value.map((item, index) => (
+            <DefaultValue key={index} value={item} />
+          ))}
+        </div>
+      )
+    }
+    if (
+      kind === 'object' &&
+      Object.keys(schema.properties ?? {}).length &&
+      Object.keys(value).length
+    )
+      return null
+    if (!Object.keys(value).length)
+      return <span className="quiet text-muted">{t('preset.emptyObject')}</span>
   }
   return (
-    <>
-      {content}
-      {!!schema.enum?.length && (
-        <dl className="task-overview-properties preset-overview-fields preset-overview-options">
-          <dt>{t('可选值')}</dt>
-          <dd>
-            <span className="preset-overview-value">{schema.enum.map(formatValue).join(', ')}</span>
-          </dd>
-        </dl>
-      )}
-    </>
+    <DefaultValue
+      value={value}
+      multiline={
+        schema.format === 'multiline' || (typeof value === 'string' && value.includes('\n'))
+      }
+    />
   )
 }
 
-function DefaultValue({ value, inline = false }: { value?: Json; inline?: boolean }) {
-  const content = (
-    <span className={value === undefined ? 'quiet text-muted' : 'preset-overview-value'}>
-      {value === undefined ? '—' : formatValue(value)}
-    </span>
+function DefaultValue({ value, multiline = false }: { value?: Json; multiline?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const text = value === undefined ? t('creation.notSet') : formatValue(value)
+  const empty = value === undefined || value === null || value === ''
+  if (
+    multiline &&
+    typeof value === 'string' &&
+    (value.length > 180 || value.split('\n').length > 3)
   )
-  if (inline) return content
+    return (
+      <div>
+        <span
+          className={`preset-overview-value preset-overview-long-value${expanded ? ' is-expanded' : ''}`}
+        >
+          {text}
+        </span>
+        <Button
+          className="preset-overview-expand"
+          aria-expanded={expanded}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {t(expanded ? '收起' : '展开')}
+        </Button>
+      </div>
+    )
   return (
-    <dl className="task-overview-properties preset-overview-fields preset-overview-default">
-      <dt>{t('creation.default')}</dt>
-      <dd>{content}</dd>
-    </dl>
+    <TooltipTarget label={text}>
+      <span
+        className={`preset-overview-value ${multiline ? 'preset-overview-long-value is-expanded' : 'preset-overview-single-value'}${empty ? ' quiet text-muted' : ''}`}
+        tabIndex={0}
+      >
+        {text}
+      </span>
+    </TooltipTarget>
   )
 }
-
 function Environment({ defaults, runners }: { defaults: Binding; runners: Runner[] }) {
   const runner = runners.find(
     (item) => item.id === defaults.runner || item.name === defaults.runner,
@@ -288,7 +351,7 @@ function Environment({ defaults, runners }: { defaults: Binding; runners: Runner
 function typeLabel(schema: InputSchema): string {
   const names: Record<string, string> = {
     string: t('creation.typeText'),
-    boolean: t('creation.typeBoolean'),
+    boolean: t('preset.typeBoolean'),
     integer: t('creation.typeInteger'),
     number: t('creation.typeNumber'),
     array: t('creation.typeList'),
@@ -306,5 +369,5 @@ function typeLabel(schema: InputSchema): string {
 function formatValue(value: Json): string {
   if (typeof value === 'boolean') return t(value ? 'creation.yes' : 'creation.no')
   if (value === null) return t('creation.nullValue')
-  return typeof value === 'string' ? value || '""' : JSON.stringify(value)
+  return typeof value === 'string' ? value || t('preset.emptyText') : JSON.stringify(value)
 }
