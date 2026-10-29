@@ -1,7 +1,7 @@
 use crate::config::{AgentConfig, CommandSpec};
-use anyhow::Result;
 #[cfg(windows)]
-use anyhow::{Context, ensure};
+use anyhow::Context;
+use anyhow::Result;
 
 /// Convert npm's Windows batch launchers into explicit Node entry points.
 /// This is generic package-bin discovery, not an agent-specific execution path.

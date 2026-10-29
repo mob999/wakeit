@@ -1,6 +1,10 @@
 use crate::connection as c;
-use anyhow::{Context, Result, bail, ensure};
-use std::path::{Path, PathBuf};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use anyhow::Context;
+use anyhow::{Result, bail, ensure};
+use std::path::Path;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::path::PathBuf;
 
 pub fn render(config: &Path, platform: &str) -> Result<String> {
     let config = config.canonicalize()?;
