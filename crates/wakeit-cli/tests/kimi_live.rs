@@ -4,7 +4,7 @@ use tokio::{
     process::Command,
 };
 use wakeit::{
-    kimi_live::LiveNormalizer,
+    adapters::kimi_server::LiveNormalizer,
     trace::{RECORD_LIMIT, RecordData, StreamRecord, TraceState},
 };
 fn event(kind: &str, p: Value) -> Value {

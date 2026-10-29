@@ -187,9 +187,9 @@ pub async fn serve(
                 );
                 match request.action.as_str() {
                     "read_result_file" => {
-                        let image: crate::image_preview::Request = serde_json::from_value(request.payload.clone())?;
+                        let image: crate::runner::image_preview::Request = serde_json::from_value(request.payload.clone())?;
                         let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
-                        let image_permit = if matches!(image.image, Some(crate::image_preview::Mode::Thumbnail)) {
+                        let image_permit = if matches!(image.image, Some(crate::runner::image_preview::Mode::Thumbnail)) {
                             Some(tokio::select! {
                                 _ = stop.cancelled() => anyhow::bail!("Runner is stopping"),
                                 permit = tokio::time::timeout_at(deadline, image_permits.acquire_owned()) => permit.context("file preview timed out")??,
@@ -198,10 +198,10 @@ pub async fn serve(
                         let roots=config.allowed_roots.clone();
                         let href=request.payload["href"].as_str().context("file link is required")?.to_owned();
                         let cwd=request.payload["cwd"].as_str().map(str::to_owned);
-                        let limit=(client.server_info().max_payload / 2).min(crate::result_files::MAX_BYTES);
+                        let limit=(client.server_info().max_payload / 2).min(crate::runner::result_files::MAX_BYTES);
                         tokio::select! {
                             _ = stop.cancelled() => anyhow::bail!("Runner is stopping"),
-                            value = tokio::time::timeout_at(deadline,tokio::task::spawn_blocking(move || { let _held=(_permit, image_permit); crate::image_preview::read(&roots,&href,cwd.as_deref(),limit,image) })) => value.context("file preview timed out")??,
+                            value = tokio::time::timeout_at(deadline,tokio::task::spawn_blocking(move || { let _held=(_permit, image_permit); crate::runner::image_preview::read(&roots,&href,cwd.as_deref(),limit,image) })) => value.context("file preview timed out")??,
                         }
                     }
                     "list_directories" => {
@@ -217,7 +217,7 @@ pub async fn serve(
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
                         process::validate_cwd(cwd,&config.allowed_roots)?;
                         let agent=agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
-                        crate::session_catalog::query(agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
+                        crate::adapters::catalog::query(agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
                     }
                     "inspect_session" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
@@ -225,7 +225,7 @@ pub async fn serve(
                         let agent = agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
                         let id=request.payload["id"].as_str().context("session ID is required")?;
                         let task:TaskConfig=serde_json::from_value(json!({"version":1,"id":"session-query","name":"session query","runner":config.name,"agent":agent.id,"cwd":cwd,"prompt":"","schedule":null}))?;
-                        Ok(serde_json::to_value(crate::sessions::inspect(agent,&task,Uuid::new_v4(),id).await?)?)
+                        Ok(serde_json::to_value(crate::runner::sessions::inspect(agent,&task,Uuid::new_v4(),id).await?)?)
                     }
                     "list_models" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;

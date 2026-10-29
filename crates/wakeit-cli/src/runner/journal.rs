@@ -31,7 +31,7 @@ pub struct LocalRun {
     pub phase: String,
     pub job: Option<String>,
     pub started: DateTime<Utc>,
-    pub session: Option<crate::sessions::RunSession>,
+    pub session: Option<crate::runner::sessions::RunSession>,
     pub session_title: Option<String>,
 }
 impl Journal {
@@ -117,18 +117,22 @@ impl Journal {
         })
         .transpose()
     }
-    pub async fn session(&self, id: Uuid) -> Result<Option<crate::sessions::RunSession>> {
+    pub async fn session(&self, id: Uuid) -> Result<Option<crate::runner::sessions::RunSession>> {
         Ok(self.get(id).await?.and_then(|r| r.session))
     }
     /// Session metadata and its reliable event are committed together, outside content budgets.
-    pub async fn record_session(&self, id: Uuid, info: crate::sessions::SessionInfo) -> Result<()> {
-        crate::sessions::validate_id(&info.id)?;
+    pub async fn record_session(
+        &self,
+        id: Uuid,
+        info: crate::runner::sessions::SessionInfo,
+    ) -> Result<()> {
+        crate::runner::sessions::validate_id(&info.id)?;
         let mut locks = self.session_locks.lock().await;
         let run = self
             .get(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("run is missing"))?;
-        let mut value = crate::sessions::RunSession {
+        let mut value = crate::runner::sessions::RunSession {
             id: info.id.clone(),
             runner_id: self.runner,
             agent: run.agent.id.clone(),
@@ -172,11 +176,12 @@ impl Journal {
             && value.reason.is_none()
             && !locks.contains_key(&id)
         {
-            match crate::sessions::lock_for(&self.dir, self.runner, &value.agent, &value.id) {
+            match crate::runner::sessions::lock_for(&self.dir, self.runner, &value.agent, &value.id)
+            {
                 Ok(guard) => {
                     locks.insert(id, guard);
                 }
-                Err(error) if error.is::<crate::sessions::SessionBusy>() => {
+                Err(error) if error.is::<crate::runner::sessions::SessionBusy>() => {
                     value.ready = false;
                     value.reason = Some("会话正在使用".into());
                 }
@@ -185,7 +190,11 @@ impl Journal {
         }
         self.save_session(id, value).await
     }
-    pub async fn save_session(&self, id: Uuid, session: crate::sessions::RunSession) -> Result<()> {
+    pub async fn save_session(
+        &self,
+        id: Uuid,
+        session: crate::runner::sessions::RunSession,
+    ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         let row =
             sqlx::query("UPDATE local_runs SET session=?,seq=seq+1 WHERE id=? RETURNING seq,claim")

@@ -106,7 +106,7 @@ impl Server {
             args: native[1..].iter().cloned().map(Into::into).collect(),
             ..Default::default()
         };
-        crate::config::normalize_native_command(&mut spec)?;
+        crate::adapters::launch::normalize_native_command(&mut spec)?;
         let mut command = Command::new(&spec.command);
         for arg in spec.args {
             if let crate::config::CommandArg::Literal(arg) = arg {
@@ -141,7 +141,7 @@ impl Server {
             token: String::new(),
         };
         let pid = server.child.id().context("Kimi process ID missing")?;
-        let home = crate::kimi_adapter::kimi_home()?;
+        let home = crate::adapters::kimi::kimi_home()?;
         let ready = tokio::time::timeout(Duration::from_secs(25), async {
             loop {
                 ensure!(
@@ -258,7 +258,7 @@ pub async fn run(
 ) -> Result<i32> {
     let cwd = std::fs::canonicalize(std::env::current_dir()?)?;
     if let Some(id) = session {
-        crate::native_sessions::inspect("kimi-code", id, &cwd).await?;
+        crate::adapters::sessions::inspect("kimi-code", id, &cwd).await?;
     }
     let mut prompt = Vec::new();
     tokio::io::stdin()
@@ -282,14 +282,14 @@ pub async fn run(
             if let Some(title) = title.filter(|v| !v.is_empty()) { body["title"] = json!(title); }
             server.api("POST", "/sessions", Some(body)).await?
         };
-        let id = info["id"].as_str().context("Kimi session ID missing")?.to_owned(); crate::sessions::validate_id(&id)?;
+        let id = info["id"].as_str().context("Kimi session ID missing")?.to_owned(); crate::runner::sessions::validate_id(&id)?;
         ensure!(session.is_none_or(|expected| expected == id), "Kimi returned a different session ID");
         let reported = info["metadata"]["cwd"].as_str().context("Kimi session directory missing")?;
         ensure!(std::fs::canonicalize(reported)? == cwd, "Kimi session directory mismatch");
         if session.is_none() && let Some(title) = title.filter(|v| !v.is_empty()) { ensure!(info["title"] == title, "Kimi did not persist the requested session title"); }
         actual_id = Some(id.clone());
         if session.is_some() { server.api("POST", &format!("/sessions/{id}/profile"), Some(json!({"agent_config":{}}))).await?; }
-        write(vec![StreamRecord::new(RecordData::Session(crate::sessions::SessionInfo { version:1,id:id.clone(),cwd:cwd.to_string_lossy().into_owned(),persisted:false,title:info["title"].as_str().filter(|v|!v.is_empty()).map(Into::into) }))]).await?;
+        write(vec![StreamRecord::new(RecordData::Session(crate::runner::sessions::SessionInfo { version:1,id:id.clone(),cwd:cwd.to_string_lossy().into_owned(),persisted:false,title:info["title"].as_str().filter(|v|!v.is_empty()).map(Into::into) }))]).await?;
         let ws_url = format!("{}/api/v1/ws", server.base.replace("http:", "ws:"));
         let (mut ws, _) = ClientBuilder::new().uri(&ws_url)?.add_header(http::header::AUTHORIZATION, format!("Bearer {}",server.token).parse()?).connect().await.context("connect Kimi event stream")?;
         ws.send(Message::text(json!({"type":"subscribe","id":"wakeit","payload":{"session_ids":[id],"agent_filter":BTreeMap::from([(id.clone(), vec!["main"])])}}).to_string())).await?;
@@ -610,7 +610,7 @@ fn tool_id(p: &Value) -> Result<String> {
 }
 
 pub async fn rename(id: &str, title: &str, cwd: &Path) -> Result<()> {
-    crate::native_sessions::inspect("kimi-code", id, cwd).await?;
+    crate::adapters::sessions::inspect("kimi-code", id, cwd).await?;
     let mut server = Server::start(&[]).await?;
     let result = async {
         let v = server
@@ -631,7 +631,7 @@ pub async fn rename(id: &str, title: &str, cwd: &Path) -> Result<()> {
     result?;
     closed?;
     ensure!(
-        crate::native_sessions::inspect("kimi-code", id, cwd).await?["title"] == title,
+        crate::adapters::sessions::inspect("kimi-code", id, cwd).await?["title"] == title,
         "Kimi saved title does not match"
     );
     Ok(())

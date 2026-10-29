@@ -393,5 +393,5 @@ impl CursorNormalizer {
 pub fn native_session_id(event: &Value) -> Option<&str> {
     event["session_id"]
         .as_str()
-        .filter(|id| crate::sessions::validate_id(id).is_ok())
+        .filter(|id| crate::runner::sessions::validate_id(id).is_ok())
 }

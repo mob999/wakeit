@@ -91,14 +91,14 @@ pub fn read(
     request: Request,
 ) -> Result<Value> {
     let Some(mode) = request.image else {
-        return crate::result_files::read(roots, href, cwd, limit);
+        return crate::runner::result_files::read(roots, href, cwd, limit);
     };
-    let limit = limit.min(crate::result_files::MAX_BYTES);
+    let limit = limit.min(crate::runner::result_files::MAX_BYTES);
     ensure!(
         limit >= 4096,
         "Runner message limit is too small for file previews"
     );
-    let (mut file, real) = crate::result_files::open(roots, href, cwd)?;
+    let (mut file, real) = crate::runner::result_files::open(roots, href, cwd)?;
     let before = file.metadata()?;
     let stamp = revision(&file, &before)?;
     let mut head = [0; 16];
@@ -112,7 +112,7 @@ pub fn read(
             matches!(mode, Mode::Thumbnail),
             "referenced file is not a supported image"
         );
-        return crate::result_files::read(roots, href, cwd, limit);
+        return crate::runner::result_files::read(roots, href, cwd, limit);
     };
     ensure!(
         before.len() <= MAX_IMAGE_BYTES,

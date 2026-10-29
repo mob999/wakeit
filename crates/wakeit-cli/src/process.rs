@@ -1,6 +1,6 @@
 use crate::{
     config::{CommandArg, CommandSpec, OutputFormat, OutputSpec, TaskConfig, duration},
-    journal::Journal,
+    runner::journal::Journal,
 };
 use anyhow::{Context, Result, ensure};
 use std::{path::Path, process::Stdio, time::Duration};

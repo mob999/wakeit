@@ -1,5 +1,5 @@
 //! Read-only native session resolution. No inspection path submits a prompt or creates a session.
-use crate::session_catalog::Entry as CatalogEntry;
+use crate::adapters::catalog::Entry as CatalogEntry;
 use anyhow::{Context, Result, bail, ensure};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -52,7 +52,7 @@ fn validate_id(protocol: &str, id: &str) -> Result<()> {
                 && id.len() > 4,
             "invalid OpenCode session ID"
         ),
-        "kimi-code" => crate::sessions::validate_id(id)?,
+        "kimi-code" => crate::runner::sessions::validate_id(id)?,
         _ => bail!("unsupported session protocol"),
     }
     Ok(())
@@ -98,7 +98,7 @@ fn normalized_command(command: &str, args: &[String]) -> Result<Command> {
         args: args.iter().cloned().map(Into::into).collect(),
         ..Default::default()
     };
-    crate::config::normalize_native_command(&mut spec)?;
+    crate::adapters::launch::normalize_native_command(&mut spec)?;
     let mut command = Command::new(spec.command);
     for arg in spec.args {
         if let crate::config::CommandArg::Literal(value) = arg {
@@ -397,7 +397,7 @@ pub async fn inspect(protocol: &str, id: &str, cwd: &Path) -> Result<Value> {
             "pi" => pi(id, &cwd).await,
             "opencode" => opencode(id, &cwd).await,
             "kimi-code" => {
-                let session = crate::kimi_adapter::session_summaries(&cwd)
+                let session = crate::adapters::kimi::session_summaries(&cwd)
                     .await?
                     .into_iter()
                     .find(|session| session.id == id)
@@ -416,7 +416,7 @@ pub async fn inspect(protocol: &str, id: &str, cwd: &Path) -> Result<Value> {
 /// Keep inspection separate from submission; failed binding never falls back to a new session.
 pub async fn resume(protocol: &str, id: &str, command: Vec<String>) -> Result<i32> {
     inspect(protocol, id, &std::env::current_dir()?).await?;
-    crate::stream_adapter::stream_checked(protocol, &command, Some(id)).await
+    crate::adapters::stream::stream_checked(protocol, &command, Some(id)).await
 }
 
 /// Name a newly created native conversation through its official metadata API.
@@ -427,7 +427,7 @@ pub async fn rename(protocol: &str, id: &str, title: &str, cwd: &Path) -> Result
             !title.trim().is_empty() && title.len() <= 200 && !title.chars().any(char::is_control),
             "invalid session title"
         );
-        return crate::kimi_live::rename(id, title, cwd).await;
+        return crate::adapters::kimi_server::rename(id, title, cwd).await;
     }
     ensure!(
         protocol == "codex",
@@ -844,7 +844,7 @@ pub async fn list(
         match protocol {
             "codex" => codex_catalog(&cwd).await,
             "opencode" => opencode_catalog(&cwd).await,
-            "kimi-code" => crate::kimi_adapter::session_summaries(&cwd)
+            "kimi-code" => crate::adapters::kimi::session_summaries(&cwd)
                 .await?
                 .into_iter()
                 .map(|session| {
@@ -872,7 +872,7 @@ pub async fn list(
         }
     }
     let scope = serde_json::to_string(&(protocol, &cwd))?;
-    Ok(serde_json::to_value(crate::session_catalog::paginate(
+    Ok(serde_json::to_value(crate::adapters::catalog::paginate(
         by_id.into_values().collect(),
         &scope,
         query,

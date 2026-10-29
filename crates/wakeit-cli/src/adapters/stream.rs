@@ -20,13 +20,13 @@ const NATIVE_RECORD_LIMIT: usize = 64 * 1024 * 1024;
 
 pub struct Normalizer {
     protocol: String,
-    agy: Option<crate::agy_adapter::Normalizer>,
-    gemini: Option<crate::gemini_adapter::GeminiNormalizer>,
-    qwen: Option<crate::qwen_cursor_adapter::QwenNormalizer>,
-    cursor: Option<crate::qwen_cursor_adapter::CursorNormalizer>,
-    cline: Option<crate::cline_adapter::ClineNormalizer>,
-    copilot: Option<crate::copilot_adapter::CopilotNormalizer>,
-    goose: Option<crate::goose_adapter::GooseNormalizer>,
+    agy: Option<crate::adapters::agy::Normalizer>,
+    gemini: Option<crate::adapters::gemini::GeminiNormalizer>,
+    qwen: Option<crate::adapters::qwen_cursor::QwenNormalizer>,
+    cursor: Option<crate::adapters::qwen_cursor::CursorNormalizer>,
+    cline: Option<crate::adapters::cline::ClineNormalizer>,
+    copilot: Option<crate::adapters::copilot::CopilotNormalizer>,
+    goose: Option<crate::adapters::goose::GooseNormalizer>,
     session_id: Option<String>,
     nodes: BTreeMap<String, TraceNode>,
     message_ids: BTreeMap<String, String>,
@@ -63,17 +63,17 @@ impl Normalizer {
         );
         Ok(Self {
             protocol: protocol.into(),
-            agy: (protocol == "agy").then(crate::agy_adapter::Normalizer::new),
+            agy: (protocol == "agy").then(crate::adapters::agy::Normalizer::new),
             gemini: (protocol == "gemini-cli")
-                .then(crate::gemini_adapter::GeminiNormalizer::default),
+                .then(crate::adapters::gemini::GeminiNormalizer::default),
             qwen: (protocol == "qwen-code")
-                .then(crate::qwen_cursor_adapter::QwenNormalizer::default),
+                .then(crate::adapters::qwen_cursor::QwenNormalizer::default),
             cursor: (protocol == "cursor")
-                .then(crate::qwen_cursor_adapter::CursorNormalizer::default),
-            cline: (protocol == "cline").then(crate::cline_adapter::ClineNormalizer::default),
+                .then(crate::adapters::qwen_cursor::CursorNormalizer::default),
+            cline: (protocol == "cline").then(crate::adapters::cline::ClineNormalizer::default),
             copilot: (protocol == "copilot")
-                .then(crate::copilot_adapter::CopilotNormalizer::default),
-            goose: (protocol == "goose").then(crate::goose_adapter::GooseNormalizer::default),
+                .then(crate::adapters::copilot::CopilotNormalizer::default),
+            goose: (protocol == "goose").then(crate::adapters::goose::GooseNormalizer::default),
             session_id: None,
             nodes: BTreeMap::new(),
             message_ids: BTreeMap::new(),
@@ -200,7 +200,7 @@ impl Normalizer {
                 self.result = None;
                 let mut records = self.diagnostic("session ID changed");
                 records.push(StreamRecord::new(RecordData::Session(
-                    crate::sessions::SessionInfo {
+                    crate::runner::sessions::SessionInfo {
                         version: 1,
                         id,
                         cwd: std::env::current_dir()
@@ -213,10 +213,10 @@ impl Normalizer {
                 )));
                 return records;
             }
-            if self.session_id.is_none() && crate::sessions::validate_id(&id).is_ok() {
+            if self.session_id.is_none() && crate::runner::sessions::validate_id(&id).is_ok() {
                 self.session_id = Some(id.clone());
                 session_records.push(StreamRecord::new(RecordData::Session(
-                    crate::sessions::SessionInfo {
+                    crate::runner::sessions::SessionInfo {
                         version: 1,
                         id,
                         cwd: std::env::current_dir()
@@ -877,9 +877,9 @@ pub fn native_session_id<'a>(protocol: &str, event: &'a Value) -> Option<&'a str
         "claude-code" => event["session_id"].as_str(),
         "pi" if event["type"] == "session" => event["id"].as_str(),
         "opencode" => event["sessionID"].as_str(),
-        "agy" => crate::agy_adapter::native_session_id(event),
+        "agy" => crate::adapters::agy::native_session_id(event),
         "gemini-cli" if event["type"] == "init" => event["session_id"].as_str(),
-        "qwen-code" | "cursor" => crate::qwen_cursor_adapter::native_session_id(event),
+        "qwen-code" | "cursor" => crate::adapters::qwen_cursor::native_session_id(event),
         _ => None,
     }
 }
@@ -898,7 +898,7 @@ pub async fn stream_checked(
         args: args[1..].iter().cloned().map(Into::into).collect(),
         ..Default::default()
     };
-    crate::config::normalize_native_command(&mut spec)?;
+    crate::adapters::launch::normalize_native_command(&mut spec)?;
     // Inherit the Runner's process group / Windows Job Object; never detach the child.
     let mut command = Command::new(&spec.command);
     #[cfg(windows)]
@@ -920,7 +920,7 @@ pub async fn stream_checked(
             .read_to_end(&mut input)
             .await?;
         ensure!(input.len() <= 1024 * 1024, "prompt exceeds 1 MiB");
-        Some(crate::agy_adapter::encode_prompt(
+        Some(crate::adapters::agy::encode_prompt(
             std::str::from_utf8(&input).context("prompt must be UTF-8")?,
         )?)
     } else {
@@ -969,7 +969,7 @@ pub async fn stream_checked(
                                 write_records(
                                     &mut writer,
                                     vec![StreamRecord::new(RecordData::Session(
-                                        crate::sessions::SessionInfo {
+                                        crate::runner::sessions::SessionInfo {
                                             version: 1,
                                             id: native_session_id(protocol, &v).unwrap().into(),
                                             cwd: std::env::current_dir()?
@@ -1024,7 +1024,7 @@ pub async fn stream_checked(
                     write_records(
                         &mut writer,
                         vec![StreamRecord::new(RecordData::Session(
-                            crate::sessions::SessionInfo {
+                            crate::runner::sessions::SessionInfo {
                                 version: 1,
                                 id: native_session_id(protocol, &v).unwrap().into(),
                                 cwd: std::env::current_dir()?.to_string_lossy().into_owned(),

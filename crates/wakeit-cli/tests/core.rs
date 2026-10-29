@@ -1,7 +1,7 @@
 use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;
-use wakeit::{config::*, journal::Journal, process, protocol::Assignment};
+use wakeit::{config::*, process, protocol::Assignment, runner::journal::Journal};
 fn task(cwd: &str) -> TaskConfig {
     TaskConfig {
         dag: None,
@@ -361,7 +361,7 @@ fn directory_boundaries() {
     std::fs::create_dir(&child).unwrap();
     assert!(process::validate_cwd(&child.to_string_lossy(), &[]).is_err());
     assert!(process::validate_cwd(&child.to_string_lossy(), &[root.path().to_owned()]).is_ok());
-    let listing = wakeit::query::list_directories(
+    let listing = wakeit::runner::queries::list_directories(
         &[root.path().to_owned()],
         Some(&root.path().to_string_lossy()),
         None,
@@ -370,7 +370,7 @@ fn directory_boundaries() {
     assert_eq!(listing["directories"][0]["name"], "中文 path");
     std::fs::remove_dir(&child).unwrap();
     assert!(
-        wakeit::query::list_directories(
+        wakeit::runner::queries::list_directories(
             &[root.path().to_owned()],
             Some(&child.to_string_lossy()),
             None

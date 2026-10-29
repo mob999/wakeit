@@ -74,7 +74,7 @@ async fn probe(executable: &str, args: &[&str]) -> Result<String> {
         args: args.iter().map(|s| (*s).into()).collect(),
         ..Default::default()
     };
-    crate::config::normalize_native_command(&mut spec)?;
+    crate::adapters::launch::normalize_native_command(&mut spec)?;
     let mut command = Command::new(spec.command);
     for arg in spec.args {
         if let crate::config::CommandArg::Literal(value) = arg {
@@ -173,7 +173,7 @@ fn spawn(executable: &str, args: &[&str]) -> Result<Child> {
         output: Default::default(),
         poll_interval: "5s".into(),
     };
-    crate::config::normalize_commands(&mut spec)?;
+    crate::adapters::launch::normalize_commands(&mut spec)?;
     let mut command = Command::new(&spec.submit.command);
     for arg in &spec.submit.args {
         if let crate::config::CommandArg::Literal(v) = arg {
@@ -223,7 +223,7 @@ pub async fn discover(id: &str) -> Result<ModelCatalog> {
 }
 async fn discover_inner(id: &str) -> Result<ModelCatalog> {
     match id {
-        "agy" => crate::agy_adapter::discover_models().await,
+        "agy" => crate::adapters::agy::discover_models().await,
         "codex" => {
             let mut child = spawn("codex", &["app-server"])?;
             let mut input = child.stdin.take().context("stdin")?;

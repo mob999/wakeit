@@ -3,11 +3,11 @@ use serde_json::{Value, json};
 use std::time::Duration;
 use uuid::Uuid;
 use wakeit::{
+    adapters::stream::Normalizer,
     config::*,
-    journal::Journal,
     process::{self, LogSink},
     protocol::Assignment,
-    stream_adapter::Normalizer,
+    runner::journal::Journal,
     trace::{Lines, RecordData, StreamRecord, TraceState},
 };
 fn task(cwd: &str) -> TaskConfig {

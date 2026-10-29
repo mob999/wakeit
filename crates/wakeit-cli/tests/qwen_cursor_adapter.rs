@@ -2,7 +2,7 @@ mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit::qwen_cursor_adapter::{CursorNormalizer, QwenNormalizer, native_session_id};
+use wakeit::adapters::qwen_cursor::{CursorNormalizer, QwenNormalizer, native_session_id};
 use wakeit::trace::{RECORD_LIMIT, RecordData, StreamRecord, TraceKind, TraceNode, TraceState};
 
 fn success(text: &str) -> Value {

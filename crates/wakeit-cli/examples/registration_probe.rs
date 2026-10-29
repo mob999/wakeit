@@ -7,10 +7,7 @@ async fn main() -> Result<()> {
     let base = args.next().expect("Gateway");
     let token_file = args.next().expect("private key file");
     let root = args.next().expect("root");
-    let workspace: uuid::Uuid = args
-        .next()
-        .expect("workspace UUID")
-        .parse()?;
+    let workspace: uuid::Uuid = args.next().expect("workspace UUID").parse()?;
     let token = std::fs::read_to_string(token_file)?;
     let client = reqwest::Client::new();
     let key = nkeys::KeyPair::new_user();

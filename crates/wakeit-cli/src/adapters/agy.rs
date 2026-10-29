@@ -232,7 +232,7 @@ pub async fn discover_models() -> Result<ModelCatalog> {
                 .collect(),
             ..Default::default()
         };
-        crate::config::normalize_native_command(&mut spec)?;
+        crate::adapters::launch::normalize_native_command(&mut spec)?;
         let mut command = Command::new(&spec.command);
         for arg in &spec.args {
             if let crate::config::CommandArg::Literal(value) = arg {
@@ -309,9 +309,12 @@ mod tests {
     #[test]
     fn documented_fixture_accumulates_deltas_preserves_tool_and_final_result() {
         let mut normalizer = Normalizer::new();
-        let events = include_str!("../tests/fixtures/agy-stream.ndjson")
-            .lines()
-            .map(|line| serde_json::from_str::<Value>(line).unwrap());
+        let events = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/agy-stream.ndjson"
+        ))
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap());
         let mut records = vec![];
         for event in events {
             assert_eq!(
@@ -435,7 +438,11 @@ mod tests {
     #[test]
     fn model_catalog_requires_real_native_envelope() {
         let catalog = parse_models(
-            serde_json::from_str(include_str!("../tests/fixtures/agy-models.json")).unwrap(),
+            serde_json::from_str(include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/agy-models.json"
+            )))
+            .unwrap(),
         )
         .unwrap();
         assert_eq!(

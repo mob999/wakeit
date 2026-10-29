@@ -547,15 +547,6 @@ pub fn setup_failure(id: Uuid, json: bool, message: &str) -> Result<i32> {
         .context("write watch error")
 }
 
-pub async fn run(
-    gateway: &str,
-    token: &str,
-    id: Uuid,
-    timeout: Option<Duration>,
-    json: bool,
-) -> Result<i32> {
-    run_with_workspace(gateway, None, token, id, timeout, json).await
-}
 pub async fn run_scoped(
     gateway: &str,
     workspace: Uuid,

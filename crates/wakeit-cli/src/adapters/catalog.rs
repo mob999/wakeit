@@ -64,7 +64,7 @@ fn page(catalog: Catalog, cwd: &Path, q: Option<&str>, cursor: Option<&str>) -> 
     let cwd = cwd.canonicalize()?;
     let mut ids = std::collections::HashSet::new();
     for entry in &catalog.sessions {
-        crate::sessions::validate_id(&entry.id)?;
+        crate::runner::sessions::validate_id(&entry.id)?;
         ensure!(ids.insert(&entry.id), "duplicate session ID");
         ensure!(
             entry.title.as_ref().is_none_or(|s| s.len() <= 4096),
