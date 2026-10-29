@@ -12,13 +12,13 @@ Define the instructions and timing, and Wakeit sends the task to a Runner on you
 - **Compose Agent DAGs.** Drag Agents onto the canvas or apply one YAML definition, connect AND dependencies and reference upstream results. Run the complete graph with selected output reports and configurable node retries with exponential backoff. See [DAG tasks](docs/dag.md).
 - **Keep the conversation going.** Bind tasks to supported native Agent sessions. Continue them in the browser terminal, copy the original command, or use `wakeit run resume <run-id>` on the Runner device. See [session continuation](docs/cli.md#绑定会话与本机续聊).
 - **Separate workspaces.** Keep tasks, runs, devices and permissions isolated across teams. See [workspace configuration and authentication](docs/workspaces.md).
-- **Host locally or in the cloud.** One Rust binary includes the Gateway, Runner and CLI; the WebUI ships with the Gateway.
+- **Host locally or in the cloud.** Deploy the Gateway with its WebUI, and install the CLI with its Runner on your devices.
 
-The latest published release is **0.3.4**, licensed under Apache-2.0. Use a CLI version that matches your Gateway. APIs and data formats may still change.
+Gateway/WebUI **0.4.0** and CLI/Runner **0.1.0** are versioned and released independently under Apache-2.0. Gateway releases use `gateway-v*` tags; CLI releases use `cli-v*`. Their version numbers do not need to match.
 
 Local PNG/JPEG/WebP references render as thumbnails in reports and Markdown-file previews through the original Runner; clicking loads the original image on demand; relative image paths use the execution or Markdown directory and existing workspace/root permissions apply.
 
-## Install
+## Install the CLI
 
 On macOS or Linux GNU:
 
@@ -26,16 +26,14 @@ On macOS or Linux GNU:
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-The installer displays progress, downloads and verifies the release, installs Wakeit and configures your user PATH. Open a new terminal and run `wakeit --version`. See the [installation guide](docs/install.md) for Windows, a specific version, a different directory, or manual installation.
+The installer displays progress, downloads and verifies CLI 0.1.0 by default, installs `wakeit` with Runner support and configures your user PATH. It does not deploy Gateway. Open a new terminal and run `wakeit --version`. See the [installation guide](docs/install.md) for Windows, a specific version, a different directory, or manual installation.
 
-To build from source, install Rust 1.89+ and Node.js 22.12+, then run:
+To build the CLI from source, install Rust 1.89+, then run:
 
 ```sh
 git clone https://github.com/mob999/wakeit.git
 cd wakeit
-npm --prefix web ci
-npm --prefix web run build
-cargo install --locked --path crates/wakeit
+cargo install --locked --path crates/wakeit-cli
 ```
 
 ## Connect to a Gateway
@@ -59,7 +57,7 @@ Workspace Admins manage memberships and invitations in Settings → Members. Ins
 
 ## Host your own Gateway
 
-For a single-host deployment, install Docker Compose v2 and run these commands from the repository root:
+Gateway is a separate `wakeit-gateway` program; `wakeit` has no Gateway deployment commands. For a full single-host deployment, install Docker Compose v2 and run these commands from the repository root:
 
 ```sh
 cp .env.example .env
@@ -68,11 +66,19 @@ docker compose build
 docker compose up -d
 export WAKEIT_PASSWORD='replace-with-a-generated-admin-password'
 docker compose run --rm -e WAKEIT_PASSWORD gateway \
-  gateway bootstrap --config /app/gateway.yaml --username admin
+  bootstrap --config /app/gateway.yaml --username admin
 unset WAKEIT_PASSWORD
 ```
 
 Open <http://localhost:8080> and sign in. Compose persists PostgreSQL, NATS data and device identities, and restarts services automatically. On Linux, enable Docker at system startup as well.
+
+To install the native Gateway program on macOS or Linux GNU:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh
+```
+
+The script installs the server program; PostgreSQL/NATS configuration and system-service setup are described in the [Gateway guide](docs/gateway-service.md).
 
 Docker Desktop starting at login on macOS or Windows does not provide startup before a user signs in. For system-level startup, use the [native Gateway service guide](docs/gateway-service.md). For remote devices, configure the Gateway's public URL and the NATS WSS endpoint; see [deployment and operations](docs/operations.md).
 
@@ -110,7 +116,7 @@ wakeit update --check
 wakeit update
 ```
 
-Update checks use public GitHub Releases and require no GitHub sign-in. Regular updates exclude prereleases and compare release versions; a different commit with the same version does not trigger an update. After verification, the CLI replaces only the binary, preserving data and configuration. It does not automatically restart running services.
+Update checks select public `cli-v*` GitHub Releases and require no GitHub sign-in. Regular updates exclude prereleases and compare release versions; a different commit with the same version does not trigger an update. After verification, the CLI replaces only `wakeit`, preserving data and configuration. Restart the Runner separately. Update Gateway through its deployment script, Compose or source build; `wakeit update` does not update it.
 
 ## Documentation
 
@@ -125,5 +131,6 @@ Update checks use public GitHub Releases and require no GitHub sign-in. Regular 
 | Build and run tests | [Contributing](CONTRIBUTING.md) |
 | Create reusable tasks and generated DAGs | [Task templates](docs/templates.md) |
 | Review the task template design | [Task template RFC](docs/rfc-2-task-templates.md) |
+| Review independent product releases | [Release split RFC](docs/rfc-3-independent-products.md) |
 
 License: [Apache-2.0](LICENSE). See [third-party components](docs/third-party.md) for bundled skills and Windows service tooling.

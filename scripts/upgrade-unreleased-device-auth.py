@@ -26,7 +26,7 @@ def main():
         if result.returncode:
             raise SystemExit('Upgrade failed; transaction rolled back. ' + result.stderr)
         return result.stdout.strip()
-    target = hashlib.sha384((ROOT/'crates/wakeit/migrations/0001_initial.sql').read_bytes()).hexdigest()
+    target = hashlib.sha384((ROOT/'crates/wakeit-gateway/migrations/0001_initial.sql').read_bytes()).hexdigest()
     rows = sql("SELECT version::text||':'||success::text||':'||encode(checksum,'hex') FROM _sqlx_migrations ORDER BY version").splitlines()
     if rows == ['1:true:'+target]:
         if sql("SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('device_grants','device_registrations','device_auth_limits')") != '3':

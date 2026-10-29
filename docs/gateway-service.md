@@ -1,9 +1,33 @@
 # Gateway 系统服务
 
+Gateway 0.4.0 使用独立的 `wakeit-gateway`，不依赖 CLI 安装。CLI/Runner 0.1.0 的 `wakeit` 只负责接入和操作 Wakeit。
+
+## 安装程序
+
+macOS / Linux GNU：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh -s -- --version 0.4.0
+```
+
+脚本显示下载、校验和安装进度，默认安装到 `~/.local/bin`，可通过 `--bin-dir` 指定目录。已有 PostgreSQL/NATS 和配置时，可传 `--config`、`--env-file` 应用数据库更新，并用 `--start` 前台启动；不传配置时只安装程序。全栈部署继续使用仓库的 Docker Compose。
+
+源码构建需要 Rust 1.89+ 和 Node.js 22.12+：
+
+```sh
+npm --prefix web ci
+npm --prefix web run build
+cargo build --locked --release -p wakeit-gateway
+```
+
+Windows 下载 `gateway-v*` Release 的 `wakeit-gateway-x86_64-pc-windows-msvc.exe`，按 `wakeit-gateway-release.json` 与 `SHA256SUMS` 核对后安装为 `wakeit-gateway.exe`。
+
+## 系统自启
+
 Gateway 自启覆盖操作系统启动后、用户未登录的场景。生成配置不会安装或启动服务；安装脚本需要对应系统管理员权限。Runner 另按 Agent 已登录的身份运行。
 
 ```sh
-wakeit gateway service --config /absolute/gateway.yaml \
+wakeit-gateway service --config /absolute/gateway.yaml \
   --env-file /absolute/gateway.env --user SERVICE_USER \
   --nats-bin /absolute/nats-server --nats-config /absolute/nats/nats.conf \
   --output /absolute/services
@@ -36,9 +60,9 @@ WAKEIT_DATABASE_URL='postgres://wakeit:URI_SAFE_PASSWORD@127.0.0.1:5432/wakeit'
 原生命令也可指定文件：
 
 ```sh
-wakeit gateway migrate --config gateway.yaml --env-file gateway.env
-wakeit gateway bootstrap --config gateway.yaml --env-file gateway.env --username admin
-wakeit gateway start --config gateway.yaml --env-file gateway.env
+wakeit-gateway migrate --config gateway.yaml --env-file gateway.env
+wakeit-gateway bootstrap --config gateway.yaml --env-file gateway.env --username admin
+wakeit-gateway start --config gateway.yaml --env-file gateway.env
 ```
 
 CLI 解析失败不会输出环境文件内容；管理员密码仍由一次性 WAKEIT_PASSWORD 环境变量提供。数据库 URL 和密码不进入生成的 service/plist/XML。

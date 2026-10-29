@@ -33,7 +33,7 @@
 
 Cline 的 `openai-native` provider 在代理上返回不支持的参数；`openai` 兼容 provider 通过。原生 3.0.72 管道输入无法可靠开始任务，因此模板改用 `--` 后的独立指令参数，仍不经过 shell。
 
-Copilot 使用原生 CLI `--output-format json`，不使用 `--silent`，也不套用 SDK/workflow 格式。默认无人值守策略拒绝工具时，过程正确显示失败；正向测试在临时调用中明确预授权 shell 后通过两秒命令。生产模板没有添加任何允许所有工具的参数，实际权限继续由用户的原生配置决定。完整事件契约见 [Copilot fixture](../crates/wakeit/tests/fixtures/copilot/README.md)。
+Copilot 使用原生 CLI `--output-format json`，不使用 `--silent`，也不套用 SDK/workflow 格式。默认无人值守策略拒绝工具时，过程正确显示失败；正向测试在临时调用中明确预授权 shell 后通过两秒命令。生产模板没有添加任何允许所有工具的参数，实际权限继续由用户的原生配置决定。完整事件契约见 [Copilot fixture](../crates/wakeit-cli/tests/fixtures/copilot/README.md)。
 
 Kimi 从聚合的 print 输出改用自有 loopback Server API 子进程，确认 WebSocket 订阅和心跳后执行；新建时原生保存标题，冷会话绑定先加载原生上下文。真实试跑确认工具在完成前出现、上下文续聊和标题持久化。Codex 与 Claude 的最终结果统一延后到原生完成及成功退出后输出一次。Antigravity 帮助输出在 stderr，检测现在兼容该行为并保留退出码校验。
 

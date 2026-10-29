@@ -2,7 +2,7 @@
 
 A Gateway can host independent workspaces. An account has a separate Admin, Operator or Viewer membership in each workspace. A workspace creator becomes its Admin; invitations grant only the selected workspace role. Instance administrators manage global accounts and do not automatically gain access to workspace data.
 
-Business requests use `/api/v1/workspaces/{workspace-id}/…`. Browser sessions identify an account; API Keys identify an account **and one fixed workspace**. A resource from another workspace returns 404. Existing unscoped business APIs return an upgrade-required response. Device execution endpoints remain compatible with enrolled 0.1.1 Runners.
+Business requests use `/api/v1/workspaces/{workspace-id}/…`. Browser sessions identify an account; API Keys identify an account **and one fixed workspace**. A resource from another workspace returns 404. Existing unscoped business APIs return an upgrade-required response. Runner uses the independently released CLI version; product version numbers do not need to match.
 
 ## Self-hosted authentication
 
@@ -16,7 +16,7 @@ auth:
 
 A valid invitation permits a new local account to register and join that workspace. Existing accounts explicitly accept an invitation. Set `allow_registration: true` to permit standalone account registration; registration does not create a workspace or grant access to Default.
 
-Before first startup, `gateway bootstrap` creates the first local account as an instance administrator and Default workspace Admin. Workspace Admins manage memberships, not other users' global passwords or accounts.
+Before first startup, `wakeit-gateway bootstrap` creates the first local account as an instance administrator and Default workspace Admin. Workspace Admins manage memberships, not other users' global passwords or accounts.
 
 ## GitHub authentication
 
@@ -40,7 +40,7 @@ When running independent Gateways on the same hostname, set a distinct `auth.ses
 First login creates only the global account. The user can then create a workspace, accept an invitation or open the demo. An operator can explicitly designate a GitHub account as instance administrator after obtaining its account UUID:
 
 ```sh
-wakeit gateway grant-instance-admin --config gateway.yaml --user-id ACCOUNT_UUID
+wakeit-gateway grant-instance-admin --config gateway.yaml --user-id ACCOUNT_UUID
 ```
 
 `demo_workspace: true` requires GitHub mode and creates synthetic, non-executable examples once. GitHub-authenticated sessions receive read-only demo access without membership rows. No device registration, task mutation, API Key issuance, directory/model/session query or continuation is allowed there. Do not seed the demo from real execution data.

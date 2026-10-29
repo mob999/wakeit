@@ -32,7 +32,7 @@ def main():
     execution=before['nodes'][0]['execution_id']
     identity=sql("SELECT md5(string_agg(id::text||token_hash||public_key,',' ORDER BY id)) FROM runners")
     old_pids=summary['processes'][3:]
-    new_binary=root/'wakeit-upgraded';shutil.copy2(repository/'target/debug/wakeit',new_binary)
+    new_binary=root/'wakeit-upgraded';shutil.copy2(repository/'target/debug/wakeit-gateway',new_binary)
     env=dict(os.environ,HOME=str(root/'home'),XDG_CONFIG_HOME=str(root/'home'),WAKEIT_DATABASE_URL=database)
     for i in [2,1]:
         pid=summary['processes'][i]
@@ -40,10 +40,10 @@ def main():
         assert str(root) in line and 'gateway start' in line
         os.kill(pid,signal.SIGTERM)
         wait(lambda:subprocess.run(['kill','-0',str(pid)],capture_output=True).returncode!=0,'old Gateway stops')
-    command([new_binary,'gateway','migrate','--config',root/'gateway.yaml'],env)
+    command([new_binary,'migrate','--config',root/'gateway.yaml'],env)
     for i,name in [(1,'gateway'),(2,'gateway-second')]:
         with open(root/(name+'.log'),'ab',buffering=0) as log:
-            process=subprocess.Popen([str(new_binary),'gateway','start','--config',str(root/(name+'.yaml'))],cwd=repository,env=env,stdout=log,stderr=log,start_new_session=True)
+            process=subprocess.Popen([str(new_binary),'start','--config',str(root/(name+'.yaml'))],cwd=repository,env=env,stdout=log,stderr=log,start_new_session=True)
         summary['processes'][i]=process.pid
     summary['gateway_binary']=str(new_binary);args.stack.write_text(json.dumps(summary,indent=2))
     final=wait(lambda:(r if (r:=api('/runs/'+id))['finished_at'] else None),'same execution finishes after upgrade',timeout=40)

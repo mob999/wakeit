@@ -1,3 +1,13 @@
+## 0.4.0
+
+### Changed
+
+- Gateway and the CLI are now installed and updated separately. Gateway keeps the existing version line; the CLI, including Runner, starts at 0.1.0.
+- Deploy the server with `wakeit-gateway`, the Gateway installation script or Docker Compose. Gateway commands are no longer part of `wakeit`; existing service commands must be updated.
+- Agent Prompt installs the CLI independently of the Gateway version.
+
+See the [Gateway deployment guide](https://github.com/mob999/wakeit/blob/gateway-v0.4.0/docs/gateway-service.md) for the new installation commands.
+
 ## 0.3.4
 
 ### Added

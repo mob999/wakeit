@@ -18,9 +18,9 @@ def main():
     try:
         url = f'postgres://{getpass.getuser()}@127.0.0.1:{pg_port}/postgres'
         for migration in ['0001_initial.sql', '0002_workspaces.sql']:
-            command([pg / 'psql', url, '-v', 'ON_ERROR_STOP=1', '-f', ROOT / 'crates/wakeit/migrations' / migration])
+            command([pg / 'psql', url, '-v', 'ON_ERROR_STOP=1', '-f', ROOT / 'crates/wakeit-gateway/migrations' / migration])
         env = dict(os.environ, WAKEIT_TEST_DATABASE_URL=url, WAKEIT_TEST_GITHUB_CLIENT_ID='fixture-client', WAKEIT_TEST_GITHUB_CLIENT_SECRET='fixture-client-secret')
-        output = command(['cargo', 'test', '-p', 'wakeit', '--lib', 'github_auth::tests::database_', '--', '--ignored', '--test-threads=1'], env)
+        output = command(['cargo', 'test', '-p', 'wakeit-gateway', '--lib', 'github_auth::tests::database_', '--', '--ignored', '--test-threads=1'], env)
         print(output)
     finally:
         subprocess.run([str(pg / 'pg_ctl'), '-D', str(root / 'pg'), 'stop', '-m', 'fast'], capture_output=True, check=True)

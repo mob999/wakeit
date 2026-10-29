@@ -19,6 +19,7 @@ from integration_sessions import configure
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BIN = ROOT / 'target/debug/wakeit'
+GATEWAY = ROOT / 'target/debug/wakeit-gateway'
 MOCK = ROOT / 'target/debug/examples/mock_agent'
 
 class WS:
@@ -89,14 +90,14 @@ def main():
         command([pg/'initdb','-D',root/'pg','-A','trust','--no-locale','-E','UTF8'])
         command([pg/'pg_ctl','-D',root/'pg','-l',root/'postgres.log','-o',f"-p {pgport} -h 127.0.0.1 -k ''",'start']);started=True
         auth=root/'nats'
-        command([BIN,'gateway','nats-init','--dir',auth,'--port',nats,'--ws-port',wsport],env)
+        command([GATEWAY,'nats-init','--dir',auth,'--port',nats,'--ws-port',wsport],env)
         spawn('nats',[shutil.which('nats-server'),'--config',auth/'nats.conf'])
         config=dict(version=1,listen=f'127.0.0.1:{http}',public_url=base,database_url_env='WAKEIT_DATABASE_URL',nats_url=f'nats://127.0.0.1:{nats}',nats_public_url=f'ws://127.0.0.1:{wsport}',nats_auth_dir=str(auth))
         cfg=root/'gateway.yaml';cfg.write_text(json.dumps(config))
         cfg2=root/'gateway-second.yaml';cfg2.write_text(json.dumps(dict(config,listen=f'127.0.0.1:{second}')))
-        command([BIN,'gateway','migrate','--config',cfg],env)
-        command([BIN,'gateway','bootstrap','--config',cfg,'--username','admin'],env)
-        g1=spawn('gateway',[BIN,'gateway','start','--config',cfg]);g2=spawn('gateway-second',[BIN,'gateway','start','--config',cfg2])
+        command([GATEWAY,'migrate','--config',cfg],env)
+        command([GATEWAY,'bootstrap','--config',cfg,'--username','admin'],env)
+        g1=spawn('gateway',[GATEWAY,'start','--config',cfg]);g2=spawn('gateway-second',[GATEWAY,'start','--config',cfg2])
         wait(lambda:call(base,'/health/ready'),'gateway')
         token=call(base,'/api/v1/session','POST',dict(username='admin',password=env['WAKEIT_PASSWORD']))['token']
         global_api=lambda p,m='GET',b=None,t=token:call(base,'/api/v1'+p,m,b,t)

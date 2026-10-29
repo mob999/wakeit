@@ -1,17 +1,25 @@
 # 更新
 
+CLI/Runner 和 Gateway 分别更新，产品版本不需要相同。当前 CLI/Runner 为 0.1.0，Gateway 为 0.4.0。
+
+## CLI 与 Runner
+
 ```sh
 wakeit --json update --check
 wakeit update
 ```
 
-GitHub 凭据与 Gateway Token 分开。依次读取 WAKEIT_GITHUB_TOKEN、GH_TOKEN、GITHUB_TOKEN 或已有 `gh auth token --hostname github.com`。公开 Release 无需 GitHub 登录；普通更新忽略预览版，首次接入使用 Gateway 元数据明确指定的官方版本。
+更新只选择 `cli-v*` 正式版本，使用 `wakeit-cli-release.json` 和校验列表验证下载，再替换当前 `wakeit`。保留连接、Runner 身份和 Agent 凭据；运行中的 Runner 需单独重启。公开发布无需 GitHub 登录。没有可用正式版本返回 no_release，已是最新返回 up_to_date。
 
-没有可用正式版本时返回 no_release，已是最新版本时返回 up_to_date。草稿、预发布和同版本提交不触发更新；只按正式 SemVer 比较。
+## Gateway
 
-先检查，用户要求更新时才执行替换。更新校验 Release manifest、当前编译目标、SHA-256 和候选二进制版本；只替换当前实际执行路径，不更新 Docker 镜像或另一个 PATH 中的副本。目录不可写则说明该安装应由所有者或包管理器更新，不自行提权。
+使用 `deploy-gateway.sh`、Compose 或源码构建更新 `wakeit-gateway`；`wakeit update` 不更新它。先停止写入服务，按需运行 `wakeit-gateway migrate`，再启动 Gateway 并确认 `/health/ready`。保留原数据库、NATS 身份与配置。
 
-运行中的 Gateway/Runner 不会自动重启。服务升级另行备份、执行独立迁移、重启并验证 ready；保留数据库、Runner journal、NATS 身份和 Agent 凭据。容器/系统包安装用对应更新方式。
+从原一体化程序切换时，服务配置必须改为独立程序路径和 `wakeit-gateway start ...`。没有 `wakeit gateway` 兼容命令，也不能用数字大小比较原产品 0.3.x 与新 CLI 0.1.x。CLI 使用安装脚本重新安装；Gateway 的版本线继续递增。
+
+## 历史升级记录
+
+以下记录保留 0.1.x–0.3.x 当时的命令，当前安装入口见上文。
 
 从 0.2.0 升级至 0.3.0 时，先备份并停止全部 Gateway 写入，再执行 `wakeit gateway migrate --config gateway.yaml`，统一升级并启动 Gateway，验证 ready 后恢复使用。新增 DAG 与布局迁移保留旧任务、历史和 Runner 身份；旧 Runner 继续接收单次执行的 version 1 消息，不需为 DAG 理解整图。不要混跑新旧 Gateway，也不要改写已发布迁移。
 

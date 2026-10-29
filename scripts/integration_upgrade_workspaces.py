@@ -9,7 +9,7 @@ import pathlib
 import shutil
 import subprocess
 import uuid
-from integration import ROOT, BIN, MOCK, call, command, expect_status, port, wait
+from integration import ROOT, GATEWAY, MOCK, call, command, expect_status, port, wait
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
     (root / 'home').mkdir()
     old, new = root / 'legacy', root / 'candidate'
     shutil.copy2(args.legacy_binary, old)
-    shutil.copy2(BIN, new)
+    shutil.copy2(GATEWAY, new)
     pg = pathlib.Path(command(['pg_config', '--bindir']).strip())
     pg_port, nats_port, ws_port, gateway_port = [port() for _ in range(4)]
     url = f'postgres://{getpass.getuser()}@127.0.0.1:{pg_port}/postgres'
@@ -101,10 +101,10 @@ def main():
         wait(lambda: legacy('/runs/' + buffered)['state'] in ['starting', 'running'], 'execution before upgrade')
         stop(gateway)
         command([pg / 'pg_dump', url, '-Fc', '-f', root / 'before-upgrade.dump'])
-        command([new, 'gateway', 'migrate', '--config', file], env)
+        command([new, 'migrate', '--config', file], env)
         assert sql("SELECT encode(checksum,'hex') FROM _sqlx_migrations WHERE version=1") == checksum
-        assert sql('SELECT count(*) FROM _sqlx_migrations WHERE success') == '2'
-        spawn('gateway-new', [new, 'gateway', 'start', '--config', file])
+        assert sql('SELECT count(*) FROM _sqlx_migrations WHERE success') == str(len(list((ROOT / 'crates/wakeit-gateway/migrations').glob('*.sql'))))
+        spawn('gateway-new', [new, 'start', '--config', file])
         wait(lambda: call(base, '/health/ready'), 'upgraded Gateway')
         identity = call(base, '/api/v1/session', token=session)
         assert identity['id'] == user and not identity['instance_admin']
@@ -128,7 +128,7 @@ def main():
         run = api('/tasks/preserved-task/runs', 'POST', {})['id']
         wait(lambda: api('/runs/' + run)['state'] == 'succeeded', 'old Runner executes new workspace assignment')
         passed('continuously running 0.1.1 Runner reconnects, replays buffered output and executes scoped assignments')
-        command([new, 'gateway', 'grant-instance-admin', '--config', file, '--user-id', user], env)
+        command([new, 'grant-instance-admin', '--config', file, '--user-id', user], env)
         assert call(base, '/api/v1/session', token=session)['instance_admin']
         assert call(base, '/api/v1/instance/users', token=session)
         passed('instance administration requires explicit designation after upgrade')

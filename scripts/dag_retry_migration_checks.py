@@ -5,7 +5,7 @@ import uuid
 
 def verify(sql, check):
     schema='retry_upgrade_'+uuid.uuid4().hex[:10]
-    migrations=Path(__file__).resolve().parents[1]/'crates/wakeit/migrations'
+    migrations=Path(__file__).resolve().parents[1]/'crates/wakeit-gateway/migrations'
     old='\n'.join(p.read_text() for p in sorted(migrations.glob('*.sql')) if p.name<'0007')
     user,runner,parent,failed,retry,other,other_failed=[str(uuid.uuid4()) for _ in range(7)]
     setup=f"""

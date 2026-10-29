@@ -1,3 +1,13 @@
+## 0.4.0
+
+### 变更
+
+- Gateway 与 CLI 现在分别安装和更新。Gateway 延续现有版本线，包含 Runner 的 CLI 从 0.1.0 开始。
+- 通过 `wakeit-gateway`、Gateway 安装脚本或 Docker Compose 部署服务。`wakeit` 不再包含 Gateway 命令，已有服务的启动命令需要更新。
+- Agent Prompt 独立安装 CLI，不再根据 Gateway 版本选择客户端版本。
+
+新安装命令见 [Gateway 部署指南](https://github.com/mob999/wakeit/blob/gateway-v0.4.0/docs/gateway-service.md)。
+
 ## 0.3.4
 
 ### 新增

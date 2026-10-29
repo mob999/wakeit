@@ -1,12 +1,22 @@
 # 部署 Gateway
 
-先查现有服务和用户目标：本机测试还是常驻服务、地址/域名、系统与账号、已有 PostgreSQL/NATS。如果是连接已有 Gateway，转 connect.md，不在当前机器创建数据库。先安装 CLI，见 connect.md。
+先查现有服务和用户目标：本机测试还是常驻服务、地址/域名、系统与账号、已有 PostgreSQL/NATS。如果是连接已有 Gateway，转 connect.md，不在当前机器创建数据库。部署不需要安装 CLI。使用独立的 Gateway 程序，或从仓库运行 Docker Compose。
 
 Gateway 自己不执行模型推理；Runner 使用独立的 Agent 已登录身份。新安装包含 Default 工作区，可继续创建独立工作区。本地只绑定回环，公开部署需要 HTTPS 和可达的 NATS WSS/TLS 地址。
 
+## 安装 Gateway
+
+macOS / Linux GNU 可运行：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh
+```
+
+脚本安装独立的 `wakeit-gateway`。`--version 0.4.0` 固定 Gateway 版本；`--bin-dir` 选择目录。已有配置可传 `--config` 和 `--env-file` 应用数据库更新，`--start` 前台启动。没有配置时只安装程序。Windows 从 `gateway-v*` Release 获取原生服务端；源码构建见[仓库部署指南](https://github.com/mob999/wakeit/blob/main/docs/gateway-service.md)。
+
 ## 选择部署路径
 
-Linux 的 Docker Compose 适合单机整套托管：有仓库访问权限时获取源码，修改 .env 中的数据库密码，执行 docker compose build、up -d，再通过 gateway bootstrap 初始化管理员。确认 Docker 的系统服务 enabled，且 PostgreSQL/NATS/Gateway 都是 restart: unless-stopped。
+Linux 的 Docker Compose 适合单机整套托管：有仓库访问权限时获取源码，修改 .env 中的数据库密码，执行 docker compose build、up -d，再通过 wakeit-gateway bootstrap 初始化管理员。确认 Docker 的系统服务 enabled，且 PostgreSQL/NATS/Gateway 都是 restart: unless-stopped。
 
 需要无人登录的三平台原生常驻服务时读取且只读取对应系统：
 
@@ -27,9 +37,9 @@ WAKEIT_DATABASE_URL='postgres://wakeit:URI_SAFE_PASSWORD@127.0.0.1:5432/wakeit'
 密码由本机生成并保存，不输出到聊天。创建专用数据库角色和库，确认数据库登录可用。先启动依赖，再初始化 Gateway：
 
 ```sh
-wakeit gateway nats-init --dir /persistent/wakeit/nats
-wakeit gateway migrate --config /persistent/wakeit/gateway.yaml --env-file /persistent/wakeit/gateway.env
-wakeit gateway bootstrap --config /persistent/wakeit/gateway.yaml \
+wakeit-gateway nats-init --dir /persistent/wakeit/nats
+wakeit-gateway migrate --config /persistent/wakeit/gateway.yaml --env-file /persistent/wakeit/gateway.env
+wakeit-gateway bootstrap --config /persistent/wakeit/gateway.yaml \
   --env-file /persistent/wakeit/gateway.env --username admin
 ```
 
@@ -38,7 +48,7 @@ bootstrap 密码取本机 WAKEIT_PASSWORD（至少 12 字节），用后清除�
 服务生成不安装、不启动，生成后根据系统指南执行安装脚本：
 
 ```sh
-wakeit gateway service --config /persistent/wakeit/gateway.yaml \
+wakeit-gateway service --config /persistent/wakeit/gateway.yaml \
   --env-file /persistent/wakeit/gateway.env --user SERVICE_USER \
   --nats-bin /absolute/path/nats-server --nats-config /persistent/wakeit/nats/nats.conf \
   --output /persistent/wakeit/services
@@ -54,7 +64,7 @@ wakeit gateway service --config /persistent/wakeit/gateway.yaml \
 
 不为测试而擅自重启用户机器；能实际重启的环境验证重启后就绪，其他环境只报告已验证的服务配置/启动，并注明重启未实测。给出系统服务名、数据/日志路径、停止与卸载方法。卸载只移除服务，不删数据库、身份或 Agent 凭据。
 
-默认日志保留 7 天、运行记录 90 天；升级先备份 PostgreSQL、NATS 数据和身份，再独立迁移与重启。安装使用官方 v0.3.4 Release 或源码构建，校验发布清单；不要使用 Actions 临时产物代替公开安装包。
+默认日志保留 7 天、运行记录 90 天；升级先备份 PostgreSQL、NATS 数据和身份，再独立迁移与重启。安装使用官方 gateway-v0.4.0 Release 或源码构建，校验发布清单；不要使用 Actions 临时产物代替公开安装包。
 
 ## 多工作区与 GitHub 登录
 

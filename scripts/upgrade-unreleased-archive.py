@@ -26,7 +26,7 @@ def main():
         if result.returncode:
             raise SystemExit('Upgrade failed; transaction rolled back. ' + result.stderr)
         return result.stdout.strip()
-    target = hashlib.sha384((ROOT/'crates/wakeit/migrations/0001_initial.sql').read_bytes()).hexdigest()
+    target = hashlib.sha384((ROOT/'crates/wakeit-gateway/migrations/0001_initial.sql').read_bytes()).hexdigest()
     rows = sql("SELECT version::text||':'||success::text||':'||encode(checksum,'hex') FROM _sqlx_migrations ORDER BY version").splitlines()
     if rows == ['1:true:'+target]:
         if sql("SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND ((table_name='tasks' AND column_name='archived_at' AND data_type='timestamp with time zone') OR (table_name='runs' AND column_name='session' AND data_type='jsonb') OR (table_name='runs' AND column_name='session_seq' AND data_type='bigint' AND is_nullable='NO'))") != '3' or sql("SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='runs_session_active'") != '1':

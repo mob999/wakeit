@@ -2,13 +2,13 @@
 
 已有明确 Gateway 地址时直接接入，不部署另一套。先请求 `/health/ready` 和 `/api/v1/meta`，地址不可达就向用户确认可访问的地址。公网要求 HTTPS，loopback 可用 HTTP。
 
-先取得目标工作区 ID，检查 `wakeit setup --help` 是否支持 `--workspace` 和实际安装版本。缺少 CLI 或接入能力时，使用 Gateway `/api/v1/meta` 中 `install.version` 指定的官方版本；macOS / Linux GNU 通过官方脚本完成安装与校验：
+先取得目标工作区 ID，检查 `wakeit setup --help` 是否支持 `--workspace` 和实际安装版本。缺少 CLI 或接入能力时，安装 CLI（当前脚本默认 0.1.0），不使用 Gateway 版本号选择 CLI；macOS / Linux GNU 通过官方脚本完成安装与校验：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version GATEWAY_VERSION
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-将 `GATEWAY_VERSION` 替换为实际版本；需要单独安装完整 Wakeit skill 时，使用同一脚本并添加 `--skill-only --skill-dir /actual/agent/skills/wakeit`。脚本显示下载与安装进度，保留不同的本地技能文件。Windows 使用[官方安装指南](https://github.com/mob999/wakeit/blob/main/docs/install.md)的原生二进制入口。若官方安装包缺少 `--workspace`，停止并报告与当前 Gateway 不兼容，不能改用无工作区命令或自行编译替代。支持 x86_64/aarch64 Linux GNU、x86_64/aarch64 macOS、x86_64 Windows。
+需要固定 CLI 版本时添加 `--version 0.1.0`；需要单独安装完整 Wakeit skill 时，使用同一脚本并添加 `--skill-only --skill-dir /actual/agent/skills/wakeit`。脚本显示下载与安装进度，保留不同的本地技能文件。Windows 使用[官方安装指南](https://github.com/mob999/wakeit/blob/main/docs/install.md)的原生二进制入口。若官方安装包缺少 `--workspace`，停止并报告与当前 Gateway 不兼容，不能改用无工作区命令或自行编译替代。支持 x86_64/aarch64 Linux GNU、x86_64/aarch64 macOS、x86_64 Windows。
 
 ```sh
 wakeit setup --gateway https://wakeit.example.com --workspace WORKSPACE_ID

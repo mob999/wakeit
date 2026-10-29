@@ -10,7 +10,7 @@ import shutil
 import signal
 import subprocess
 import time
-from integration import ROOT, BIN, call, command, wait
+from integration import ROOT, BIN, GATEWAY, call, command, wait
 
 
 def main():
@@ -70,9 +70,9 @@ def main():
         command([pg / 'pg_dump', env['WAKEIT_DATABASE_URL'], '-Fc', '-f', root / ('backup-' + str(int(time.time())) + '.dump')])
         for index in [1, 2]:
             stop(index)
-        candidate = root / 'wakeit.next'
-        shutil.copy2(BIN, candidate)
-        candidate.replace(root / 'wakeit')
+        candidate = root / 'wakeit-gateway.next'
+        shutil.copy2(GATEWAY, candidate)
+        candidate.replace(root / 'wakeit-gateway')
         if secret_file:
             for name in ['gateway.yaml', 'gateway-second.yaml']:
                 file = root / name
@@ -88,7 +88,7 @@ def main():
             spawn(0, 'nats', [shutil.which('nats-server'), '--config', root / 'nats/nats.conf'])
     for index, name in [(1, 'gateway'), (2, 'gateway-second')]:
         if args.action == 'upgrade' or not owned(summary['processes'][index]):
-            spawn(index, name, [root / 'wakeit', 'gateway', 'start', '--config', root / (name + '.yaml')])
+            spawn(index, name, [root / 'wakeit-gateway', 'start', '--config', root / (name + '.yaml')])
     for index, label in [(3, 'a'), (4, 'b')]:
         if not owned(summary['processes'][index]):
             binary = root / 'legacy-runner' if label == 'a' and (root / 'legacy-runner').exists() else root / 'wakeit'

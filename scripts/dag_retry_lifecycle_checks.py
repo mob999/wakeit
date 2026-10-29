@@ -11,7 +11,7 @@ from integration import APIError, command, expect_status, wait
 
 
 def verify(api, a, check, context):
-    sql=context['sql'];root=context['root'];binary=context['binary']
+    sql=context['sql'];root=context['root'];binary=context['gateway_binary']
     def config(name, sleep=.1):
         key=uuid.uuid4().hex
         first=dict(id='first',name='First',pre=[],runner=a['id'],agent='mock-events',cwd=a['cwd'],prompt='Retained output',parameters={},timeout='10s')
@@ -32,12 +32,12 @@ def verify(api, a, check, context):
     summary=json.loads((root/'summary.json').read_text())
     pid=summary['processes'][1]
     commandline=subprocess.check_output(['ps','-p',str(pid),'-o','command='],text=True)
-    assert str(root) in commandline and 'gateway start' in commandline
+    assert str(root) in commandline and 'wakeit-gateway start' in commandline
     os.kill(pid,signal.SIGTERM)
     wait(lambda:subprocess.run(['kill','-0',str(pid)],capture_output=True).returncode!=0,'test Gateway stops')
     env=dict(os.environ,HOME=str(root/'home'),XDG_CONFIG_HOME=str(root/'home'),WAKEIT_DATABASE_URL=f"postgres://{getpass.getuser()}@127.0.0.1:{summary['pg_port']}/postgres")
     with open(root/'gateway.log','ab',buffering=0) as log:
-        process=subprocess.Popen([str(binary),'gateway','start','--config',str(root/'gateway.yaml')],cwd=context['repository'],env=env,stdout=log,stderr=log,start_new_session=True)
+        process=subprocess.Popen([str(binary),'start','--config',str(root/'gateway.yaml')],cwd=context['repository'],env=env,stdout=log,stderr=log,start_new_session=True)
     summary['processes'][1]=process.pid
     (root/'summary.json').write_text(json.dumps(summary,indent=2))
     final=end(id)
