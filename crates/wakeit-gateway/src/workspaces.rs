@@ -78,6 +78,15 @@ pub async fn lock(tx: &mut Transaction<'_, Postgres>, workspace: Uuid) -> Result
         .ok_or_else(|| anyhow::anyhow!("workspace not found"))?;
     Ok(())
 }
+#[derive(Debug)]
+pub(crate) struct PermissionDenied(pub &'static str);
+impl std::fmt::Display for PermissionDenied {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl std::error::Error for PermissionDenied {}
+
 pub async fn check_member(
     tx: &mut Transaction<'_, Postgres>,
     credential: &str,
@@ -85,15 +94,13 @@ pub async fn check_member(
     needed: &str,
 ) -> Result<Uuid> {
     let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2)")
-        .bind(credential).bind(workspace).fetch_optional(&mut **tx).await?.ok_or_else(||anyhow::anyhow!("workspace access denied"))?;
-    ensure!(
-        !row.get::<bool, _>("is_demo"),
-        "demo workspace is read only"
-    );
-    ensure!(
-        crate::auth::role(&row.get::<String, _>("role")) >= crate::auth::role(needed),
-        "insufficient permissions"
-    );
+        .bind(credential).bind(workspace).fetch_optional(&mut **tx).await?.ok_or(PermissionDenied("workspace access denied"))?;
+    if row.get::<bool, _>("is_demo") {
+        return Err(PermissionDenied("demo workspace is read only").into());
+    }
+    if crate::auth::role(&row.get::<String, _>("role")) < crate::auth::role(needed) {
+        return Err(PermissionDenied("insufficient permissions").into());
+    }
     Ok(row.get("id"))
 }
 pub async fn create(pool: &PgPool, identity: &Identity, name: &str) -> Result<Value> {

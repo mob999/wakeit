@@ -22,7 +22,7 @@ for (const [source, key, values] of retryDiagnostics) {
 
 for (const source of [
   ...literalDiagnostics,
-  'Unrecognized diagnostic /workspace/report.md {raw}',
+  'Unrecognized diagnostic /workspace/中文 report.md {{literal}}',
   'Agent output: Upstream result is empty: collect',
 ]) {
   test('unmatched diagnostics retain the complete translation key: ' + source, () => {
@@ -36,3 +36,17 @@ for (const source of [
     )
   })
 }
+
+test('routed diagnostic parameters preserve Unicode and literal braces', () => {
+  const node = '/workspace/中文 report.md {{literal}}'
+  const calls: unknown[] = []
+  apiErrorText(
+    'Upstream result unavailable: ' + node,
+    (key, values) => {
+      calls.push({ key, values })
+      return 'translated'
+    },
+    (state) => state,
+  )
+  assert.deepEqual(calls, [{ key: 'retry.error.resultUnavailable', values: { node } }])
+})

@@ -233,9 +233,9 @@ export function DirectoryBrowser({
         </div>
         <div className="directory-quick-results" aria-busy={busy}>
           {(!runner.online || listing.error || error) && (
-            <ErrorToast>
-              {!runner.online ? tr('设备离线，无法浏览。') : error || listing.error?.message}
-            </ErrorToast>
+            <ErrorToast
+              error={!runner.online ? tr('设备离线，无法浏览。') : error || listing.error?.message}
+            />
           )}
           {listing.isPending ? (
             <p className="quiet text-muted directory-state">{tr('正在读取目录…')}</p>

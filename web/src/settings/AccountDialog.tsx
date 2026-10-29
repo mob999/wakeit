@@ -117,7 +117,7 @@ export function AccountDialog({
               onChange={(e) => setConfirm(e.target.value)}
             />
           </Field>
-          {error && <ErrorToast>{error}</ErrorToast>}
+          {error && <ErrorToast error={error} />}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>

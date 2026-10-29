@@ -278,13 +278,13 @@ function Login() {
         <h1 className="card-header">{signup ? tr('创建账号') : tr('欢迎回来')}</h1>
         <div className="card-body">
           {new URLSearchParams(location.search).get('auth_error') === 'github_denied' && (
-            <ErrorToast>{tr('GitHub 授权已取消')}</ErrorToast>
+            <ErrorToast error={tr('GitHub 授权已取消')} />
           )}
           {meta.isPending ? (
             <span className="quiet text-muted">{tr('加载中…')}</span>
           ) : meta.error ? (
             <>
-              <ErrorToast>{meta.error.message}</ErrorToast>
+              <ErrorToast error={meta.error.message} />
               <Button type="button" onClick={() => void meta.refetch()}>
                 {tr('重试')}
               </Button>
@@ -339,7 +339,7 @@ function Login() {
                   />
                 </Field>
               )}
-              {login.error && <ErrorToast>{login.error.message}</ErrorToast>}
+              {login.error && <ErrorToast error={login.error.message} />}
               <Button variant="solid" type="submit" disabled={login.isPending}>
                 {login.isPending ? tr('正在连接…') : signup ? tr('创建账号') : tr('登录工作区')}
                 <ArrowUpRight size={14} />
@@ -361,7 +361,7 @@ function Login() {
             </>
           )}
           {new URLSearchParams(location.search).has('login_error') && (
-            <ErrorToast>{tr('GitHub 登录失败，请重试')}</ErrorToast>
+            <ErrorToast error={tr('GitHub 登录失败，请重试')} />
           )}
         </div>
       </form>
@@ -460,7 +460,7 @@ function TasksPage() {
         }}
       >
         <div className="modal-body">
-          {archive.error && <ErrorToast>{archive.error.message}</ErrorToast>}
+          {archive.error && <ErrorToast error={archive.error.message} />}
         </div>
         <div className="modal-footer">
           <Button disabled={archive.isPending} onClick={() => setArchiving(null)}>
@@ -499,7 +499,7 @@ function TasksPage() {
             </div>
             <div className="list-scroll">
               {tasks.error ? (
-                <ErrorToast>{tasks.error.message}</ErrorToast>
+                <ErrorToast error={tasks.error.message} />
               ) : tasks.isPending ? (
                 <p className="quiet text-muted padded p-5">{tr('正在加载…')}</p>
               ) : tasks.data?.total === 0 ? (
@@ -741,7 +741,7 @@ function RunsPage() {
           </div>
           <div className="list-scroll">
             {runs.error ? (
-              <ErrorToast>{runs.error.message}</ErrorToast>
+              <ErrorToast error={runs.error.message} />
             ) : !runs.data?.items.length ? (
               <Empty title={tr('暂无执行记录')} />
             ) : (

@@ -125,7 +125,7 @@ export default function MermaidDiagram({ source }: { source: string }) {
           />
         </div>
       )}
-      {error && <ErrorToast>{tr('图表无法渲染')}</ErrorToast>}
+      {error && <ErrorToast error={tr('图表无法渲染')} />}
       <details open={error || (!diagram && !error) || undefined}>
         <summary>{tr('图表源码')}</summary>
         <pre>

@@ -8,7 +8,7 @@ import pathlib
 import shutil
 import subprocess
 import uuid
-from integration import APIError, call, command, expect_status, port, wait
+from integration_support import APIError, call, command, expect_status, port, wait
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BIN = ROOT / 'target/debug/wakeit'

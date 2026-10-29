@@ -246,7 +246,7 @@ export function SettingsPage({ user, toast }: { user: User; toast: (message: str
         }}
         title={tr('有未保存的更改')}
       >
-        <div className="modal-body">{saveError && <ErrorToast>{saveError}</ErrorToast>}</div>
+        <div className="modal-body">{saveError && <ErrorToast error={saveError} />}</div>
         <div className="modal-footer">
           <Button disabled={saveMutation.isPending} onClick={() => finishLeave(false)}>
             {tr('继续编辑')}

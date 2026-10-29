@@ -373,7 +373,13 @@ pub async fn retry(
         runner_check.runner = row.get::<Uuid, _>("runner_id").to_string();
         let runner = dag_store::runner(&mut tx, workspace, &runner_check)
             .await
-            .map_err(|e| Error::conflict(e.to_string()))?;
+            .map_err(|e| {
+                if e.is::<dag_store::RunnerBindingError>() {
+                    Error::conflict(e.to_string())
+                } else {
+                    e.into()
+                }
+            })?;
         let reopen = graph
             .parent
             .get::<Option<DateTime<Utc>>, _>("finished_at")

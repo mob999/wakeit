@@ -77,7 +77,7 @@ export function InvitationPage({ user }: { user?: User }) {
           {invitation.isPending ? (
             <p className="quiet text-muted">{tr('加载中…')}</p>
           ) : invitation.error ? (
-            <ErrorToast>{invitation.error.message}</ErrorToast>
+            <ErrorToast error={invitation.error.message} />
           ) : (
             <>
               <div className="invite-target">
@@ -154,7 +154,7 @@ export function InvitationPage({ user }: { user?: User }) {
               )}
             </>
           )}
-          {accept.error && <ErrorToast>{accept.error.message}</ErrorToast>}
+          {accept.error && <ErrorToast error={accept.error.message} />}
         </div>
       </form>
     </div>

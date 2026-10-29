@@ -198,13 +198,15 @@ export function MomentsPage({ toast }: { toast: (message: string) => void }) {
 function RequestError({ error, retry }: { error: Error; retry: () => unknown }) {
   useTranslation()
   return (
-    <ErrorToast>
-      {error.message}
-      <Button onClick={() => retry()}>
-        <RefreshCw size={14} />
-        {tr('重试')}
-      </Button>
-    </ErrorToast>
+    <ErrorToast
+      error={error.message}
+      actions={
+        <Button onClick={() => retry()}>
+          <RefreshCw size={14} />
+          {tr('重试')}
+        </Button>
+      }
+    />
   )
 }
 function DayEntries({

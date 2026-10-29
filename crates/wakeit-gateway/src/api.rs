@@ -44,6 +44,9 @@ impl Error {
 impl<E: Into<anyhow::Error>> From<E> for Error {
     fn from(e: E) -> Self {
         let e = e.into();
+        if let Some(denied) = e.downcast_ref::<crate::workspaces::PermissionDenied>() {
+            return Self(StatusCode::FORBIDDEN, denied.to_string());
+        }
         tracing::error!(error=%e,"request failed");
         Self(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -215,9 +218,7 @@ pub(crate) async fn reauthorize(
 ) -> Result<User> {
     let mut current = actor.clone();
     if let Some(workspace) = actor.workspace_id {
-        crate::workspaces::check_member(tx, &actor.credential, workspace, needed)
-            .await
-            .map_err(|_| Error(StatusCode::FORBIDDEN, "workspace permission changed".into()))?;
+        crate::workspaces::check_member(tx, &actor.credential, workspace, needed).await?;
         current.role = sqlx::query_scalar(
             "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
         )
@@ -1593,21 +1594,15 @@ async fn claim(
         || state != "queued"
         || row.get::<DateTime<Utc>, _>("scheduled_at") > claim_now
         || row.get::<bool, _>("cancel_requested")
-        || row.get::<DateTime<Utc>, _>("deadline")
-            < sqlx::query_scalar::<_, DateTime<Utc>>("SELECT now()")
-                .fetch_one(&mut *tx)
-                .await?
+        || row.get::<DateTime<Utc>, _>("deadline") < claim_now
     {
         return Ok(Json(json!({"execute":false,"state":state})));
     }
     let workspace: Uuid = row.get("workspace_id");
     let task: TaskConfig = serde_json::from_value(row.get("config"))?;
-    let now: DateTime<Utc> = sqlx::query_scalar("SELECT now()")
-        .fetch_one(&mut *tx)
-        .await?;
     if task.execution.misfire == crate::config::Misfire::Skip
         && row.get::<String, _>("source") == "schedule"
-        && now - row.get::<DateTime<Utc>, _>("scheduled_at") > chrono::Duration::seconds(5)
+        && claim_now - row.get::<DateTime<Utc>, _>("scheduled_at") > chrono::Duration::seconds(5)
     {
         sqlx::query(
             "UPDATE runs SET state='skipped',reason='misfire',finished_at=now() WHERE id=$1",
@@ -1657,7 +1652,7 @@ async fn claim(
                 .fetch_one(&mut *tx)
                 .await?;
         snapshot["session_title"] = json!(crate::config::generated_session_title(
-            &task.name, now, &timezone
+            &task.name, claim_now, &timezone
         )?);
         sqlx::query("UPDATE runs SET execution_snapshot=$2 WHERE id=$1")
             .bind(b.run_id)
@@ -2008,6 +2003,19 @@ async fn meta(State(s): State<App>) -> Json<Value> {
 #[cfg(test)]
 mod workspace_cookie_tests {
     use super::*;
+
+    #[test]
+    fn permission_denial_is_distinct_from_database_failure() {
+        let denied = Error::from(crate::workspaces::PermissionDenied(
+            "workspace access denied",
+        ));
+        assert_eq!(denied.0, StatusCode::FORBIDDEN);
+        assert_eq!(denied.1, "workspace access denied");
+
+        let unavailable = Error::from(sqlx::Error::PoolClosed);
+        assert_eq!(unavailable.0, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(unavailable.1, "internal server error");
+    }
 
     #[test]
     fn configured_session_cookie_isolated_from_other_services() {

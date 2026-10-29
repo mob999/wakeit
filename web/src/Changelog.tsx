@@ -17,7 +17,9 @@ export function Changelog({ version }: { version?: string }) {
   const { i18n } = useTranslation()
   const language = i18n.language === 'zh' ? 'zh' : 'en'
   const localContent = import.meta.env.DEV
-    ? (language === 'zh' ? chineseChangelog : englishChangelog)
+    ? language === 'zh'
+      ? chineseChangelog
+      : englishChangelog
     : undefined
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -67,13 +69,15 @@ export function Changelog({ version }: { version?: string }) {
           ) : document.isPending ? (
             <p role="status">{t('正在加载…')}</p>
           ) : document.isError ? (
-            <ErrorToast>
-              <span>{t('无法加载更新日志')}</span>
-              <Button loading={document.isFetching} onClick={() => void document.refetch()}>
-                <RefreshCw size={14} />
-                {t('重试')}
-              </Button>
-            </ErrorToast>
+            <ErrorToast
+              error={t('无法加载更新日志')}
+              actions={
+                <Button loading={document.isFetching} onClick={() => void document.refetch()}>
+                  <RefreshCw size={14} />
+                  {t('重试')}
+                </Button>
+              }
+            />
           ) : (
             <div className="markdown-result">
               <MarkdownContent text={document.data.content} />

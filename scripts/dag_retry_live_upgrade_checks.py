@@ -8,7 +8,7 @@ import shutil
 import signal
 import subprocess
 import uuid
-from integration import call, command, wait
+from integration_support import call, command, wait
 
 
 def main():

@@ -124,7 +124,7 @@ export function ArchivedTasks() {
         }}
       >
         <div className="modal-body">
-          {restore.error && <ErrorToast>{restore.error.message}</ErrorToast>}
+          {restore.error && <ErrorToast error={restore.error.message} />}
         </div>
         <div className="modal-footer">
           <Button disabled={restore.isPending} onClick={() => setSelected(null)}>

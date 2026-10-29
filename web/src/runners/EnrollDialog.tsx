@@ -67,7 +67,7 @@ export function EnrollDialog({
             {tr('生成注册命令')}
           </Button>
         )}
-        {error && <ErrorToast>{error}</ErrorToast>}
+        {error && <ErrorToast error={error} />}
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>{tr('完成')}</Button>

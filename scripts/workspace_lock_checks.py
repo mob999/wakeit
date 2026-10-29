@@ -6,7 +6,7 @@ import subprocess
 import threading
 import time
 
-from integration import command, wait
+from integration_support import command, wait
 
 
 def verify(api, runner, sql, env, check):

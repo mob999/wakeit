@@ -1,11 +1,10 @@
-import { validDuration } from './duration'
 import { ErrorToast } from './Toast'
 import { t as tr, parameterLabel } from './i18n'
 import { useTranslation } from 'react-i18next'
 import { useState, useRef, useEffect, type CSSProperties, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Clock, ChevronRight } from './icons'
-import { api, time, type Task, type TaskConfig, type Runner, type DagIssue } from './api'
+import { ChevronRight } from './icons'
+import { api, type Task, type TaskConfig, type Runner, type DagIssue } from './api'
 import { DetailTabs } from './DetailTabs'
 import { TimeFields } from './dag/TimeFields'
 import { Button, Field, Modal, focusEditorField } from './ui'
@@ -82,19 +81,9 @@ export function TaskEditor({
           execution: { timeout: '1h', start_grace: '1h', overlap: 'skip', misfire: 'latest' },
         },
   )
-  const timeConfig = config
   const baseline = useRef(JSON.stringify(config))
   const [error, setError] = useState('')
   const [focusField, setFocusField] = useState<string | null>(null)
-  const [scheduleType, setScheduleType] = useState(
-    config.schedule?.every
-      ? 'every'
-      : config.schedule?.at
-        ? 'at'
-        : config.schedule
-          ? 'cron'
-          : 'manual',
-  )
   const selectedRunner = runners.data?.find(
     (r) => r.name === config.runner || r.id === config.runner,
   )
@@ -103,12 +92,6 @@ export function TaskEditor({
     !!selectedAgent?.session_supported ||
     !!config.session ||
     Object.keys(selectedAgent?.parameters ?? {}).some((key) => key !== 'model')
-  const preview = useQuery<string[]>({
-    queryKey: ['preview', config.schedule],
-    queryFn: () => api('/schedule/preview', 'POST', config.schedule),
-    enabled: !embedded && step === 'time' && !!config.schedule,
-    retry: false,
-  })
   const change = (key: keyof TaskConfig, value: any) =>
     setConfig((c) => ({
       ...c,
@@ -152,15 +135,9 @@ export function TaskEditor({
         throw e
       }
       try {
-        if (embedded) {
-          const issue = timeValidation.current()[0]
-          if (issue) throw new Error(issue.message)
-        }
-        if (!validDuration(timeConfig.execution.timeout ?? '1h'))
-          throw new Error(tr('请填写有效的执行超时（1 秒至 366 天）'))
-        if (!validDuration(timeConfig.execution.start_grace))
-          throw new Error(tr('请填写有效的允许延迟（1 秒至 366 天）'))
-        if (timeConfig.schedule) await api('/schedule/preview', 'POST', timeConfig.schedule)
+        const issue = timeValidation.current()[0]
+        if (issue) throw new Error(issue.message)
+        if (config.schedule) await api('/schedule/preview', 'POST', config.schedule)
       } catch (e) {
         setStep('time')
         throw e
@@ -322,142 +299,14 @@ export function TaskEditor({
     </>
   )
   const scheduleFields = (
-    <>
-      <div className="form-grid">
-        <Field label={tr('类型')}>
-          <ChoicePicker
-            label={tr('类型')}
-            value={scheduleType}
-            disabled={save.isPending}
-            options={[
-              { value: 'cron', label: 'Cron' },
-              { value: 'every', label: tr('固定间隔') },
-              { value: 'at', label: tr('一次性执行') },
-              { value: 'manual', label: tr('手动执行') },
-            ]}
-            onChange={(value) => {
-              const type = value
-              setScheduleType(type)
-              change(
-                'schedule',
-                type === 'manual'
-                  ? null
-                  : {
-                      timezone: config.schedule?.timezone ?? defaultTimezone,
-                      ...(type === 'cron'
-                        ? { cron: '0 9 * * *' }
-                        : type === 'every'
-                          ? { every: '1h' }
-                          : { at: new Date(Date.now() + 3600000).toISOString() }),
-                    },
-              )
-            }}
-          />
-        </Field>
-        {config.schedule && (
-          <Field label={tr('时区')}>
-            <input
-              value={config.schedule.timezone}
-              onChange={(e) => change('schedule', { ...config.schedule, timezone: e.target.value })}
-            />
-          </Field>
-        )}
-      </div>
-      {config.schedule && (
-        <Field
-          label={
-            scheduleType === 'cron'
-              ? tr('Cron 表达式')
-              : scheduleType === 'every'
-                ? tr('间隔')
-                : tr('执行时间')
-          }
-          hint={scheduleType === 'cron' ? tr('分钟 小时 日期 月份 星期') : undefined}
-        >
-          <input
-            className="mono"
-            value={config.schedule.cron ?? config.schedule.every ?? config.schedule.at ?? ''}
-            onChange={(e) =>
-              change('schedule', { ...config.schedule, [scheduleType]: e.target.value })
-            }
-            required
-          />
-        </Field>
-      )}
-      {config.schedule && (
-        <div className="preview">
-          <Clock size={13} />
-          <div>
-            <span>{tr('接下来的执行时间')}</span>
-            {preview.isFetching ? (
-              <small>{tr('正在加载…')}</small>
-            ) : (
-              preview.data?.map((t) => (
-                <small key={t}>
-                  {time(t, config.schedule!.timezone || defaultTimezone)}{' '}
-                  {config.schedule!.timezone || defaultTimezone}
-                </small>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-      {
-        <details className="advanced-settings">
-          <summary>
-            <ChevronRight size={14} />
-            <span>{tr('高级设置')}</span>
-          </summary>
-          <div className="advanced-body">
-            <div className="form-grid">
-              <Field label={tr('执行超时')}>
-                <input
-                  value={config.execution.timeout ?? '1h'}
-                  onChange={(e) =>
-                    change('execution', { ...config.execution, timeout: e.target.value })
-                  }
-                />
-              </Field>
-              <Field label={tr('允许延迟')}>
-                <input
-                  value={config.execution.start_grace}
-                  onChange={(e) =>
-                    change('execution', {
-                      ...config.execution,
-                      start_grace: e.target.value,
-                    })
-                  }
-                />
-              </Field>
-              <Field label={tr('错过执行')}>
-                <ChoicePicker
-                  label={tr('错过执行')}
-                  value={config.execution.misfire}
-                  disabled={save.isPending}
-                  options={[
-                    { value: 'latest', label: tr('补最近一次') },
-                    { value: 'skip', label: tr('跳过') },
-                  ]}
-                  onChange={(value) => change('execution', { ...config.execution, misfire: value })}
-                />
-              </Field>
-              <Field label={tr('执行重叠')}>
-                <ChoicePicker
-                  label={tr('执行重叠')}
-                  value={config.execution.overlap}
-                  disabled={save.isPending}
-                  options={[
-                    { value: 'skip', label: tr('跳过新触发') },
-                    { value: 'allow', label: tr('允许并行') },
-                  ]}
-                  onChange={(value) => change('execution', { ...config.execution, overlap: value })}
-                />
-              </Field>
-            </div>
-          </div>
-        </details>
-      }
-    </>
+    <TimeFields
+      config={config}
+      timezone={defaultTimezone}
+      disabled={save.isPending}
+      active={step === 'time'}
+      onChange={setConfig}
+      validation={timeValidation}
+    />
   )
   return (
     <TaskEditorSurface
@@ -559,14 +408,7 @@ export function TaskEditor({
               hidden={step !== 'time'}
               inert={step !== 'time'}
             >
-              <TimeFields
-                config={config}
-                timezone={defaultTimezone}
-                disabled={save.isPending}
-                active={step === 'time'}
-                onChange={setConfig}
-                validation={timeValidation}
-              />
+              {scheduleFields}
             </div>
           </fieldset>
         ) : (
@@ -587,7 +429,7 @@ export function TaskEditor({
           </div>
         )}
         <div className={embedded ? 'modal-footer creation-footer' : 'modal-footer'}>
-          {error && <ErrorToast>{error}</ErrorToast>}
+          {error && <ErrorToast error={error} />}
           <Button type="button" disabled={save.isPending} onClick={onClose}>
             {tr('取消')}
           </Button>

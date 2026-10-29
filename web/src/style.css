@@ -410,18 +410,18 @@ pre {
   @apply fixed top-[50%] left-[50%];
   transform: translate(-50%, -50%);
   @apply w-[min(520px,_calc(100vw_-_32px))] max-h-[90dvh] bg-canvas text-ink [border:1px_solid_var(--border)];
-  @apply rounded-[10px];
-  box-shadow: 0 20px 80px #0004;
+  @apply rounded-card;
+  box-shadow: 0 8px 32px #0003;
   @apply z-51 overflow-hidden flex flex-col;
 }
 .modal.wide {
   @apply w-[min(720px,_calc(100vw_-_32px))];
 }
 .modal-heading {
-  @apply flex items-start justify-between pt-[21px] px-6 pb-[17px] [border-bottom:1px_solid_var(--border)] shrink-0;
+  @apply flex items-start justify-between min-h-header bg-surface py-3 px-4.5 [border-bottom:1px_solid_var(--border)] shrink-0;
 }
 .modal-heading h2 {
-  @apply text-[16px];
+  @apply text-[14px];
 }
 .modal-heading p {
   @apply text-[11px] leading-[1.7] text-muted mt-[7px];
@@ -433,7 +433,7 @@ pre {
   @apply py-5.5 px-6 overflow-auto min-h-0 text-[12px] leading-[1.7];
 }
 .modal-footer {
-  @apply flex justify-end items-center gap-2 py-3.5 px-6 [border-top:1px_solid_var(--border)] bg-raised shrink-0;
+  @apply flex justify-end items-center gap-2 py-3 px-4.5 [border-top:1px_solid_var(--border)] bg-raised shrink-0;
 }
 .modal-footer .error {
   @apply mr-auto text-[11px] max-w-105;
@@ -620,17 +620,8 @@ input:disabled {
 .changelog-body .markdown-result > :last-child {
   @apply mb-0;
 }
-.changelog-error {
-  @apply flex items-center justify-between gap-3;
-}
-.model-query-state {
-  @apply flex items-center gap-1.5;
-}
 .directory-current {
   @apply flex-1 min-w-0 text-[11px] text-muted;
-}
-.model-query-state {
-  @apply justify-between mt-1.5 mx-0 mb-3;
 }
 .agent-parameters .section-heading {
   @apply mt-2;
@@ -1386,12 +1377,6 @@ input:disabled {
   box-shadow: 0 2px 8px #0001;
   @apply py-[5px] px-2 text-[11px] leading-[1.5] max-w-[min(280px,_calc(100vw_-_16px))] [overflow-wrap:anywhere] z-200;
 }
-.detail-title {
-  @apply flex items-center gap-1.5 min-w-0;
-}
-.detail-title h2 {
-  @apply min-w-0 [overflow-wrap:anywhere];
-}
 
 .navigation-frame {
   @apply relative shrink-0 min-h-0 z-30;
@@ -1707,19 +1692,6 @@ button.run-section-heading:hover {
 }
 .run-details-fold .timeline-row {
   @apply px-4;
-}
-.modal {
-  @apply rounded-card;
-  box-shadow: 0 8px 32px #0003;
-}
-.modal-heading {
-  @apply min-h-header bg-surface py-3 px-4.5;
-}
-.modal-heading h2 {
-  @apply text-[14px];
-}
-.modal-footer {
-  @apply py-3 px-4.5;
 }
 .modal .advanced-settings {
   @apply [border:1px_solid_var(--border)];

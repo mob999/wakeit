@@ -76,10 +76,10 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
     onError: (e) => toast(e.message),
   })
   const listState = runners.error ? (
-    <ErrorToast>
-      {runners.error.message}
-      <Button onClick={() => runners.refetch()}>{tr('重试')}</Button>
-    </ErrorToast>
+    <ErrorToast
+      error={runners.error.message}
+      actions={<Button onClick={() => runners.refetch()}>{tr('重试')}</Button>}
+    />
   ) : runners.isPending ? (
     <p className="quiet text-muted padded p-5">{tr('正在加载…')}</p>
   ) : !filtered.length ? (

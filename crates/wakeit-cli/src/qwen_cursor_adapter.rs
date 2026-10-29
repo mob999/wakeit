@@ -54,11 +54,7 @@ impl State {
         )
     }
     fn bounded(value: Value) -> Value {
-        if serde_json::to_vec(&value).map_or(true, |v| v.len() > RECORD_LIMIT - 8192) {
-            json!("[Native content omitted: exceeds 1000 KiB]")
-        } else {
-            value
-        }
+        crate::output_capture::bounded_value_with_preview(value, RECORD_LIMIT - 8192, 32 * 1024)
     }
     fn message(&mut self, event: &Value, prefix: &str) -> Vec<StreamRecord> {
         if self.trace_omitted {
@@ -218,16 +214,7 @@ impl State {
             return self.invalid("missing terminal result");
         };
         if !self.fatal {
-            let encoded = serde_json::to_vec(result).unwrap_or_default();
-            self.result = Some(if encoded.len() > RECORD_LIMIT - 8192 {
-                let mut end = result.len().min(32 * 1024);
-                while !result.is_char_boundary(end) {
-                    end -= 1;
-                }
-                json!({"truncated":true,"preview":&result[..end]})
-            } else {
-                json!(result)
-            });
+            self.result = Some(Self::bounded(json!(result)));
         }
         vec![]
     }

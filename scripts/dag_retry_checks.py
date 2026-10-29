@@ -2,7 +2,7 @@
 import concurrent.futures
 import json
 import uuid
-from integration import APIError, expect_status, wait
+from integration_support import APIError, expect_status, wait
 
 
 def verify(api, a, b, check, context):

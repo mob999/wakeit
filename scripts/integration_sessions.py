@@ -1,9 +1,10 @@
 """Session checks against the isolated PostgreSQL/NATS/Runner integration stack."""
+from integration_support import expect_status, wait, BIN
 import concurrent.futures
 import datetime
 import re
 from zoneinfo import ZoneInfo
-from integration import timestamp
+from integration_support import timestamp
 import json
 import os
 import sqlite3
@@ -27,8 +28,7 @@ def configure(runner_dir, remote, mock):
     return path
 
 
-def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runner_id, runner_dir, root, check):
-    from __main__ import call, expect_status, wait, BIN
+def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runner_id, runner_dir, root, check, ws):
     config_file = runner_dir/'runner.yaml'
     project = Path(json.loads(config_file.read_text())['allowed_roots'][0])
     remote = root/'external-jobs'
@@ -41,9 +41,9 @@ def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runn
     def ready(run):
         return wait(lambda:(r if (r:=api('/runs/'+run)).get('session',{} ) and r['session']['ready'] else None),'saved resumable session')
     def inspect(session, cwd=project, base_url=base, token=None):
-        path=f'/api/v1/runners/{runner_id}/agents/mock-session/sessions/inspect'
+        path=f'/runners/{runner_id}/agents/mock-session/sessions/inspect'
         body={'id':session,'cwd':str(cwd)}
-        return call(base_url,path,'POST',body,token) if token else api(path[len('/api/v1'):],'POST',body)
+        return ws.call(base_url,path,'POST',body,token) if token else api(path,'POST',body)
     def cli(run, config=config_file):
         # This local command must not require Gateway availability or a personal API Key.
         env=dict(os.environ,WAKEIT_TOKEN_FILE=str(root/'nonexistent-key'),WAKEIT_GATEWAY='http://127.0.0.1:1')
@@ -98,9 +98,9 @@ def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runn
     check('session discovery, Viewer protection, local offline continuation, explicit binding capability and independent retries')
     assert advertised['session_list_supported']
     def catalog(cwd=project,q=None,cursor=None,base_url=base,token=None,agent='mock-session'):
-        path=f'/api/v1/runners/{runner_id}/agents/{agent}/sessions/query'
+        path=f'/runners/{runner_id}/agents/{agent}/sessions/query'
         body={'cwd':str(cwd),**({'q':q} if q is not None else {}),**({'cursor':cursor} if cursor else {})}
-        return call(base_url,path,'POST',body,token) if token else api(path[len('/api/v1'):],'POST',body)
+        return ws.call(base_url,path,'POST',body,token) if token else api(path,'POST',body)
     assert any(item['id']==session for item in catalog()['sessions'])
     expect_status(lambda:catalog(token=role_tokens['viewer']),403)
     expect_status(lambda:catalog(agent='mock-sync'),400)
@@ -228,7 +228,6 @@ def verify_protocol_rejections(api, task, apply, trigger, final, wait, session, 
 
 def verify_recovered_commands(api, sql, runner_dir, remote, restart, check):
     """Only reconstruct metadata from a completed local snapshot; never run the Agent."""
-    from __main__ import wait
     row=next(run for run in api('/runs?task=session-fresh') if run['state']=='succeeded' and run.get('session',{}).get('ready'))
     identity=row['id'];session_id=row['session']['id'];command=row['session']['command']
     unchanged={key:row[key] for key in ['id','state','result','reason','created_at','started_at','finished_at','execution_snapshot']}

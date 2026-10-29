@@ -167,10 +167,10 @@ export function PresetCreation({
                 {t('正在加载…')}
               </p>
             ) : list.error ? (
-              <ErrorToast>
-                {list.error.message}
-                <Button onClick={() => list.refetch()}>{t('重试')}</Button>
-              </ErrorToast>
+              <ErrorToast
+                error={list.error.message}
+                actions={<Button onClick={() => list.refetch()}>{t('重试')}</Button>}
+              />
             ) : !list.data?.items.length ? (
               <p className="quiet text-muted padded p-5">
                 {t(query ? '无匹配结果' : 'preset.empty')}
@@ -207,10 +207,10 @@ export function PresetCreation({
       {selected && !record && (
         <div className="preset-detail-state">
           {detail.error ? (
-            <ErrorToast>
-              {detail.error.message}
-              <Button onClick={() => detail.refetch()}>{t('重试')}</Button>
-            </ErrorToast>
+            <ErrorToast
+              error={detail.error.message}
+              actions={<Button onClick={() => detail.refetch()}>{t('重试')}</Button>}
+            />
           ) : (
             <p role="status">{t('正在加载…')}</p>
           )}

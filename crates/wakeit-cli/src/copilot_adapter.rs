@@ -50,16 +50,7 @@ impl CopilotNormalizer {
         )
     }
     fn preview(value: Value, limit: usize) -> Value {
-        let encoded = serde_json::to_string(&value).unwrap_or_default();
-        if encoded.len() <= limit {
-            return value;
-        }
-        let text = value.as_str().unwrap_or(&encoded);
-        let mut end = text.len().min(32 * 1024);
-        while !text.is_char_boundary(end) {
-            end -= 1;
-        }
-        json!({"truncated":true,"preview":&text[..end]})
+        crate::output_capture::bounded_value_with_preview(value, limit, 32 * 1024)
     }
     fn final_message(&mut self, data: &Value) -> Vec<StreamRecord> {
         if data["messageId"]

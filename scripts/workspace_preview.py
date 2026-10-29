@@ -10,7 +10,7 @@ import shutil
 import signal
 import subprocess
 import time
-from integration import ROOT, BIN, GATEWAY, call, command, wait
+from integration_support import ROOT, BIN, GATEWAY, call, command, wait
 
 
 def main():

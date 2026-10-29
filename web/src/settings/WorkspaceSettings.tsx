@@ -193,14 +193,14 @@ export function WorkspaceSettingsView({
                 />
                 <span>{tr('unit.days', { count: Number(draft[key]) })}</span>
               </div>
-              {errors[key] && <ErrorToast id={`${key}-error`}>{errors[key]}</ErrorToast>}
+              {errors[key] && <ErrorToast id={`${key}-error`} error={errors[key]} />}
             </div>
           )}
         </div>
       ))}
       {!readOnly && dirty && (
         <div className="settings-savebar">
-          {error && <ErrorToast>{error}</ErrorToast>}
+          {error && <ErrorToast error={error} />}
           <div>
             <Button type="button" disabled={pending} onClick={onCancel}>
               {tr('取消')}

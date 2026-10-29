@@ -1,4 +1,5 @@
 """Additional real-service checks, called by integration.py with its isolated stack."""
+from integration_support import call, expect_status, wait, APIError, command, BIN
 import concurrent.futures
 import datetime
 import json
@@ -9,42 +10,41 @@ import uuid
 
 
 
-def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runner_id, runner_dir, root, check):
-    from __main__ import call, expect_status, wait, APIError, command, BIN
+def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runner_id, runner_dir, root, check, ws, global_api):
     old = 'wakeit-account-fixture-password'
     new = 'wakeit-account-fixture-new-password'
     def session(name, password=old):
         return call(base,'/api/v1/session','POST',{'username':name,'password':password})['token']
     def create(name,role='operator'):
-        person=api('/instance/users','POST',{'username':name,'password':old})
+        person=global_api('/instance/users','POST',{'username':name,'password':old})
         credential=session(name)
         invite=api('/invites','POST',{'role':role})['token']
         call(base,'/api/v1/invites/accept','POST',{'token':invite},credential)
         return person
     for role in ['viewer','operator']:
         expect_status(lambda:call(base,'/api/v1/instance/users','POST',{'username':'denied','password':old,'role':'viewer'},role_tokens[role]),403)
-    expect_status(lambda:api('/instance/users','POST',{'username':' ','password':old,'role':'viewer'}),400)
-    expect_status(lambda:api('/instance/users','POST',{'username':'short','password':'short','role':'viewer'}),400)
-    expect_status(lambda:api('/members/'+api('/session')['id'],'PUT',{'role':'root'}),400)
+    expect_status(lambda:global_api('/instance/users','POST',{'username':' ','password':old,'role':'viewer'}),400)
+    expect_status(lambda:global_api('/instance/users','POST',{'username':'short','password':'short','role':'viewer'}),400)
+    expect_status(lambda:api('/members/'+global_api('/session')['id'],'PUT',{'role':'root'}),400)
     person=create('account-fixture')
     expect_status(lambda:create('account-fixture'),409)
     credential=session(person['username'])
-    key=call(base,'/api/v1/tokens','POST',{'name':'reset-me'},credential)['token']
+    key=ws.call(base,'/tokens','POST',{'name':'reset-me'},credential)['token']
     expect_status(lambda:call(base,'/api/v1/instance/users/'+person['id']+'/password','POST',{'password':new},role_tokens['operator']),403)
-    api('/instance/users/'+person['id']+'/password','POST',{'password':new})
+    global_api('/instance/users/'+person['id']+'/password','POST',{'password':new})
     for token in [credential,key]:expect_status(lambda:call(other,'/api/v1/session',token=token),401)
     expect_status(lambda:session(person['username']),401)
     credential=session(person['username'],new)
-    key=call(base,'/api/v1/tokens','POST',{'name':'disable-me'},credential)['token']
-    api('/instance/users/'+person['id'],'PUT',{'active':False})
+    key=ws.call(base,'/tokens','POST',{'name':'disable-me'},credential)['token']
+    global_api('/instance/users/'+person['id'],'PUT',{'active':False})
     api('/members/'+person['id'],'PUT',{'role':'viewer'})
-    assert not next(u for u in api('/instance/users') if u['id']==person['id'])['active']
+    assert not next(u for u in global_api('/instance/users') if u['id']==person['id'])['active']
     for token in [credential,key]:expect_status(lambda:call(other,'/api/v1/session',token=token),401)
     expect_status(lambda:session(person['username'],new),401)
-    api('/instance/users/'+person['id'],'PUT',{'active':True})
+    global_api('/instance/users/'+person['id'],'PUT',{'active':True})
     for token in [credential,key]:expect_status(lambda:call(other,'/api/v1/session',token=token),401)
     assert call(other,'/api/v1/session',token=session(person['username'],new))['id']==person['id']
-    admin=api('/session')
+    admin=global_api('/session')
     secondary=create('account-admin-fixture','admin'); secondary_token=session(secondary['username'])
     def demote(member):
         try:api('/members/'+member['id'],'PUT',{'role':'operator','active':True});return 200
@@ -54,12 +54,12 @@ def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runn
     surviving=sql("SELECT m.user_id FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.active AND u.active AND m.role='admin'")
     assert surviving in [admin['id'],secondary['id']]
     if surviving==secondary['id']:
-        call(base,'/api/v1/members/'+admin['id'],'PUT',{'role':'admin','active':True},secondary_token)
+        ws.call(base,'/members/'+admin['id'],'PUT',{'role':'admin','active':True},secondary_token)
     else:api('/members/'+secondary['id'],'PUT',{'role':'admin','active':True})
-    api('/instance/users/'+secondary['id']+'/password','POST',{'password':new})
+    global_api('/instance/users/'+secondary['id']+'/password','POST',{'password':new})
     expect_status(lambda:call(other,'/api/v1/session',token=secondary_token),401)
-    api('/members/'+secondary['id'],'PUT',{'role':'viewer'});api('/instance/users/'+secondary['id'],'PUT',{'active':False})
-    api('/members/'+person['id'],'PUT',{'role':'viewer'});api('/instance/users/'+person['id'],'PUT',{'active':False})
+    api('/members/'+secondary['id'],'PUT',{'role':'viewer'});global_api('/instance/users/'+secondary['id'],'PUT',{'active':False})
+    api('/members/'+person['id'],'PUT',{'role':'viewer'});global_api('/instance/users/'+person['id'],'PUT',{'active':False})
     with concurrent.futures.ThreadPoolExecutor(max_workers=24) as pool:
         results=list(pool.map(lambda _:api('/members/'+person['id'],'PUT',{'role':'viewer'}),range(24)))
     assert len(results)==24 and all(r['ok'] for r in results)
@@ -68,9 +68,9 @@ def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runn
     c=task('archive-running',prompt=json.dumps({'sleep':1.5,'text':'archived process completed'}))
     created=apply(c);run=trigger(c['id'])
     wait(lambda:api('/runs/'+run)['state'] in ['starting','running'],'archive run starts')
-    expect_status(lambda:call(base,'/api/v1/tasks/'+c['id']+'/archive','POST',{'expected_revision':created['revision']},role_tokens['viewer']),403)
+    expect_status(lambda:ws.call(base,'/tasks/'+c['id']+'/archive','POST',{'expected_revision':created['revision']},role_tokens['viewer']),403)
     expect_status(lambda:api('/tasks/'+c['id']+'/archive','POST',{'expected_revision':999}),409)
-    archived=call(other,'/api/v1/tasks/'+c['id']+'/archive','POST',{'expected_revision':created['revision']},role_tokens['operator'])
+    archived=ws.call(other,'/tasks/'+c['id']+'/archive','POST',{'expected_revision':created['revision']},role_tokens['operator'])
     assert archived['archived_at'] and not archived['config']['enabled'] and archived['next_at'] is None
     again=api('/tasks/'+c['id']+'/archive','POST',{'expected_revision':created['revision']});assert again['revision']==archived['revision']
     assert not any(t['id']==c['id'] for t in api('/tasks'))
@@ -81,7 +81,7 @@ def verify(api, base, other, sql, task, apply, trigger, final, role_tokens, runn
     expect_status(lambda:api('/runs/'+run+'/retry','POST',{}),409)
     assert api('/runs?task='+c['id'])[0]['task_archived']
     assert api('/runs/'+run+'/events')
-    expect_status(lambda:call(base,'/api/v1/tasks?archived=true',token=role_tokens['viewer']),403)
+    expect_status(lambda:ws.call(base,'/tasks?archived=true',token=role_tokens['viewer']),403)
     # A task lock decides archive versus queued claims; existing claims and unknown state remain intact.
     queued=apply(task('archive-queued',schedule={'every':'1s','timezone':'UTC'}))
     run_ids={state:str(uuid.uuid4()) for state in ['queued','starting','unknown']}

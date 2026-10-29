@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
-use wakeit::{
+use wakeit_core::{
     dag,
     task_templates::{self as templates, Definition, InstanceRequest},
 };

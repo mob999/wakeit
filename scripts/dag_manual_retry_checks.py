@@ -3,7 +3,7 @@ import concurrent.futures
 import json
 import time
 import uuid
-from integration import APIError, call, command, expect_status, wait
+from integration_support import APIError, call, command, expect_status, wait
 
 
 def verify(api, a, b, check, context):

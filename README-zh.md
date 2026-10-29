@@ -2,137 +2,68 @@
 
 [English](README.md) | 简体中文
 
-让 Agent 在指定时间、指定设备上完成任务。
+让 Agent 在自己的设备上按时完成任务，集中查看执行结果。
 
-你定义指令和时间，Wakeit 将任务交给设备上的 Runner。Gateway 集中管理调度、工作区成员和执行历史；WebUI 展示过程、日志和结果。
+Wakeit 将你已有的 Codex、Claude Code、Kimi Code、Pi 等 Agent 接入定时任务。**Gateway** 提供 WebUI、任务调度和执行历史；每台设备上的 **Runner** 调用本机 Agent 执行任务。设备主动连接服务，无需开放入站端口。
 
-- **接入已有 Agent**：内置 Codex、Claude Code、Pi、OpenCode、Kimi Code、Antigravity CLI、Gemini CLI、Cursor、GitHub Copilot CLI、Cline、Goose、Qwen Code；[能力与配置](docs/agents.md)按原生接口提供，自定义适配只需配置命令。
-- **在自己的设备执行**：Runner 主动连接 Gateway，支持 Linux、macOS、Windows，无需设备开放入站端口。
-- **按时运行，查看结果**：Cron、固定间隔、一次性时间和手动执行；支持实时过程及 Markdown 报告，包含代码高亮、公式与 Mermaid 图表；动态以紧凑时间线汇总结果，提供原文目录、报告中的文件链接和 DAG 输出切换；可通过原 Runner 预览报告链接中的受支持本地文件，访问受设备目录范围限制。
-- **编排 Agent DAG。** 在画布拖入 Agent，或导入一份 YAML，连接 AND 依赖并引用上游结果；整图执行并按所选节点展示报告，节点可配置指数退避重试。见 [DAG 任务](docs/dag.md)。
-- **保留执行上下文**：支持会话的 Agent 可绑定原生会话，直接通过网页终端续聊、复制原生命令，或在原 Runner 设备用 `wakeit run resume <run-id>` 继续交互；见[会话续聊](docs/cli.md#绑定会话与本机续聊)。
-- **隔离不同工作区**：按团队隔离任务、运行、设备和权限，见[工作区配置与认证](docs/workspaces.md)。
-- **本地或云端托管**：Gateway 携带 WebUI 独立部署，设备安装包含 Runner 的 CLI。
+## 能做什么
 
-Gateway/WebUI **0.4.0** 与 CLI/Runner **0.1.0** 独立编号和发布，使用 Apache-2.0 许可。Gateway 使用 `gateway-v*` 标签，CLI 使用 `cli-v*`；两者版本号不要求相同。
+- 手动执行，或按一次性时间、固定间隔、Cron 定时运行任务。
+- 将多个 Agent 编排成 DAG，在依赖步骤之间传递结果。
+- 从可复用的预设创建任务，填写所需参数。
+- 查看执行进度、阅读报告，并继续受支持的 Agent 会话。
+- 在不同工作区管理设备、任务和访问权限。
 
-报告和 Markdown 文件预览支持以缩略图内嵌本地 PNG/JPEG/WebP 图片，由原 Runner 读取；相对路径按执行目录或 Markdown 所在目录解析，沿用工作区权限及目录范围。点击图片后按需加载原图。
+Runner 支持 Linux、macOS 和 Windows。参见[支持的 Agent 与能力](docs/agents.md)。
 
-## 安装 CLI
+## 快速开始
 
-macOS 或 Linux GNU：
+### 1. 准备 Gateway
+
+使用已有 Gateway，或按[部署指南](docs/operations.md)通过 Docker Compose 自行托管。原生安装方式见 [Gateway 系统服务](docs/gateway-service.md)。
+
+### 2. 接入设备
+
+在设备上安装并登录你要使用的 Agent，然后安装 Wakeit CLI。macOS 或 Linux GNU：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-脚本显示安装进度，默认下载和校验 CLI 0.1.0，安装包含 Runner 的 `wakeit` 并配置用户 PATH，不部署 Gateway。完成后打开新终端，运行 `wakeit --version`。Windows、指定版本、安装目录及手工安装方式见[安装指南](docs/install-zh.md)。
-
-从源码构建 CLI 需要 Rust 1.89+：
+打开新终端，连接 Gateway。将 `WORKSPACE_ID` 替换为 WebUI 地址中的工作区 UUID，并指定允许执行任务的目录：
 
 ```sh
-git clone https://github.com/mob999/wakeit.git
-cd wakeit
-cargo install --locked --path crates/wakeit-cli
+wakeit setup --gateway https://wakeit.example.com \
+  --workspace WORKSPACE_ID --allow-root /path/to/projects
 ```
 
-## 接入已有 Gateway
+在浏览器中授权后，setup 会注册 Runner 并配置用户级自启。[Windows 及其他安装方式 →](docs/install-zh.md)
 
-已有 Gateway 时，点击 WebUI 顶栏的 `{}` 复制 Agent Prompt，交给 Agent 完成 CLI 与 Wakeit skill 安装、浏览器授权请求、设备注册和用户级自启；你在浏览器中核对并授权。
+也可以打开 WebUI 中的 **Agent Prompt**，交给 Agent 完成配置。[Wakeit skill](docs/skills.md) 可以让 Agent 帮你管理任务和运行。
 
-将 `WORKSPACE_ID` 替换为工作区 WebUI 地址中的 UUID：
+### 3. 创建任务
 
-```sh
-wakeit setup --gateway https://wakeit.example.com --workspace WORKSPACE_ID
-# 可选：--runner-name dev-server --allow-root /path/to/projects
-wakeit connection list
-wakeit runner list
-```
+在 WebUI 点击 **+**，选择任务、DAG 或预设。选择设备、Agent 和工作目录，填写指令并设置调度。保存或立即执行，在运行页查看进度和结果。
 
-默认设备名是主机名，执行范围是当前工作目录。管理员和读写成员可注册 Runner，只有管理员可吊销。已安装并登录的 Agent 保持原样，setup 不会替你创建或运行任务。
-
-只需 CLI 时使用 `wakeit login --gateway URL --workspace WORKSPACE_ID`，只读成员同样可用。连接按 Gateway、工作区和账号保存在平台标准配置目录，跨目录生效；API Key 默认不过期，可在设置 → API Key 撤销。`wakeit connection use NAME` 切换已有连接。显式参数和 `WAKEIT_*` 环境变量仍可使用。
-
-工作区管理员在设置 → 成员中管理成员关系和邀请。实例管理员通过实例账号管理页面创建、启停全局账号及重置本地密码。停用账号或重置密码会撤销该账号的登录会话和 API Key。
-
-## 自行部署 Gateway
-
-Gateway 是独立的 `wakeit-gateway` 程序，`wakeit` 不再提供 Gateway 部署命令。单机全栈部署需要 Docker Compose v2，在仓库根目录执行：
-
-```sh
-cp .env.example .env
-# 将 .env 中的 WAKEIT_POSTGRES_PASSWORD 改为仅含字母和数字的随机密码。
-docker compose build
-docker compose up -d
-export WAKEIT_PASSWORD='replace-with-a-generated-admin-password'
-docker compose run --rm -e WAKEIT_PASSWORD gateway \
-  bootstrap --config /app/gateway.yaml --username admin
-unset WAKEIT_PASSWORD
-```
-
-打开 <http://localhost:8080> 登录。Compose 会持久化 PostgreSQL、NATS 数据和设备身份，并自动重启服务；Linux 还需启用 Docker 的系统自启。
-
-macOS 或 Linux GNU 安装原生 Gateway 程序：
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/deploy-gateway.sh | sh
-```
-
-脚本安装服务端程序；PostgreSQL/NATS 配置和系统服务设置见 [Gateway 指南](docs/gateway-service.md)。
-
-macOS、Windows 的 Docker Desktop 登录启动不能代替无人登录时的系统启动。需要系统级开机运行时，使用[原生 Gateway 服务指南](docs/gateway-service.md)。跨设备部署同时配置 Gateway 的公开地址及 NATS WSS 地址，见[部署与运维](docs/operations.md)。
-
-## 创建首个任务
-
-在设备上安装并登录需要使用的 Agent，再运行 `wakeit setup --gateway URL --workspace WORKSPACE_ID`。用户级自启安装后可关闭当前终端。执行范围由 `--allow-root` 指定，未配置范围时不能浏览目录或执行任务。手动注册及自启方式见 [Runner 指南](skills/wakeit/references/runner.md)。
-
-在 WebUI 新建任务：填写名称和指令，选择 Runner、目录、Agent 与模型，再进入“时间”页设置调度并保存。
-
-CLI 可导入[任务示例](examples/task.yaml)。修改示例中的设备、目录和指令后：
-
-```sh
-wakeit task apply --file examples/task.yaml
-wakeit --json task trigger daily-review
-wakeit run watch <run-id>
-wakeit task pause daily-review
-```
-
-Task 的权威存储是 Gateway 的 PostgreSQL；YAML 是提交或更新任务的输入文件。模型发现取决于适配提供的接口，没有接口时手填。普通任务失败不会自动重新执行；DAG 节点可通过 `max_retries` 启用有限次数的重试，并可立即启动已排队的重试，不增加尝试次数；无法确认执行结果时进入 `unknown`，先核对实际状态，再决定是否重试。
-
-使用 `wakeit run retry RUN --node NODE` 可在原 Run 内重试失败节点，保留成功节点并继续下游。DAG 整图总时限默认关闭，可按需开启。
-
-任务可在详情中归档，停止后续调度，正在执行的运行继续，历史保留；设置 → 归档任务可恢复，恢复后保持暂停。CLI 对应命令为 `wakeit task archive <id>`、`wakeit task list --archived` 和 `wakeit task restore <id>`。
-
-## 让 Agent 帮你使用 Wakeit
-
-仓库提供可独立安装的 [Wakeit skill](skills/wakeit/SKILL.md)。将整个 `skills/wakeit` 目录安装到所用 Agent 的技能目录，再调用 `$wakeit`：
-
-> 使用已有 Gateway，注册这台设备，并创建每天早上九点检查仓库的任务。
-
-Skill 按需加载连接、部署、Runner、任务、运行、适配器和更新指南，区分连接已有服务与部署新 Gateway。安装方式见 [Skill 使用说明](docs/skills.md)。
+使用 CLI 时，可从[任务示例](examples/task.yaml)和 [CLI 指南](docs/cli.md)开始。
 
 ## 更新
 
 ```sh
-wakeit update --check
 wakeit update
 ```
 
-通过公开 GitHub Releases 检查 `cli-v*` 正式版本，无需 GitHub 登录。普通更新排除预览版，并按正式版本号判断更新；同版本提交不会触发更新。校验通过后只替换 `wakeit`，保留数据和配置，Runner 需单独重启。Gateway 通过部署脚本、Compose 或源码构建更新，不由 `wakeit update` 更新。
+更新后重启 Runner。Gateway/WebUI 与 CLI/Runner 独立发布；Gateway 按所用的[部署方式](docs/operations.md)更新。
 
 ## 文档
 
-| 需要做什么 | 文档 |
+| 主题 | 文档 |
 |---|---|
-| 使用 CLI 管理任务和运行 | [CLI 指南](docs/cli.md) |
-| 配置工作区、成员与 GitHub 登录 | [工作区](docs/workspaces.md) |
-| 配置开机自启 | [Gateway 系统服务](docs/gateway-service.md) |
-| 部署、备份、恢复和升级 | [部署与运维](docs/operations.md) |
-| 开发 Agent 适配 | [配置与适配协议](docs/protocol.md) |
-| 调用接口 | [REST API](docs/api.md) |
-| 构建和运行测试 | [开发指南](CONTRIBUTING.md) |
-| 使用任务模板创建任务和动态 DAG | [任务模板指南](docs/templates.md) |
-| 查看任务模板设计 | [任务模板 RFC](docs/rfc-2-task-templates.md) |
-| 查看独立发布设计 | [产品拆分 RFC](docs/rfc-3-independent-products.md) |
+| 安装与部署 | [CLI](docs/install-zh.md) · [Gateway](docs/operations.md) |
+| 任务、运行与自动化 | [CLI](docs/cli.md) · [DAG](docs/dag.md) · [预设](docs/templates.md) |
+| Agent 与自定义适配 | [支持的 Agent](docs/agents.md) · [适配协议](docs/protocol.md) |
+| 团队与权限 | [工作区](docs/workspaces.md) |
+| 开发与集成 | [开发指南](CONTRIBUTING.md) · [REST API](docs/api.md) |
+| 版本记录 | [Gateway](CHANGELOG.zh-CN.md) · [CLI](CHANGELOG.cli.zh-CN.md) |
 
-许可证：[Apache-2.0](LICENSE)。第三方技能及 Windows 服务工具的来源见[第三方组件](docs/third-party.md)。
+[Apache-2.0](LICENSE) · [第三方组件](docs/third-party.md)

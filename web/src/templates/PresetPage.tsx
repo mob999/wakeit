@@ -61,10 +61,10 @@ export function PresetPage({ user }: { user: User }) {
             </div>
             <div className="list-scroll">
               {list.error ? (
-                <ErrorToast>
-                  {list.error.message}
-                  <Button onClick={() => list.refetch()}>{t('重试')}</Button>
-                </ErrorToast>
+                <ErrorToast
+                  error={list.error.message}
+                  actions={<Button onClick={() => list.refetch()}>{t('重试')}</Button>}
+                />
               ) : list.isPending ? (
                 <p className="quiet text-muted padded p-5">{t('正在加载…')}</p>
               ) : !list.data?.items.length ? (
@@ -97,12 +97,14 @@ export function PresetPage({ user }: { user: User }) {
       >
         {failed ? (
           <div className="empty">
-            <ErrorToast>
-              {failed.message}
-              <Button onClick={() => (search.template ? selected.refetch() : list.refetch())}>
-                {t('重试')}
-              </Button>
-            </ErrorToast>
+            <ErrorToast
+              error={failed.message}
+              actions={
+                <Button onClick={() => (search.template ? selected.refetch() : list.refetch())}>
+                  {t('重试')}
+                </Button>
+              }
+            />
           </div>
         ) : loading ? (
           <div className="empty" role="status">

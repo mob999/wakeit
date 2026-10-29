@@ -310,22 +310,25 @@ impl Runner {
                 )
                 .ok(),
             };
-            let guard = match crate::sessions::lock(&self.config, &session.agent, &session.id) {
+            let guard: Result<_> = async {
+                let guard = crate::sessions::lock(&self.config, &session.agent, &session.id)?;
+                crate::sessions::ensure_idle(&self.config, &session, Some(id)).await?;
+                Ok(guard)
+            }
+            .await;
+            let guard = match guard {
                 Ok(guard) => guard,
-                Err(_) => {
-                    self.state(id, "skipped", Some("会话正在使用"), None, Some("done"))
+                Err(error) => {
+                    let state = if error.is::<crate::sessions::SessionBusy>() {
+                        "skipped"
+                    } else {
+                        "failed"
+                    };
+                    self.state(id, state, Some(&format!("{error:#}")), None, Some("done"))
                         .await?;
                     return Ok(());
                 }
             };
-            if crate::sessions::ensure_idle(&self.config, &session, Some(id))
-                .await
-                .is_err()
-            {
-                self.state(id, "skipped", Some("会话正在使用"), None, Some("done"))
-                    .await?;
-                return Ok(());
-            }
             match crate::sessions::inspect(&run.agent, &run.assignment.task, id, &binding.id).await
             {
                 Ok(info) => {
@@ -442,9 +445,8 @@ impl Runner {
             }
         }
         if let Some(mut session) = self.journal.session(id).await? {
-            if session.reason.as_deref().is_some_and(|s| {
-                s.starts_with("Agent returned a different session") || s == "会话正在使用"
-            }) {
+            // A recorded session conflict cannot be cleared by a later metadata probe.
+            if session.reason.is_some() {
                 self.state(
                     id,
                     "unknown",

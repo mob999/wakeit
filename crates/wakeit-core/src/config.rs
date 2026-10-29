@@ -28,12 +28,6 @@ fn address() -> String {
 fn replicas() -> usize {
     1
 }
-fn log_days() -> i32 {
-    7
-}
-fn run_days() -> i32 {
-    90
-}
 fn log_limit() -> usize {
     20 * 1024 * 1024
 }
@@ -399,52 +393,98 @@ fn task_schema(schema: &mut schemars::Schema) {
 }
 
 impl TaskConfig {
-    pub fn validate(&self) -> Result<()> {
-        ensure!(self.version == 1, "unsupported task configuration version");
-        validate_id(&self.id)?;
+    pub fn issues(&self) -> Vec<crate::dag::ValidationIssue> {
+        let mut issues = self.validate_fields().err().into_iter().collect::<Vec<_>>();
         if let Some(dag) = &self.dag {
-            ensure!(
-                self.runner.is_empty()
-                    && self.agent.is_empty()
-                    && self.cwd.is_empty()
-                    && self.prompt.is_empty()
-                    && self.parameters.is_empty()
-                    && self.session.is_none(),
-                "DAG and top-level node execution fields are mutually exclusive"
-            );
-            ensure!(!self.name.trim().is_empty(), "name is required");
-            ensure!(
-                serde_json::to_vec(self)?.len() <= 1000 * 1024,
-                "encoded task configuration exceeds 1000 KiB"
-            );
-            if let Some(timeout) = &self.execution.timeout {
-                duration(timeout)?;
-            }
-            duration(&self.execution.start_grace)?;
-            if let Some(s) = &self.schedule {
-                crate::schedule::validate(s)?;
-            }
-            return dag.validate();
+            issues.extend(dag.issues());
         }
-        validate_id(&self.agent)?;
-        ensure!(
-            !self.name.trim().is_empty() && !self.runner.is_empty(),
-            "name and runner are required"
-        );
-        ensure!(!self.cwd.trim().is_empty(), "cwd is required");
-        ensure!(!self.prompt.trim().is_empty(), "prompt is required");
-        ensure!(self.prompt.len() <= 1024 * 1024, "prompt exceeds 1 MiB");
-        ensure!(
-            serde_json::to_vec(self)?.len() <= 1000 * 1024,
-            "encoded task configuration exceeds 1000 KiB"
-        );
-        if let Some(session) = &self.session {
-            crate::sessions::validate_id(&session.id)?;
+        issues
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if let Some(issue) = self.issues().first() {
+            if issue.path.starts_with("dag.") {
+                bail!("{}: {}", issue.path, issue.message);
+            }
+            bail!("{}", issue.message);
         }
-        duration(self.execution.timeout.as_deref().unwrap_or("1h"))?;
-        duration(&self.execution.start_grace)?;
-        if let Some(s) = &self.schedule {
-            crate::schedule::validate(s)?;
+        Ok(())
+    }
+
+    fn validate_fields(&self) -> std::result::Result<(), crate::dag::ValidationIssue> {
+        let issue = |path: &str, message: String| crate::dag::ValidationIssue {
+            path: path.into(),
+            node_id: None,
+            message,
+            cycle: vec![],
+        };
+        if self.version != 1 {
+            return Err(issue(
+                "version",
+                "unsupported task configuration version".into(),
+            ));
+        }
+        validate_id(&self.id).map_err(|e| issue("id", e.to_string()))?;
+        if self.name.trim().is_empty() {
+            return Err(issue(
+                "name",
+                if self.dag.is_some() {
+                    "name is required"
+                } else {
+                    "name and runner are required"
+                }
+                .into(),
+            ));
+        }
+        if self.dag.is_some() {
+            if !self.runner.is_empty()
+                || !self.agent.is_empty()
+                || !self.cwd.is_empty()
+                || !self.prompt.is_empty()
+                || !self.parameters.is_empty()
+                || self.session.is_some()
+            {
+                return Err(issue(
+                    "dag",
+                    "DAG and top-level node execution fields are mutually exclusive".into(),
+                ));
+            }
+        } else {
+            validate_id(&self.agent).map_err(|e| issue("agent", e.to_string()))?;
+            if self.runner.is_empty() {
+                return Err(issue("runner", "name and runner are required".into()));
+            }
+            if self.cwd.trim().is_empty() {
+                return Err(issue("cwd", "cwd is required".into()));
+            }
+            if self.prompt.trim().is_empty() {
+                return Err(issue("prompt", "prompt is required".into()));
+            }
+            if self.prompt.len() > 1024 * 1024 {
+                return Err(issue("prompt", "prompt exceeds 1 MiB".into()));
+            }
+            if let Some(session) = &self.session {
+                crate::sessions::validate_id(&session.id)
+                    .map_err(|e| issue("session.id", e.to_string()))?;
+            }
+        }
+        if serde_json::to_vec(self)
+            .map_err(|e| issue("config", e.to_string()))?
+            .len()
+            > 1000 * 1024
+        {
+            return Err(issue(
+                "config",
+                "encoded task configuration exceeds 1000 KiB".into(),
+            ));
+        }
+        if let Some(timeout) = &self.execution.timeout {
+            duration(timeout).map_err(|e| issue("execution.timeout", e.to_string()))?;
+        }
+        duration(&self.execution.start_grace)
+            .map_err(|e| issue("execution.start_grace", e.to_string()))?;
+        if let Some(schedule) = &self.schedule {
+            crate::schedule::validate(schedule).map_err(|e| issue("schedule", e.to_string()))?;
         }
         Ok(())
     }
@@ -464,10 +504,6 @@ pub struct GatewayConfig {
     pub nats_auth_dir: PathBuf,
     #[serde(default = "replicas")]
     pub nats_replicas: usize,
-    #[serde(default = "log_days")]
-    pub log_retention_days: i32,
-    #[serde(default = "run_days")]
-    pub run_retention_days: i32,
     #[serde(default = "log_limit")]
     pub log_limit_bytes: usize,
     #[serde(default)]
@@ -811,4 +847,55 @@ pub fn generated_session_title(
         end -= 1;
     }
     Ok(format!("{}{}", &cleaned[..end], suffix))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn task_issues_identify_the_invalid_field_without_reparsing() {
+        let task = json!({
+            "id": "daily", "name": "Daily", "runner": "device", "agent": "pi",
+            "cwd": "/work", "prompt": "Summarize", "schedule": null
+        });
+        for (path, value) in [
+            ("/execution/timeout", json!("invalid")),
+            ("/execution/start_grace", json!("invalid")),
+            ("/schedule", json!({"cron": "invalid", "timezone": "UTC"})),
+            ("/prompt", json!("")),
+        ] {
+            let mut input = task.clone();
+            input["execution"] = json!({"timeout": "1h", "start_grace": "1m"});
+            *input.pointer_mut(path).unwrap() = value;
+            let config: TaskConfig = serde_json::from_value(input).unwrap();
+            let issues = config.issues();
+            assert_eq!(issues.len(), 1, "{path}: {issues:?}");
+            assert_eq!(
+                issues[0].path,
+                path.trim_start_matches('/').replace('/', ".")
+            );
+            assert!(config.validate().is_err());
+        }
+    }
+
+    #[test]
+    fn task_issues_preserve_graph_details_alongside_execution_errors() {
+        let config: TaskConfig = serde_json::from_value(json!({
+            "id": "daily", "name": "Daily", "schedule": null,
+            "execution": {"timeout": "invalid"},
+            "dag": {"nodes": [
+                {"id": "a", "name": "A", "pre": ["b"], "runner": "device", "agent": "pi", "cwd": "/work", "prompt": "Collect"},
+                {"id": "b", "name": "B", "pre": ["a"], "runner": "device", "agent": "pi", "cwd": "/work", "prompt": "Summarize"}
+            ]}
+        })).unwrap();
+        let issues = config.issues();
+        assert_eq!(issues[0].path, "execution.timeout");
+        assert!(issues.iter().any(|issue| !issue.cycle.is_empty()));
+        assert_eq!(
+            issues.len(),
+            config.dag.as_ref().unwrap().issues().len() + 1
+        );
+    }
 }

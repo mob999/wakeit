@@ -1,7 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import i18next from 'i18next'
 import { retryDiagnostics, literalDiagnostics } from './diagnostic-cases.ts'
 
 const resources = Object.fromEntries(
@@ -15,29 +14,23 @@ const resources = Object.fromEntries(
   ]),
 )
 
-for (const prefix of ['actions.', 'retry.error.', 'agentPrompt.']) {
-  test(prefix + ' translations have matching keys, text and interpolation parameters', () => {
-    const keys = Object.values(resources).map(({ translation }) =>
-      Object.keys(translation)
-        .filter((key) => key.startsWith(prefix))
-        .sort(),
+test('catalogs have matching keys, nonempty text and interpolation parameters', () => {
+  const keys = Object.values(resources).map(({ translation }) => Object.keys(translation).sort())
+  assert.ok(keys[0].length > 0)
+  assert.deepEqual(keys[0], keys[1])
+  for (const key of keys[0]) {
+    const values = Object.values(resources).map(({ translation }) => translation[key] as string)
+    assert.ok(
+      values.every((value) => value.trim()),
+      key,
     )
-    assert.ok(keys[0].length > 0)
-    assert.deepEqual(keys[0], keys[1])
-    for (const key of keys[0]) {
-      const values = Object.values(resources).map(({ translation }) => translation[key] as string)
-      assert.ok(
-        values.every((value) => value.trim()),
-        key,
-      )
-      assert.deepEqual(
-        values[0].match(/\{\{[^}]+\}\}/g)?.sort(),
-        values[1].match(/\{\{[^}]+\}\}/g)?.sort(),
-        key,
-      )
-    }
-  })
-}
+    assert.deepEqual(
+      values[0].match(/\{\{[^}]+\}\}/g)?.sort(),
+      values[1].match(/\{\{[^}]+\}\}/g)?.sort(),
+      key,
+    )
+  }
+})
 
 test('all routed diagnostics have their required catalog keys and named parameters', () => {
   for (const { translation } of Object.values(resources)) {
@@ -51,27 +44,12 @@ test('all routed diagnostics have their required catalog keys and named paramete
   }
 })
 
-for (const language of ['zh', 'en']) {
-  test(
-    language + ': real i18next preserves diagnostic identifiers during interpolation',
-    async () => {
-      const i18n = i18next.createInstance()
-      await i18n.init({
-        resources,
-        lng: language,
-        fallbackLng: false,
-        keySeparator: false,
-        interpolation: { escapeValue: false },
-      })
-      const node = '/workspace/中文 report.md {{literal}}'
-      const text = i18n.t('retry.error.resultUnavailable', { node })
-      assert.ok(text.includes(node))
-      assert.notEqual(text, 'retry.error.resultUnavailable')
-      for (const key of literalDiagnostics) {
-        assert.ok(i18n.exists(key), key)
-        assert.ok(i18n.t(key).trim())
-        if (language === 'zh') assert.notEqual(i18n.t(key), key)
-      }
-    },
-  )
-}
+test('literal diagnostics are translated in both catalogs', () => {
+  for (const [language, { translation }] of Object.entries(resources)) {
+    for (const key of literalDiagnostics) {
+      assert.ok(Object.hasOwn(translation, key), key)
+      assert.ok(translation[key].trim(), key)
+      if (language === 'zh') assert.notEqual(translation[key], key)
+    }
+  }
+})

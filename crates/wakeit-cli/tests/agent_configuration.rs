@@ -1,8 +1,9 @@
-#![cfg(unix)]
-
 use serde_json::{Value, json};
-use std::{fs, os::unix::fs::PermissionsExt, process::Command};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+use std::{fs, process::Command};
 
+#[cfg(unix)]
 #[test]
 fn initialized_agent_survives_removing_the_installation_executable() {
     let dir = tempfile::tempdir().unwrap();
@@ -48,4 +49,46 @@ fn initialized_agent_survives_removing_the_installation_executable() {
     let agents: Value = serde_json::from_slice(&doctor.stdout).unwrap();
     assert_eq!(agents[0]["available"], true);
     assert_eq!(agents[0]["version"], "2.3.2");
+}
+
+#[test]
+fn agent_test_uses_configured_result_format_and_pointer() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("agent.yaml");
+    for (format, pointer, output, expected) in [
+        (
+            "json",
+            Some("/answer"),
+            r#"{"answer":"ok"}"#,
+            Some(json!("ok")),
+        ),
+        ("jsonl", None, "1\n2\n", Some(json!([1, 2]))),
+        ("json", None, "not JSON", None),
+        ("json", Some("/missing"), "{}", None),
+    ] {
+        fs::write(&path, json!({
+            "version":1,"id":"fixture","name":"fixture","mode":"sync",
+            "submit":{"command":"node","args":["-e","process.stdout.write(process.argv[1])",output]},
+            "output":{"format":format,"result_pointer":pointer}
+        }).to_string()).unwrap();
+        let actual = Command::new(env!("CARGO_BIN_EXE_wakeit"))
+            .args(["--json", "agent", "test", "--file"])
+            .arg(&path)
+            .arg("--cwd")
+            .arg(dir.path())
+            .output()
+            .unwrap();
+        if let Some(expected) = expected {
+            assert!(actual.status.success(), "{actual:?}");
+            let response: Value = serde_json::from_slice(&actual.stdout).unwrap();
+            assert_eq!(response["state"], "succeeded");
+            assert_eq!(response["result"], expected);
+        } else {
+            assert!(
+                !actual.status.success(),
+                "accepted {format} output {output:?}"
+            );
+            assert!(!String::from_utf8_lossy(&actual.stdout).contains("succeeded"));
+        }
+    }
 }

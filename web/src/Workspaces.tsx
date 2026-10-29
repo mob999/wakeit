@@ -42,7 +42,7 @@ export function CreateWorkspace({ onClose }: { onClose: () => void }) {
               onChange={(event) => setName(event.target.value)}
             />
           </Field>
-          {create.error && <ErrorToast>{create.error.message}</ErrorToast>}
+          {create.error && <ErrorToast error={create.error.message} />}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={create.isPending} onClick={onClose}>
@@ -200,10 +200,10 @@ export function WorkspaceHome({ user, error }: { user: User; error?: string }) {
               <ActionIcon name="add" />
             </IconButton>
           </div>
-          {error && <ErrorToast>{error}</ErrorToast>}
+          {error && <ErrorToast error={error} />}
           {workspaces.error ? (
             <div className="card-body">
-              <ErrorToast>{workspaces.error.message}</ErrorToast>
+              <ErrorToast error={workspaces.error.message} />
               <Button onClick={() => void workspaces.refetch()}>{tr('重试')}</Button>
             </div>
           ) : workspaces.isPending ? (
@@ -330,7 +330,7 @@ export function WorkspaceManagement({
         })}
       >
         <div className="modal-body">
-          {leave.error && <ErrorToast>{leave.error.message}</ErrorToast>}
+          {leave.error && <ErrorToast error={leave.error.message} />}
         </div>
         <div className="modal-footer">
           <Button disabled={leave.isPending} onClick={() => setLeaving(false)}>
@@ -363,7 +363,7 @@ export function WorkspaceManagement({
                 onChange={(event) => setName(event.target.value)}
               />
             </Field>
-            {save.error && <ErrorToast>{save.error.message}</ErrorToast>}
+            {save.error && <ErrorToast error={save.error.message} />}
           </div>
           <div className="modal-footer">
             <Button type="button" disabled={save.isPending} onClick={() => setOpen(false)}>

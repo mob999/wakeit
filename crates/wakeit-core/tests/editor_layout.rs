@@ -1,5 +1,5 @@
 use serde_json::json;
-use wakeit::{config::TaskConfig, editor_layout::EditorLayout};
+use wakeit_core::{config::TaskConfig, editor_layout::EditorLayout};
 fn graph() -> TaskConfig {
     serde_json::from_value(json!({"version":1,"id":"layout-test","name":"Layout test","schedule":null,
         "dag":{"nodes":[{"id":"a","name":"Source","runner":"preview","agent":"pi","cwd":"/workspace","prompt":"collect"},

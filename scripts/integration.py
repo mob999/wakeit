@@ -2,66 +2,7 @@
 """Real PostgreSQL + NATS integration tests. Uses only the Python standard library."""
 import argparse, concurrent.futures, datetime, getpass, json, os, pathlib, re, shutil, signal, socket, subprocess, time, urllib.request, urllib.error, uuid
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-BIN = ROOT / 'target/debug/wakeit'
-GATEWAY = ROOT / 'target/debug/wakeit-gateway'
-MOCK = ROOT / 'target/debug/examples/mock_agent'
-PROBE = ROOT / 'target/debug/examples/bus_probe'
-
-def timestamp(value):
-    value = re.sub(r'\.(\d+)(?=[+-]|Z|$)', lambda m: '.' + m.group(1).ljust(6, '0')[:6], value)
-    return datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
-
-class APIError(Exception):
-    def __init__(self, status, body): self.status, self.body = status, body; super().__init__(f'{status}: {body}')
-
-def port():
-    with socket.socket() as sock: sock.bind(('127.0.0.1', 0)); return sock.getsockname()[1]
-
-def scope_path(path):
-    # Only the legacy single-workspace regression fixture sets this explicitly.
-    # Production APIs never infer a workspace; multi-workspace tests pass full paths.
-    workspace = os.environ.get('WAKEIT_TEST_WORKSPACE')
-    tail = path[len('/api/v1/'):] if path.startswith('/api/v1/') else ''
-    global_paths = ['session', 'meta', 'changelog', 'workspaces', 'instance', 'oauth', 'auth', 'device-authorizations', 'device', 'schema', 'openapi.json', 'register']
-    if workspace and tail and tail.split('/')[0].split('?')[0] not in global_paths and not tail.startswith(('invites/accept', 'invites/inspect')):
-        return '/api/v1/workspaces/' + workspace + '/' + tail
-    return path
-
-def call(base, path, method='GET', body=None, token=None, key=None, headers=None):
-    path = scope_path(path)
-    headers = dict(headers) if headers is not None else {'X-Wakeit-Request': '1'}
-    if token: headers['Authorization'] = f'Bearer {token}'
-    if method == 'POST': headers['Idempotency-Key'] = key or str(uuid.uuid4())
-    data = json.dumps(body).encode() if body is not None else None
-    if data: headers['Content-Type'] = 'application/json'
-    req = urllib.request.Request(base + path, data=data, method=method, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=20) as response: return json.load(response)
-    except urllib.error.HTTPError as error:
-        raise APIError(error.code, json.load(error)) from None
-
-def wait(fn, description, timeout=25):
-    deadline = time.monotonic() + timeout
-    error = None
-    while time.monotonic() < deadline:
-        try:
-            value = fn()
-            if value: return value
-        except (APIError, OSError) as e: error = str(e)
-        time.sleep(.2)
-    raise AssertionError(f'timed out: {description}; {error or "condition not reached"}')
-
-def expect_status(fn, status):
-    try: fn()
-    except APIError as error: assert error.status == status, error; return
-    raise AssertionError(f'expected HTTP {status}')
-
-def command(args, env=None):
-    result=subprocess.run([str(a) for a in args], cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if result.returncode:
-        raise RuntimeError(f'command failed: {args[0]}\n{result.stdout[-4000:]}\n{result.stderr[-4000:]}')
-    return result.stdout
+from integration_support import ROOT, BIN, GATEWAY, MOCK, PROBE, APIError, WorkspaceAPI, call, command, expect_status, port, timestamp, wait
 
 def main():
     parser = argparse.ArgumentParser()
@@ -109,12 +50,13 @@ def main():
         wait(lambda:call(other,'/health/ready'),'second Gateway ready')
         token=call(base,'/api/v1/session','POST',{'username':'admin','password':env['WAKEIT_PASSWORD']})['token']
         workspace=call(base,'/api/v1/workspaces',token=token)['items'][0]['id']
-        os.environ['WAKEIT_TEST_WORKSPACE']=workspace
+        ws = WorkspaceAPI(workspace)
         env['WAKEIT_WORKSPACE']=workspace
-        def api(path,method='GET',body=None,key=None):return call(base,'/api/v1'+path,method,body,token,key)
+        def api(path,method='GET',body=None,key=None):return ws.call(base,path,method,body,token,key)
+        def global_api(path,method='GET',body=None,key=None):return call(base,'/api/v1'+path,method,body,token,key)
         assert call(other,'/api/v1/session',token=token)['username']=='admin'
         check('shared authentication across Gateway instances')
-        expect_status(lambda:call(base,'/api/v1/tokens','POST',{'name':'csrf'},headers={'Cookie':f'wakeit_session={token}'}),403)
+        expect_status(lambda:ws.call(base,'/tokens','POST',{'name':'csrf'},headers={'Cookie':f'wakeit_session={token}'}),403)
         check('cookie write CSRF protection')
         role_tokens={}
         for role in ['operator','viewer']:
@@ -122,18 +64,18 @@ def main():
             call(base,'/api/v1/invites/accept','POST',{'token':invite,'username':role,'password':'wakeit-role-test-password'})
             expect_status(lambda:call(base,'/api/v1/invites/accept','POST',{'token':invite,'username':role+'2','password':'wakeit-role-test-password'}),400)
             role_tokens[role]=call(base,'/api/v1/session','POST',{'username':role,'password':'wakeit-role-test-password'})['token']
-        assert call(base,'/api/v1/runners/enrollment','POST',{},role_tokens['operator'])['token']
-        expect_status(lambda:call(base,'/api/v1/runners/enrollment','POST',{},role_tokens['viewer']),403)
-        expect_status(lambda:call(base,'/api/v1/members',token=role_tokens['viewer']),403)
+        assert ws.call(base,'/runners/enrollment','POST',{},role_tokens['operator'])['token']
+        expect_status(lambda:ws.call(base,'/runners/enrollment','POST',{},role_tokens['viewer']),403)
+        expect_status(lambda:ws.call(base,'/members',token=role_tokens['viewer']),403)
         check('member roles and single-use invitations')
         if args.device_auth_only:
             from device_auth_checks import verify as verify_device_auth
-            verify_device_auth(api,base,other,sql,role_tokens,check)
+            verify_device_auth(api,base,other,sql,role_tokens,check,ws)
             return
         zones=api('/timezones');assert zones==sorted(set(zones)) and 'Asia/Shanghai' in zones and 'UTC' in zones
-        assert call(base,'/api/v1/timezones',token=role_tokens['viewer'])==zones
-        expect_status(lambda:call(base,'/api/v1/timezones'),401)
-        admin_user=api('/session')['id']
+        assert ws.call(base,'/timezones',token=role_tokens['viewer'])==zones
+        expect_status(lambda:ws.call(base,'/timezones'),401)
+        admin_user=global_api('/session')['id']
         expect_status(lambda:api('/members/'+admin_user,'PUT',{'role':'operator','active':True}),409)
         sql("INSERT INTO users(id,username,password_hash,role,active) SELECT gen_random_uuid(),'inactive-fixture',password_hash,'viewer',false FROM users WHERE username='admin'")
         sql("INSERT INTO users(id,username,password_hash,role) SELECT gen_random_uuid(),'pagination-member-'||lpad(i::text,2,'0'),password_hash,'viewer' FROM users CROSS JOIN generate_series(0,22) i WHERE username='admin'")
@@ -141,7 +83,7 @@ def main():
         members1=api('/members?page=1&page_size=20');members2=api('/members?page=2&page_size=20')
         assert members1['total']==27 and members1['active_admins']==1 and len(members1['items'])==20 and len(members2['items'])==7
         assert not {m['id'] for m in members1['items']} & {m['id'] for m in members2['items']}
-        expect_status(lambda:call(base,'/api/v1/members?page=1',token=role_tokens['operator']),403)
+        expect_status(lambda:ws.call(base,'/members?page=1',token=role_tokens['operator']),403)
         expect_status(lambda:api('/members?page=0'),400)
         expect_status(lambda:api('/tokens','POST',{'name':'   '}),400)
         for i in range(23):api('/tokens','POST',{'name':f'pagination-token-{i:02}'})
@@ -149,9 +91,9 @@ def main():
         assert token1['total']==23 and len(token1['items'])==20 and len(token2['items'])==3
         assert not {t['id'] for t in token1['items']} & {t['id'] for t in token2['items']}
         assert all('created_at' in t and 'token' not in t for t in token1['items'])
-        call(base,'/api/v1/tokens','POST',{'name':'viewer-fixture'},role_tokens['viewer'])
-        own=call(base,'/api/v1/tokens?page=1',token=role_tokens['viewer']);assert own['total']==1 and own['items'][0]['name']=='viewer-fixture'
-        call(base,'/api/v1/tokens/'+token1['items'][0]['id'],'DELETE',token=role_tokens['viewer'])
+        ws.call(base,'/tokens','POST',{'name':'viewer-fixture'},role_tokens['viewer'])
+        own=ws.call(base,'/tokens?page=1',token=role_tokens['viewer']);assert own['total']==1 and own['items'][0]['name']=='viewer-fixture'
+        ws.call(base,'/tokens/'+token1['items'][0]['id'],'DELETE',token=role_tokens['viewer'])
         assert api('/tokens?page=1')['total']==23
         assert all(t['expires_at'] is None for t in token1['items'])
         permanent=api('/tokens','POST',{'name':'no-expiration'})['token']
@@ -206,13 +148,13 @@ def main():
         def trigger(id,key=None):return api('/tasks/'+id+'/runs','POST',{},key)['id']
         def final(id,state='succeeded',timeout=25):return wait(lambda:(r if (r:=api('/runs/'+id))['state']==state else None), f'run {state}',timeout)
         from moments_checks import verify as verify_moments
-        verify_moments(api,base,other,sql,task,apply,role_tokens,runner_id,check)
+        verify_moments(api,base,other,sql,task,apply,role_tokens,runner_id,check,ws)
         from admin_archive_checks import verify as verify_admin_archive
-        verify_admin_archive(api,base,other,sql,task,apply,trigger,final,role_tokens,runner_id,runner_dir,root,check)
+        verify_admin_archive(api,base,other,sql,task,apply,trigger,final,role_tokens,runner_id,runner_dir,root,check,ws,global_api)
         from integration_sessions import verify as verify_sessions
-        verify_sessions(api,base,other,sql,task,apply,trigger,final,role_tokens,runner_id,runner_dir,root,check)
+        verify_sessions(api,base,other,sql,task,apply,trigger,final,role_tokens,runner_id,runner_dir,root,check,ws)
         from integration_watch import verify as verify_watch
-        verify_watch(api,other,task,apply,trigger,role_tokens,BIN,root,check)
+        verify_watch(api,other,task,apply,trigger,role_tokens,BIN,root,check,workspace)
         release_meta=call(base,'/api/v1/meta')
         gateway_version=command([GATEWAY,'--version']).strip().split()[-1]
         cli_version=command([BIN,'--version']).strip().split()[-1]
@@ -224,27 +166,27 @@ def main():
         roots=api(f'/runners/{runner_id}/directories'); assert roots['directories'][0]['path']==str(cwd)
         for name in ['child 中文','other child']: (cwd/name).mkdir()
         from urllib.parse import urlencode
-        def dirs(base_url=base,path=cwd,cursor=None):return call(base_url,'/api/v1/runners/'+runner_id+'/directories?'+urlencode({'path':str(path),**({'cursor':cursor} if cursor else {})}),token=token)
+        def dirs(base_url=base,path=cwd,cursor=None):return ws.call(base_url,'/runners/'+runner_id+'/directories?'+urlencode({'path':str(path),**({'cursor':cursor} if cursor else {})}),token=token)
         assert {d['name'] for d in dirs()['directories']}=={'child 中文','other child'}
         assert dirs(other)['path']==str(cwd)
         expect_status(lambda:dirs(path=root),400)
         (cwd/'outside-link').symlink_to(root,target_is_directory=True)
         assert 'outside-link' not in {d['name'] for d in dirs()['directories']}
         expect_status(lambda:dirs(path=cwd/'outside-link'),400)
-        expect_status(lambda:call(base,f'/api/v1/runners/{runner_id}/directories',token=role_tokens['viewer']),403)
+        expect_status(lambda:ws.call(base,f'/runners/{runner_id}/directories',token=role_tokens['viewer']),403)
         assert dirs(path=cwd/'child 中文')['parent']==str(cwd)
         for i in range(205):(cwd/f'page-{i:03}').mkdir()
         page=dirs();assert len(page['directories'])==200 and page['next_cursor']
         assert len(dirs(cursor=page['next_cursor'])['directories'])==7
         check('native directory queries across Gateways, pagination and symlink boundaries')
-        def models(agent='mock-sync',base_url=base):return call(base_url,f'/api/v1/runners/{runner_id}/agents/{agent}/models/query','POST',{'cwd':str(cwd)},token)
+        def models(agent='mock-sync',base_url=base):return ws.call(base_url,f'/runners/{runner_id}/agents/{agent}/models/query','POST',{'cwd':str(cwd)},token)
         assert len(models()['models'])==2 and len(models(base_url=other)['models'])==2
         expect_status(lambda:models('mock-async'),400)
         for state in ['fail','invalid','sleep']:
             (cwd/'.models-state').write_text(state);expect_status(models,400)
         (cwd/'.models-state').write_text('empty');assert models()['models']==[]
         (cwd/'.models-state').unlink()
-        expect_status(lambda:call(base,f'/api/v1/runners/{runner_id}/agents/mock-sync/models/query','POST',{'cwd':str(cwd)},role_tokens['viewer']),403)
+        expect_status(lambda:ws.call(base,f'/runners/{runner_id}/agents/mock-sync/models/query','POST',{'cwd':str(cwd)},role_tokens['viewer']),403)
         check('models command contract, no interface, empty, failure, malformed output and timeout')
         parameter_task=task('parameter-snapshot');parameter_task['parameters']={'model':'model-b','reasoning':'high'}
         apply(parameter_task);parameter_run=final(trigger('parameter-snapshot'))
@@ -273,8 +215,8 @@ def main():
         trace_rows=api('/runs/'+trace_id+'/events?kind=trace')
         assert all(r['kind'] in ['trace','trace_status'] for r in trace_rows)
         assert next(r for r in trace_rows if r['kind']=='trace' and r['data']['id']=='cmd-1' and r['data']['status']=='running')['data']['occurred_at'] == next(r for r in trace_rows if r['kind']=='trace' and r['data']['id']=='cmd-1' and r['data']['status']=='succeeded')['data']['started_at']
-        assert call(other,'/api/v1/runs/'+trace_id+'/events?kind=trace',token=token)==trace_rows
-        assert call(base,'/api/v1/runs/'+trace_id+'/events?kind=trace',token=role_tokens['viewer'])==trace_rows
+        assert ws.call(other,'/runs/'+trace_id+'/events?kind=trace',token=token)==trace_rows
+        assert ws.call(base,'/runs/'+trace_id+'/events?kind=trace',token=role_tokens['viewer'])==trace_rows
         cursor=0;total=0
         while True:
             rows=api('/runs/'+trace_id+'/events?after='+str(cursor));total+=len(rows)
@@ -299,7 +241,7 @@ def main():
         c=task('literal',prompt="中文\n\"quotes\" ' $(touch SHOULD_NOT_EXIST) ; & {{job.id}}")
         saved=apply(c)
         expect_status(lambda:apply(c,0),409)
-        expect_status(lambda:call(base,'/api/v1/tasks/literal/runs','POST',{},role_tokens['viewer']),403)
+        expect_status(lambda:ws.call(base,'/tasks/literal/runs','POST',{},role_tokens['viewer']),403)
         run_id=trigger('literal','same-request')
         assert trigger('literal','same-request')==run_id
         result=final(run_id); assert c['prompt'] in result['result']; assert not (cwd/'SHOULD_NOT_EXIST').exists()
@@ -312,7 +254,7 @@ def main():
         first_page=api('/tasks'+query);second_page=api('/tasks'+query.replace('page=1','page=2'))
         assert first_page['total']==23 and len(first_page['items'])==20 and len(second_page['items'])==3
         assert not {t['id'] for t in first_page['items']} & {t['id'] for t in second_page['items']}
-        assert call(other,'/api/v1/tasks'+query,token=token)==first_page
+        assert ws.call(other,'/tasks'+query,token=token)==first_page
         assert api('/tasks?page=1&q='+urlencode({'q':'%_'})[2:])['total']==23
         assert api('/tasks?page=1&q=Pagination&enabled=true')['total']==0
         expect_status(lambda:api('/tasks?page=0'),400);expect_status(lambda:api('/runs?page=1&page_size=101'),400)
@@ -322,7 +264,7 @@ def main():
         assert first_page['total']==23 and len(first_page['items'])==20 and len(second_page['items'])==3
         assert not {r['id'] for r in first_page['items']} & {r['id'] for r in second_page['items']}
         assert api('/runs?page=1&q=Pagination&state=failed')['total']==0
-        assert call(base,'/api/v1/runs?page=1&q=Pagination',token=role_tokens['viewer'])['total']==23
+        assert ws.call(base,'/runs?page=1&q=Pagination',token=role_tokens['viewer'])['total']==23
         check('server-side Task and Run pagination, literal fuzzy search, filters and cross-Gateway reads')
         assignment={'version':1,'run_id':run_id,'runner_id':runner_id,'task':c,'deadline':result['deadline']}
         replay=root/'replay.json';replay.write_text(json.dumps(assignment))
@@ -454,9 +396,9 @@ def main():
         check('Gateway crash preserves the running process and its durable result')
         # An SSE cursor can be resumed through either Gateway because events live in PostgreSQL.
         events=api('/runs/'+run_id+'/events'); assert events
-        resumed=call(other,f'/api/v1/runs/{run_id}/events?after={events[0]["id"]}',token=token)
+        resumed=ws.call(other,f'/runs/{run_id}/events?after={events[0]["id"]}',token=token)
         assert all(event['id']>events[0]['id'] for event in resumed)
-        req=urllib.request.Request(other+scope_path(f'/api/v1/runs/{run_id}/stream'),headers={'Authorization':'Bearer '+token})
+        req=urllib.request.Request(other+ws.path(f'/runs/{run_id}/stream'),headers={'Authorization':'Bearer '+token})
         with urllib.request.urlopen(req,timeout=5) as response:
             assert response.headers['Content-Type'].startswith('text/event-stream')
             assert any(b'run_event' in response.readline() for _ in range(6))
@@ -476,7 +418,7 @@ def main():
             runner_process=spawn('runner-command-recovery',[BIN,'runner','start','--config',runner_file])
         verify_recovered_commands(api,sql,runner_dir,remote,restart_for_command_recovery,check)
         from device_auth_checks import verify as verify_device_auth
-        verify_device_auth(api,base,other,sql,role_tokens,check)
+        verify_device_auth(api,base,other,sql,role_tokens,check,ws)
         state={'base_url':base,'other_url':other,'username':'admin','password':env['WAKEIT_PASSWORD'],'stack_pid':os.getpid(),'pids':[p.pid for p in processes if p.poll() is None],'pg_bin':str(pg_bin),'pg_data':str(root/'pg'),'artifact_dir':str(root),'checks':checks,'runner_id':runner_id,'runner_config':str(runner_file)}
         state_file=ROOT/args.state_file;state_file.parent.mkdir(parents=True,exist_ok=True);state_file.write_text(json.dumps(state,indent=2));state_file.chmod(0o600)
         success=True;print(f'{len(checks)} integration scenarios passed. Artifacts: {root.relative_to(ROOT)}',flush=True)

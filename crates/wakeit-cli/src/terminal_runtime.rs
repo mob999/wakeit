@@ -1,6 +1,6 @@
 //! Runner-owned, single-controller PTYs. No terminal bytes are written to the Journal.
 use crate::{
-    config::{self, CommandArg, RunnerConfig},
+    config::RunnerConfig,
     journal::Journal,
     process::ProcessGroup,
     sessions,
@@ -459,17 +459,11 @@ impl Runtime {
             ensure!(!entry.stop.is_cancelled() && Instant::now()<*entry.lease.lock().unwrap(),"terminal start expired");
             let spec=&prepared.command;
             let mut command=CommandBuilder::new(&spec.command);
-            for argument in &spec.args {match argument {
-                CommandArg::Literal(v)=>{command.arg(config::render(v,&prepared.task,entry.run,None)?);},
-                CommandArg::Group{when_set,args} if prepared.task.parameters.get(when_set).is_some_and(|v|!v.is_empty())=>{
-                    for v in args{command.arg(config::render(v,&prepared.task,entry.run,None)?);}
-                },_=>{}
-            }}
-            let cwd=config::render(spec.cwd.as_deref().unwrap_or(&prepared.task.cwd),&prepared.task,entry.run,None)?;
+            let (args,cwd)=crate::process::render_command(spec,&prepared.task,entry.run,None,None)?;
+            command.args(args);
             ensure!(std::fs::canonicalize(&cwd)?==std::fs::canonicalize(&prepared.session.cwd)?,"interactive command changes session working directory");
             command.cwd(cwd); command.env("TERM","xterm-256color"); command.env("COLORTERM","truecolor"); command.env("PWD",&prepared.session.cwd);
-            for (key,value) in &spec.env{command.env(key,config::render(value,&prepared.task,entry.run,None)?);}
-            for (key,value) in &spec.env_from{command.env(key,std::env::var(value).context("required Agent environment is unavailable")?);}
+            for (key,value) in crate::process::render_environment(spec,&prepared.task,entry.run,None,None)? { command.env(key,value); }
             marker=Some(sessions::mark_continuation(&self.config,entry.run,&prepared.session)?);
             sqlx::query("UPDATE local_terminals SET marker=? WHERE id=?").bind(marker.as_ref().map(|p|p.to_string_lossy().into_owned())).bind(entry.id.to_string()).execute(&self.journal.pool).await?;
             let (cols,rows)=wire::dimensions(&request.data)?;

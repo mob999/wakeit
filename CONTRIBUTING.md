@@ -23,11 +23,27 @@ cargo clippy --locked -p wakeit-cli --all-targets -- -D warnings
 cargo test --locked -p wakeit-cli --all-targets
 ```
 
-UI 开发默认由一个 Vite dev 服务直接提供当前工作树的 `web/`，保存后通过热重载观察相关页面和交互；你我使用同一预览地址，不在多份源码之间反复复制。普通前端修改不要求逐次构建或重启后端；生产发布时才将构建资源嵌入 Rust 二进制。热重载见 [运维指南](docs/operations.md#webui-热重载)。
+UI 开发默认由一个 Vite dev 服务直接提供当前工作树的 `web/`，保存后通过热重载观察相关页面和交互；你我使用同一预览地址，不在多份源码之间反复复制。普通前端修改不要求逐次构建或重启后端；生产发布时才将构建资源嵌入 Rust 二进制。启动命令见下方“WebUI 热重载”。
 
 实现或准备 PR 的任务完成必要的局部验证后即可推送，让 CI 异步运行并继续开发；合并和发布时等待当前提交的必需 CI。只在结果、具体阻塞或需要决定时报告，不逐阶段播报 CI。
 
 前端单元测试直接使用 Node test runner，不需要 Gateway 或浏览器，在 CI 中运行一次。测试分层与覆盖归属见 [测试策略](docs/test-strategy.md)；审查和重构测试时可使用 [Unit Test Review skill](.agents/skills/unit-test-review/SKILL.md)。
+
+## WebUI 热重载
+
+开发时可以由 Vite 提供 WebUI，Gateway 保持独立运行。Gateway 的 `listen` 指向后端端口，`public_url` 指向浏览器实际访问的 Vite 地址；Runner 的 Gateway 地址同样指向此公开地址。
+
+例如 Gateway 监听 `127.0.0.1:8080`，`public_url` 为 `http://127.0.0.1:5173`：
+
+```sh
+cd web
+npm ci
+WAKEIT_DEV_GATEWAY=http://127.0.0.1:8080 \
+WAKEIT_DEV_PUBLIC_URL=http://127.0.0.1:5173 \
+  npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Vite 将 `/api` 和 `/health` 代理到 Gateway，包括会话、写操作和 SSE 实时日志；修改 React 或 CSS 后会自动更新浏览器。开发服务器可由用户服务管理器独立托管，避免依赖临时测试进程。生产部署仍使用嵌入 Gateway 的静态 WebUI。
 
 ## 集成测试
 

@@ -853,20 +853,6 @@ pub fn compile(definition: &Definition, request: &InstanceRequest) -> Preview {
                 .collect()
         });
         let graph = Dag { nodes, results };
-        for issue in graph.issues() {
-            if issue.path.ends_with(".runner") || issue.path.ends_with(".agent") {
-                continue;
-            }
-            preview.issues.push(Issue {
-                code: "graph".into(),
-                path: issue.path,
-                message: issue.message,
-                params: Map::new(),
-                node_id: issue.node_id,
-                line: None,
-                column: None,
-            });
-        }
         preview.graph = Some(graph.clone());
         config.dag = Some(graph);
     } else {
@@ -899,12 +885,28 @@ pub fn compile(definition: &Definition, request: &InstanceRequest) -> Preview {
         }
     }
     preview.used_bindings = used.into_iter().collect();
-    if preview.issues.is_empty()
-        && let Err(e) = config.validate()
-    {
-        preview
-            .issues
-            .push(Issue::new("configuration", "task", e.to_string()));
+    let report_configuration = preview.issues.is_empty();
+    for issue in config.issues() {
+        if issue.path.starts_with("dag.") {
+            if !report_configuration
+                && (issue.path.ends_with(".runner") || issue.path.ends_with(".agent"))
+            {
+                continue;
+            }
+            preview.issues.push(Issue {
+                code: "graph".into(),
+                path: issue.path,
+                message: issue.message,
+                params: Map::new(),
+                node_id: issue.node_id,
+                line: None,
+                column: None,
+            });
+        } else if report_configuration {
+            preview
+                .issues
+                .push(Issue::new("configuration", "task", issue.message));
+        }
     }
     if preview.issues.is_empty() {
         preview.config = Some(config);
@@ -1022,4 +1024,40 @@ pub fn from_task(task: &TaskConfig) -> anyhow::Result<Definition> {
         bindings,
         task: blueprint,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn invalid_agent_identifier_cannot_produce_a_preview_configuration() {
+        let task: TaskConfig = serde_json::from_value(json!({
+            "id": "daily", "name": "Daily", "schedule": null,
+            "dag": {"nodes": [{
+                "id": "a", "name": "Collect", "runner": "device", "agent": "pi",
+                "cwd": "/work", "prompt": "Collect"
+            }]}
+        }))
+        .unwrap();
+        let mut definition = from_task(&task).unwrap();
+        definition
+            .bindings
+            .values_mut()
+            .next()
+            .unwrap()
+            .defaults
+            .agent = Some("invalid agent".into());
+        let request: InstanceRequest =
+            serde_json::from_value(json!({"expected_revision": 1})).unwrap();
+        let preview = compile(&definition, &request);
+        assert!(preview.config.is_none());
+        assert!(
+            preview
+                .issues
+                .iter()
+                .any(|issue| issue.path.ends_with(".agent"))
+        );
+    }
 }

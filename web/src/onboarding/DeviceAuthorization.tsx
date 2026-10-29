@@ -88,7 +88,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
                 </form>
               )}
               {query.isFetching && <p role="status">{tr('正在读取授权请求…')}</p>}
-              {query.error && <ErrorToast>{query.error.message}</ErrorToast>}
+              {query.error && <ErrorToast error={query.error.message} />}
               {request && (
                 <>
                   <dl className="authorization-fields">
@@ -131,9 +131,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
                       </div>
                     )}
                   </dl>
-                  {denied && (
-                    <ErrorToast>{tr('注册 Runner 需要 Operator 或 Admin 权限。')}</ErrorToast>
-                  )}
+                  {denied && <ErrorToast error={tr('注册 Runner 需要 Operator 或 Admin 权限。')} />}
                   {request.state !== 'pending' && (
                     <p role="status">
                       {(
@@ -148,7 +146,7 @@ export function DeviceAuthorization({ user }: { user: User }) {
                   )}
                 </>
               )}
-              {error && <ErrorToast>{error}</ErrorToast>}
+              {error && <ErrorToast error={error} />}
             </>
           )}
         </div>

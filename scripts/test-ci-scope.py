@@ -33,6 +33,12 @@ class ScopeChecks(unittest.TestCase):
         self.assertEqual(self.selected('web/src/main.tsx', 'crates/wakeit-gateway/src/api.rs'),
                          {'frontend', 'gateway', 'integration', 'web'})
 
+    def test_package_tests_do_not_start_service_integration(self):
+        self.assertEqual(self.selected('crates/wakeit-cli/tests/sessions.rs'), {'cli'})
+        self.assertEqual(self.selected('crates/wakeit-core/tests/task_templates.rs'), {'core'})
+        # Gateway tests still need assets for the embedded WebUI.
+        self.assertEqual(self.selected('crates/wakeit-gateway/tests/preview.rs'), {'gateway', 'web'})
+
     def test_ci_unknown_paths_and_manual_runs_select_everything(self):
         full = {name for name, enabled in select_scopes(None).items() if enabled}
         self.assertEqual(self.selected('.github/workflows/verify.yml'), full)

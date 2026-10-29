@@ -14,7 +14,7 @@ import struct
 import subprocess
 import time
 import uuid
-from integration import call, command, expect_status, port, wait
+from integration_support import call, command, expect_status, port, wait
 from integration_sessions import configure
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]

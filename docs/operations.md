@@ -1,5 +1,26 @@
 # 部署与运维
 
+## Docker Compose 部署
+
+安装 Docker Compose v2，克隆仓库后在仓库根目录运行：
+
+```sh
+git clone https://github.com/mob999/wakeit.git
+cd wakeit
+cp .env.example .env
+# 将 .env 中的 WAKEIT_POSTGRES_PASSWORD 改为仅含字母和数字的随机密码。
+docker compose build
+docker compose up -d
+export WAKEIT_PASSWORD='replace-with-a-generated-admin-password'
+docker compose run --rm -e WAKEIT_PASSWORD gateway \
+  bootstrap --config /app/gateway.yaml --username admin
+unset WAKEIT_PASSWORD
+```
+
+打开 <http://localhost:8080> 登录。PostgreSQL、NATS 数据和设备身份保存在命名卷中；更新时保留这些卷。Linux 需启用 Docker 系统自启；macOS、Windows 的 Docker Desktop 登录启动不能代替无人登录时的系统启动。
+
+跨设备使用时，将 Gateway 的 `public_url` 和 NATS WSS 地址配置为设备可访问的地址；公网部署使用 HTTPS/WSS。
+
 ## 原生部署
 
 先通过 [Gateway 安装脚本或源码](gateway-service.md#安装程序)安装 `wakeit-gateway`。准备 PostgreSQL，初始化专用 NATS 身份目录：
@@ -36,7 +57,7 @@ unset WAKEIT_PASSWORD
 wakeit-gateway start --config gateway.yaml
 ```
 
-环境覆盖：`WAKEIT_PUBLIC_URL`、`WAKEIT_NATS_URL`、`WAKEIT_NATS_PUBLIC_URL`、`WAKEIT_NATS_REPLICAS`。NATS URL 可用逗号分隔多个节点。首版创建 Stream 时设置副本数；已有部署调整副本数前，须通过 NATS 管理工具迁移三个 WAKEIT Stream 的副本配置。对外 URL 应与浏览器访问域名保持一致。
+环境覆盖：`WAKEIT_PUBLIC_URL`、`WAKEIT_NATS_URL`、`WAKEIT_NATS_PUBLIC_URL`、`WAKEIT_NATS_REPLICAS`。NATS URL 可用逗号分隔多个节点。创建 Stream 时设置副本数；已有部署调整副本数前，须通过 NATS 管理工具迁移三个 WAKEIT Stream 的副本配置。对外 URL 应与浏览器访问域名保持一致。
 
 ## 云端多实例
 
@@ -96,7 +117,7 @@ Compose 部署可在服务干净停止后备份对应命名卷。身份目录包
 
 ## CLI 更新
 
-`wakeit update --check` 只检查 CLI 的 `cli-v*` 正式版本，`wakeit update` 校验并替换当前二进制，GitHub 私有凭据与 Gateway Token 独立。没有正式发布时返回 no_release；同版本提交不触发更新。详细行为见 [CLI 指南](cli.md#检查与更新)。
+`wakeit update --check` 只检查 CLI 的 `cli-v*` 正式版本，`wakeit update` 校验并替换当前二进制，GitHub 私有凭据与 Gateway Token 独立。详细行为见 [CLI 指南](cli.md#检查与更新)。
 
 ## 升级与监控
 
@@ -109,121 +130,30 @@ Gateway 使用部署脚本、源码构建或新镜像更新；CLI/Runner 单独�
 
 吊销 Runner 会暂停它关联的 Task，取消尚未开始的 Run，已启动但无法再核对的 Run 进入 unknown。重新分配设备后再恢复 Task。
 
-## 独立版本与 0.4.0 部署
+## 从旧版本升级
 
-Gateway/WebUI 从原版本线继续发布 0.4.0；CLI/Runner 从 0.1.0 独立发布。`wakeit` 不再提供 `gateway` 子命令，服务器改用 `wakeit-gateway start`、`migrate`、`bootstrap` 等顶层命令。
+正式发布的数据库通过追加迁移升级，不重建数据库、不重新注册设备。升级前备份 PostgreSQL、NATS 数据与身份目录，保留 Runner 配置、journal 和 Agent 凭据。停止所有旧 Gateway 写入，使用新版本运行 `wakeit-gateway migrate --config gateway.yaml`，再启动同版本的所有 Gateway，并确认 `/health/ready` 正常。
 
-这是明确的命令与安装入口变更，没有旧命令兼容层。已有服务配置必须将程序路径与启动参数改为 `wakeit-gateway start ...`；不要把 CLI 程序当作服务端覆盖安装。数据库、NATS 身份、任务与 Runner 数据保留在原位置。独立升级 Gateway 和 CLI/Runner，不要求版本号相等。
+从 0.3.x 及更早版本升级时，服务端程序改为独立的 `wakeit-gateway`。将服务配置中的 `wakeit gateway start ...` 改为 `wakeit-gateway start ...`，同时保留原配置与数据路径。CLI/Runner 使用自己的版本线，不要求与 Gateway 版本号相同。
 
-## 历史版本升级记录
-
-以下 0.1.x–0.3.x 记录保留当时的命令；当前部署使用上面的独立产品入口。
-
-## 本机服务升级
-
-0.2.0 新增 `0002_workspaces.sql`，保留已发布的 `0001_initial.sql`。升级前备份 PostgreSQL、设备配置与 journal，停止所有旧 Gateway 的写入与调度，再执行 `wakeit gateway migrate --config gateway.yaml` 并启动新 Gateway；不允许新旧 Gateway 混跑。已有资源和 API Key 归入 Default，原 ID、设备身份及 Agent 凭据保留，Runner 可继续运行。原管理员不自动获得实例管理权限，需运维使用 `gateway grant-instance-admin` 显式指定。更新 CLI 以使用工作区 API，详见[工作区升级指南](workspaces.md#upgrading-an-existing-service)。旧预览基线先按下文明确的保数据脚本修复，再执行正常迁移。
-
-正式本机预览使用独立的 runtime 目录与用户服务管理（macOS launchd），PostgreSQL、NATS、Gateway 和 Runner 独立托管。集成脚本仅运行隔离的验收栈，不用它承载日常预览。测试栈和 runtime 都处于 .local/，不得提交凭据或运行数据。
-
-## WebUI 热重载
-
-开发时可以由 Vite 提供 WebUI，Gateway 保持独立运行。Gateway 的 `listen` 指向后端端口，`public_url` 指向浏览器实际访问的 Vite 地址；Runner 的 Gateway 地址同样指向此公开地址。
-
-例如 Gateway 监听 `127.0.0.1:8080`，`public_url` 为 `http://127.0.0.1:5173`：
-
-```sh
-cd web
-npm ci
-WAKEIT_DEV_GATEWAY=http://127.0.0.1:8080 \
-WAKEIT_DEV_PUBLIC_URL=http://127.0.0.1:5173 \
-  npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
-```
-
-Vite 将 `/api` 和 `/health` 代理到 Gateway，包括会话、写操作和 SSE 实时日志；修改 React 或 CSS 后会自动更新浏览器。开发服务器可由用户服务管理器独立托管，避免依赖临时测试进程。生产部署仍使用嵌入 Gateway 的静态 WebUI。
-
-## Upgrading from 0.2.0
-
-0.3.0 adds `0003_dag.sql` and `0004_task_editor_layout.sql` after the published workspace migration. Back up PostgreSQL and preserve NATS state, Runner configuration and journals. Stop every Gateway that writes to the database, run `wakeit gateway migrate --config gateway.yaml` with the new binary, then start all Gateways on the same new version and verify `/health/ready`. Do not run old and new Gateways together.
-
-The migrations retain ordinary Task IDs, Run history, API Keys and device identities. Existing Runners still receive version-1 single-execution assignments; no Agent authentication changes are required. DAG graph configuration belongs to the parent Task/Run, while shared editor coordinates stay outside YAML and execution snapshots. CLI apply preserves coordinates for remaining nodes when layout is omitted. Upgrade CLI clients to use DAG-aware reports and the `warning` terminal state.
-
-## 未发布归档字段升级
-
-全新数据库通过 `gateway migrate` 依次执行 `0001_initial.sql` 和 `0002_workspaces.sql`。已部署的归档功能前 0.1.0 数据库，先验证隔离环境，短暂停止所有 Gateway，保留 Runner 运行；使用当前环境中的 WAKEIT_DATABASE_URL 执行：
-
-```sh
-python3 scripts/upgrade-unreleased-archive.py --backup .local/backups/archive-upgrade.dump
-wakeit gateway migrate --config gateway.yaml
-```
-
-可通过 --pg-bin 指定 PostgreSQL 工具目录。脚本要求已知旧初始迁移校验和，先生成权限受限的 pg_dump 自定义格式备份，再事务内添加 archived_at、更新调度索引和初始迁移基线。未知基线拒绝执行，普通 migrate 继续校验文件完整性；重复升级不重复改动。随后使用新二进制启动 Gateway 并验证 ready。无需重建数据或重新注册设备；不要删除 SQLx 迁移记录或账号。备份保留在忽略目录，恢复时使用 PostgreSQL 的 pg_restore 工具并按照正常维护流程进行。
-
-
-## 未发布会话结构升级
-
-从归档功能完成后的0.1.0数据库升级到会话版本，先停止 Gateway 写入并确认没有 starting/running Run，保留 Runner 和 Agent 凭据。设置 `WAKEIT_DATABASE_URL` 后执行：
-
-```bash
-python3 scripts/upgrade-unreleased-session.py --backup /private/backups/wakeit-before-sessions.dump
-wakeit gateway migrate --config gateway.yaml
-```
-
-脚本仅接受已知上一版迁移校验值，先创建0600的完整备份，再在事务内增加会话列和索引、同步唯一初始迁移基线；未知结构拒绝执行。已是目标基线时只验证并退出。更早的归档前基线使用 `upgrade-unreleased-archive.py`，它一次升级到当前完整结构。SQLite Journal 在 Runner 启动时原地增加元数据列，保留已有执行记录。
-
-## Unreleased device-authorization baseline
-
-For an existing known pre-device baseline, stop Gateway writers, preserve Runner processes, and explicitly run `WAKEIT_DATABASE_URL=... python3 scripts/upgrade-unreleased-device-auth.py --backup /private/path/backup.dump`. It creates a private backup, checks the exact prior SQLx checksum, adds grant/limit/registration tables in one transaction and updates the single initial migration checksum. Unknown baselines are refused. Normal migration validation remains enabled. Older archive/session upgrade scripts also create the final device-authorization schema.
-
-The browser authorization origin and copied Prompt use `public_url`; set it to an address reachable from the Agent's device. Production requires HTTPS, including the device verification page. Current installation uses independent `cli-v*` and `gateway-v*` releases. Agent Prompt installs the CLI through its own installer, without deriving its version from Gateway metadata. Regular update checks exclude preview releases.
-
-## Upgrading from 0.3.0
-
-0.3.1 adds `0005_terminals.sql` for browser-terminal lifecycle records and `0006_dag_retries.sql` for multiple execution attempts per DAG node. Back up PostgreSQL and preserve NATS state, Runner configuration, journals and Agent credentials. Stop all Gateway writers, run `wakeit gateway migrate --config gateway.yaml` with 0.3.1, then start every Gateway on the same version and verify `/health/ready`. Do not mix old and new Gateway writers.
-
-Existing Task/Run IDs, results, Runner identities, API Keys and native sessions are preserved. Runner SQLite journals upgrade automatically. Update Runners to enable browser PTYs, current-file previews and execution-failure retry verdicts; older Runners retain their identities and native-command copy fallback. Do not reregister devices or replace Agent authentication. Configuration and message protocols remain version 1.
-
-## Upgrading from 0.3.1
-
-0.3.2 adds `0007_dag_manual_retry.sql` for manual node recovery, structured stop causes, independent recovery windows and idempotent requests. Back up PostgreSQL, stop all Gateway writers and run `wakeit gateway migrate --config gateway.yaml` with 0.3.2 before restarting every Gateway on this version. Verify `/health/ready`; keep existing Run IDs, successful executions, NATS state, Runner journals, device identities and Agent credentials. Do not reregister Runners. Existing explicit DAG total timeouts remain; new DAGs default to no total limit, while ordinary tasks and individual nodes still default to 1h.
-
-Update Runners for bounded observations that do not interrupt healthy Agent execution, local-image thumbnails and chunked originals. Protocol/configuration version remains 1, and existing Runner identities continue working. The WebUI shows one selected DAG output at a time; raw view, references and copying target that output. See [DAG recovery](dag.md#manual-node-retry-and-recovery) and [current-file previews](#result-file-previews).
-
-## Upgrading from 0.3.2
-
-0.3.3 requires no new database migration and retains the published `0007_dag_manual_retry.sql` baseline. Back up service data, replace the Gateway/CLI binary and restart the Gateway to load the updated WebUI and workspace-lock fix; verify `/health/ready`. Keep existing PostgreSQL and NATS data, Runner journals, device identities, native sessions and Agent credentials. Existing Runners remain compatible; do not reregister devices. Configuration and message protocols remain version 1.
-
-## Upgrading from 0.3.3
-
-The task-template implementation appends `0008_task_templates.sql` after the published `0007_dag_manual_retry.sql` baseline. It adds workspace template resources, Task/Run creation-origin snapshots and idempotent operation results without rewriting existing records. Task templates ship in 0.3.4; configuration/message protocols remain version 1.
-
-Before upgrading to 0.3.4, back up PostgreSQL, NATS state, Runner configuration and journals, and confirm there are no starting/running Runs. Stop every old Gateway writer, run `wakeit gateway migrate --config gateway.yaml` with the new binary, then start all Gateways on that same build and verify `/health/ready`. Preserve Task/Run IDs, results, API Keys, Runner identities, native sessions and Agent credentials; do not reregister devices or replace databases.
-
-Structured DAG prompts fit the existing JSONB Task/Run snapshots, and Runners continue receiving ordinary version-1 execution strings. Older Runners do not need re-enrollment or new Agent credentials. Older Gateways and CLIs are not guaranteed to understand structured prompt configuration, so do not mix old and new Gateway writes or let an old Gateway schedule/recover those Tasks. See [Task templates](templates.md) for the creation and compatibility model.
+从 0.1.x 升级的资源归入 Default 工作区；实例管理员需显式授权，参见[工作区升级指南](workspaces.md#upgrading-an-existing-service)。已有任务、运行记录和设备身份随正式迁移保留。未发布开发版曾改写初始迁移的数据库不在升级支持范围内，不要修改迁移校验和绕过错误。
 
 ## Browser session terminals
 
-Apply the new PostgreSQL migration before starting updated Gateways. Updated Runners advertise `info.web_terminal: 1`; old or offline Runners retain native command-copy support. Local SQLite lifecycle tracking upgrades automatically. Existing device identities and NATS credentials remain valid: terminal control uses the authorized Runner inbox, and output uses its existing reply prefix. No additional Runner listening port is required.
+浏览器终端需要更新后的 Runner。反向代理须转发 `/api/v1/workspaces/*/terminals/*/stream` 的 WebSocket Upgrade，`public_url` 与浏览器访问来源一致；多 Gateway 无需粘性会话。不记录终端输入或 WebSocket 内容。
 
-The HTTP reverse proxy must forward same-origin WebSocket upgrades for `/api/v1/workspaces/*/terminals/*/stream`. Keep `public_url` equal to the browser's public origin; WebSocket Origin checks are strict. Gateway replicas share lifecycle rows and Core NATS routing, without sticky sessions. Terminal traffic is ephemeral and must not be captured by proxy body/frame logging. Do not enable external WebSocket payload capture on this route.
-
-Closing the modal stops the process tree (graceful request, force after 5 seconds); an unexpected connection loss has a 30-second Runner-local lease even if Gateways are unavailable. A terminal consumes one execution slot and shares native Session locks with tasks and `wakeit run resume`. Unknown cleanup holds occupancy until process absence is verified. Runner restart does not relaunch PTYs. Private local continuation markers remain the recovery boundary when a process cannot be verified; do not delete them until the owned process tree has stopped.
-
-The terminal provides native Agent interaction, not a general-purpose shell. Native Agent tools still run with the Runner user's permissions. Viewer/demo members can copy the original command without connecting a PTY. Direct execution of that copied command is outside Wakeit's locks. Terminal screens and input are memory-only, with at most 2000 scrollback rows and a bounded screen buffer. Native Agent session persistence remains managed by that Agent.
+关闭终端会停止对应进程树；连接意外断开后由 Runner 的租约回收。终端占用执行槽位，与任务共享原生会话锁。无法确认清理完成时，先核对进程状态再处理，不能直接删除本地占用记录。终端交互和原生工具使用 Runner 用户的权限。
 
 ## DAG node retries
 
-A node may set `max_retries: 3` for the initial attempt plus up to three automatic retries; manual attempts are separate. Omitted/0 disables automatic retries. Confirmed execution failures and node timeouts retry after 5/10/20/40/60 seconds with bounded jitter; validation, invalid Session, cancellation and unknown do not automatically retry. Older Runners without the optional state-event retry verdict conservatively do not retry failed executions. An optional graph total timeout includes backoff and does not extend during active retry; explicit recovery of a settled Run starts a new window at the first claim. Attempts remain child Runs with their own logs, Trace, result and native Session; default sessions start anew, explicitly bound sessions are reused under the same locks.
-
-The parent/node retry endpoint now accepts a required nullable `execution_id` and optional `resume_stopped:false`, with `Idempotency-Key`. It returns `{id,parent_run_id,node_id}`. Node detail exposes retry action, blocking reason and affected descendants. One manual attempt retains successes within the frozen parent, does not consume/reset automatic quota, and does not schedule automatic follow-ups on failure. Pending automatic successors are reused. Explicit stopped recovery requires old processes confirmed stopped and no unknowns; only affected descendants resume under AND. Successful retained results must remain reusable. Archive, permission and overlap guards run transactionally. DAG total timeout is disabled when omitted/null; existing explicit limits remain unchanged. See [DAG recovery](dag.md#manual-node-retry-and-recovery). Migration 0007 adds attempt origins, structured stop causes, recovery generation/window and idempotent request identities; back up before migrating. It preserves existing Run IDs, attempts and devices.
+节点可设置有限次数的自动重试；手动重试可保留成功节点并恢复受影响的下游。遇到 unknown 先核对实际执行状态。具体策略、重试入口和恢复条件见 [DAG 任务](dag.md#manual-node-retry-and-recovery)。
 
 ## Result file previews
 
-Admin and Read/write members can click explicit local links in a saved Run/DAG report or Moments to preview a current Runner file. Viewer can copy paths; demo workspaces never query real files. No separate preview_roots is configured: the exact saved link and current Runner allowed_roots bound access. Relative targets use the execution snapshot's task directory, which may differ from an adapter's overridden process directory; adapters should return absolute links in that case. Current files are not archived historical artifacts.
+管理员和读写成员可打开报告中的本地文件链接，由原 Runner 读取其允许目录内的当前文件；这些文件不是执行时的历史快照。Runner 离线、目录不再允许或文件已移除时，预览不可用。只读成员可复制路径。
 
-`POST /runs/{execution-id}/files/preview` accepts `{href, document?, image?, offset?, revision?}`. DAG uses the actual child execution ID. Gateway checks the exact saved result link on every request; Markdown-file images additionally require an original linked, complete Markdown document and a current image reference inside it. Relative paths use the frozen execution cwd or Runner-validated Markdown directory. Runner uses the existing version-1 `read_result_file` query and current allowed_roots; no separate roots, database changes, or protocol-version change is required. Optional image fields are additive.
+支持文本、Markdown、JSON 和 PNG/JPEG/WebP 图片；图片先显示缩略图，点击后加载原图。相对路径以执行目录或 Markdown 文件目录解析。接口字段和大小限制见 [REST API](api.md)。
 
-Text/Markdown/JSON retain the 512 KiB raw preview limit, further bounded by NATS. Inline PNG/JPEG/WebP uses `image: "thumbnail"`: Runner decodes a source of at most 32 MiB / 40 megapixels / 16,384 pixels per side and generates a preview of at most 1280 pixels per side, reducing it further to fit one response. Transparency is preserved; thumbnail encoding may differ from the original. At most two thumbnails decode concurrently per Runner. Clicking opens a preview and reads the unchanged original using `image: "original"`, byte `offset` and the returned `revision`; each response contains `offset`, `next_offset` (null at EOF), base64 content and the original total `size`. The first original chunk establishes the current file revision (a cached thumbnail may be older); later chunks must match it. All chunks are independently authorized, including current Markdown references and permissions. Original data is memory-only and discarded on close; closing cancels further reads. Old Runners retain small complete-image compatibility and show an update message for oversized files.
+## WebUI 热重载
 
-Reports, Moments and Markdown-file previews lazily load visible thumbnails with at most four concurrent browser reads, scoped memory-only caching and click-to-enlarge. Inline failures show their specific cause as well as Toasts. Original failures retain the thumbnail and display the cause. Viewer/demo performs no local file IO. Responses are no-store/nosniff. No files are rewritten, no image bytes are persisted to a Gateway URL or browser storage, and no image is substituted for the original report result. HTML/SVG remain escaped source; PDF, directory browsing, special files and downloads are unsupported.
-
-For a live upgrade regression, prepare a separate old service with `python3 scripts/integration_workspaces.py --keep-running --prepare-only --gateway-binary /absolute/path/to/previous/wakeit`, then run `python3 scripts/dag_retry_live_upgrade_checks.py --stack .local/workspaces-<id>/summary.json`. This only accepts a disposable stack from this checkout. It verifies an active execution, original clock and Runner credentials survive the additive 0007 migration without restarting Runners or repeating Agent calls.
+开发预览使用 Vite，设置方式见[开发指南](../CONTRIBUTING.md#webui-热重载)。
