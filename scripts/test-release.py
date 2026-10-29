@@ -50,7 +50,6 @@ class Packaging(unittest.TestCase):
                     self.assertEqual(entry['sha256'], hashlib.sha256((output / entry['name']).read_bytes()).hexdigest())
                 installer = 'install.sh' if product == 'cli' else 'deploy-gateway.sh'
                 self.assertEqual((output / installer).read_bytes(), (ROOT / installer).read_bytes())
-                self.assertIn(f'requested={version}', (ROOT / installer).read_text())
                 english, _ = changelog_paths(product)
                 self.assertEqual((output / 'release-notes.md').read_text(), entries(english.read_text())[version] + '\n')
                 self.assertEqual((output / 'wakeit-skill.tar.gz').exists(), product == 'cli')

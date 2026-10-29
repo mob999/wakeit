@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 import uuid
-from integration import APIError, command, expect_status, wait
+from integration_support import APIError, command, expect_status, wait
 
 
 def verify(api, a, b, check, context):

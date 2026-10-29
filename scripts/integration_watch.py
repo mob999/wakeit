@@ -4,11 +4,11 @@ import os
 import subprocess
 
 
-def verify(api, other, task, apply, trigger, role_tokens, binary, root, check):
+def verify(api, other, task, apply, trigger, role_tokens, binary, root, check, workspace):
     home = root / 'watch-home'
     home.mkdir()
     environment = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(home),
-                       WAKEIT_TOKEN=role_tokens['viewer'], WAKEIT_WORKSPACE=os.environ['WAKEIT_TEST_WORKSPACE'])
+                       WAKEIT_TOKEN=role_tokens['viewer'], WAKEIT_WORKSPACE=workspace)
     environment.pop('WAKEIT_TOKEN_FILE', None)
     environment.pop('WAKEIT_GATEWAY', None)
 

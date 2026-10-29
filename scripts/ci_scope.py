@@ -45,6 +45,9 @@ def file_scopes(path):
         return {'docs', 'packaging'}
     if path in {'Cargo.toml', 'Cargo.lock'} or path.startswith(('rust-toolchain', '.cargo/')):
         return BACKEND | {'packaging'}
+    for product in ('cli', 'gateway', 'core'):
+        if path.startswith(f'crates/wakeit-{product}/tests/'):
+            return {product}
     if path.startswith('crates/wakeit-cli/'):
         return {'cli', 'integration', 'packaging'} if path.endswith('Cargo.toml') else {'cli', 'integration'}
     if path.startswith('crates/wakeit-gateway/'):

@@ -1,10 +1,10 @@
 """Device-flow integration contracts against two real Gateway processes."""
 import hashlib,json,time,urllib.request,uuid,os,pathlib,subprocess,tempfile,re
-from integration import ROOT,BIN
-from integration import call,expect_status,APIError
+from integration_support import ROOT,BIN
+from integration_support import call,expect_status,APIError
 
-def verify(api,base,other,sql,tokens,check):
-    workspace=os.environ['WAKEIT_TEST_WORKSPACE']
+def verify(api,base,other,sql,tokens,check,ws):
+    workspace=ws.workspace
     intent={'workspace_id':workspace,'name':'device-flow-fixture','os':'test','register_runner':True,'allowed_roots':['/tmp/测试 workspace']}
     def create(i=None):return call(base,'/api/v1/oauth/device/code','POST',i or intent)
     def browser(token):return {'Cookie':'wakeit_session='+token,'X-Wakeit-Request':'1','Origin':base}
@@ -34,7 +34,7 @@ def verify(api,base,other,sql,tokens,check):
     expired=create();sql("UPDATE device_grants SET expires_at=now()-interval '1 second' WHERE user_hash='"+hashlib.sha256(expired['user_code'].encode()).hexdigest()+"'")
     error(lambda:poll(expired),'expired_token');expect_status(lambda:decide(expired,tokens['operator']),400)
     viewer=create(dict(intent,register_runner=False,allowed_roots=[]));decide(viewer,tokens['viewer']);viewer_key=poll(viewer)['access_token'];assert call(base,'/api/v1/session',token=viewer_key)['role']=='viewer'
-    expect_status(lambda:call(base,'/api/v1/runners/enrollment','POST',{},viewer_key),403)
+    expect_status(lambda:ws.call(base,'/runners/enrollment','POST',{},viewer_key),403)
     downgraded=create();decide(downgraded,tokens['operator']);sql(f"UPDATE workspace_members SET role='viewer' WHERE workspace_id='{workspace}' AND user_id=(SELECT id FROM users WHERE username='operator')")
     error(lambda:poll(downgraded),'access_denied');sql(f"UPDATE workspace_members SET role='operator' WHERE workspace_id='{workspace}' AND user_id=(SELECT id FROM users WHERE username='operator')")
     disabled=create();decide(disabled,tokens['operator']);sql("UPDATE users SET active=false WHERE username='operator'")
@@ -78,7 +78,7 @@ def verify(api,base,other,sql,tokens,check):
         cli('--gateway',other,'task','list',success=False)
         cli('connection','use',name)
         cli('connection','use','does-not-exist',success=False)
-        token=call(base,'/api/v1/tokens','POST',{'name':'registration-fixture'},tokens['operator'])['token']
+        token=ws.call(base,'/tokens','POST',{'name':'registration-fixture'},tokens['operator'])['token']
         file=root/'fixture.key';file.touch(mode=0o600);file.write_text(token)
         p=subprocess.run([str(ROOT/'target/debug/examples/registration_probe'),base,str(file),directory],text=True,capture_output=True)
         assert p.returncode==0,p.stderr
@@ -93,6 +93,6 @@ def verify(api,base,other,sql,tokens,check):
         assert config_files[0].read_bytes()==before
     check('CLI manual-browser fallback, Gateway-scoped profiles across directories, signed registration recovery, name conflicts, rejected identity takeover and resumable service-manager failure')
     # Revoke the newly issued personal key and check the other Gateway immediately.
-    rows=call(base,'/api/v1/tokens',token=key); own=next(t for t in rows if t['id']==hashlib.sha256(key.encode()).hexdigest())
-    call(base,'/api/v1/tokens/'+own['id'],'DELETE',token=key);expect_status(lambda:call(other,'/api/v1/session',token=key),401)
+    rows=ws.call(base,'/tokens',token=key); own=next(t for t in rows if t['id']==hashlib.sha256(key.encode()).hexdigest())
+    ws.call(base,'/tokens/'+own['id'],'DELETE',token=key);expect_status(lambda:call(other,'/api/v1/session',token=key),401)
     check('device authorization: Operator enrollment, Viewer CLI-only, Web session/CSRF, cross-Gateway single exchange, denial, expiry, polling backoff, demotion, disablement, no-store and revocation')

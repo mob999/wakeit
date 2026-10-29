@@ -6,7 +6,7 @@ import random
 import struct
 import zlib
 from pathlib import Path
-from integration import call, expect_status, wait
+from integration_support import call, expect_status, wait
 
 
 def verify(api, a, b, check, context):

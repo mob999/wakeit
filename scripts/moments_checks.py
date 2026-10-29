@@ -1,11 +1,11 @@
 """Completion ordering, local days, bounded previews and cursor pagination on real PostgreSQL."""
+from integration_support import expect_status
 import datetime as dt
 import json
 import uuid
 from urllib.parse import urlencode
 
-def verify(api, base, other, sql, task, apply, role_tokens, runner_id, check):
-    from __main__ import call, expect_status
+def verify(api, base, other, sql, task, apply, role_tokens, runner_id, check, ws):
     assert api('/moments/days')['total_runs'] == 0
     assert api('/moments/days')['days'] == []
     config = task('moments-fixture')
@@ -56,9 +56,9 @@ def verify(api, base, other, sql, task, apply, role_tokens, runner_id, check):
         sql("UPDATE tasks SET archived_at=now(),enabled=false WHERE id='moments-fixture'")
         assert api('/moments/days')['total_runs']==46
         for role,token in role_tokens.items():
-            assert call(other,'/api/v1/moments/days',token=token)['total_runs']==46, role
-            assert len(call(base,'/api/v1/moments?date=2026-11-01',token=token)['items'])==20
-        expect_status(lambda:call(base,'/api/v1/moments/days'),401)
+            assert ws.call(other,'/moments/days',token=token)['total_runs']==46, role
+            assert len(ws.call(base,'/moments?date=2026-11-01',token=token)['items'])==20
+        expect_status(lambda:ws.call(base,'/moments/days'),401)
         for path in ['/moments/days?limit=0','/moments/days?before=wrong','/moments?date=2026-02-30','/moments?date=2026-11-01&cursor=wrong','/moments?date=2026-11-01&limit=101']:
             expect_status(lambda:api(path),400)
         expect_status(lambda:api('/moments?date=2026-11-01&timezone=UTC'),409)

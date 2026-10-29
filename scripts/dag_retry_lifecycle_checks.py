@@ -7,7 +7,7 @@ import signal
 import subprocess
 import time
 import uuid
-from integration import APIError, command, expect_status, wait
+from integration_support import APIError, command, expect_status, wait
 
 
 def verify(api, a, check, context):
@@ -89,7 +89,7 @@ def verify(api, a, check, context):
 if __name__=='__main__':
     import argparse
     from pathlib import Path
-    from integration import call
+    from integration_support import call
     parser=argparse.ArgumentParser(description='Supplemental lifecycle checks on a retained disposable workspace stack')
     parser.add_argument('--stack',type=Path,required=True)
     args=parser.parse_args()

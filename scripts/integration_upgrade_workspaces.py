@@ -9,7 +9,7 @@ import pathlib
 import shutil
 import subprocess
 import uuid
-from integration import ROOT, GATEWAY, MOCK, call, command, expect_status, port, wait
+from integration_support import ROOT, GATEWAY, MOCK, call, command, expect_status, port, wait
 
 
 def main():

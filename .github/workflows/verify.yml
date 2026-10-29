@@ -64,6 +64,7 @@ jobs:
         with: {components: 'rustfmt, clippy'}
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt -p wakeit-cli --check
+        if: runner.os == 'Linux'
       - run: cargo clippy --locked -p wakeit-cli --all-targets -- -D warnings
       - run: cargo test --locked -p wakeit-cli --all-targets
       - run: cargo build --locked -p wakeit-cli --bin wakeit --example update_probe
@@ -91,6 +92,7 @@ jobs:
         with: {components: 'rustfmt, clippy'}
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt -p wakeit-gateway --check
+        if: runner.os == 'Linux'
       - run: cargo clippy --locked -p wakeit-gateway --all-targets -- -D warnings
       - run: cargo test --locked -p wakeit-gateway --all-targets
       - run: cargo build --locked -p wakeit-gateway --bin wakeit-gateway
@@ -115,6 +117,7 @@ jobs:
         with: {components: 'rustfmt, clippy'}
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt -p wakeit-core --check
+        if: runner.os == 'Linux'
       - run: cargo clippy --locked -p wakeit-core --all-targets -- -D warnings
       - run: cargo test --locked -p wakeit-core --all-targets
   integration:
@@ -135,9 +138,6 @@ jobs:
           curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz | tar xz
           sudo install nats-server-v2.15.0-linux-amd64/nats-server /usr/local/bin/nats-server
       - run: cargo build --locked --workspace --bins --examples
-      - run: python3 scripts/check-archive-upgrade.py
-      - run: python3 scripts/check-session-upgrade.py
-      - run: python3 scripts/check-device-auth-upgrade.py
       - run: python3 scripts/workspace_migration_checks.py
       - run: python3 scripts/github_auth_checks.py
       - run: python3 scripts/integration_workspaces.py

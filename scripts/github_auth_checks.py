@@ -5,7 +5,7 @@ import os
 import pathlib
 import subprocess
 import uuid
-from integration import ROOT, command, port
+from integration_support import ROOT, command, port
 
 
 def main():
