@@ -44,6 +44,11 @@ pub(super) enum Command {
         #[arg(long)]
         check: bool,
     },
+    /// Install or update the Wakeit Skill for your Agent.
+    Skill {
+        #[command(subcommand)]
+        command: Skill,
+    },
     Runner {
         #[command(subcommand)]
         command: Runner,
@@ -355,5 +360,15 @@ pub(super) enum Members {
     Invite {
         #[arg(long, default_value = "operator")]
         role: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub(super) enum Skill {
+    /// Download the latest official Wakeit Skill without connecting to a Gateway.
+    Install {
+        /// Destination skill directory (default: ~/.agents/skills/wakeit).
+        #[arg(long)]
+        dir: Option<PathBuf>,
     },
 }

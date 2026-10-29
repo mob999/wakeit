@@ -6,7 +6,7 @@ description: Connect to or deploy Wakeit Gateway, register Runners, define sched
 
 # Wakeit
 
-Wakeit 集中调度 Agent 任务，在用户设备上的 Runner 执行。CLI/Runner 使用 `wakeit`，当前版本为 0.1.0；Gateway/WebUI 使用独立的 `wakeit-gateway`，当前版本为 0.4.0。两者独立发布，版本号不要求相同；配置和事件协议为 version: 1。本 Skill 随 CLI 发布。
+Wakeit 集中调度 Agent 任务，在用户设备上的 Runner 执行。CLI/Runner 使用 `wakeit`，当前版本为 0.1.1；Gateway/WebUI 使用独立的 `wakeit-gateway`，当前版本为 0.4.1。两者独立发布，版本号不要求相同；配置和事件协议为 version: 1。本 Skill 随 CLI 发布。
 
 先确认用户当前目标及已有环境：是否有可用 CLI、Gateway 地址、认证、Runner 和执行目录。用户要使用 Wakeit，但未说明服务来源时，问是**连接已有 Gateway**还是**自行部署**；已有明确地址或部署意图时直接采用，不重复问。
 

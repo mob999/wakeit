@@ -39,7 +39,11 @@ wakeit setup --gateway https://wakeit.example.com \
 
 Approve the request in your browser. Setup registers the Runner and configures user-level autostart. [Windows and other installation options →](docs/install.md)
 
-You can also open **Agent Prompt** in the WebUI and give it to your Agent to complete setup. The [Wakeit skill](docs/skills.md) lets your Agent manage tasks and runs for you.
+You can also open **Agent Prompt** in the WebUI and give it to your Agent to complete setup. Install or update the [Wakeit skill](docs/skills.md) so your Agent can manage tasks and runs:
+
+```sh
+wakeit skill install
+```
 
 ### 3. Create a task
 

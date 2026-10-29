@@ -1,6 +1,6 @@
 # 更新
 
-CLI/Runner 和 Gateway 分别更新，产品版本不需要相同。当前 CLI/Runner 为 0.1.0，Gateway 为 0.4.0。
+CLI/Runner 和 Gateway 分别更新，产品版本不需要相同。当前 CLI/Runner 为 0.1.1，Gateway 为 0.4.1。
 
 ## CLI 与 Runner
 
@@ -30,3 +30,7 @@ wakeit update
 从 0.3.2 升级到 0.3.3 不需要新增数据库迁移，保留已发布的 `0007_dag_manual_retry.sql` 基线。备份服务数据，替换 Gateway／CLI 二进制并重启 Gateway，加载新版 WebUI 和工作区锁修复后验证 ready。保留 PostgreSQL、NATS、Runner Journal、设备身份、原生会话和 Agent 凭据；已有 Runner 继续兼容，不重新注册设备。配置和消息协议仍为 version 1。
 
 从 0.3.3 升级到 0.3.4 时，备份服务数据，停止所有 Gateway 写入后，用 0.3.4 执行 `wakeit gateway migrate --config gateway.yaml`，应用 `0008_task_templates.sql`，再统一启动 Gateway 并验证 ready。任务预设、创建来源与幂等记录使用新表和字段；已有任务和运行记录保持不变。结构化 DAG 指令仍渲染成 version 1 执行字符串，现有 Runner 身份、原生会话和 Agent 凭据继续保留。不要混用旧 Gateway 写入结构化指令配置。
+
+## Skill 更新
+
+运行 `wakeit skill install` 更新到最新正式 CLI Release 的完整 Skill。默认目录为 `~/.agents/skills/wakeit`；自定义位置加 `--dir /actual/agent/skills/wakeit`。更新会替换该 Skill 目录中的文件，完成后按需重新加载 Agent。

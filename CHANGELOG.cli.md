@@ -1,3 +1,8 @@
+## 0.1.1
+
+- Install or update the Wakeit Skill with `wakeit skill install`, with a default location and an optional custom directory.
+- Simplified installation and usage documentation.
+
 ## 0.1.0
 
 - Connect to a Wakeit workspace through browser authorization and manage saved connections.

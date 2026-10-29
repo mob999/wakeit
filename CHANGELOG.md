@@ -1,3 +1,7 @@
+## 0.4.1
+
+- Simplified documentation and Agent setup instructions.
+
 ## 0.4.0
 
 ### Changed

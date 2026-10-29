@@ -31,7 +31,7 @@ pub fn entry() {
         .build()
         .expect("Tokio runtime");
     let json_output = cli.json;
-    let is_update = matches!(&cli.command, Command::Update { .. });
+    let local_install = matches!(&cli.command, Command::Update { .. } | Command::Skill { .. });
     let watch_id = match &cli.command {
         Command::Run {
             command: Run::Watch { id, .. },
@@ -43,7 +43,7 @@ pub fn entry() {
             let _ = crate::commands::watch::setup_failure(id, json_output, &e.to_string());
             std::process::exit(2);
         }
-        if json_output && is_update {
+        if json_output && local_install {
             println!("{}", json!({"status":"error", "error":e.to_string()}));
         } else {
             eprintln!("wakeit: {e:#}");
@@ -64,6 +64,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                 command: Template::Validate { .. }
             }
             | Command::Update { .. }
+            | Command::Skill { .. }
             | Command::Connection { .. }
             | Command::Run {
                 command: Run::Resume { .. }
@@ -162,6 +163,9 @@ async fn run(mut cli: Cli) -> Result<()> {
             .await?
         }
         Command::Update { check } => crate::update::run(*check, cli.json).await?,
+        Command::Skill {
+            command: Skill::Install { dir },
+        } => crate::skill::install(dir.as_deref(), cli.json).await?,
         Command::Connection { command } => accounts::connection(command).await?,
         Command::Runner { command } => runners::runner(&cli, command).await?,
         Command::Agent { command } => agents::agent(&cli, command).await?,

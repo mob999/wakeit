@@ -1,8 +1,12 @@
 # Wakeit skill
 
-产品技能位于 `skills/wakeit/`。复制整个目录到所用 Agent 配置的 skills 目录；不要只复制 SKILL.md，入口按需读取同目录的 references 和 assets。
+安装或更新完整 Wakeit Skill：
 
-Codex 可通过 `$skill-installer` 指定 `mob999/wakeit` 的 `skills/wakeit` 路径安装。其他兼容 Agent Skills 的 Agent 按自身技能安装方式安装目录。重载技能后使用 `$wakeit`，或直接提出 Wakeit 部署、任务和适配需求。
+```sh
+wakeit skill install
+```
+
+默认目录为 `~/.agents/skills/wakeit`，可用 `wakeit skill install --dir /path/to/agent/skills/wakeit` 覆盖。命令下载最新正式 CLI Release 中的 Skill 并校验，更新时替换目标目录内的文件。重载 Agent 后使用 `$wakeit`，或直接提出 Wakeit 部署、任务和适配需求。
 
 入口会区分用户要连接已有 Gateway 还是自行部署。只加载当前需要的连接、部署、Runner、任务、运行、适配器或更新指南；一次普通任务创建不会加载整套运维文档。
 
