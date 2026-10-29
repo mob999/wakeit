@@ -238,3 +238,12 @@ WebUI 的“续聊”现在直接连接 Runner 上的原生交互终端（管理
 A node may set `max_retries: 3` for the initial attempt plus up to three automatic retries; manual attempts are separate. Omitted/0 disables automatic retries. Confirmed execution failures and node timeouts retry after 5/10/20/40/60 seconds with bounded jitter; validation, invalid Session, cancellation and unknown do not automatically retry. Older Runners without the optional state-event retry verdict conservatively do not retry failed executions. Optional graph total timeout includes backoff and does not extend on retry within an active Run; a settled Run gets a new window when explicitly recovered. Attempts remain child Runs with their own logs, Trace, result and native Session; default sessions start anew, explicitly bound sessions are reused under the same locks.
 
 Admin/Read-write members can retry a confirmed failed node with `run retry ID --node NODE` in the same frozen Run. Successful nodes remain unchanged; dependent skipped nodes resume after AND succeeds. Each manual attempt runs once without resetting or consuming automatic quota. Pending automatic successors are accelerated, not duplicated. `--resume-stopped` explicitly recovers graph cancellation/total timeout after all old processes stop; unknown must be reconciled. Task archival, retained-result availability and overlap are checked again. The CLI reads the latest node and submits its required nullable execution ID. Without `--node`, whole-graph retry still creates a new Run from current Task configuration. See [DAG recovery](dag.md#manual-node-retry-and-recovery).
+
+## 安装 Agent Skill
+
+```sh
+wakeit skill install
+wakeit skill install --dir /path/to/agent/skills/wakeit
+```
+
+安装或更新最新正式 CLI Release 中的完整 Skill，默认目录为 `~/.agents/skills/wakeit`。无需 Gateway 连接，支持 `--json`。详见 [Skill 指南](skills.md)。

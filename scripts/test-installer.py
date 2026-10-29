@@ -47,11 +47,11 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
                        'x86_64-apple-darwin', 'aarch64-apple-darwin'):
             name = f'wakeit-{target}'
             binary = self.fixture / name
-            binary.write_text('#!/bin/sh\nprintf "wakeit 0.1.0\\n"\n')
+            binary.write_text('#!/bin/sh\nprintf "wakeit 0.1.1\\n"\n')
             digest = hashlib.sha256(binary.read_bytes()).hexdigest()
             assets[target] = {'name': name, 'sha256': digest}
             lines.append(f'{digest}  {name}')
-        self.manifest = {'product': 'cli', 'version': '0.1.0', 'assets': assets}
+        self.manifest = {'product': 'cli', 'version': '0.1.1', 'assets': assets}
         self.write_manifest()
         with tarfile.open(self.fixture / 'wakeit-skill.tar.gz', 'w:gz') as archive:
             for name, data in [('wakeit/SKILL.md', b'# Fixture skill'), ('wakeit/references/connect.md', b'Connect')]:
@@ -83,14 +83,14 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
         for stage in range(1, 6):
             self.assertIn(f'[{stage}/5]', result.stderr)
         requests = (self.root / 'requests').read_text().splitlines()
-        self.assertIn('/download/cli-v0.1.0/wakeit-cli-release.json', requests[0])
-        self.assertIn('/download/cli-v0.1.0/SHA256SUMS', requests[1])
+        self.assertIn('/download/cli-v0.1.1/wakeit-cli-release.json', requests[0])
+        self.assertIn('/download/cli-v0.1.1/SHA256SUMS', requests[1])
         startup = self.home / '.zshrc'
         self.assertEqual(startup.read_text().count('# Wakeit PATH:'), 1)
         fresh = subprocess.run(['sh', '-c', '. "$1"; wakeit --version', 'sh', str(startup)],
                                env=self.env, capture_output=True, text=True)
         self.assertEqual(fresh.returncode, 0, fresh.stderr)
-        self.assertEqual(fresh.stdout.strip(), 'wakeit 0.1.0')
+        self.assertEqual(fresh.stdout.strip(), 'wakeit 0.1.1')
         self.assertEqual(list(self.root.glob('wakeit-install.*')), [])
 
     def test_platforms_version_and_custom_directory_without_shell_changes(self):
@@ -98,7 +98,7 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
                                      ('Linux', 'aarch64', 'aarch64-unknown-linux-gnu'),
                                      ('Darwin', 'x86_64', 'x86_64-apple-darwin')]:
             with self.subTest(system=system, arch=arch):
-                result = self.install('--version', 'v0.1.0', '--bin-dir', str(self.root / target),
+                result = self.install('--version', 'v0.1.1', '--bin-dir', str(self.root / target),
                                       '--no-modify-path', FIXTURE_OS=system, FIXTURE_ARCH=arch)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertTrue((self.root / target / 'wakeit').exists())
@@ -159,9 +159,9 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
     def test_gateway_installer_has_separate_binary_version_and_operations(self):
         name = 'wakeit-gateway-aarch64-apple-darwin'
         binary = self.fixture / name
-        binary.write_text('#!/bin/sh\nif [ "$1" = --version ]; then echo "wakeit-gateway 0.4.0"; else printf "%s\\n" "$*" >> "$FIXTURE_INVOCATIONS"; fi\n')
+        binary.write_text('#!/bin/sh\nif [ "$1" = --version ]; then echo "wakeit-gateway 0.4.1"; else printf "%s\\n" "$*" >> "$FIXTURE_INVOCATIONS"; fi\n')
         digest = hashlib.sha256(binary.read_bytes()).hexdigest()
-        manifest = {'product': 'gateway', 'version': '0.4.0', 'assets': {
+        manifest = {'product': 'gateway', 'version': '0.4.1', 'assets': {
             'aarch64-apple-darwin': {'name': name, 'sha256': digest},
         }}
         (self.fixture / 'wakeit-gateway-release.json').write_text(json.dumps(manifest, indent=2))
@@ -180,7 +180,7 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
             'migrate --config gateway.yaml --env-file gateway.env',
             'start --config gateway.yaml --env-file gateway.env',
         ])
-        self.assertIn('/gateway-v0.4.0/', (self.root / 'requests').read_text())
+        self.assertIn('/gateway-v0.4.1/', (self.root / 'requests').read_text())
 
 
     def test_bash_and_fish_configuration_preserves_existing_content(self):

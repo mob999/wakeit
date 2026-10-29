@@ -1,6 +1,6 @@
 [package]
 name = "wakeit-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
@@ -22,6 +22,8 @@ cap-std = "3"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 fs2 = "0.4"
+flate2 = "1"
+tar = "0.4"
 futures = "0.3"
 hex = "0.4"
 humantime = "2"

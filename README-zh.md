@@ -39,7 +39,11 @@ wakeit setup --gateway https://wakeit.example.com \
 
 在浏览器中授权后，setup 会注册 Runner 并配置用户级自启。[Windows 及其他安装方式 →](docs/install-zh.md)
 
-也可以打开 WebUI 中的 **Agent Prompt**，交给 Agent 完成配置。[Wakeit skill](docs/skills.md) 可以让 Agent 帮你管理任务和运行。
+也可以打开 WebUI 中的 **Agent Prompt**，交给 Agent 完成配置。安装或更新 [Wakeit skill](docs/skills.md)，让 Agent 帮你管理任务和运行：
+
+```sh
+wakeit skill install
+```
 
 ### 3. 创建任务
 

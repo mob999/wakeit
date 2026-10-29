@@ -8,23 +8,29 @@ On macOS or Linux with GNU libc, run:
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-The CLI includes the Runner and is released independently of Gateway. The script detects the system and architecture, downloads CLI 0.1.0 by default (or the version selected with `--version`), verifies SHA-256 against its release manifest and checksum list, and installs into `~/.local/bin`. Progress is shown for each stage and the download. It configures PATH for the current user's shell; open a new terminal and run `wakeit --version` after installation. No sudo is needed. Existing configuration, service processes, device identity and Agent credentials are retained.
+The CLI includes the Runner and is released independently of Gateway. The script detects the system and architecture, downloads CLI 0.1.1 by default (or the version selected with `--version`), verifies SHA-256 against its release manifest and checksum list, and installs into `~/.local/bin`. Progress is shown for each stage and the download. It configures PATH for the current user's shell; open a new terminal and run `wakeit --version` after installation. No sudo is needed. Existing configuration, service processes, device identity and Agent credentials are retained.
 
 To install a specific release or choose a different directory:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.1.0 --bin-dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.1.1 --bin-dir "$HOME/.local/bin"
 ```
 
 Use `--no-modify-path` to manage PATH yourself. The installer supports zsh, bash, fish and POSIX shell startup files. For another shell, it prints the directory to add. The installer does not install or update Gateway and does not restart a running Runner; follow the [update guide](../skills/wakeit/references/updates.md) when upgrading services.
 
-Agents can also pass `--skill-dir /path/to/agent/skills/wakeit` to install the entire matching Wakeit skill. Choose the Agent's actual configured skill directory. An identical existing skill is reused; different files are retained and reported instead of being overwritten. Reload the Agent if it requires that to discover installed skills.
-
-To install only the Skill without downloading or replacing the CLI or changing PATH:
+Install or update the complete Wakeit Skill from the latest stable CLI release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.1.0 --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
+wakeit skill install
 ```
+
+The default destination is `~/.agents/skills/wakeit`. Use `--dir` for the final Skill directory used by your Agent:
+
+```sh
+wakeit skill install --dir /path/to/agent/skills/wakeit
+```
+
+This command works on macOS, Linux and Windows without a Gateway login. It verifies the archive checksum before replacing the Wakeit Skill in that directory; other skills are untouched. Run it again to update, then reload your Agent if needed. Add `--json` for machine-readable results.
 
 The installer is also included as `install.sh` in CLI release assets, alongside `SHA256SUMS`. It can be downloaded and inspected before running.
 

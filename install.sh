@@ -8,7 +8,7 @@ Install Wakeit CLI and Runner for the current user (macOS / Linux GNU).
 
 Usage: sh install.sh [--version VERSION] [--bin-dir DIRECTORY] [--skill-dir DIRECTORY] [--skill-only] [--no-modify-path]
 
-  --version VERSION  Install a stable release, e.g. 0.1.0 (default: 0.1.0)
+  --version VERSION  Install a stable release, e.g. 0.1.1 (default: 0.1.1)
   --bin-dir PATH     Install directory (default: $HOME/.local/bin)
   --skill-dir PATH   Install the Wakeit skill at this directory
   --skill-only       Install only the skill; requires --skill-dir
@@ -22,7 +22,7 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1
 quote() { printf "'"; printf '%s' "$1" | sed "s/'/'\\\\''/g"; printf "'"; }
 
 main() {
-  requested=0.1.0
+  requested=0.1.1
   bin_dir=${HOME:?HOME is required}/.local/bin
   modify_path=true
   skill_dir=
@@ -45,7 +45,7 @@ main() {
   need curl
   need awk
   need sed
-  printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable version such as 0.1.0'
+  printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable version such as 0.1.1'
   case "$bin_dir" in /*) ;; *) bin_dir="$PWD/$bin_dir" ;; esac
   case "$bin_dir" in *'
 '*) fail 'The installation directory cannot contain a newline' ;; esac

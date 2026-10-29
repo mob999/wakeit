@@ -20,19 +20,19 @@ Workspace: ${workspace.name} (${workspace.id})
 
 1. Check the Gateway is reachable. Reuse the matching connection, compatible CLI and existing Runner.
 
-2. Install the Wakeit CLI if needed (macOS / Linux GNU):
+2. Install the Wakeit CLI if needed (macOS / Linux GNU). An existing CLI needs version 0.1.1 or later; use wakeit update to upgrade:
 
 \`\`\`sh
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 \`\`\`
 
-3. Identify the Agent you are using and its configured skills directory. If it supports skills, install the Wakeit skill separately, replacing the path below with its actual directory:
+3. Install or update the Wakeit Skill:
 
 \`\`\`sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --skill-only --skill-dir "/absolute/path/to/agent/skills/wakeit"
+wakeit skill install
 \`\`\`
 
-Read the installed SKILL.md and references/connect.md. Keep existing customizations and mention any required Agent reload. On Windows, use the official installation guide: https://github.com/mob999/wakeit/blob/main/docs/install.md
+The default directory is ~/.agents/skills/wakeit. Add --dir /actual/agent/skills/wakeit if your Agent uses another location. Read SKILL.md and references/connect.md, and reload skills if needed. On Windows, install the CLI using: https://github.com/mob999/wakeit/blob/main/docs/install.md
 
 4. Run:
 

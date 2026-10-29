@@ -1,29 +1,14 @@
 //! Official release checks and replacement of the current executable.
+#[cfg(test)]
+use crate::releases::newest;
+use crate::releases::{Github, MAX_METADATA, Release, verify_checksum};
 use anyhow::{Context, Result, bail, ensure};
-use futures::StreamExt;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, io::Write, path::Path, process::Stdio, time::Duration};
 
-const API: &str = "https://api.github.com";
-const REPO: &str = "mob999/wakeit";
 const MAX_BINARY: usize = 128 * 1024 * 1024;
-const MAX_METADATA: usize = 1024 * 1024;
 
-#[derive(Clone, Debug, Deserialize)]
-struct Asset {
-    name: String,
-    url: String,
-    size: usize,
-}
-#[derive(Clone, Debug, Deserialize)]
-struct Release {
-    tag_name: String,
-    draft: bool,
-    prerelease: bool,
-    assets: Vec<Asset>,
-}
 #[derive(Debug, Deserialize)]
 struct Manifest {
     product: String,
@@ -44,97 +29,7 @@ pub struct UpdateReport {
     pub target: &'static str,
 }
 
-fn newest(releases: Vec<Release>) -> Option<(Version, Release)> {
-    releases
-        .into_iter()
-        .filter(|r| !r.draft && !r.prerelease)
-        .filter_map(|r| {
-            let version = Version::parse(r.tag_name.strip_prefix("cli-v")?).ok()?;
-            version.pre.is_empty().then_some((version, r))
-        })
-        .max_by(|a, b| a.0.cmp_precedence(&b.0))
-}
-
-struct Github {
-    http: reqwest::Client,
-    token: Option<String>,
-    base: String,
-}
 impl Github {
-    async fn get(&self, path: &str, octets: bool, limit: usize) -> Result<Vec<u8>> {
-        let url = if path.starts_with('/') {
-            format!("{}{path}", self.base)
-        } else {
-            path.into()
-        };
-        // Asset API URLs may use authentication; never forward a token to an
-        // arbitrary manifest URL. reqwest strips credentials across redirects.
-        ensure!(
-            url.starts_with(&format!("{}/repos/{REPO}/", self.base)),
-            "invalid GitHub asset URL"
-        );
-        let mut request = self.http.get(url);
-        if let Some(token) = &self.token {
-            request = request.bearer_auth(token);
-        }
-        let response = request
-            .header(
-                "Accept",
-                if octets {
-                    "application/octet-stream"
-                } else {
-                    "application/vnd.github+json"
-                },
-            )
-            .send()
-            .await
-            .map_err(|_| anyhow::anyhow!("GitHub request failed; check the network connection"))?;
-        match response.status().as_u16() {
-            401 | 403 => bail!("GitHub authentication, repository permission or rate limit error"),
-            404 => bail!("repository or release asset is inaccessible"),
-            code if !(200..300).contains(&code) => bail!("GitHub returned HTTP {code}"),
-            _ => {}
-        }
-        if let Some(length) = response.content_length() {
-            ensure!(
-                length <= limit as u64,
-                "release download exceeds size limit"
-            );
-        }
-        let mut stream = response.bytes_stream();
-        let mut bytes = Vec::new();
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|_| anyhow::anyhow!("release download interrupted"))?;
-            ensure!(
-                bytes.len() + chunk.len() <= limit,
-                "release download exceeds size limit"
-            );
-            bytes.extend_from_slice(&chunk);
-        }
-        Ok(bytes)
-    }
-
-    async fn releases(&self) -> Result<Option<(Version, Release)>> {
-        let mut releases = Vec::new();
-        for page in 1..=100 {
-            let bytes = self
-                .get(
-                    &format!("/repos/{REPO}/releases?per_page=100&page={page}"),
-                    false,
-                    MAX_METADATA,
-                )
-                .await?;
-            let batch: Vec<Release> =
-                serde_json::from_slice(&bytes).context("invalid GitHub release metadata")?;
-            let done = batch.len() < 100;
-            releases.extend(batch);
-            if done {
-                return Ok(newest(releases));
-            }
-        }
-        bail!("too many release pages; could not determine the newest version")
-    }
-
     async fn candidate(
         &self,
         version: &Version,
@@ -195,46 +90,6 @@ fn binary_name(target: &str) -> String {
         }
     )
 }
-fn verify_checksum(bytes: &[u8], expected: &str) -> Result<()> {
-    ensure!(
-        expected.len() == 64 && expected.bytes().all(|b| b.is_ascii_hexdigit()),
-        "invalid release checksum"
-    );
-    ensure!(
-        hex::encode(Sha256::digest(bytes)).eq_ignore_ascii_case(expected),
-        "release checksum mismatch; executable was not changed"
-    );
-    Ok(())
-}
-async fn credentials() -> Result<Option<String>> {
-    for name in ["WAKEIT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"] {
-        if let Ok(value) = std::env::var(name)
-            && !value.trim().is_empty()
-        {
-            return Ok(Some(value.trim().into()));
-        }
-    }
-    let result = tokio::time::timeout(
-        Duration::from_secs(5),
-        tokio::process::Command::new("gh")
-            .args(["auth", "token", "--hostname", "github.com"])
-            .stdin(Stdio::null())
-            .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .output(),
-    )
-    .await;
-    if let Ok(Ok(output)) = result
-        && output.status.success()
-    {
-        let token = String::from_utf8(output.stdout).unwrap_or_default();
-        if !token.trim().is_empty() {
-            return Ok(Some(token.trim().into()));
-        }
-    }
-    Ok(None)
-}
-
 /// Verify a downloaded candidate before asking the OS to replace this process's
 /// executable. Also used by the isolated cross-platform replacement probe.
 pub async fn replace_verified(candidate: &Path, version: &Version) -> Result<()> {
@@ -300,15 +155,7 @@ pub async fn replace_verified(candidate: &Path, version: &Version) -> Result<()>
 
 pub async fn run(check_only: bool, json: bool) -> Result<()> {
     let current = Version::parse(env!("CARGO_PKG_VERSION"))?;
-    let github = Github {
-        http: reqwest::Client::builder()
-            .user_agent(concat!("wakeit/", env!("CARGO_PKG_VERSION")))
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(180))
-            .build()?,
-        token: credentials().await?,
-        base: API.into(),
-    };
+    let github = Github::new().await?;
     let release = github.releases().await?;
     let mut report = UpdateReport {
         status: "no_release",
@@ -398,12 +245,14 @@ pub async fn run(check_only: bool, json: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::releases::{Asset, REPO};
     use axum::{
         Json, Router,
         http::{HeaderMap, StatusCode},
         response::IntoResponse,
         routing::get,
     };
+    use sha2::{Digest, Sha256};
     fn release(tag: &str, draft: bool, prerelease: bool) -> Release {
         Release {
             tag_name: tag.into(),
