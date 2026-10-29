@@ -977,5 +977,12 @@
   "moments.noAttention": "暂无待关注事项",
   "moments.upcoming": "即将执行",
   "moments.noUpcoming": "暂无计划执行",
-  "moments.offlineImpact": "设备离线，影响 {{tasks}} 个启用任务、{{runs}} 个未结束运行"
+  "moments.offlineImpact": "设备离线，影响 {{tasks}} 个启用任务、{{runs}} 个未结束运行",
+  "preset.parameter": "参数",
+  "preset.emptyText": "空文本",
+  "preset.emptyList": "空列表",
+  "preset.emptyObject": "空对象",
+  "preset.typeBoolean": "布尔",
+  "preset.formatDirectory": "格式：设备上的目录路径",
+  "preset.formatRepository": "格式：Git 仓库地址"
 }

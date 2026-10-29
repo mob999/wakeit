@@ -977,5 +977,12 @@
   "moments.noAttention": "Nothing needs attention",
   "moments.upcoming": "Upcoming",
   "moments.noUpcoming": "No scheduled runs",
-  "moments.offlineImpact": "Device offline: affects {{tasks}} enabled tasks and {{runs}} unfinished runs"
+  "moments.offlineImpact": "Device offline: affects {{tasks}} enabled tasks and {{runs}} unfinished runs",
+  "preset.parameter": "Parameter",
+  "preset.emptyText": "Empty text",
+  "preset.emptyList": "Empty list",
+  "preset.emptyObject": "Empty object",
+  "preset.typeBoolean": "Boolean",
+  "preset.formatDirectory": "Format: directory path on the device",
+  "preset.formatRepository": "Format: Git repository address"
 }
