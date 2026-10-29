@@ -328,12 +328,13 @@ async fn validate_bindings(
             });
         let runner = match crate::dag_store::runner(tx, workspace, &execution).await {
             Ok(runner) => runner,
-            Err(e) => {
+            Err(e) if e.is::<crate::dag_store::RunnerBindingError>() => {
                 let mut issue = Issue::new("binding", &path, e.to_string());
                 issue.node_id = node;
                 issues.push(issue);
                 continue;
             }
+            Err(e) => return Err(e.into()),
         };
         if let Some(id) = &node {
             if let Some(n) = config

@@ -81,7 +81,7 @@ function SingleRunDetail({
         <h3>{run.error ? tr('无法读取运行记录') : tr('正在加载…')}</h3>
         {run.error && (
           <>
-            <ErrorToast>{run.error.message}</ErrorToast>
+            <ErrorToast error={run.error.message} />
             <Button onClick={() => run.refetch()}>
               <RefreshCw size={14} />
               {tr('重试')}
@@ -249,7 +249,7 @@ export function ResolveDialog({
           />{' '}
           {tr('我已核对实际任务状态')}
         </label>
-        {error && <ErrorToast>{error}</ErrorToast>}
+        {error && <ErrorToast error={error} />}
       </div>
       <div className="modal-footer">
         <Button onClick={onClose}>{tr('取消')}</Button>

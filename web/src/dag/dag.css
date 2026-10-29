@@ -535,24 +535,3 @@
 .dag-time-limit > input {
   @apply max-w-45;
 }
-.dag-recovery-table {
-  @apply [border:1px_solid_var(--border)];
-  @apply rounded-[6px] overflow-hidden;
-}
-.dag-recovery-table > [role='row'] {
-  @apply grid grid-cols-[minmax(0,_1fr)_90px_minmax(100px,_1fr)] items-center gap-3 py-2 px-3 min-h-12 text-[12px];
-}
-.dag-recovery-table > [role='row'] + [role='row'] {
-  @apply [border-top:1px_solid_var(--border)];
-}
-.dag-recovery-table > .table-head {
-  @apply min-h-11 text-[11px];
-}
-.dag-recovery-table [role='cell'] {
-  @apply min-w-0 [overflow-wrap:anywhere];
-}
-@media (max-width: 600px) {
-  .dag-recovery-table > [role='row'] {
-    @apply grid-cols-[minmax(0,_1fr)_64px_100px] gap-2;
-  }
-}

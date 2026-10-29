@@ -86,7 +86,7 @@ function AccountRow({
         }
       >
         <div className="modal-body">
-          {change.error && <ErrorToast>{change.error.message}</ErrorToast>}
+          {change.error && <ErrorToast error={change.error.message} />}
         </div>
         <div className="modal-footer">
           <Button disabled={change.isPending} onClick={() => setConfirm(false)}>
@@ -129,7 +129,7 @@ export function InstanceAccounts({ user }: { user: User }) {
       <main className="instance-accounts-body">
         {query.error ? (
           <div className="content-card card-body">
-            <ErrorToast>{query.error.message}</ErrorToast>
+            <ErrorToast error={query.error.message} />
             <Button onClick={() => void query.refetch()}>{tr('重试')}</Button>
           </div>
         ) : query.isPending ? (

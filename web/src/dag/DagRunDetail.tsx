@@ -517,13 +517,15 @@ function NodeExecution({
           {reason || stateNames[state] || t('dag.noExecution')}
         </p>
       ) : execution.error ? (
-        <ErrorToast>
-          {execution.error.message}
-          <Button onClick={() => execution.refetch()}>
-            <RefreshCw size={14} />
-            {t('重试')}
-          </Button>
-        </ErrorToast>
+        <ErrorToast
+          error={execution.error.message}
+          actions={
+            <Button onClick={() => execution.refetch()}>
+              <RefreshCw size={14} />
+              {t('重试')}
+            </Button>
+          }
+        />
       ) : !run ? (
         <p className="quiet text-muted dag-node-empty">{t('正在加载…')}</p>
       ) : mode === 'trace' ? (

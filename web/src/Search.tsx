@@ -289,7 +289,7 @@ function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
           <span>{total}</span>
         </div>
         {error ? (
-          <ErrorToast>{error.message}</ErrorToast>
+          <ErrorToast error={error.message} />
         ) : loading || q !== debounced ? (
           <p className="quiet text-muted">{tr('正在加载…')}</p>
         ) : !items.length ? (

@@ -177,10 +177,7 @@ export function ModelPicker({
         )}
       </div>
       {catalog.error ? (
-        <ErrorToast>
-          {catalog.error.message}
-          {tr('，可手填或重试。')}
-        </ErrorToast>
+        <ErrorToast error={[catalog.error.message, tr('，可手填或重试。')].join(' ')} />
       ) : agent?.models_supported && catalog.data && !catalog.isFetching && !models.length ? (
         <small>{tr('未返回可选模型，可手填。')}</small>
       ) : !runner?.online && agent?.models_supported ? (

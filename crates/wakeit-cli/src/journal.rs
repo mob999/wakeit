@@ -176,11 +176,7 @@ impl Journal {
                 Ok(guard) => {
                     locks.insert(id, guard);
                 }
-                Err(error)
-                    if error.downcast_ref::<std::io::Error>().is_some_and(|error| {
-                        error.raw_os_error() == fs2::lock_contended_error().raw_os_error()
-                    }) =>
-                {
+                Err(error) if error.is::<crate::sessions::SessionBusy>() => {
                     value.ready = false;
                     value.reason = Some("会话正在使用".into());
                 }

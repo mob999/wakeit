@@ -1,24 +1,7 @@
 import { promptReferences, promptBlank } from './prompt'
-import { type Dag, type DagNode, type DagIssue } from '../api'
+import { type Dag, type DagIssue } from '../api'
 import { t } from '../i18n'
 
-function nextNodeName(nodes: DagNode[]) {
-  let index = 1
-  while (nodes.some((n) => n.name === t('dag.defaultNode', { number: index }))) index++
-  return t('dag.defaultNode', { number: index })
-}
-export const newNode = (nodes: DagNode[] = []): DagNode => ({
-  id: `node_${crypto.randomUUID().replaceAll('-', '').slice(0, 10)}`,
-  name: nextNodeName(nodes),
-  pre: [],
-  runner: '',
-  agent: '',
-  cwd: '',
-  prompt: '',
-  parameters: {},
-  session: null,
-  timeout: '1h',
-})
 export function ancestors(dag: Dag, id: string) {
   const found = new Set<string>(),
     pending = [...(dag.nodes.find((n) => n.id === id)?.pre ?? [])]
@@ -84,22 +67,4 @@ export function issues(dag: Dag): DagIssue[] {
   if (dag.results?.some((id) => !dag.nodes.some((n) => n.id === id)))
     result.push({ path: 'dag.results', message: t('dag.missingOutput') })
   return result
-}
-export function referencesTo(dag: Dag, id: string) {
-  return dag.nodes.filter(
-    (n) => n.id !== id && (n.pre.includes(id) || promptReferences(n.prompt).includes(id)),
-  )
-}
-
-export function referenceLocations(dag: Dag, id: string) {
-  const rows: { node_id?: string; name: string; field: string; kind: string }[] = []
-  for (const node of dag.nodes) {
-    if (node.pre.includes(id))
-      rows.push({ node_id: node.id, name: node.name, field: 'pre', kind: t('dag.pre') })
-    if (promptReferences(node.prompt).includes(id))
-      rows.push({ node_id: node.id, name: node.name, field: 'prompt', kind: t('dag.insertResult') })
-  }
-  if (dag.results?.includes(id))
-    rows.push({ name: t('dag.results'), field: 'results', kind: t('dag.outputNode') })
-  return rows
 }

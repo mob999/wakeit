@@ -1118,7 +1118,7 @@ export function DagEditor({
         </div>
       </div>
       <footer className="dag-editor-footer">
-        {requestError && <ErrorToast>{requestError}</ErrorToast>}
+        {requestError && <ErrorToast error={requestError} />}
         {errors.length > 0 && (
           <Button
             disabled={busy}

@@ -37,7 +37,7 @@ export function RunTable({
         <span className="run-table-actions">{actions}</span>
       </div>
       {error ? (
-        <ErrorToast>{error.message}</ErrorToast>
+        <ErrorToast error={error.message} />
       ) : pending ? (
         <p className="quiet text-muted card-state">{tr('正在加载…')}</p>
       ) : runs.length ? (

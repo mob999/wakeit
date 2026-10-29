@@ -1,6 +1,6 @@
 //! Native session references and local, user-owned continuation. Never execute commands from Gateway data.
 use crate::{
-    config::{self, AgentConfig, CommandArg, CommandSpec, RunnerConfig, TaskConfig},
+    config::{self, AgentConfig, CommandSpec, RunnerConfig, TaskConfig},
     process,
 };
 use anyhow::{Context, Result, bail, ensure};
@@ -44,28 +44,14 @@ pub fn continuation_command(
     task.prompt.clear();
     task.parameters = config::resolve_parameters(&agent.parameters, &task.parameters)?;
     task.session = Some(config::SessionBinding { id: id.into() });
-    let cwd = config::render(spec.cwd.as_deref().unwrap_or(&task.cwd), &task, run, None)?;
+    let (args, cwd) = process::render_command(spec, &task, run, None, None)?;
     ensure!(
         Path::new(&cwd).canonicalize()? == Path::new(&task.cwd).canonicalize()?,
         "continuation command changes session working directory"
     );
-    let mut argv = vec![spec.command.clone()];
-    for arg in &spec.args {
-        match arg {
-            CommandArg::Literal(value) => argv.push(config::render(value, &task, run, None)?),
-            CommandArg::Group { when_set, args }
-                if task
-                    .parameters
-                    .get(when_set)
-                    .is_some_and(|value| !value.is_empty()) =>
-            {
-                for value in args {
-                    argv.push(config::render(value, &task, run, None)?);
-                }
-            }
-            CommandArg::Group { .. } => {}
-        }
-    }
+    let argv = std::iter::once(spec.command.clone())
+        .chain(args)
+        .collect::<Vec<_>>();
     format_continuation(&cwd, &argv, cfg!(windows))
 }
 fn quote_posix(value: &str) -> String {
@@ -249,6 +235,15 @@ fn private_file(path: &Path) -> Result<File> {
     }
     Ok(options.open(path)?)
 }
+#[derive(Debug)]
+pub struct SessionBusy(pub String);
+impl std::fmt::Display for SessionBusy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for SessionBusy {}
+
 pub fn lock(config: &RunnerConfig, agent: &str, id: &str) -> Result<File> {
     lock_for(&config.data_dir, config.id, agent, id)
 }
@@ -259,7 +254,12 @@ pub fn lock_for(dir: &Path, runner: Uuid, agent: &str, id: &str) -> Result<File>
     private_directory(&directory)?;
     let key = hex::encode(Sha256::digest(serde_json::to_vec(&(runner, agent, id))?));
     let file = private_file(&directory.join(format!("{key}.lock")))?;
-    fs2::FileExt::try_lock_exclusive(&file).context("session is already in use")?;
+    if let Err(error) = fs2::FileExt::try_lock_exclusive(&file) {
+        if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() {
+            return Err(SessionBusy("session is already in use".into()).into());
+        }
+        return Err(error.into());
+    }
     Ok(file)
 }
 fn registry_directory() -> Result<PathBuf> {
@@ -350,11 +350,12 @@ pub async fn ensure_idle(
     except: Option<Uuid>,
 ) -> Result<()> {
     let occupancy = continuation_marker(config, &session.agent, &session.id)?;
-    ensure!(
-        !occupancy.try_exists()?,
-        "an earlier continuation has not been confirmed stopped; verify all its Agent processes have exited, then remove {}",
-        occupancy.display()
-    );
+    if occupancy.try_exists()? {
+        return Err(SessionBusy(format!(
+            "an earlier continuation has not been confirmed stopped; verify all its Agent processes have exited, then remove {}",
+            occupancy.display()
+        )).into());
+    }
     let pool = local_pool(config).await?;
     let rows = sqlx::query("SELECT id,session,assignment FROM local_runs WHERE phase IN ('claimed','started','unknown')").fetch_all(&pool).await?;
     for row in rows {
@@ -378,10 +379,9 @@ pub async fn ensure_idle(
                     .session
                     .as_ref()
                     .is_some_and(|binding| binding.id == session.id));
-        ensure!(
-            !matches,
-            "session is occupied by an active or unverified run; verify that run has ended first"
-        );
+        if matches {
+            return Err(SessionBusy("session is occupied by an active or unverified run; verify that run has ended first".into()).into());
+        }
     }
     Ok(())
 }
@@ -569,37 +569,15 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
 }
 async fn interactive(spec: &CommandSpec, task: &TaskConfig, run_id: Uuid) -> Result<i32> {
     let mut command = tokio::process::Command::new(&spec.command);
-    for arg in &spec.args {
-        match arg {
-            CommandArg::Literal(value) => {
-                command.arg(config::render(value, task, run_id, None)?);
-            }
-            CommandArg::Group { when_set, args }
-                if task.parameters.get(when_set).is_some_and(|v| !v.is_empty()) =>
-            {
-                for value in args {
-                    command.arg(config::render(value, task, run_id, None)?);
-                }
-            }
-            CommandArg::Group { .. } => {}
-        }
-    }
-    let cwd = config::render(spec.cwd.as_deref().unwrap_or(&task.cwd), task, run_id, None)?;
+    let (args, cwd) = process::render_command(spec, task, run_id, None, None)?;
     ensure!(
         Path::new(&cwd).canonicalize()? == Path::new(&task.cwd).canonicalize()?,
         "continuation command changes session working directory"
     );
-    command.current_dir(&cwd);
-    for (key, value) in &spec.env {
-        command.env(key, config::render(value, task, run_id, None)?);
-    }
-    for (key, source) in &spec.env_from {
-        command.env(
-            key,
-            std::env::var(source)
-                .with_context(|| format!("environment variable {source} missing"))?,
-        );
-    }
+    command
+        .args(args)
+        .current_dir(&cwd)
+        .envs(process::render_environment(spec, task, run_id, None, None)?);
     command
         .env("PWD", &cwd)
         .stdin(Stdio::inherit())
@@ -612,6 +590,7 @@ async fn interactive(spec: &CommandSpec, task: &TaskConfig, run_id: Uuid) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::CommandArg;
     fn runner(dir: &Path) -> RunnerConfig {
         RunnerConfig {
             version: 1,
@@ -657,7 +636,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = runner(dir.path());
         let first = lock(&config, "codex", "session-1").unwrap();
-        assert!(lock(&config, "codex", "session-1").is_err());
+        assert!(
+            lock(&config, "codex", "session-1")
+                .unwrap_err()
+                .is::<SessionBusy>()
+        );
         let other_session = lock(&config, "codex", "session-2").unwrap();
         let other_agent = lock(&config, "pi", "session-1").unwrap();
         drop(first);
@@ -677,6 +660,17 @@ mod tests {
             }
         };
         drop((other_session, other_agent));
+    }
+    #[test]
+    fn session_lock_io_failure_is_not_reported_as_busy() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = runner(dir.path());
+        std::fs::write(&config.data_dir, "not a directory").unwrap();
+        assert!(
+            !lock(&config, "codex", "session-1")
+                .unwrap_err()
+                .is::<SessionBusy>()
+        );
     }
     #[test]
     fn registration_is_private_idempotent_and_keeps_only_paths() {
@@ -746,7 +740,12 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        assert!(ensure_idle(&config, &session, None).await.is_err());
+        assert!(
+            ensure_idle(&config, &session, None)
+                .await
+                .unwrap_err()
+                .is::<SessionBusy>()
+        );
         assert!(ensure_idle(&config, &session, Some(run_id)).await.is_ok());
         sqlx::query("UPDATE local_runs SET phase='done'")
             .execute(&pool)
@@ -759,6 +758,16 @@ mod tests {
         assert!(mark_continuation(&config, run_id, &session).is_err());
         std::fs::remove_file(occupancy).unwrap();
         ensure_idle(&config, &session, None).await.unwrap();
+        sqlx::query("DROP TABLE local_runs")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            !ensure_idle(&config, &session, None)
+                .await
+                .unwrap_err()
+                .is::<SessionBusy>()
+        );
         pool.close().await;
     }
     #[cfg(unix)]

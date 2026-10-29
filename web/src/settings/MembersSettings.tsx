@@ -95,7 +95,7 @@ function MemberRow({
               </Dropdown.Content>
             </Dropdown.Portal>
           </Dropdown.Root>
-          {change.error && <ErrorToast>{change.error.message}</ErrorToast>}
+          {change.error && <ErrorToast error={change.error.message} />}
         </div>
         <span className="quiet text-muted">
           {member.account_active === false
@@ -152,7 +152,7 @@ function MemberRow({
         }
       >
         <div className="modal-body">
-          {update.error && <ErrorToast>{update.error.message}</ErrorToast>}
+          {update.error && <ErrorToast error={update.error.message} />}
         </div>
         <div className="modal-footer">
           <Button disabled={update.isPending} onClick={() => setAction(null)}>
@@ -172,7 +172,7 @@ function MemberRow({
         })}
       >
         <div className="modal-body">
-          {change.error && <ErrorToast>{change.error.message}</ErrorToast>}
+          {change.error && <ErrorToast error={change.error.message} />}
         </div>
         <div className="modal-footer">
           <Button disabled={change.isPending} onClick={() => setProposed(null)}>
@@ -251,7 +251,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
               </select>
             </Field>
           )}
-          {error && <ErrorToast>{error}</ErrorToast>}
+          {error && <ErrorToast error={error} />}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>

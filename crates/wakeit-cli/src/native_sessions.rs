@@ -1,8 +1,8 @@
 //! Read-only native session resolution. No inspection path submits a prompt or creates a session.
+use crate::session_catalog::Entry as CatalogEntry;
 use anyhow::{Context, Result, bail, ensure};
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -466,17 +466,6 @@ pub async fn rename(protocol: &str, id: &str, title: &str, cwd: &Path) -> Result
     result?
 }
 
-#[derive(Clone, Serialize)]
-struct CatalogEntry {
-    id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    title: Option<String>,
-    cwd: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    updated_at: Option<String>,
-    #[serde(skip)]
-    timestamp: i64,
-}
 fn timestamp(value: &Value) -> Option<DateTime<Utc>> {
     if let Some(value) = value.as_i64() {
         return if value.unsigned_abs() > 100_000_000_000 {
@@ -505,8 +494,7 @@ fn catalog_entry(
             .filter(|v| !v.trim().is_empty())
             .map(|v| v.chars().take(512).collect()),
         cwd: cwd.to_string_lossy().into_owned(),
-        updated_at: time.map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
-        timestamp: time.map_or(0, |t| t.timestamp_millis()),
+        updated_at: time,
     })
 }
 async fn rpc(
@@ -831,12 +819,6 @@ async fn file_catalog(protocol: &str, cwd: &Path) -> Result<Vec<CatalogEntry>> {
     }
     Ok(entries)
 }
-#[derive(Serialize, Deserialize)]
-struct CatalogCursor {
-    scope: String,
-    timestamp: i64,
-    id: String,
-}
 /// Project-scoped metadata only, with no model call, transcript export, or full-disk scan.
 pub async fn list(
     protocol: &str,
@@ -858,29 +840,7 @@ pub async fn list(
     );
     let cwd = canonical_directory(cwd)?;
     ensure!(cwd.is_dir(), "working directory is not a directory");
-    let query = query.unwrap_or("").trim().to_lowercase();
-    ensure!(query.len() <= 512, "session search is too long");
-    use sha2::Digest;
-    let scope = hex::encode(sha2::Sha256::digest(serde_json::to_vec(&(
-        protocol, &cwd, &query,
-    ))?));
-    let cursor = cursor
-        .map(|value| -> Result<CatalogCursor> {
-            ensure!(value.len() <= 1024, "invalid session cursor");
-            let value: CatalogCursor = serde_json::from_slice(
-                &URL_SAFE_NO_PAD
-                    .decode(value)
-                    .context("invalid session cursor")?,
-            )
-            .context("invalid session cursor")?;
-            ensure!(
-                value.scope == scope,
-                "session cursor belongs to a different query"
-            );
-            Ok(value)
-        })
-        .transpose()?;
-    let mut entries = tokio::time::timeout(Duration::from_secs(20), async {
+    let entries = tokio::time::timeout(Duration::from_secs(20), async {
         match protocol {
             "codex" => codex_catalog(&cwd).await,
             "opencode" => opencode_catalog(&cwd).await,
@@ -902,30 +862,21 @@ pub async fn list(
     })
     .await
     .context("session catalog timed out")??;
-    entries.retain(|entry| {
-        (query.is_empty()
-            || entry.id.to_lowercase().contains(&query)
-            || entry
-                .title
-                .as_ref()
-                .is_some_and(|v| v.to_lowercase().contains(&query)))
-            && cursor.as_ref().is_none_or(|cursor| {
-                (entry.timestamp, entry.id.as_str()) < (cursor.timestamp, cursor.id.as_str())
-            })
-    });
-    entries.sort_by(|a, b| (b.timestamp, &b.id).cmp(&(a.timestamp, &a.id)));
-    let mut seen = std::collections::HashSet::new();
-    entries.retain(|entry| seen.insert(entry.id.clone()));
-    let next_cursor = if entries.len() > limit {
-        let last = &entries[limit - 1];
-        Some(URL_SAFE_NO_PAD.encode(serde_json::to_vec(&CatalogCursor {
-            scope,
-            timestamp: last.timestamp,
-            id: last.id.clone(),
-        })?))
-    } else {
-        None
-    };
-    entries.truncate(limit);
-    Ok(json!({"version":1,"sessions":entries,"next_cursor":next_cursor}))
+    let mut by_id = std::collections::BTreeMap::<String, CatalogEntry>::new();
+    for entry in entries {
+        if by_id
+            .get(&entry.id)
+            .is_none_or(|existing| entry.updated_at > existing.updated_at)
+        {
+            by_id.insert(entry.id.clone(), entry);
+        }
+    }
+    let scope = serde_json::to_string(&(protocol, &cwd))?;
+    Ok(serde_json::to_value(crate::session_catalog::paginate(
+        by_id.into_values().collect(),
+        &scope,
+        query,
+        cursor,
+        limit,
+    )?)?)
 }

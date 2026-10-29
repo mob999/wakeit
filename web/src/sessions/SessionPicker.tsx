@@ -234,7 +234,7 @@ export function SessionPicker({
           </>
         }
       />
-      {error && <ErrorToast id={`${controlId}-error`}>{error}</ErrorToast>}
+      {error && <ErrorToast id={`${controlId}-error`} error={error} />}
     </div>
   )
 }

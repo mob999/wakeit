@@ -805,7 +805,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                 let id = Uuid::new_v4();
                 let session_title =
                     config::generated_session_title(&t.name, chrono::Utc::now(), "UTC")?;
-                let out = process::execute_output_named(
+                let out = process::execute_output_named_format(
                     &a.submit,
                     &t,
                     id,
@@ -813,18 +813,22 @@ async fn run(mut cli: Cli) -> Result<()> {
                     Duration::from_secs(120),
                     tokio_util::sync::CancellationToken::new(),
                     None,
-                    matches!(a.output.format, config::OutputFormat::Events),
+                    if a.mode == config::AgentMode::Sync {
+                        a.output.format.clone()
+                    } else {
+                        config::OutputFormat::Text
+                    },
                     Some(&session_title),
                 )
                 .await?;
                 ensure!(
-                    out.code == Some(0) && out.stopped.is_none(),
+                    out.code == Some(0) && out.stopped.is_none() && out.confirmed,
                     "agent submit failed: {}",
                     out.stdout
                 );
                 if a.mode == config::AgentMode::Sync {
                     display(
-                        json!({"state":"succeeded","result":out.result.unwrap_or(json!(out.stdout))}),
+                        json!({"state":"succeeded","result":out.result_value(&a.output)?}),
                         cli.json,
                     );
                 } else {

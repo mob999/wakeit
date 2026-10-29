@@ -12,12 +12,7 @@ import { recordingReasons, type RecordingReason } from './recordingInfo'
 
 type Store = { value: ReadingState; listeners: Set<() => void> }
 const stores = new Map<string, Store>()
-let currentWorkspace = workspaceId
 function storeFor(id: string) {
-  if (currentWorkspace !== workspaceId) {
-    stores.clear()
-    currentWorkspace = workspaceId
-  }
   const key = `${workspaceId ?? 'account'}:${id}`
   if (!stores.has(key)) stores.set(key, { value: freshReading(), listeners: new Set() })
   return stores.get(key)!

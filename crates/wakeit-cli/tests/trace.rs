@@ -139,7 +139,7 @@ const gate = setInterval(() => {
         stdout: true,
     };
     let job = tokio::spawn(async move {
-        process::execute_events(
+        process::execute_output_named_format(
             &spec,
             &t,
             id,
@@ -149,6 +149,8 @@ const gate = setInterval(() => {
             Duration::from_secs(60),
             tokio_util::sync::CancellationToken::new(),
             Some(sink),
+            wakeit::config::OutputFormat::Events,
+            None,
         )
         .await
         .unwrap()
@@ -308,13 +310,15 @@ async fn stream_helper_keeps_native_children_in_the_runner_process_tree() {
     let cancel = tokio_util::sync::CancellationToken::new();
     let token = cancel.clone();
     let job = tokio::spawn(async move {
-        process::execute_events(
+        process::execute_output_named_format(
             &spec,
             &t,
             Uuid::new_v4(),
             None,
             Duration::from_secs(30),
             token,
+            None,
+            wakeit::config::OutputFormat::Events,
             None,
         )
         .await
@@ -393,7 +397,7 @@ async fn recording_sample(script: &str) -> (process::Output, Vec<Value>) {
         args: vec!["-e".into(), script.into()],
         ..Default::default()
     };
-    let out = process::execute_events(
+    let out = process::execute_output_named_format(
         &command,
         &task,
         id,
@@ -405,6 +409,8 @@ async fn recording_sample(script: &str) -> (process::Output, Vec<Value>) {
             id,
             stdout: true,
         }),
+        wakeit::config::OutputFormat::Events,
+        None,
     )
     .await
     .unwrap();

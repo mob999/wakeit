@@ -62,7 +62,7 @@ export function SecretValue({ label, value }: { label: string; value: string }) 
           {copied ? <ActionIcon name="check" /> : <ActionIcon name="copy" />}
         </IconButton>
       </div>
-      {error && <ErrorToast>{error}</ErrorToast>}
+      {error && <ErrorToast error={error} />}
     </>
   )
 }

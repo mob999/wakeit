@@ -119,7 +119,7 @@ function CreateTokenDialog({ onClose }: { onClose: () => void }) {
               )}
             </>
           )}
-          {error && <ErrorToast>{error}</ErrorToast>}
+          {error && <ErrorToast error={error} />}
         </div>
         <div className="modal-footer">
           <Button type="button" disabled={pending} onClick={onClose}>
@@ -230,7 +230,7 @@ export function TokenSettings() {
         })}
       >
         <div className="modal-body">
-          {revoke.error && <ErrorToast>{revoke.error.message}</ErrorToast>}
+          {revoke.error && <ErrorToast error={revoke.error.message} />}
         </div>
         <div className="modal-footer">
           <Button disabled={revoke.isPending} onClick={() => setSelected(null)}>

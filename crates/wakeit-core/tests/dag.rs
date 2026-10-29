@@ -1,6 +1,6 @@
 use serde_json::json;
 use std::collections::BTreeMap;
-use wakeit::{
+use wakeit_core::{
     config::TaskConfig,
     dag::{self, Dag},
 };

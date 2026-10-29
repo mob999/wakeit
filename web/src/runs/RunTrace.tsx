@@ -245,13 +245,15 @@ export function RunTrace({
   return (
     <div className="run-trace" ref={root} data-execution={run.id} data-follow={reading.follow}>
       {trace.error && (
-        <ErrorToast>
-          <span>{trace.error}</span>
-          <Button onClick={trace.retry}>
-            <RefreshCw size={14} />
-            {tr('重试')}
-          </Button>
-        </ErrorToast>
+        <ErrorToast
+          error={trace.error}
+          actions={
+            <Button onClick={trace.retry}>
+              <RefreshCw size={14} />
+              {tr('重试')}
+            </Button>
+          }
+        />
       )}
       {message && <p className="quiet text-muted trace-retention">{message}</p>}
       {entries.map(({ node }) => (

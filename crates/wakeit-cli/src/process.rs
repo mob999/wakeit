@@ -81,31 +81,7 @@ pub async fn execute(
     cancel: CancellationToken,
     sink: Option<LogSink>,
 ) -> Result<Output> {
-    execute_output(spec, task, id, job, timeout, cancel, sink, false).await
-}
-pub async fn execute_events(
-    spec: &CommandSpec,
-    task: &TaskConfig,
-    id: Uuid,
-    job: Option<&str>,
-    timeout: Duration,
-    cancel: CancellationToken,
-    sink: Option<LogSink>,
-) -> Result<Output> {
-    execute_output(spec, task, id, job, timeout, cancel, sink, true).await
-}
-#[allow(clippy::too_many_arguments)]
-pub async fn execute_output(
-    spec: &CommandSpec,
-    task: &TaskConfig,
-    id: Uuid,
-    job: Option<&str>,
-    timeout: Duration,
-    cancel: CancellationToken,
-    sink: Option<LogSink>,
-    events: bool,
-) -> Result<Output> {
-    execute_output_named(spec, task, id, job, timeout, cancel, sink, events, None).await
+    execute_named(spec, task, id, job, timeout, cancel, sink, None).await
 }
 #[allow(clippy::too_many_arguments)]
 pub async fn execute_named(
@@ -118,20 +94,6 @@ pub async fn execute_named(
     sink: Option<LogSink>,
     title: Option<&str>,
 ) -> Result<Output> {
-    execute_output_named(spec, task, id, job, timeout, cancel, sink, false, title).await
-}
-#[allow(clippy::too_many_arguments)]
-pub async fn execute_output_named(
-    spec: &CommandSpec,
-    task: &TaskConfig,
-    id: Uuid,
-    job: Option<&str>,
-    timeout: Duration,
-    cancel: CancellationToken,
-    sink: Option<LogSink>,
-    events: bool,
-    title: Option<&str>,
-) -> Result<Output> {
     execute_output_named_format(
         spec,
         task,
@@ -140,14 +102,72 @@ pub async fn execute_output_named(
         timeout,
         cancel,
         sink,
-        if events {
-            OutputFormat::Events
-        } else {
-            OutputFormat::Text
-        },
+        OutputFormat::Text,
         title,
     )
     .await
+}
+
+pub(crate) fn render_command(
+    spec: &CommandSpec,
+    task: &TaskConfig,
+    id: Uuid,
+    job: Option<&str>,
+    title: Option<&str>,
+) -> Result<(Vec<String>, String)> {
+    let mut args = Vec::new();
+    for arg in &spec.args {
+        match arg {
+            CommandArg::Literal(value) => {
+                args.push(crate::config::render_named(value, task, id, job, title)?)
+            }
+            CommandArg::Group {
+                when_set,
+                args: values,
+            } if task
+                .parameters
+                .get(when_set)
+                .is_some_and(|value| !value.is_empty()) =>
+            {
+                for value in values {
+                    args.push(crate::config::render_named(value, task, id, job, title)?);
+                }
+            }
+            CommandArg::Group { .. } => {}
+        }
+    }
+    let cwd = crate::config::render_named(
+        spec.cwd.as_deref().unwrap_or(&task.cwd),
+        task,
+        id,
+        job,
+        title,
+    )?;
+    Ok((args, cwd))
+}
+
+pub(crate) fn render_environment(
+    spec: &CommandSpec,
+    task: &TaskConfig,
+    id: Uuid,
+    job: Option<&str>,
+    title: Option<&str>,
+) -> Result<std::collections::BTreeMap<String, String>> {
+    let mut env = std::collections::BTreeMap::new();
+    for (key, value) in &spec.env {
+        env.insert(
+            key.clone(),
+            crate::config::render_named(value, task, id, job, title)?,
+        );
+    }
+    for (key, source) in &spec.env_from {
+        env.insert(
+            key.clone(),
+            std::env::var(source)
+                .with_context(|| format!("environment variable {source} missing"))?,
+        );
+    }
+    Ok(env)
 }
 /// Runner execution knows the configured result format, unlike read-only probes.
 #[allow(clippy::too_many_arguments)]
@@ -179,34 +199,11 @@ pub async fn execute_output_named_format(
     let mut command = Command::new(executable);
     #[cfg(not(windows))]
     let mut command = Command::new(&spec.command);
-    for arg in &spec.args {
-        match arg {
-            CommandArg::Literal(v) => {
-                command.arg(render(v, task, id, job)?);
-            }
-            CommandArg::Group { when_set, args }
-                if task.parameters.get(when_set).is_some_and(|v| !v.is_empty()) =>
-            {
-                for v in args {
-                    command.arg(render(v, task, id, job)?);
-                }
-            }
-            CommandArg::Group { .. } => {}
-        }
-    }
-    let cwd = spec.cwd.as_deref().unwrap_or(&task.cwd);
-    let cwd = render(cwd, task, id, job)?;
-    command.current_dir(&cwd);
-    for (key, value) in &spec.env {
-        command.env(key, render(value, task, id, job)?);
-    }
-    for (key, source) in &spec.env_from {
-        command.env(
-            key,
-            std::env::var(source)
-                .with_context(|| format!("environment variable {source} missing"))?,
-        );
-    }
+    let (args, cwd) = render_command(spec, task, id, job, title)?;
+    command
+        .args(args)
+        .current_dir(&cwd)
+        .envs(render_environment(spec, task, id, job, title)?);
     command
         .env("PWD", &cwd)
         .env("WAKEIT_RUN_ID", id.to_string())

@@ -11,26 +11,36 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
+#[derive(Debug)]
+pub(crate) struct RunnerBindingError(String);
+impl std::fmt::Display for RunnerBindingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl std::error::Error for RunnerBindingError {}
+
 pub async fn runner(
     tx: &mut Transaction<'_, Postgres>,
     workspace: Uuid,
     c: &TaskConfig,
 ) -> Result<Uuid> {
     let row=sqlx::query("SELECT id,agents FROM runners WHERE workspace_id=$1 AND (id::text=$2 OR name=$2) AND NOT revoked")
-        .bind(workspace).bind(&c.runner).fetch_optional(&mut **tx).await?.context("runner does not exist or is revoked")?;
+        .bind(workspace).bind(&c.runner).fetch_optional(&mut **tx).await?
+        .ok_or_else(|| RunnerBindingError("runner does not exist or is revoked".into()))?;
     let agents: Value = row.get("agents");
     let agent = agents
         .as_array()
         .and_then(|a| a.iter().find(|a| a["id"] == c.agent))
-        .context("agent is not advertised by this runner")?;
-    anyhow::ensure!(
-        c.session.is_none() || agent["session_supported"] == true,
-        "agent does not advertise session support"
-    );
+        .ok_or_else(|| RunnerBindingError("agent is not advertised by this runner".into()))?;
+    if c.session.is_some() && agent["session_supported"] != true {
+        return Err(RunnerBindingError("agent does not advertise session support".into()).into());
+    }
     crate::config::resolve_parameters(
         &serde_json::from_value(agent.get("parameters").cloned().unwrap_or(json!({})))?,
         &c.parameters,
-    )?;
+    )
+    .map_err(|e| RunnerBindingError(e.to_string()))?;
     Ok(row.get("id"))
 }
 pub async fn validation(
@@ -38,35 +48,7 @@ pub async fn validation(
     workspace: Uuid,
     c: &TaskConfig,
 ) -> Result<Vec<ValidationIssue>> {
-    let mut result = c.dag.as_ref().map(|d| d.issues()).unwrap_or_default();
-    if let Err(e) = c.validate()
-        && result.is_empty()
-    {
-        result.push(ValidationIssue {
-            path: if c
-                .execution
-                .timeout
-                .as_deref()
-                .is_some_and(|value| duration(value).is_err())
-            {
-                "execution.timeout"
-            } else if duration(&c.execution.start_grace).is_err() {
-                "execution.start_grace"
-            } else if c
-                .schedule
-                .as_ref()
-                .is_some_and(|s| crate::schedule::validate(s).is_err())
-            {
-                "schedule"
-            } else {
-                "config"
-            }
-            .into(),
-            node_id: None,
-            message: e.to_string(),
-            cycle: vec![],
-        });
-    }
+    let mut result = c.issues();
     if !result.is_empty() {
         return Ok(result);
     }
@@ -76,6 +58,9 @@ pub async fn validation(
             if let Err(e) =
                 runner(&mut tx, workspace, &n.execution(c, n.prompt.display_text())).await
             {
+                if !e.is::<RunnerBindingError>() {
+                    return Err(e);
+                }
                 result.push(ValidationIssue {
                     path: format!("dag.nodes.{}.runner", n.id),
                     node_id: Some(n.id.clone()),
@@ -85,6 +70,9 @@ pub async fn validation(
             }
         }
     } else if let Err(e) = runner(&mut tx, workspace, c).await {
+        if !e.is::<RunnerBindingError>() {
+            return Err(e);
+        }
         result.push(ValidationIssue {
             path: "runner".into(),
             node_id: None,
