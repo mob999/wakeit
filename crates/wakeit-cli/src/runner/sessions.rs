@@ -760,7 +760,7 @@ mod tests {
             .args([
                 "--ignored",
                 "--exact",
-                "sessions::tests::subprocess_lock_probe",
+                "runner::sessions::tests::subprocess_lock_probe",
             ])
             .env("WAKEIT_TEST_SESSION_LOCK_CONFIG", path)
             .output()

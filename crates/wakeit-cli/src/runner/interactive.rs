@@ -169,7 +169,7 @@ mod tests {
             .args([
                 "--ignored",
                 "--exact",
-                "interactive_session::tests::descendant_leaf",
+                "runner::interactive::tests::descendant_leaf",
                 "--nocapture",
             ])
             .spawn()
@@ -184,7 +184,7 @@ mod tests {
             .args([
                 "--ignored",
                 "--exact",
-                "interactive_session::tests::descendant_parent",
+                "runner::interactive::tests::descendant_parent",
                 "--nocapture",
             ])
             .env("WAKEIT_TEST_CONTINUATION_LEAF", &target)
@@ -226,7 +226,7 @@ mod tests {
             .args([
                 "--ignored",
                 "--exact",
-                "interactive_session::tests::native_tty_probe",
+                "runner::interactive::tests::native_tty_probe",
                 "--nocapture",
             ])
             .stdin(Stdio::inherit())
@@ -266,7 +266,7 @@ mod tests {
             .args([
                 "--ignored",
                 "--exact",
-                "interactive_session::tests::terminal_owner_probe",
+                "runner::interactive::tests::terminal_owner_probe",
                 "--nocapture",
             ])
             .stdin(Stdio::from(slave.try_clone().unwrap()))
