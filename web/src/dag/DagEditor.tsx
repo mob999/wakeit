@@ -1,6 +1,6 @@
 import { promptBlank } from './prompt'
 import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast, useToast } from '../Toast'
+import { ErrorToast, useToast } from '../components/Toast'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -8,8 +8,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBlocker } from '@tanstack/react-router'
 import * as Menu from '@radix-ui/react-dropdown-menu'
 import * as Popover from '@radix-ui/react-popover'
+import { api } from '../api/client'
 import {
-  api,
   type Task,
   type TaskConfig,
   type Runner,
@@ -17,27 +17,27 @@ import {
   type DagIssue,
   type DagNode,
   type EditorLayout,
-} from '../api'
+} from '../api/types'
 import { t } from '../i18n'
-import { Button, IconButton, Modal } from '../ui'
-import { EditorMemoryContext, type EditorMemory } from '../EditorMemory'
-import { PageBreadcrumbs } from '../PageHeader'
-import { useSearchControls } from '../Search'
-import { createTaskId, taskIdSuffix } from '../taskId'
-import { ChoicePicker } from '../ChoicePicker'
+import { Button, IconButton, Modal } from '../components/ui'
+import { EditorMemoryContext, type EditorMemory } from '../components/EditorMemory'
+import { PageBreadcrumbs } from '../components/PageHeader'
+import { useSearchControls } from '../search/context'
+import { createTaskId, taskIdSuffix } from '../tasks/taskId'
+import { ChoicePicker } from '../components/ChoicePicker'
 import { DagGraph, type DagView } from './DagGraph'
 import { DagCanvas, type CanvasHandle } from './DagCanvas'
 import { CanvasControls } from './CanvasControls'
 import { AgentPalette } from './AgentPalette'
 import { NodeForm } from './NodeForm'
-import { TimeFields } from './TimeFields'
-import { DetailTabs } from '../DetailTabs'
+import { TimeFields } from '../tasks/TimeFields'
+import { DetailTabs } from '../components/DetailTabs'
 import { MultiPicker } from './MultiPicker'
 import { issues, outputs } from './model'
 import { nodeName, nodeOptions, shortId } from './identity'
 import { issueField, locateField, markFields } from './fields'
-import { validDuration } from '../duration'
-import { AgentLogo } from '../AgentLogo'
+import { validDuration } from '../tasks/duration'
+import { AgentLogo } from '../components/AgentLogo'
 import { arrangeNodes, NODE_WIDTH, NODE_HEIGHT } from './layout'
 import {
   GraphHistory,

@@ -1,4 +1,4 @@
-import { t as tr } from './i18n'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { PageBreadcrumbs, PageListViewContext } from './PageHeader'

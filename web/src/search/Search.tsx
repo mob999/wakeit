@@ -1,43 +1,29 @@
-import type { TemplateRecord } from './templates/types'
-import { ErrorToast } from './Toast'
-import { t as tr } from './i18n'
+import type { TemplateRecord } from '../templates/types'
+import { ErrorToast } from '../components/Toast'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useRef,
-  useCallback,
-  type ReactNode,
-} from 'react'
+import { useContext, useEffect, useState, useRef, useCallback, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Search, ListTodo, History, Monitor, Bot, Settings2, ArrowUpRight, ListTree } from './icons'
 import {
-  api,
-  type Task,
-  type Run,
-  type Runner,
-  type Agent,
-  type User,
-  stateNames,
-  time,
-} from './api'
-import { TooltipTarget, Button, Field, Modal } from './ui'
+  Search,
+  ListTodo,
+  History,
+  Monitor,
+  Bot,
+  Settings2,
+  ArrowUpRight,
+  ListTree,
+} from '../components/icons'
+import { api } from '../api/client'
+import { type Task, type Run, type Runner, type Agent, type User } from '../api/types'
+import { stateNames, time } from '../i18n'
+import { TooltipTarget, Button, Field, Modal } from '../components/ui'
+import { SearchContext, useSearchControls } from './context'
+import { matches, listPath, runnerMatches, agentMatches, type Scope, type Filters } from './filters'
+import { settingSections } from '../settings/sections'
+import type { PageResult } from '../api/types'
 
-export type Scope = 'presets' | 'tasks' | 'runs' | 'runners' | 'agents' | 'settings'
-export type Filters = {
-  q?: string
-  state?: string
-  runner?: string
-  agent?: string
-  enabled?: string
-  online?: string
-  available?: string
-  mode?: string
-}
-export type PageResult<T> = { items: T[]; total: number; page: number; page_size: number }
 const scopes = [
   {
     id: 'tasks',
@@ -88,69 +74,7 @@ const scopes = [
     path: '/settings',
   },
 ] as const
-export const settingSections = (role: User['role'], demo = false) => [
-  {
-    id: 'workspace',
-    name: tr('工作区'),
-    terms: 'workspace 时区 日志 保留 创建 退出 timezone retention create leave',
-  },
-  ...(!demo && role === 'admin'
-    ? [
-        {
-          id: 'members',
-          name: tr('成员'),
-          terms: 'members admin operator viewer 管理员 读写 只读 邀请 角色',
-        },
-      ]
-    : []),
-  ...(!demo ? [{ id: 'tokens', name: tr('个人 API Key'), terms: 'key token api 凭据 cli' }] : []),
-  ...(!demo && role !== 'viewer'
-    ? [{ id: 'archived', name: tr('归档任务'), terms: 'archive archived task 归档 恢复' }]
-    : []),
-]
-const SearchContext = createContext<{
-  filters: Partial<Record<Scope, Filters>>
-  setFilters: (v: Partial<Record<Scope, Filters>>) => void
-  open: () => void
-  registerGuard: (guard: () => Promise<boolean>) => () => void
-  requestLeave: () => Promise<boolean>
-}>({
-  filters: {},
-  setFilters: () => {},
-  open: () => {},
-  registerGuard: () => () => {},
-  requestLeave: async () => true,
-})
-export const useSearchControls = () => useContext(SearchContext)
-export const useFilters = (scope: Scope) => useContext(SearchContext).filters[scope] ?? {}
-export function listPath(
-  kind: 'tasks' | 'runs',
-  filters: Filters,
-  page: number,
-  extra: Record<string, string> = {},
-) {
-  const params = new URLSearchParams({ page: String(page), page_size: '20', ...extra })
-  for (const key of ['q', 'state', 'runner', 'agent', 'enabled'] as const)
-    if (filters[key]) params.set(key, filters[key]!)
-  return `/${kind}?${params}`
-}
-export function matches(text: string, q = '') {
-  const haystack = text.toLocaleLowerCase()
-  return q
-    .trim()
-    .toLocaleLowerCase()
-    .split(/\s+/)
-    .every((term) => haystack.includes(term))
-}
-export const runnerMatches = (r: Runner, f: Filters) =>
-  matches(`${r.name} ${r.id} ${r.info.os ?? ''} ${r.agents.map((a) => a.name).join(' ')}`, f.q) &&
-  (!f.online ||
-    (f.online === 'revoked' ? r.revoked : !r.revoked && r.online === (f.online === 'online')))
-export const agentMatches = (a: Agent, f: Filters) =>
-  matches(`${a.name} ${a.id} ${a.runner ?? ''}`, f.q) &&
-  (!f.runner || a.runner === f.runner) &&
-  (!f.available || a.available === (f.available === 'true')) &&
-  (!f.mode || a.mode === f.mode)
+
 export function SearchProvider({ user, children }: { user: User; children: ReactNode }) {
   useTranslation()
   const [filters, setFilters] = useState<Partial<Record<Scope, Filters>>>({})
@@ -182,6 +106,7 @@ export function SearchProvider({ user, children }: { user: User; children: React
     </SearchContext.Provider>
   )
 }
+
 export function SearchLauncher({
   collapsed = false,
   onOpen,
@@ -209,6 +134,7 @@ export function SearchLauncher({
     </TooltipTarget>
   )
 }
+
 function SearchDialog({ user, onClose }: { user: User; onClose: () => void }) {
   useTranslation()
   const context = useContext(SearchContext)

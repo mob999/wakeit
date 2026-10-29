@@ -1,5 +1,5 @@
 import { ErrorToast } from './Toast'
-import { t as tr } from './i18n'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState, type ReactNode, type KeyboardEvent } from 'react'
 import * as Popover from '@radix-ui/react-popover'

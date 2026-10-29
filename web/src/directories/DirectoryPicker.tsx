@@ -1,10 +1,10 @@
-import { t as tr } from './i18n'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState, useId, useEffect } from 'react'
-import { Folder, ChevronRight } from './icons'
-import { type Runner } from './api'
-import { Modal } from './ui'
-import { DirectoryBrowser } from './directories/DirectoryBrowser'
+import { Folder, ChevronRight } from '../components/icons'
+import { type Runner } from '../api/types'
+import { Modal } from '../components/ui'
+import { DirectoryBrowser } from './DirectoryBrowser'
 const lastDirectory = new Map<string, string>()
 export function DirectoryPicker({
   runner,

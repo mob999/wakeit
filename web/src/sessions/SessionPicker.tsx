@@ -1,14 +1,15 @@
 import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast } from '../Toast'
-import { EditorMemoryContext, useEditorValue } from '../EditorMemory'
+import { ErrorToast } from '../components/Toast'
+import { EditorMemoryContext, useEditorValue } from '../components/EditorMemory'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useContext, useEffect, useId, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { LoaderCircle } from '../icons'
-import { api, type Agent, type Runner, type SessionCatalog } from '../api'
-import { ChoicePicker } from '../ChoicePicker'
-import { Button, IconButton } from '../ui'
+import { LoaderCircle } from '../components/icons'
+import { api } from '../api/client'
+import { type Agent, type Runner, type SessionCatalog } from '../api/types'
+import { ChoicePicker } from '../components/ChoicePicker'
+import { Button, IconButton } from '../components/ui'
 
 export function SessionPicker({
   runner,

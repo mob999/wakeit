@@ -1,12 +1,13 @@
-import { ErrorToast } from './Toast'
+import { ErrorToast } from '../components/Toast'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { t as tr, roleName } from './i18n'
-import { api, type User } from './api'
-import { Button, Field } from './ui'
-import { LanguageSwitch } from './LanguageSwitch'
-import { BrandMark } from './BrandMark'
+import { t as tr, roleName } from '../i18n'
+import { api } from '../api/client'
+import { type User } from '../api/types'
+import { Button, Field } from '../components/ui'
+import { LanguageSwitch } from '../components/LanguageSwitch'
+import { BrandMark } from '../components/BrandMark'
 
 export function InvitationPage({ user }: { user?: User }) {
   useTranslation()

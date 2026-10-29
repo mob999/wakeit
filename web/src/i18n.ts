@@ -45,3 +45,55 @@ export const roleName = (value: string) =>
 export const parameterLabel = (value: string) =>
   ['模型', '推理强度', 'Provider'].includes(value) ? t(value) : value
 export default i18n
+
+export const time = (value: string | null | undefined, timezone?: string) =>
+  value
+    ? new Date(value).toLocaleString(locale(), {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        ...(timezone ? { timeZone: timezone } : {}),
+      })
+    : '—'
+
+export const stateNames: Record<string, string> = {
+  get queued() {
+    return t('等待执行')
+  },
+  get starting() {
+    return t('启动中')
+  },
+  get running() {
+    return t('运行中')
+  },
+  get succeeded() {
+    return t('成功')
+  },
+  get warning() {
+    return t('dag.warning')
+  },
+  get waiting() {
+    return t('dag.waitingDependencies')
+  },
+  get failed() {
+    return t('失败')
+  },
+  get cancelled() {
+    return t('已取消')
+  },
+  get timed_out() {
+    return t('已超时')
+  },
+  get skipped() {
+    return t('已跳过')
+  },
+  get unknown() {
+    return t('状态待核对')
+  },
+  get interrupted() {
+    return t('已中断')
+  },
+}

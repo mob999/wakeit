@@ -1,11 +1,22 @@
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useLayoutEffect, useState, useRef, type RefObject } from 'react'
-import { MessageSquare, Terminal, Wrench, ChevronRight, RefreshCw, Check, Minus } from '../icons'
-import { MarkdownContent } from './MarkdownContent'
-import { api, terminal, type Run, type RunEvent, type TraceNode, stateNames } from '../api'
-import { Button } from '../ui'
+import {
+  MessageSquare,
+  Terminal,
+  Wrench,
+  ChevronRight,
+  RefreshCw,
+  Check,
+  Minus,
+} from '../components/icons'
+import { MarkdownContent } from '../markdown/MarkdownContent'
+import { api } from '../api/client'
+import { terminal } from './state'
+import { type Run, type RunEvent, type TraceNode } from '../api/types'
+import { stateNames } from '../i18n'
+import { Button } from '../components/ui'
 import { useRunReading } from './RunReading'
 import {
   valueText,
@@ -16,8 +27,8 @@ import {
   followingTail,
 } from './readingModel'
 import { CopyValue } from './CopyValue'
-import { CodeContent, isJsonCode } from './CodeContent'
-import { useToast } from '../Toast'
+import { CodeContent, isJsonCode } from '../markdown/CodeContent'
+import { useToast } from '../components/Toast'
 import { recordingReason, type RecordingReason } from './recordingInfo'
 
 type Entry = { firstSeq: number; lastSeq: number; node: TraceNode }

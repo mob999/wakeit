@@ -54,7 +54,7 @@ import {
   Sun,
   Moon,
   Languages,
-} from '../icons'
+} from '../components/icons'
 
 // A single vocabulary for actions; data/status icons retain their own rendering.
 const icons = {

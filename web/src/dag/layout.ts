@@ -1,6 +1,6 @@
 import ELK from 'elkjs/lib/elk-api'
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url'
-import type { DagNode } from '../api'
+import type { DagNode } from '../api/types'
 import type { Point } from './workbench'
 export const NODE_WIDTH = 240,
   NODE_HEIGHT = 96

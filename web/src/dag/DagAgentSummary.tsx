@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, type Agent, type DagNode } from '../api'
-import { GitBranch } from '../icons'
+import { api } from '../api/client'
+import { type Agent, type DagNode } from '../api/types'
+import { GitBranch } from '../components/icons'
 import { locale, t } from '../i18n'
-import { TooltipTarget } from '../ui'
+import { TooltipTarget } from '../components/ui'
 import './DagAgentSummary.css'
 
 export function DagAgentSummary({

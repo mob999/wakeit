@@ -1,4 +1,4 @@
-import type { DagRunNode } from '../api'
+import type { DagRunNode } from '../api/types'
 
 export function nodeIssues(nodes: DagRunNode[], state: string) {
   const failed = nodes.filter(

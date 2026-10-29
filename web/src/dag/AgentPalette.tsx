@@ -1,8 +1,8 @@
 import { useRef, useState, type PointerEvent } from 'react'
-import { ChevronDown, Search } from '../icons'
-import type { Runner } from '../api'
+import { ChevronDown, Search } from '../components/icons'
+import type { Runner } from '../api/types'
 import { t } from '../i18n'
-import { AgentLogo } from '../AgentLogo'
+import { AgentLogo } from '../components/AgentLogo'
 import type { AgentChoice, Point } from './workbench'
 export function AgentPalette({
   runners,

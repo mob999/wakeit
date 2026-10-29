@@ -1,5 +1,5 @@
-@import './styles/tailwind.css';
-@import './styles/base.css';
+@import './tailwind.css';
+@import './base.css';
 
 .mono,
 pre,

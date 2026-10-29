@@ -2,7 +2,7 @@ import { useCallback, useEffect, type ReactNode, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useRunReading } from './RunReading'
 import { runTab, type RunTab } from './readingModel'
-import { DetailTabs } from '../DetailTabs'
+import { DetailTabs } from '../components/DetailTabs'
 import './RunTabs.css'
 
 const tabs = ['output', 'trace', 'details'] as const

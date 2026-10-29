@@ -1,6 +1,6 @@
 import { ActionIcon } from '../actions/ActionIcon'
-import { ChoicePicker } from '../ChoicePicker'
-import { IconButton } from '../ui'
+import { ChoicePicker } from '../components/ChoicePicker'
+import { IconButton } from '../components/ui'
 
 import { t } from '../i18n'
 export type NodeOption = {

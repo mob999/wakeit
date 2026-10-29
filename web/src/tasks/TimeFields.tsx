@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, time, type TaskConfig, type DagIssue } from '../api'
+import { api } from '../api/client'
+import { time } from '../i18n'
+import { type TaskConfig, type DagIssue } from '../api/types'
 import { t } from '../i18n'
-import { Field, Button } from '../ui'
-import { ChoicePicker } from '../ChoicePicker'
-import { validDuration } from '../duration'
+import { Field, Button } from '../components/ui'
+import { ChoicePicker } from '../components/ChoicePicker'
+import { validDuration } from './duration'
 import { localDateTime, utcDateTime, utcOffset } from './schedule'
 export function TimeFields({
   config,

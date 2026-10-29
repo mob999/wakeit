@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { Monitor, ChevronRight, Clock } from '../icons'
+import { Monitor, ChevronRight, Clock } from '../components/icons'
 import { t } from '../i18n'
-import { type Agent, type Run, type Runner, time } from '../api'
-import { Status } from '../Status'
-import { AgentLogo } from '../AgentLogo'
+import { type Agent, type Run, type Runner } from '../api/types'
+import { time } from '../i18n'
+import { Status } from '../components/Status'
+import { AgentLogo } from '../components/AgentLogo'
 import { DagAgentSummary } from '../dag/DagAgentSummary'
 export function runAgent(run: Pick<Run, 'config'>, agents?: Agent[]) {
   return agents?.find(

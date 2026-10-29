@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink, FileText, Image } from '../icons'
+import { ExternalLink, FileText, Image } from '../components/icons'
 import { ResultFileLink } from '../files/ResultFileLink'
 import type { FileSource } from '../files/links'
 import type { ReportLink } from '../moments/reportModel'

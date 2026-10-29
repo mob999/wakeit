@@ -1,9 +1,10 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { RunnerStatus } from './RunnerStatus'
-import { ContentCard } from '../ContentCard'
-import { DetailBody } from '../Workbench'
-import { time, type Runner } from '../api'
+import { ContentCard } from '../components/ContentCard'
+import { DetailBody } from '../components/Workbench'
+import { time } from '../i18n'
+import { type Runner } from '../api/types'
 export function RunnerOverview({ runner }: { runner: Runner }) {
   useTranslation()
   return (

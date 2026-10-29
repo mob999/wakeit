@@ -6,15 +6,15 @@ import rehypeRaw from 'rehype-raw'
 import rehypeSanitize from 'rehype-sanitize'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
-import { markdownSchema, safeHtmlStyles } from '../markdown/safeHtml'
+import { markdownSchema, safeHtmlStyles } from './safeHtml'
 import 'katex/dist/katex.min.css'
-import '../markdown/markdown.css'
+import './markdown.css'
 
 import { ResultFileLink } from '../files/ResultFileLink'
 import { resultFileLinks, type FileSource } from '../files/links'
 import { ResultImage } from '../files/ResultImage'
 import type { ImageSource } from '../files/preview'
-import MermaidDiagram from '../markdown/MermaidDiagram'
+import MermaidDiagram from './MermaidDiagram'
 const remarkPlugins = [remarkGfm, remarkMath]
 const rehypePlugins = [
   rehypeRaw,

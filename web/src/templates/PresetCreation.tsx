@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, ApiError } from '../api'
+import { api, ApiError } from '../api/client'
 import { t } from '../i18n'
-import { Button, IconButton } from '../ui'
+import { Button, IconButton } from '../components/ui'
 import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast, useToast } from '../Toast'
-import { Pagination } from '../Pagination'
-import { ChoicePicker } from '../ChoicePicker'
+import { ErrorToast, useToast } from '../components/Toast'
+import { Pagination } from '../components/Pagination'
+import { ChoicePicker } from '../components/ChoicePicker'
 import {
   TemplateInstanceView,
   useTemplateInstance,

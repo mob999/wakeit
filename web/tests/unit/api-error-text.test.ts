@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { apiErrorText } from '../../src/apiErrorText.ts'
+import { apiErrorText } from '../../src/api/errorText.ts'
 import { retryDiagnostics, literalDiagnostics } from './diagnostic-cases.ts'
 
 // Test routing independently of either catalog or an imitation of i18next.

@@ -1,11 +1,12 @@
 import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useRef } from 'react'
 
-import { terminal, type Run } from '../api'
-import { IconButton } from '../ui'
+import { terminal } from './state'
+import { type Run } from '../api/types'
+import { IconButton } from '../components/ui'
 import { CopyValue } from './CopyValue'
 export function RunLogs({
   run,

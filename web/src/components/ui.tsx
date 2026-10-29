@@ -1,11 +1,11 @@
-import { t as tr } from './i18n'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import React, { type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { ActionIcon } from './actions/ActionIcon'
-import './actions/actions.css'
-import { actionStatusEvent } from './actions/announcements'
+import { ActionIcon } from '../actions/ActionIcon'
+import '../actions/actions.css'
+import { actionStatusEvent } from '../actions/announcements'
 type ButtonProps = React.ComponentPropsWithoutRef<'button'> & {
   variant?: 'ghost' | 'solid'
   danger?: boolean

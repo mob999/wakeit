@@ -1,6 +1,6 @@
-import { t as tr } from './i18n'
+import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { stateNames } from './api'
+import { stateNames } from '../i18n'
 export function Status({ state }: { state: string }) {
   useTranslation()
   return (

@@ -2,10 +2,10 @@ import { ActionIcon } from '../actions/ActionIcon'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useRef, useState } from 'react'
-import type { Workspace } from '../api'
-import { IconButton, Modal } from '../ui'
+import type { Workspace } from '../api/types'
+import { IconButton, Modal } from '../components/ui'
 import { CopyValue } from '../runs/CopyValue'
-import { useToast } from '../Toast'
+import { useToast } from '../components/Toast'
 import './prompt.css'
 export type GatewayMeta = {
   version: string

@@ -1,6 +1,6 @@
 import { useContext, useEffect, useId, useState, type ReactNode } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { IconButton, TooltipTarget } from '../ui'
+import { IconButton, TooltipTarget } from '../components/ui'
 import { PreviewActivity } from '../files/PreviewActivity'
 import { ActionIcon } from './ActionIcon'
 

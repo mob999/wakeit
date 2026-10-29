@@ -1,4 +1,4 @@
-@reference './styles/tailwind.css';
+@reference '../styles/tailwind.css';
 
 .detail-tabs {
   @apply flex items-stretch justify-between gap-3 h-header min-h-header py-0 px-4.5 [border-bottom:1px_solid_var(--border)] shrink-0;

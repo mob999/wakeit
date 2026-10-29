@@ -1,6 +1,6 @@
-import { ActionIcon } from './actions/ActionIcon'
+import { ActionIcon } from '../actions/ActionIcon'
 import { useTranslation } from 'react-i18next'
-import { setLanguage, t } from './i18n'
+import { setLanguage, t } from '../i18n'
 import { IconButton } from './ui'
 
 export function LanguageSwitch({ className }: { className?: string }) {

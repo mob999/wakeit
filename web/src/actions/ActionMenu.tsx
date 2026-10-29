@@ -1,6 +1,6 @@
 import { useContext, useEffect, useId, useState, type ReactNode } from 'react'
 import * as Dropdown from '@radix-ui/react-dropdown-menu'
-import { IconButton } from '../ui'
+import { IconButton } from '../components/ui'
 import { t } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { PreviewActivity } from '../files/PreviewActivity'

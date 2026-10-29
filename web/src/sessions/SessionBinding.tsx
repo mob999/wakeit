@@ -1,4 +1,4 @@
-import { type Agent, type Runner } from '../api'
+import { type Agent, type Runner } from '../api/types'
 import { SessionPicker } from './SessionPicker'
 
 export function SessionBinding({

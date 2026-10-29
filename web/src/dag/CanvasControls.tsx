@@ -1,7 +1,7 @@
 import { ActionIcon } from '../actions/ActionIcon'
 import { type CSSProperties } from 'react'
 
-import { IconButton } from '../ui'
+import { IconButton } from '../components/ui'
 import { t } from '../i18n'
 import './controls.css'
 

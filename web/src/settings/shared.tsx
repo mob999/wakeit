@@ -1,11 +1,11 @@
 import { useCopy } from '../actions/useCopy'
 import { ActionIcon } from '../actions/ActionIcon'
-import { ErrorToast } from '../Toast'
+import { ErrorToast } from '../components/Toast'
 import { t as tr, locale } from '../i18n'
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
-import { RefreshCw } from '../icons'
-import { Button, IconButton } from '../ui'
+import { RefreshCw } from '../components/icons'
+import { Button, IconButton } from '../components/ui'
 export function RequestState({
   pending,
   error,

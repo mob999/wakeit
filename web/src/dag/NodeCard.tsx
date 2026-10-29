@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CircleAlert, Flag, Monitor } from '../icons'
-import { AgentLogo } from '../AgentLogo'
-import { TooltipTarget } from '../ui'
+import { CircleAlert, Flag, Monitor } from '../components/icons'
+import { AgentLogo } from '../components/AgentLogo'
+import { TooltipTarget } from '../components/ui'
 import { t } from '../i18n'
 import './node-card.css'
 

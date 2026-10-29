@@ -1,4 +1,4 @@
-import type { NodeInstruction } from '../api'
+import type { NodeInstruction } from '../api/types'
 const tokens = /\{\{\s*nodes\.([a-zA-Z0-9_-]+)\.result\s*\}\}/g
 export function promptReferences(prompt: NodeInstruction): string[] {
   return typeof prompt === 'string'

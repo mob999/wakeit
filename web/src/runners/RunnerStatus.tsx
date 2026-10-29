@@ -1,6 +1,6 @@
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { type Runner } from '../api'
+import { type Runner } from '../api/types'
 export function RunnerStatus({ runner }: { runner: Runner }) {
   useTranslation()
   return (

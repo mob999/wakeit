@@ -1,57 +1,3 @@
-import { t as tr, locale } from './i18n'
-import { apiErrorText } from './apiErrorText'
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public body?: unknown,
-  ) {
-    super(message)
-  }
-}
-// A document belongs to one workspace. Switching loads a new document, so delayed
-// mutations and queries retain the scope in which they were initiated.
-export const workspaceId = /^\/w\/([0-9a-f-]{36})(?:\/|$)/i.exec(location.pathname)?.[1]
-export const workspaceBase = workspaceId ? `/w/${workspaceId}` : ''
-export function apiUrl(path: string) {
-  const global =
-    /^\/(session(?:$|\?)|meta(?:$|\?)|changelog(?:$|\?)|workspaces(?:$|[/?])|instance\/|oauth\/|auth\/|device-authorizations\/|invites\/(accept|inspect)|register(?:$|\?)|schema\/|openapi\.json)/.test(
-      path,
-    )
-  if (!global && !workspaceId) throw new Error(tr('请选择工作区'))
-  return `/api/v1${global ? '' : `/workspaces/${workspaceId}`}${path}`
-}
-export async function api<T = any>(
-  path: string,
-  method = 'GET',
-  body?: unknown,
-  key?: string,
-  signal?: AbortSignal,
-): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    method,
-    signal,
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Wakeit-Request': '1',
-      ...(method === 'POST' ? { 'Idempotency-Key': key ?? crypto.randomUUID() } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  const value = await response.json()
-  if (response.status === 401 && path !== '/session')
-    window.dispatchEvent(new Event('wakeit:unauthorized'))
-  if (!response.ok)
-    throw new ApiError(
-      response.status,
-      typeof value.error === 'string'
-        ? apiErrorText(value.error, tr, (state) => stateNames[state] ?? state)
-        : tr('请求失败 ({{v0}})', { v0: response.status }),
-      value,
-    )
-  return value
-}
 export type Workspace = {
   id: string
   name: string
@@ -243,61 +189,6 @@ export type RunEvent = {
     reason?: string
   }
 }
-export const terminal = (state: string) =>
-  ['succeeded', 'warning', 'failed', 'cancelled', 'timed_out', 'skipped', 'interrupted'].includes(
-    state,
-  )
-export const time = (value: string | null | undefined, timezone?: string) =>
-  value
-    ? new Date(value).toLocaleString(locale(), {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-        ...(timezone ? { timeZone: timezone } : {}),
-      })
-    : '—'
-export const stateNames: Record<string, string> = {
-  get queued() {
-    return tr('等待执行')
-  },
-  get starting() {
-    return tr('启动中')
-  },
-  get running() {
-    return tr('运行中')
-  },
-  get succeeded() {
-    return tr('成功')
-  },
-  get warning() {
-    return tr('dag.warning')
-  },
-  get waiting() {
-    return tr('dag.waitingDependencies')
-  },
-  get failed() {
-    return tr('失败')
-  },
-  get cancelled() {
-    return tr('已取消')
-  },
-  get timed_out() {
-    return tr('已超时')
-  },
-  get skipped() {
-    return tr('已跳过')
-  },
-  get unknown() {
-    return tr('状态待核对')
-  },
-  get interrupted() {
-    return tr('已中断')
-  },
-}
-
 export type Member = User & {
   active: boolean
   account_active?: boolean
@@ -310,7 +201,6 @@ export type WorkspaceSettings = {
   run_retention_days: number
 }
 export type ApiKey = { id: string; name: string; created_at: string; expires_at: string | null }
-
 export type TraceNode = {
   id: string
   parent_id?: string | null
@@ -323,7 +213,6 @@ export type TraceNode = {
   started_at?: string | null
   finished_at?: string | null
 }
-
 export type MomentDay = { date: string; count: number }
 export type MomentDays = {
   timezone: string
@@ -365,3 +254,5 @@ export type MomentEntries = {
   items: MomentEntry[]
   next_cursor: string | null
 }
+
+export type PageResult<T> = { items: T[]; total: number; page: number; page_size: number }
