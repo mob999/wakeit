@@ -1,30 +1,19 @@
 //! Manual recovery is an atomic change to a frozen graph, never a new graph round.
 use crate::{
-    api::{self, App, Error},
+    auth::workspace::{User, reauthorize},
     config::{Overlap, TaskConfig, duration},
-    dag, dag_store, protocol, store,
+    dag, protocol,
+    state::App,
+    store,
+    store::Error,
+    store::dag as dag_store,
 };
-use axum::http::HeaderMap;
+
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::{Postgres, Row, Transaction, postgres::PgRow};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
-
-#[derive(Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct RetryNode {
-    // Missing is different from an explicit null (a node that failed before dispatch).
-    #[serde(deserialize_with = "required_execution")]
-    #[schemars(required)]
-    pub execution_id: Option<Uuid>,
-    #[serde(default)]
-    pub resume_stopped: bool,
-}
-fn required_execution<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Uuid>, D::Error> {
-    Option::<Uuid>::deserialize(d)
-}
 
 /// A claim-time Session race must leave a manual attempt eligible for another explicit retry.
 pub fn session_conflict_state(origin: &str) -> &'static str {
@@ -73,7 +62,7 @@ impl Graph {
     fn definition(&self) -> &dag::Dag {
         self.config.dag.as_ref().expect("validated DAG")
     }
-    fn row(&self, node: &str) -> api::Result<&PgRow> {
+    fn row(&self, node: &str) -> anyhow::Result<&PgRow> {
         self.rows
             .iter()
             .find(|r| r.get::<String, _>("node_id") == node)
@@ -251,7 +240,7 @@ async fn load(
     tx: &mut Transaction<'_, Postgres>,
     workspace: Uuid,
     parent: Uuid,
-) -> api::Result<Graph> {
+) -> anyhow::Result<Graph> {
     let parent=sqlx::query("SELECT * FROM runs WHERE workspace_id=$1 AND id=$2 AND parent_run_id IS NULL AND config ? 'dag'").bind(workspace).bind(parent).fetch_optional(&mut **tx).await?.ok_or_else(Error::missing)?;
     let task=sqlx::query("SELECT archived_at,EXISTS(SELECT 1 FROM runs r WHERE r.workspace_id=$1 AND r.task_id=$2 AND r.id<>$3 AND r.parent_run_id IS NULL AND r.finished_at IS NULL) AS busy FROM tasks WHERE workspace_id=$1 AND id=$2").bind(workspace).bind(parent.get::<String,_>("task_id")).bind(parent.get::<Uuid,_>("id")).fetch_one(&mut **tx).await?;
     let config: TaskConfig = serde_json::from_value(parent.get("config"))?;
@@ -266,7 +255,7 @@ async fn load(
         busy: task.get("busy"),
     })
 }
-pub async fn info(s: &App, workspace: Uuid, parent: Uuid, node: &str) -> api::Result<Value> {
+pub async fn info(s: &App, workspace: Uuid, parent: Uuid, node: &str) -> anyhow::Result<Value> {
     let mut tx = s.pool.begin().await?;
     let graph = load(&mut tx, workspace, parent).await?;
     graph.row(node)?;
@@ -279,17 +268,17 @@ pub async fn info(s: &App, workspace: Uuid, parent: Uuid, node: &str) -> api::Re
 }
 pub async fn retry(
     s: &App,
-    h: &HeaderMap,
+    actor: &User,
+    key: &str,
     parent: Uuid,
     node: &str,
-    body: RetryNode,
-) -> api::Result<Value> {
-    let actor = api::user(s, h, "operator", true).await?;
+    execution_id: Option<Uuid>,
+    resume_stopped: bool,
+) -> anyhow::Result<Value> {
     let workspace = actor.workspace()?;
-    let key = api::request_key(h)?;
     let mut tx = s.pool.begin().await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
-    api::reauthorize(&mut tx, &actor, "operator").await?;
+    crate::store::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, actor, "operator").await?;
     let task=sqlx::query_scalar::<_,String>("SELECT task_id FROM runs WHERE workspace_id=$1 AND id=$2 AND parent_run_id IS NULL AND config ? 'dag'").bind(workspace).bind(parent).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
     sqlx::query("SELECT id FROM tasks WHERE workspace_id=$1 AND id=$2 FOR UPDATE")
         .bind(workspace)
@@ -303,22 +292,22 @@ pub async fn retry(
     let graph = load(&mut tx, workspace, parent).await?;
     let row = graph.row(node)?;
     let response = |id: Uuid| json!({"id":id,"parent_run_id":parent,"node_id":node});
-    if let Some(previous)=sqlx::query("SELECT * FROM dag_retry_requests WHERE workspace_id=$1 AND user_id=$2 AND parent_run_id=$3 AND node_id=$4 AND request_key=$5").bind(workspace).bind(actor.id).bind(parent).bind(node).bind(&key).fetch_optional(&mut *tx).await? {
-        if previous.get::<Option<Uuid>,_>("expected_execution")!=body.execution_id || previous.get::<bool,_>("resume_stopped")!=body.resume_stopped {return Err(Error::conflict("Idempotency-Key was already used with another request"));}
+    if let Some(previous)=sqlx::query("SELECT * FROM dag_retry_requests WHERE workspace_id=$1 AND user_id=$2 AND parent_run_id=$3 AND node_id=$4 AND request_key=$5").bind(workspace).bind(actor.id).bind(parent).bind(node).bind(key).fetch_optional(&mut *tx).await? {
+        if previous.get::<Option<Uuid>,_>("expected_execution")!=execution_id || previous.get::<bool,_>("resume_stopped")!=resume_stopped {return Err(Error::conflict("Idempotency-Key was already used with another request"));}
         return Ok(response(previous.get("execution_id")));
     }
     let current: Option<Uuid> = row.get("execution_id");
     let action = graph.action(node).map_err(Error::conflict)?;
-    let same = current == body.execution_id;
+    let same = current == execution_id;
     let auto_successor = action == "accelerate"
-        && row.get::<Option<Uuid>, _>("retry_of") == body.execution_id
-        && body.execution_id.is_some();
+        && row.get::<Option<Uuid>, _>("retry_of") == execution_id
+        && execution_id.is_some();
     if !same && !auto_successor {
         return Err(Error::conflict(
             "Execution changed; refresh before retrying",
         ));
     }
-    if graph.stopped(row) && !body.resume_stopped {
+    if graph.stopped(row) && !resume_stopped {
         return Err(Error::conflict(
             "Explicit resume_stopped is required to resume stopped execution",
         ));
@@ -336,7 +325,7 @@ pub async fn retry(
             .bind(deadline)
             .execute(&mut *tx)
             .await?;
-        crate::dag_retry::dispatch(&mut tx, workspace, parent, now).await?;
+        crate::store::dag_retry::dispatch(&mut tx, workspace, parent, now).await?;
         id
     } else {
         let definition = graph
@@ -361,8 +350,14 @@ pub async fn retry(
                 ))
                 .execute(&mut *tx)
                 .await?;
-            crate::terminal_api::refresh_session(s, &mut tx, target, &execution.agent, &session.id)
-                .await?;
+            crate::store::terminals::refresh_session(
+                s,
+                &mut tx,
+                target,
+                &execution.agent,
+                &session.id,
+            )
+            .await?;
             let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE runner_id=$1 AND config->>'agent'=$2 AND COALESCE(session->>'id',config->'session'->>'id')=$3 AND state IN ('starting','running','unknown')) OR EXISTS(SELECT 1 FROM terminals WHERE runner_id=$1 AND agent=$2 AND session_id=$3 AND state<>'closed')")
                 .bind(target).bind(&execution.agent).bind(&session.id).fetch_one(&mut *tx).await?;
             if busy {
@@ -371,13 +366,13 @@ pub async fn retry(
         }
         let mut runner_check = execution.clone();
         runner_check.runner = row.get::<Uuid, _>("runner_id").to_string();
-        let runner = dag_store::runner(&mut tx, workspace, &runner_check)
+        let runner = crate::store::runners::runner(&mut tx, workspace, &runner_check)
             .await
             .map_err(|e| {
-                if e.is::<dag_store::RunnerBindingError>() {
+                if e.is::<crate::store::runners::RunnerBindingError>() {
                     Error::conflict(e.to_string())
                 } else {
-                    e.into()
+                    e
                 }
             })?;
         let reopen = graph
@@ -398,7 +393,7 @@ pub async fn retry(
         sqlx::query("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,parent_run_id,node_id,retry_of,execution_snapshot,attempt_origin,recovery_generation) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'dag_node',$9,$10,$11,$12,'manual',$13)")
             .bind(workspace).bind(id).bind(&graph.config.id).bind(graph.parent.get::<i64,_>("task_revision")).bind(runner).bind(serde_json::to_value(&execution)?).bind(now).bind(deadline).bind(parent).bind(node).bind(current).bind(source_snapshot(&definition.prompt,&graph.rows)?).bind(generation).execute(&mut *tx).await?;
         sqlx::query("UPDATE dag_run_nodes SET execution_id=$3,state='queued',stop_cause=NULL,reason=NULL,started_at=NULL,finished_at=NULL WHERE parent_run_id=$1 AND node_id=$2").bind(parent).bind(node).bind(id).execute(&mut *tx).await?;
-        store::enqueue(
+        store::outbox::enqueue(
             &mut tx,
             workspace,
             protocol::work_subject(runner),
@@ -415,7 +410,7 @@ pub async fn retry(
         dag_store::event(&mut tx,workspace,parent,"node",json!({"node_id":node,"execution_id":id,"retry_of":current,"state":"queued","attempt_origin":"manual","recovery_generation":generation})).await?;
         id
     };
-    sqlx::query("INSERT INTO dag_retry_requests(workspace_id,user_id,parent_run_id,node_id,request_key,expected_execution,resume_stopped,execution_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(workspace).bind(actor.id).bind(parent).bind(node).bind(key).bind(body.execution_id).bind(body.resume_stopped).bind(id).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO dag_retry_requests(workspace_id,user_id,parent_run_id,node_id,request_key,expected_execution,resume_stopped,execution_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(workspace).bind(actor.id).bind(parent).bind(node).bind(key).bind(execution_id).bind(resume_stopped).bind(id).execute(&mut *tx).await?;
     store::audit(
         &mut tx,
         actor.id,
@@ -430,11 +425,6 @@ pub async fn retry(
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn execution_guard_is_required_but_nullable() {
-        assert!(serde_json::from_value::<RetryNode>(json!({})).is_err());
-        assert!(serde_json::from_value::<RetryNode>(json!({"execution_id":null})).is_ok());
-    }
     #[test]
     fn a_manual_session_race_is_recoverable_without_changing_ordinary_claims() {
         assert_eq!(session_conflict_state("manual"), "failed");

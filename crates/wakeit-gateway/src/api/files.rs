@@ -1,6 +1,10 @@
 use crate::{
-    api::{ApiJson, App, Error, Path, Result, user},
+    api::{
+        access::user,
+        http::{ApiJson, Error, Path, Result},
+    },
     result_files,
+    state::App,
 };
 use axum::{
     Json,
@@ -63,7 +67,7 @@ pub(crate) async fn preview(
     let snapshot: Option<Value> = row.get("execution_snapshot");
     let cwd = snapshot.as_ref().and_then(|s| s["cwd"].as_str());
     let document = if let Some(href) = &b.document {
-        let value = crate::api::device_query(
+        let value = crate::api::runners::device_query(
             &s,
             &h,
             workspace,
@@ -97,7 +101,7 @@ pub(crate) async fn preview(
     } else {
         cwd
     };
-    let mut value = crate::api::device_query(
+    let mut value = crate::api::runners::device_query(
         &s,
         &h,
         workspace,

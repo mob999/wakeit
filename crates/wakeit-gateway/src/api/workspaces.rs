@@ -1,6 +1,13 @@
+use crate::api::access::workspace_header;
+use crate::auth::workspace::reauthorize;
 use crate::{
-    api::{ApiJson, App, Error, Result, user},
-    auth, workspaces,
+    api::{
+        access::user,
+        http::{ApiJson, Error, Result},
+    },
+    auth,
+    state::App,
+    store::workspaces,
 };
 use axum::{
     Json, Router,
@@ -53,7 +60,7 @@ async fn create(
     ApiJson(b): ApiJson<Name>,
 ) -> Result<Json<Value>> {
     let u = user(&s, &h, "viewer", true).await?;
-    let identity = workspaces::identity(&s.pool, &u.credential)
+    let identity = crate::auth::workspace::identity(&s.pool, &u.credential)
         .await?
         .ok_or_else(|| Error(StatusCode::UNAUTHORIZED, "session expired".into()))?;
     Ok(Json(
@@ -85,7 +92,7 @@ async fn rename(
     }
     let mut tx = s.pool.begin().await?;
     workspaces::lock(&mut tx, workspace).await?;
-    crate::api::reauthorize(&mut tx, &u, "admin").await?;
+    crate::auth::workspace::reauthorize(&mut tx, &u, "admin").await?;
     sqlx::query("UPDATE workspaces SET name=$2 WHERE id=$1")
         .bind(workspace)
         .bind(name)
@@ -137,7 +144,10 @@ async fn update(
     ApiJson(b): ApiJson<Member>,
 ) -> Result<Json<Value>> {
     let u = user(&s, &scoped(h, workspace), "admin", true).await?;
-    if b.role.as_deref().is_some_and(|role| auth::role(role) == 0) {
+    if b.role
+        .as_deref()
+        .is_some_and(|role| auth::credentials::role(role) == 0)
+    {
         return Err(Error::bad("invalid role"));
     }
     workspaces::update_member(
@@ -164,30 +174,21 @@ async fn remove(
         .map_err(|e| Error::conflict(e.to_string()))?;
     Ok(Json(json!({"ok":true})))
 }
-#[derive(Deserialize)]
-struct Invitation {
-    token: String,
-    username: Option<String>,
-    password: Option<String>,
-}
-async fn inspect_invite(
-    State(s): State<App>,
-    ApiJson(b): ApiJson<Invitation>,
-) -> Result<Json<Value>> {
-    let result:Value=sqlx::query_scalar("SELECT jsonb_build_object('workspace_id',w.id,'workspace',w.name,'role',i.role) FROM invites i JOIN workspaces w ON w.id=i.workspace_id JOIN workspace_members m ON m.workspace_id=i.workspace_id AND m.user_id=i.created_by JOIN users u ON u.id=m.user_id WHERE i.hash=$1 AND i.used_at IS NULL AND i.expires_at>now() AND m.active AND u.active AND m.role='admin' AND NOT w.is_demo").bind(auth::hash(&b.token)).fetch_optional(&s.pool).await?.ok_or_else(||Error::bad("invitation invalid or expired"))?;
+async fn inspect_invite(State(s): State<App>, ApiJson(b): ApiJson<Accept>) -> Result<Json<Value>> {
+    let result:Value=sqlx::query_scalar("SELECT jsonb_build_object('workspace_id',w.id,'workspace',w.name,'role',i.role) FROM invites i JOIN workspaces w ON w.id=i.workspace_id JOIN workspace_members m ON m.workspace_id=i.workspace_id AND m.user_id=i.created_by JOIN users u ON u.id=m.user_id WHERE i.hash=$1 AND i.used_at IS NULL AND i.expires_at>now() AND m.active AND u.active AND m.role='admin' AND NOT w.is_demo").bind(auth::credentials::hash(&b.token)).fetch_optional(&s.pool).await?.ok_or_else(||Error::bad("invitation invalid or expired"))?;
     Ok(Json(result))
 }
 async fn accept_invite(
     State(s): State<App>,
     h: HeaderMap,
-    ApiJson(b): ApiJson<Invitation>,
+    ApiJson(b): ApiJson<Accept>,
 ) -> Result<Json<Value>> {
-    let existing = if crate::api::cookie(&s.config, &h).is_some() || h.contains_key("authorization")
-    {
-        Some(user(&s, &h, "viewer", true).await?)
-    } else {
-        None
-    };
+    let existing =
+        if crate::api::access::cookie(&s.config, &h).is_some() || h.contains_key("authorization") {
+            Some(user(&s, &h, "viewer", true).await?)
+        } else {
+            None
+        };
     if existing.as_ref().is_some_and(|u| u.kind != "session") {
         return Err(Error(
             StatusCode::FORBIDDEN,
@@ -212,7 +213,7 @@ async fn accept_invite(
             return Err(Error::bad("invalid username"));
         }
         let password = b.password.ok_or_else(|| Error::bad("password required"))?;
-        let hash = tokio::task::spawn_blocking(move || auth::password(&password))
+        let hash = tokio::task::spawn_blocking(move || auth::credentials::password(&password))
             .await?
             .map_err(|e| Error::bad(e.to_string()))?;
         Some((name.to_string(), hash))
@@ -220,7 +221,7 @@ async fn accept_invite(
         None
     };
     let mut tx = s.pool.begin().await?;
-    let invitation=sqlx::query("SELECT workspace_id,role,created_by FROM invites WHERE hash=$1 AND used_at IS NULL AND expires_at>now() FOR UPDATE").bind(auth::hash(&b.token)).fetch_optional(&mut *tx).await?.ok_or_else(||Error::bad("invitation invalid or expired"))?;
+    let invitation=sqlx::query("SELECT workspace_id,role,created_by FROM invites WHERE hash=$1 AND used_at IS NULL AND expires_at>now() FOR UPDATE").bind(auth::credentials::hash(&b.token)).fetch_optional(&mut *tx).await?.ok_or_else(||Error::bad("invitation invalid or expired"))?;
     let workspace: Uuid = invitation.get("workspace_id");
     workspaces::lock(&mut tx, workspace).await?;
     let inviter: Option<Uuid> = invitation.get("created_by");
@@ -249,7 +250,7 @@ async fn accept_invite(
     }
     sqlx::query("INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT DO NOTHING").bind(workspace).bind(id).bind(invitation.get::<String,_>("role")).execute(&mut *tx).await?;
     sqlx::query("UPDATE invites SET used_at=now() WHERE hash=$1")
-        .bind(auth::hash(&b.token))
+        .bind(auth::credentials::hash(&b.token))
         .execute(&mut *tx)
         .await?;
     sqlx::query("INSERT INTO audit(workspace_id,user_id,action,target) VALUES($1,$2,'member.join',$2::text)").bind(workspace).bind(id).execute(&mut *tx).await?;
@@ -282,9 +283,44 @@ async fn register(
     if name.is_empty() || name.len() > 100 {
         return Err(Error::bad("invalid username"));
     }
-    let hash = tokio::task::spawn_blocking(move || auth::password(&b.password))
+    let hash = tokio::task::spawn_blocking(move || auth::credentials::password(&b.password))
         .await?
         .map_err(|e| Error::bad(e.to_string()))?;
     sqlx::query("INSERT INTO users(id,username,password_hash,role) VALUES($1,$2,$3,'viewer') ON CONFLICT(username) DO NOTHING RETURNING id").bind(Uuid::new_v4()).bind(name).bind(hash).fetch_optional(&s.pool).await?.ok_or_else(||Error::conflict("username unavailable"))?;
     Ok(Json(json!({"ok":true})))
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+pub(crate) struct RoleBody {
+    role: String,
+}
+#[derive(Deserialize, schemars::JsonSchema)]
+pub struct Accept {
+    pub token: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+pub(crate) async fn invite(
+    State(s): State<App>,
+    h: HeaderMap,
+    ApiJson(b): ApiJson<RoleBody>,
+) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
+    let actor = user(&s, &h, "admin", true).await?;
+    if auth::credentials::role(&b.role) == 0 {
+        return Err(Error::bad("invalid role"));
+    }
+    let mut tx = s.pool.begin().await?;
+    crate::store::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &actor, "admin").await?;
+    let token = auth::credentials::secret();
+    sqlx::query("INSERT INTO invites(hash,role,expires_at,workspace_id,created_by) VALUES($1,$2,now()+interval '2 days',$3,$4)")
+        .bind(auth::credentials::hash(&token))
+        .bind(b.role)
+        .bind(workspace).bind(actor.id).execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Json(
+        json!({"token":token,"url":format!("{}/invite#{}",s.config.public_url.trim_end_matches('/'),token)}),
+    ))
 }

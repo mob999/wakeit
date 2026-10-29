@@ -53,7 +53,7 @@ pub async fn prepare(
         sqlx::query("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,parent_run_id,node_id,retry_of,request_key,execution_snapshot,attempt_origin,recovery_generation) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'dag_node',$9,$10,$11,$12,$13,'automatic',$14)")
             .bind(workspace).bind(id).bind(&config.id).bind(row.get::<i64,_>("task_revision")).bind(row.get::<Uuid,_>("runner_id")).bind(row.get::<Value,_>("config")).bind(at).bind(deadline).bind(parent).bind(&node.id).bind(previous).bind(format!("dag-retry:{previous}")).bind(json!({"input_sources":sources,"input_executions":snapshot.as_ref().and_then(|s|s.get("input_executions")).cloned().unwrap_or(json!([]))})).bind(row.get::<i64,_>("recovery_generation")).execute(&mut **tx).await?;
         sqlx::query("UPDATE dag_run_nodes SET execution_id=$3,state='queued',stop_cause=NULL,reason=NULL,started_at=NULL,finished_at=NULL WHERE parent_run_id=$1 AND node_id=$2").bind(parent).bind(&node.id).bind(id).execute(&mut **tx).await?;
-        crate::dag_store::event(tx, workspace, parent, "node", json!({"node_id":node.id,"execution_id":id,"retry_of":previous,"state":"queued","scheduled_at":at})).await?;
+        crate::store::dag::event(tx, workspace, parent, "node", json!({"node_id":node.id,"execution_id":id,"retry_of":previous,"state":"queued","scheduled_at":at})).await?;
     }
     dispatch(tx, workspace, parent, now).await
 }
@@ -68,7 +68,7 @@ pub async fn dispatch(
     for row in rows {
         let id: Uuid = row.get("id");
         let runner: Uuid = row.get("runner_id");
-        store::enqueue(
+        store::outbox::enqueue(
             tx,
             workspace,
             protocol::work_subject(runner),

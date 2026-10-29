@@ -1,6 +1,6 @@
 #[test]
 fn openapi_exposes_shared_layout_only_on_task_records_and_apply() {
-    let doc = wakeit_gateway::openapi::document();
+    let doc = wakeit_gateway::api::openapi::document();
     let schemas = &doc["components"]["schemas"];
     assert!(
         schemas["ApplyTask"]["properties"]

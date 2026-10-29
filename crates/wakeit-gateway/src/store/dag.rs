@@ -11,38 +11,7 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-#[derive(Debug)]
-pub(crate) struct RunnerBindingError(String);
-impl std::fmt::Display for RunnerBindingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-impl std::error::Error for RunnerBindingError {}
-
-pub async fn runner(
-    tx: &mut Transaction<'_, Postgres>,
-    workspace: Uuid,
-    c: &TaskConfig,
-) -> Result<Uuid> {
-    let row=sqlx::query("SELECT id,agents FROM runners WHERE workspace_id=$1 AND (id::text=$2 OR name=$2) AND NOT revoked")
-        .bind(workspace).bind(&c.runner).fetch_optional(&mut **tx).await?
-        .ok_or_else(|| RunnerBindingError("runner does not exist or is revoked".into()))?;
-    let agents: Value = row.get("agents");
-    let agent = agents
-        .as_array()
-        .and_then(|a| a.iter().find(|a| a["id"] == c.agent))
-        .ok_or_else(|| RunnerBindingError("agent is not advertised by this runner".into()))?;
-    if c.session.is_some() && agent["session_supported"] != true {
-        return Err(RunnerBindingError("agent does not advertise session support".into()).into());
-    }
-    crate::config::resolve_parameters(
-        &serde_json::from_value(agent.get("parameters").cloned().unwrap_or(json!({})))?,
-        &c.parameters,
-    )
-    .map_err(|e| RunnerBindingError(e.to_string()))?;
-    Ok(row.get("id"))
-}
+use super::runners::{RunnerBindingError, runner};
 pub async fn validation(
     pool: &PgPool,
     workspace: Uuid,
@@ -82,6 +51,7 @@ pub async fn validation(
     }
     Ok(result)
 }
+
 pub async fn save_nodes(
     tx: &mut Transaction<'_, Postgres>,
     workspace: Uuid,
@@ -108,6 +78,7 @@ pub async fn save_nodes(
     }
     Ok(())
 }
+
 pub async fn seed(
     tx: &mut Transaction<'_, Postgres>,
     workspace: Uuid,
@@ -147,6 +118,7 @@ pub async fn lock_parent(
     }
     Ok(parent)
 }
+
 pub async fn event(
     tx: &mut Transaction<'_, Postgres>,
     workspace: Uuid,
@@ -158,6 +130,7 @@ pub async fn event(
         .bind(workspace).bind(id).bind(kind).bind(data).execute(&mut **tx).await?;
     Ok(())
 }
+
 pub async fn cancel_nodes(
     tx: &mut Transaction<'_, Postgres>,
     workspace: Uuid,
@@ -177,7 +150,7 @@ pub async fn cancel_nodes(
                 .bind(cause)
                 .execute(&mut **tx)
                 .await?;
-            store::enqueue(
+            store::outbox::enqueue(
                 tx,
                 workspace,
                 protocol::control_subject(row.get("runner_id")),
@@ -224,7 +197,7 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
             .fetch_one(&mut *tx)
             .await?;
         let started: Option<DateTime<Utc>> = graph.get("window_started_at");
-        if !stop && crate::dag_manual_retry::expired(&c, started, now) {
+        if !stop && crate::store::dag_recovery::expired(&c, started, now) {
             stop = true;
             reason = Some("graph timeout".into());
             sqlx::query("UPDATE runs SET cancel_requested=true,reason='graph timeout',stop_cause='graph_timeout' WHERE id=$1")
@@ -248,7 +221,7 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
             .await?;
         }
         if !stop {
-            crate::dag_retry::prepare(&mut tx, workspace, id, &c, now).await?;
+            crate::store::dag_retry::prepare(&mut tx, workspace, id, &c, now).await?;
         }
         let rows=sqlx::query("SELECT n.*,r.stop_cause AS execution_stop_cause,r.result,r.state AS execution_state,r.reason AS execution_reason,r.started_at AS execution_started,r.finished_at AS execution_finished FROM dag_run_nodes n LEFT JOIN runs r ON r.id=n.execution_id WHERE n.parent_run_id=$1 ORDER BY n.position").bind(id).fetch_all(&mut *tx).await?;
         let mut states = BTreeMap::new();
@@ -358,9 +331,9 @@ pub async fn advance(pool: &PgPool) -> Result<()> {
                             let deadline = now
                                 + chrono::Duration::from_std(duration(&c.execution.start_grace)?)?;
                             sqlx::query("INSERT INTO runs(workspace_id,id,task_id,task_revision,runner_id,config,scheduled_at,deadline,source,parent_run_id,node_id,execution_snapshot,attempt_origin,recovery_generation,retry_of) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'dag_node',$9,$10,$11,$12,$13,$14)")
-                                .bind(workspace).bind(execution_id).bind(&c.id).bind(graph.get::<i64,_>("task_revision")).bind(runner).bind(serde_json::to_value(&execution)?).bind(now).bind(deadline).bind(id).bind(&n.id).bind(crate::dag_manual_retry::source_snapshot(&n.prompt, &rows)?).bind(if previous.is_some() { "continuation" } else { "initial" }).bind(graph.get::<i64,_>("recovery_generation")).bind(previous).execute(&mut *tx).await?;
+                                .bind(workspace).bind(execution_id).bind(&c.id).bind(graph.get::<i64,_>("task_revision")).bind(runner).bind(serde_json::to_value(&execution)?).bind(now).bind(deadline).bind(id).bind(&n.id).bind(crate::store::dag_recovery::source_snapshot(&n.prompt, &rows)?).bind(if previous.is_some() { "continuation" } else { "initial" }).bind(graph.get::<i64,_>("recovery_generation")).bind(previous).execute(&mut *tx).await?;
                             sqlx::query("UPDATE dag_run_nodes SET execution_id=$3,state='queued',stop_cause=NULL,reason=NULL,started_at=NULL,finished_at=NULL WHERE parent_run_id=$1 AND node_id=$2").bind(id).bind(&node_id).bind(execution_id).execute(&mut *tx).await?;
-                            store::enqueue(
+                            store::outbox::enqueue(
                                 &mut tx,
                                 workspace,
                                 protocol::work_subject(runner),

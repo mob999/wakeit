@@ -25,7 +25,7 @@ pub async fn seed(pool: &PgPool) -> Result<()> {
         .await?;
     sqlx::query("INSERT INTO settings(workspace_id,data) VALUES($1,'{\"timezone\":\"UTC\",\"log_retention_days\":7,\"run_retention_days\":90}')").bind(workspace).execute(&mut *tx).await?;
     let agents = json!([{"id":"codex","name":"Codex","logo":"/agent-logos/codex.svg","mode":"sync","digest":"synthetic","available":true,"version":"Demo","cancellable":true,"parameters":{},"models_supported":false,"trace_supported":true,"session_supported":false}]);
-    sqlx::query("INSERT INTO runners(id,workspace_id,name,token_hash,public_key,revoked,agents,info) VALUES($1,$2,'demo-runner',$3,$4,true,$5,$6)").bind(runner).bind(workspace).bind(crate::auth::hash(&crate::auth::secret())).bind(nkeys::KeyPair::new_user().public_key()).bind(agents).bind(json!({"os":"linux","version":"Demo","concurrency":1})).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO runners(id,workspace_id,name,token_hash,public_key,revoked,agents,info) VALUES($1,$2,'demo-runner',$3,$4,true,$5,$6)").bind(runner).bind(workspace).bind(crate::auth::credentials::hash(&crate::auth::credentials::secret())).bind(nkeys::KeyPair::new_user().public_key()).bind(agents).bind(json!({"os":"linux","version":"Demo","concurrency":1})).execute(&mut *tx).await?;
     let examples = [
         (
             "daily-digest",

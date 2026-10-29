@@ -1,8 +1,10 @@
 //! GitHub is an identity provider only. Its access token never becomes a Wakeit credential.
+use crate::auth::credentials::github_credentials as credentials;
 use crate::{
-    api::{App, Error, Result},
+    api::http::{Error, Result},
     auth,
     config::GatewayConfig,
+    state::App,
 };
 use axum::{
     Router,
@@ -21,51 +23,6 @@ const AUTHORIZE: &str = "https://github.com/login/oauth/authorize";
 const TOKEN: &str = "https://github.com/login/oauth/access_token";
 const USER: &str = "https://api.github.com/user";
 const COOKIE: &str = "wakeit_github";
-pub fn validate(config: &GatewayConfig) -> anyhow::Result<()> {
-    anyhow::ensure!(
-        ["local", "github"].contains(&config.auth.mode.as_str()),
-        "auth.mode must be local or github"
-    );
-    crate::device_auth::validate_url(&config.public_url)?;
-    anyhow::ensure!(
-        !config.auth.session_cookie.is_empty()
-            && config.auth.session_cookie.len() <= 64
-            && config
-                .auth
-                .session_cookie
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'),
-        "invalid session cookie name"
-    );
-    if config.auth.mode == "github" {
-        credentials(config)?;
-        anyhow::ensure!(
-            !config.auth.allow_registration,
-            "password registration cannot be enabled in GitHub mode"
-        );
-    }
-    anyhow::ensure!(
-        !config.auth.demo_workspace || config.auth.mode == "github",
-        "demo workspace requires GitHub authentication"
-    );
-    Ok(())
-}
-fn credentials(config: &GatewayConfig) -> anyhow::Result<(String, String)> {
-    let provider = config
-        .auth
-        .github
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("GitHub authentication configuration is required"))?;
-    let id = std::env::var(&provider.client_id_env)
-        .map_err(|_| anyhow::anyhow!("GitHub Client ID environment variable is missing"))?;
-    let secret = std::env::var(&provider.client_secret_env)
-        .map_err(|_| anyhow::anyhow!("GitHub Client Secret environment variable is missing"))?;
-    anyhow::ensure!(
-        !id.trim().is_empty() && !secret.trim().is_empty(),
-        "GitHub credentials must not be empty"
-    );
-    Ok((id, secret))
-}
 pub fn routes() -> Router<App> {
     Router::new()
         .route("/api/v1/auth/github/start", get(start))
@@ -145,9 +102,9 @@ async fn begin(pool: &PgPool, config: &GatewayConfig, h: HeaderMap, q: Start) ->
     let browser = cookie(&h)
         .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
         .map(str::to_owned)
-        .unwrap_or_else(auth::secret);
-    let state = auth::secret();
-    let verifier = auth::secret();
+        .unwrap_or_else(auth::credentials::secret);
+    let state = auth::credentials::secret();
+    let verifier = auth::credentials::secret();
     let mut tx = pool.begin().await?;
     sqlx::query("SELECT pg_advisory_xact_lock(743279)")
         .execute(&mut *tx)
@@ -157,7 +114,7 @@ async fn begin(pool: &PgPool, config: &GatewayConfig, h: HeaderMap, q: Start) ->
     )
     .fetch_one(&mut *tx)
     .await?;
-    let browser_key = format!("github:browser:{}", auth::hash(&browser));
+    let browser_key = format!("github:browser:{}", auth::credentials::hash(&browser));
     let own:i64=sqlx::query_scalar("SELECT count(*) FROM device_auth_limits WHERE key=$1 AND created_at>now()-interval '1 minute'").bind(&browser_key).fetch_one(&mut *tx).await?;
     if count >= 600 || own >= 10 {
         return Err(Error(
@@ -172,7 +129,7 @@ async fn begin(pool: &PgPool, config: &GatewayConfig, h: HeaderMap, q: Start) ->
     sqlx::query("DELETE FROM github_login_transactions WHERE expires_at<=now()")
         .execute(&mut *tx)
         .await?;
-    sqlx::query("INSERT INTO github_login_transactions(state_hash,browser_hash,verifier,return_to,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')").bind(auth::hash(&state)).bind(auth::hash(&browser)).bind(&verifier).bind(return_to).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO github_login_transactions(state_hash,browser_hash,verifier,return_to,expires_at) VALUES($1,$2,$3,$4,now()+interval '10 minutes')").bind(auth::credentials::hash(&state)).bind(auth::credentials::hash(&browser)).bind(&verifier).bind(return_to).execute(&mut *tx).await?;
     tx.commit().await?;
     let mut url = reqwest::Url::parse(AUTHORIZE).unwrap();
     url.query_pairs_mut().extend_pairs([
@@ -315,8 +272,8 @@ async fn sign_in(pool: &PgPool, subject: &GitHubUser) -> Result<String> {
             .await?;
         user
     };
-    let token = auth::secret();
-    sqlx::query("INSERT INTO credentials(hash,user_id,kind,expires_at) VALUES($1,$2,'session',now()+interval '7 days')").bind(auth::hash(&token)).bind(user).execute(&mut *tx).await?;
+    let token = auth::credentials::secret();
+    sqlx::query("INSERT INTO credentials(hash,user_id,kind,expires_at) VALUES($1,$2,'session',now()+interval '7 days')").bind(auth::credentials::hash(&token)).bind(user).execute(&mut *tx).await?;
     sqlx::query(
         "INSERT INTO audit(user_id,action,target) VALUES($1,'identity.github.login',$1::text)",
     )
@@ -352,7 +309,7 @@ async fn complete(
         .filter(|v| v.len() == 64)
         .ok_or_else(|| Error::bad("GitHub login browser does not match; try again"))?;
     // Consume before network I/O, including denial. A callback is never replayable.
-    let row=sqlx::query("DELETE FROM github_login_transactions WHERE state_hash=$1 AND browser_hash=$2 AND expires_at>now() RETURNING verifier,return_to").bind(auth::hash(&state)).bind(auth::hash(browser)).fetch_optional(pool).await?.ok_or_else(||Error::bad("invalid or expired GitHub login"))?;
+    let row=sqlx::query("DELETE FROM github_login_transactions WHERE state_hash=$1 AND browser_hash=$2 AND expires_at>now() RETURNING verifier,return_to").bind(auth::credentials::hash(&state)).bind(auth::credentials::hash(browser)).fetch_optional(pool).await?.ok_or_else(||Error::bad("invalid or expired GitHub login"))?;
     let mut response = if q.error.is_some() {
         Redirect::to("/?auth_error=github_denied").into_response()
     } else {
@@ -378,7 +335,7 @@ async fn complete(
         let target: String = row.get("return_to");
         // Finish in a same-origin document before navigating. A redirect chain
         // from GitHub can otherwise omit the new Strict session cookie.
-        let nonce = auth::secret();
+        let nonce = auth::credentials::secret();
         let target = serde_json::to_string(&target)?.replace('<', "\\u003c");
         let mut response=Html(format!("<!doctype html><html><head><meta charset=\"utf-8\"><title>Wakeit</title></head><body><script nonce=\"{nonce}\">location.replace({target})</script><noscript><a href=\"/\">Continue to Wakeit</a></noscript></body></html>")).into_response();
         response.headers_mut().insert(header::CONTENT_SECURITY_POLICY,format!("default-src 'none'; script-src 'nonce-{nonce}'; frame-ancestors 'none'; base-uri 'none'").parse().unwrap());
@@ -443,7 +400,7 @@ mod tests {
     #[ignore = "requires a disposable migrated PostgreSQL database; scripts/github_auth_checks.py"]
     async fn database_oauth_identity_and_demo() {
         let config = fixture_config();
-        validate(&config).unwrap();
+        crate::auth::credentials::validate_github(&config).unwrap();
         let pool = crate::store::pool(&config.database_url_env).await.unwrap();
         let initial = ok(begin(
             &pool,
@@ -486,7 +443,7 @@ mod tests {
                 .is_err()
         );
         let bad = Callback {
-            state: Some(auth::secret()),
+            state: Some(auth::credentials::secret()),
             code: Some("fixture-code".into()),
             error: None,
         };
@@ -498,7 +455,7 @@ mod tests {
         let verifier: String = sqlx::query_scalar(
             "SELECT verifier FROM github_login_transactions WHERE state_hash=$1",
         )
-        .bind(auth::hash(&state))
+        .bind(auth::credentials::hash(&state))
         .fetch_one(&pool)
         .await
         .unwrap();
@@ -623,25 +580,25 @@ mod tests {
             },
         )
         .await);
-        let identity = crate::workspaces::identity(&pool, &auth::hash(&token))
+        let identity = crate::auth::workspace::identity(&pool, &auth::credentials::hash(&token))
             .await
             .unwrap()
             .unwrap();
         assert_eq!(identity.id, external);
-        crate::demo::seed(&pool).await.unwrap();
-        crate::demo::seed(&pool).await.unwrap();
+        crate::store::demo::seed(&pool).await.unwrap();
+        crate::store::demo::seed(&pool).await.unwrap();
         let demo: Uuid = sqlx::query_scalar("SELECT id FROM workspaces WHERE is_demo")
             .fetch_one(&pool)
             .await
             .unwrap();
         assert!(
-            crate::workspaces::authorize(&pool, &identity, demo)
+            crate::auth::workspace::authorize(&pool, &identity, demo)
                 .await
                 .unwrap()
                 .unwrap()
                 .demo
         );
-        let ordinary = crate::workspaces::Identity {
+        let ordinary = crate::auth::workspace::Identity {
             id: local,
             username: "local".into(),
             instance_admin: true,
@@ -650,16 +607,21 @@ mod tests {
             credential: String::new(),
         };
         assert!(
-            crate::workspaces::authorize(&pool, &ordinary, demo)
+            crate::auth::workspace::authorize(&pool, &ordinary, demo)
                 .await
                 .unwrap()
                 .is_none()
         );
         let mut tx = pool.begin().await.unwrap();
         assert!(
-            crate::workspaces::check_member(&mut tx, &auth::hash(&token), demo, "viewer")
-                .await
-                .is_err()
+            crate::auth::workspace::check_member(
+                &mut tx,
+                &auth::credentials::hash(&token),
+                demo,
+                "viewer"
+            )
+            .await
+            .is_err()
         );
         tx.rollback().await.unwrap();
         let runs: i64 = sqlx::query_scalar("SELECT count(*) FROM runs WHERE workspace_id=$1")
@@ -710,7 +672,7 @@ mod tests {
         );
         let expired = ok(begin(&pool, &config, headers.clone(), Start::default()).await);
         let expired = login_state(&expired);
-        sqlx::query("UPDATE github_login_transactions SET expires_at=now()-interval '1 second' WHERE state_hash=$1").bind(auth::hash(&expired)).execute(&pool).await.unwrap();
+        sqlx::query("UPDATE github_login_transactions SET expires_at=now()-interval '1 second' WHERE state_hash=$1").bind(auth::credentials::hash(&expired)).execute(&pool).await.unwrap();
         assert!(
             complete(
                 &pool,

@@ -6,7 +6,8 @@ use uuid::Uuid;
 use wakeit_gateway::{
     auth,
     config::{self, GatewayConfig},
-    gateway, nats_auth, store,
+    gateway, store,
+    transport::authority as nats_auth,
 };
 #[derive(Parser)]
 #[command(name = "wakeit-gateway", version, about = "Wakeit scheduling service")]
@@ -90,7 +91,7 @@ fn main() {
         _ => None,
     };
     if let Some(path) = env_file {
-        let vars = wakeit_gateway::service::read_environment(path).unwrap_or_else(|e| {
+        let vars = wakeit_gateway::deployment::read_environment(path).unwrap_or_else(|e| {
             eprintln!("wakeit-gateway: {e:#}");
             std::process::exit(1)
         });
@@ -153,7 +154,7 @@ async fn run(cli: Cli) -> Result<()> {
         } => {
             let c = read_gateway(config)?;
             let pool = store::pool(&c.database_url_env).await?;
-            auth::bootstrap(
+            auth::credentials::bootstrap(
                 &pool,
                 username,
                 &std::env::var(password_env).with_context(|| format!("set {password_env}"))?,
@@ -171,8 +172,8 @@ async fn run(cli: Cli) -> Result<()> {
             nats_config,
             postgres_service,
         } => {
-            let files =
-                wakeit_gateway::service::generate(&wakeit_gateway::service::ServiceOptions {
+            let files = wakeit_gateway::deployment::generate(
+                &wakeit_gateway::deployment::ServiceOptions {
                     executable: std::env::current_exe()?,
                     config: config.clone(),
                     env_file: env_file.clone(),
@@ -183,8 +184,9 @@ async fn run(cli: Cli) -> Result<()> {
                     nats_bin: nats_bin.clone(),
                     nats_config: nats_config.clone(),
                     postgres_service: postgres_service.clone(),
-                })?;
-            wakeit_gateway::service::write_bundle(output, &files)?;
+                },
+            )?;
+            wakeit_gateway::deployment::write_bundle(output, &files)?;
             display(
                 json!({"output":output,"files":files.keys().collect::<Vec<_>>()}),
                 cli.json,

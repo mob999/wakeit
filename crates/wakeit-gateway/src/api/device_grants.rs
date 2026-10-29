@@ -1,7 +1,10 @@
 //! Browser-confirmed device grants. All state and limits are shared across Gateways.
 use crate::{
-    api::{App, Error, User, reauthorize, user},
-    auth, store,
+    api::{access::user, http::Error},
+    auth,
+    auth::workspace::{User, reauthorize},
+    state::App,
+    store,
 };
 use axum::{
     Json, Router,
@@ -59,7 +62,7 @@ async fn limit(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, key: &str, max: i
     Ok(())
 }
 async fn browser(s: &App, h: &HeaderMap, write: bool) -> Result<User> {
-    if h.contains_key(header::AUTHORIZATION) || super::api::cookie(&s.config, h).is_none() {
+    if h.contains_key(header::AUTHORIZATION) || crate::api::access::cookie(&s.config, h).is_none() {
         return Err(Error(
             StatusCode::UNAUTHORIZED,
             "Web session required".into(),
@@ -122,11 +125,11 @@ async fn create(State(s): State<App>, Json(intent): Json<Intent>) -> Result<Json
     let code: String = (0..8)
         .map(|_| alphabet[rand::thread_rng().gen_range(0..alphabet.len())] as char)
         .collect();
-    let device = auth::secret();
+    let device = auth::credentials::secret();
     sqlx::query("DELETE FROM device_grants WHERE expires_at<now()-interval '1 day' AND (api_hash IS NULL OR NOT EXISTS (SELECT 1 FROM credentials c WHERE c.hash=device_grants.api_hash))")
         .execute(&mut *tx)
         .await?;
-    sqlx::query("INSERT INTO device_grants(device_hash,user_hash,intent,expires_at,workspace_id) VALUES($1,$2,$3,now()+interval '10 minutes',$4)").bind(auth::hash(&device)).bind(auth::hash(&code)).bind(json!(intent)).bind(workspace).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO device_grants(device_hash,user_hash,intent,expires_at,workspace_id) VALUES($1,$2,$3,now()+interval '10 minutes',$4)").bind(auth::credentials::hash(&device)).bind(auth::credentials::hash(&code)).bind(json!(intent)).bind(workspace).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(
         json!({"device_code":device,"user_code":code,"verification_uri":format!("{base}/authorize/device"),"verification_uri_complete":format!("{base}/authorize/device?user_code={code}"),"expires_in":600,"interval":5}),
@@ -137,7 +140,7 @@ fn code_hash(code: &str) -> Result<String> {
     if c.len() != 8 || !c.bytes().all(|b| b.is_ascii_alphanumeric()) {
         return Err(Error::bad("invalid verification code"));
     }
-    Ok(auth::hash(&c))
+    Ok(auth::credentials::hash(&c))
 }
 async fn details(
     State(s): State<App>,
@@ -183,11 +186,11 @@ async fn decide(s: App, h: HeaderMap, code: String, allow: bool) -> Result<Json<
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
+    crate::store::workspaces::lock(&mut tx, workspace).await?;
     let u = reauthorize(&mut tx, &initial, "viewer").await?;
     let row=sqlx::query("SELECT intent,state,expires_at>now() AS valid,user_id FROM device_grants WHERE user_hash=$1 FOR UPDATE").bind(code_hash(&code)?).fetch_optional(&mut *tx).await?.ok_or_else(||Error::bad("invalid verification code"))?;
     let intent: Intent = serde_json::from_value(row.get("intent"))?;
-    if allow && intent.register_runner && auth::role(&u.role) < 2 {
+    if allow && intent.register_runner && auth::credentials::role(&u.role) < 2 {
         return Err(Error(
             StatusCode::FORBIDDEN,
             "Operator permission is required to register a Runner".into(),
@@ -252,7 +255,7 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
     }
     let workspace: Option<Uuid> =
         sqlx::query_scalar("SELECT workspace_id FROM device_grants WHERE device_hash=$1")
-            .bind(auth::hash(&b.device_code))
+            .bind(auth::credentials::hash(&b.device_code))
             .fetch_optional(&s.pool)
             .await?;
     let Some(workspace) = workspace else {
@@ -262,8 +265,8 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
-    let row=sqlx::query("SELECT *,expires_at>now() AS valid, last_poll IS NOT NULL AND last_poll>now()-make_interval(secs=>poll_interval) AS too_fast FROM device_grants WHERE device_hash=$1 FOR UPDATE").bind(auth::hash(&b.device_code)).fetch_optional(&mut *tx).await?;
+    crate::store::workspaces::lock(&mut tx, workspace).await?;
+    let row=sqlx::query("SELECT *,expires_at>now() AS valid, last_poll IS NOT NULL AND last_poll>now()-make_interval(secs=>poll_interval) AS too_fast FROM device_grants WHERE device_hash=$1 FOR UPDATE").bind(auth::credentials::hash(&b.device_code)).fetch_optional(&mut *tx).await?;
     let Some(row) = row else {
         return Ok(oauth_error("invalid_grant"));
     };
@@ -278,12 +281,12 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
         return Ok(oauth_error("access_denied"));
     }
     if row.get::<bool, _>("too_fast") {
-        sqlx::query("UPDATE device_grants SET last_poll=now(),poll_interval=LEAST(60,poll_interval+5) WHERE device_hash=$1").bind(auth::hash(&b.device_code)).execute(&mut *tx).await?;
+        sqlx::query("UPDATE device_grants SET last_poll=now(),poll_interval=LEAST(60,poll_interval+5) WHERE device_hash=$1").bind(auth::credentials::hash(&b.device_code)).execute(&mut *tx).await?;
         tx.commit().await?;
         return Ok(oauth_error("slow_down"));
     }
     sqlx::query("UPDATE device_grants SET last_poll=now() WHERE device_hash=$1")
-        .bind(auth::hash(&b.device_code))
+        .bind(auth::credentials::hash(&b.device_code))
         .execute(&mut *tx)
         .await?;
     if state == "pending" {
@@ -298,7 +301,7 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
         "viewer"
     };
     let actor_id =
-        match crate::workspaces::check_member(&mut tx, &credential, workspace, needed).await {
+        match crate::auth::workspace::check_member(&mut tx, &credential, workspace, needed).await {
             Ok(id) => id,
             Err(_) => return Ok(oauth_error("access_denied")),
         };
@@ -311,10 +314,9 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
         workspace_id: Some(workspace),
         instance_admin: false,
         kind: "session".into(),
-        demo: false,
     };
-    let token = auth::secret();
-    let hash = auth::hash(&token);
+    let token = auth::credentials::secret();
+    let hash = auth::credentials::hash(&token);
     sqlx::query(
         "INSERT INTO credentials(hash,user_id,kind,name,workspace_id) VALUES($1,$2,'api',$3,$4)",
     )
@@ -325,7 +327,7 @@ async fn exchange(State(s): State<App>, Json(b): Json<TokenRequest>) -> Result<R
     .execute(&mut *tx)
     .await?;
     sqlx::query("UPDATE device_grants SET state='consumed',api_hash=$2 WHERE device_hash=$1")
-        .bind(auth::hash(&b.device_code))
+        .bind(auth::credentials::hash(&b.device_code))
         .bind(&hash)
         .execute(&mut *tx)
         .await?;
@@ -365,7 +367,7 @@ async fn connect(
     sqlx::query("SELECT pg_advisory_xact_lock(743273)")
         .execute(&mut *tx)
         .await?;
-    crate::workspaces::lock(&mut tx, workspace).await?;
+    crate::store::workspaces::lock(&mut tx, workspace).await?;
     let actor = reauthorize(&mut tx, &initial, "operator").await?;
     let approved: Option<Value> =
         sqlx::query_scalar("SELECT intent FROM device_grants WHERE api_hash=$1")
@@ -394,7 +396,7 @@ async fn connect(
     } else {
         Uuid::new_v4()
     };
-    let token = auth::secret();
+    let token = auth::credentials::secret();
     if sqlx::query("SELECT 1 FROM device_registrations WHERE request_id=$1")
         .bind(b.request_id)
         .fetch_optional(&mut *tx)
@@ -403,7 +405,7 @@ async fn connect(
     {
         sqlx::query("UPDATE runners SET token_hash=$2 WHERE id=$1")
             .bind(id)
-            .bind(auth::hash(&token))
+            .bind(auth::credentials::hash(&token))
             .execute(&mut *tx)
             .await?;
     } else {
@@ -411,7 +413,7 @@ async fn connect(
             .bind(id)
             .bind(&b.name)
             .bind(&b.public_key)
-            .bind(auth::hash(&token))
+            .bind(auth::credentials::hash(&token))
             .bind(workspace).execute(&mut *tx)
             .await
             .map_err(|_| {
@@ -420,7 +422,7 @@ async fn connect(
         sqlx::query("INSERT INTO device_registrations(request_id,runner_id,public_key,user_id,workspace_id) VALUES($1,$2,$3,$4,$5)").bind(b.request_id).bind(id).bind(&b.public_key).bind(actor.id).bind(workspace).execute(&mut *tx).await?;
     }
     let jwt = s.authority.runner_jwt(id, &b.public_key)?;
-    crate::bus::provision(&s.js, id, 2).await?;
+    crate::transport::streams::provision(&s.js, id, 2).await?;
     store::audit(
         &mut tx,
         actor.id,

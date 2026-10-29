@@ -35,9 +35,9 @@ pub fn document() -> Value {
             schemas.insert($name.into(), schema::<$ty>($name));
         };
     }
-    add!("RetryNode", crate::api::RetryNode);
+    add!("RetryNode", crate::api::nodes::RetryNode);
 
-    add!("FilePreviewRequest", crate::file_api::Preview);
+    add!("FilePreviewRequest", crate::api::files::Preview);
     add!("DagValidationIssue", crate::dag::ValidationIssue);
     add!("Task", crate::config::TaskConfig);
     add!("EditorLayout", crate::editor_layout::EditorLayout);
@@ -49,11 +49,11 @@ pub fn document() -> Value {
     add!("TaskTemplatePreview", crate::task_templates::Preview);
     add!("TaskTemplateIssue", crate::task_templates::Issue);
     add!("TaskTemplateSource", crate::task_templates::Source);
-    add!("TaskTemplateSave", crate::template_api::SaveTemplate);
-    add!("TaskTemplateRevision", crate::template_api::Revision);
+    add!("TaskTemplateSave", crate::api::templates::SaveTemplate);
+    add!("TaskTemplateRevision", crate::api::templates::Revision);
     add!(
         "TaskTemplateDraftPreview",
-        crate::template_api::DraftPreview
+        crate::api::templates::DraftPreview
     );
     schemas.insert("TaskTemplateRecord".into(), json!({
         "type":"object","additionalProperties":false,
@@ -110,30 +110,30 @@ pub fn document() -> Value {
     }));
     add!("Agent", crate::config::AgentConfig);
     add!("Schedule", crate::config::Schedule);
-    add!("Login", crate::api::Login);
-    add!("Changelog", crate::changelog::Changelog);
-    add!("DeviceIntent", crate::device_auth::Intent);
-    add!("DeviceToken", crate::device_auth::TokenRequest);
-    add!("RunnerConnect", crate::device_auth::Connect);
-    add!("CreateUser", crate::api::CreateUser);
-    add!("Password", crate::api::PasswordBody);
-    add!("ArchiveTask", crate::api::ArchiveBody);
-    add!("MemberUpdate", crate::api::MemberUpdate);
-    add!("Role", crate::api::RoleBody);
-    add!("AcceptInvite", crate::api::Accept);
-    add!("Token", crate::api::TokenBody);
-    add!("ApplyTask", crate::api::Apply);
-    add!("Resolution", crate::api::Resolution);
-    add!("Enroll", crate::api::Enroll);
-    add!("Hello", crate::api::Hello);
-    add!("Heartbeat", crate::api::Heartbeat);
-    add!("Claim", crate::api::Claim);
-    add!("ModelsQuery", crate::api::ModelsQuery);
+    add!("Login", crate::api::sessions::Login);
+    add!("Changelog", crate::api::changelog::Changelog);
+    add!("DeviceIntent", crate::api::device_grants::Intent);
+    add!("DeviceToken", crate::api::device_grants::TokenRequest);
+    add!("RunnerConnect", crate::api::device_grants::Connect);
+    add!("CreateUser", crate::api::accounts::CreateUser);
+    add!("Password", crate::api::accounts::PasswordBody);
+    add!("ArchiveTask", crate::api::tasks::ArchiveBody);
+    add!("MemberUpdate", crate::api::accounts::MemberUpdate);
+    add!("Role", crate::api::workspaces::RoleBody);
+    add!("AcceptInvite", crate::api::workspaces::Accept);
+    add!("Token", crate::api::tokens::TokenBody);
+    add!("ApplyTask", crate::api::tasks::Apply);
+    add!("Resolution", crate::api::runs::Resolution);
+    add!("Enroll", crate::api::device::Enroll);
+    add!("Hello", crate::api::device::Hello);
+    add!("Heartbeat", crate::api::device::Heartbeat);
+    add!("Claim", crate::api::device::Claim);
+    add!("ModelsQuery", crate::api::runners::ModelsQuery);
     add!("ModelCatalog", crate::protocol::ModelCatalog);
     add!("StreamRecord", crate::trace::StreamRecord);
     add!("AgentInfo", crate::protocol::AgentInfo);
     add!("SessionInfo", crate::sessions::SessionInfo);
-    add!("CreateTerminal", crate::terminal_api::Create);
+    add!("CreateTerminal", crate::api::terminals::Create);
     add!("RunSession", crate::sessions::RunSession);
     schemas.insert("SessionInspect".into(), json!({
         "type":"object", "additionalProperties":false, "required":["cwd","id"],

@@ -1,5 +1,8 @@
 //! Read-only completion timeline. Day boundaries use the workspace's IANA timezone.
-use crate::api::{App, Error, user};
+use crate::{
+    api::{access::user, http::Error},
+    state::App,
+};
 use axum::{
     Json,
     extract::{Query, State},

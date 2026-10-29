@@ -1,8 +1,13 @@
 //! Workspace-authorized browser terminals. Database rows contain lifecycle metadata only.
 use crate::{
-    api::{self, ApiJson, App, Error, Path, Result, User},
+    api::{
+        self,
+        http::{ApiJson, Error, Path, Result},
+    },
     auth,
-    terminal_protocol::{self as wire, Control, Frame},
+    auth::workspace::User,
+    state::App,
+    terminal_protocol::{self as wire, Frame},
 };
 use axum::{
     Json,
@@ -21,6 +26,8 @@ use sqlx::{Row, postgres::PgRow};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+use crate::store::terminals::{apply_state, refresh, request, stop};
+use crate::transport::query::terminal as rpc;
 #[derive(Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Create {
@@ -28,134 +35,20 @@ pub struct Create {
     #[serde(default)]
     pub node_id: Option<String>,
 }
+
 fn id_json(row: &PgRow) -> Value {
     json!({"id":row.get::<Uuid,_>("id"),"state":row.get::<String,_>("state"),"generation":row.get::<i64,_>("generation"),"reason":row.get::<Option<String>,_>("reason"),"exit_code":row.get::<Option<i32>,_>("exit_code")})
 }
+
 async fn actor(s: &App, h: &HeaderMap, write: bool) -> Result<User> {
-    api::user(s, h, "operator", write).await
+    api::access::user(s, h, "operator", write).await
 }
+
 async fn owned(s: &App, actor: &User, id: Uuid) -> Result<PgRow> {
     sqlx::query("SELECT t.* FROM terminals t JOIN runners r ON r.id=t.runner_id AND r.workspace_id=t.workspace_id WHERE t.id=$1 AND t.workspace_id=$2 AND t.user_id=$3 AND t.credential=$4 AND NOT r.revoked")
         .bind(id).bind(actor.workspace()?).bind(actor.id).bind(&actor.credential).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)
 }
-fn request(row: &PgRow, action: &str, data: Value) -> Control {
-    Control {
-        version: 1,
-        terminal_id: row.get("id"),
-        workspace_id: row.get("workspace_id"),
-        runner_id: row.get("runner_id"),
-        runtime_id: row.get("runtime_id"),
-        generation: row.get("generation"),
-        expires_at: (Utc::now() + chrono::Duration::seconds(5)).timestamp_millis(),
-        action: action.into(),
-        data,
-    }
-}
-async fn rpc(s: &App, request: Control) -> Result<Value> {
-    let reply = format!(
-        "{}.terminalrpc.{}",
-        crate::protocol::reply_prefix(request.runner_id),
-        Uuid::new_v4().simple()
-    );
-    let mut sub = s
-        .client
-        .subscribe(reply.clone())
-        .await
-        .map_err(anyhow::Error::from)?;
-    s.client
-        .publish_with_reply(
-            wire::control_subject(request.runner_id),
-            reply,
-            serde_json::to_vec(&request)?.into(),
-        )
-        .await
-        .map_err(anyhow::Error::from)?;
-    s.client.flush().await.map_err(anyhow::Error::from)?;
-    let result = tokio::time::timeout(Duration::from_secs(5), sub.next()).await;
-    let _ = sub.unsubscribe().await;
-    let message = result
-        .map_err(|_| {
-            Error(
-                StatusCode::GATEWAY_TIMEOUT,
-                "terminal connection timed out".into(),
-            )
-        })?
-        .ok_or_else(|| Error(StatusCode::SERVICE_UNAVAILABLE, "Runner is offline".into()))?;
-    if message.status == Some(async_nats::StatusCode::NO_RESPONDERS) {
-        return Err(Error(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "Runner does not support web terminals".into(),
-        ));
-    }
-    let body: Value = serde_json::from_slice(&message.payload)?;
-    if body["ok"] != true {
-        return Err(Error::conflict(
-            body["error"]
-                .as_str()
-                .unwrap_or("terminal operation failed"),
-        ));
-    }
-    Ok(body["data"].clone())
-}
-async fn apply_state<'a>(
-    db: impl sqlx::PgExecutor<'a>,
-    id: Uuid,
-    generation: i64,
-    state: &Value,
-) -> Result<()> {
-    let current = state["state"].as_str().unwrap_or("");
-    if !["starting", "running", "closing", "closed", "unknown"].contains(&current) {
-        return Ok(());
-    }
-    sqlx::query("UPDATE terminals SET state=$3,reason=$4,exit_code=$5,closed_at=CASE WHEN $3='closed' THEN COALESCE(closed_at,now()) ELSE closed_at END,attached=CASE WHEN $3 IN ('closed','unknown') THEN false ELSE attached END WHERE id=$1 AND generation=$2 AND state<>'closed' AND (state<>'closing' OR $3 IN ('closing','closed','unknown'))")
-        .bind(id).bind(generation).bind(current).bind(state["reason"].as_str()).bind(state["exit_code"].as_i64().map(|n|n as i32)).execute(db).await?;
-    Ok(())
-}
-async fn refresh(s: &App, row: &PgRow) -> Result<()> {
-    if row.get::<String, _>("state") == "created"
-        && row.get::<DateTime<Utc>, _>("lease_until") < Utc::now()
-    {
-        sqlx::query("UPDATE terminals SET state='closed',closed_at=now(),attached=false WHERE id=$1 AND state='created'").bind(row.get::<Uuid,_>("id")).execute(&s.pool).await?;
-        return Ok(());
-    }
-    if row.get::<String, _>("state") == "closed" {
-        return Ok(());
-    }
-    let mut control = request(row, "status", json!({}));
-    let runtime: Option<Uuid> = sqlx::query_scalar("SELECT runtime_id FROM runners WHERE id=$1")
-        .bind(control.runner_id)
-        .fetch_optional(&s.pool)
-        .await?
-        .flatten();
-    if let Some(runtime) = runtime {
-        control.runtime_id = runtime;
-    }
-    match rpc(s, control).await {
-        Ok(value) => {
-            let state = value
-                .get("state")
-                .filter(|v| v.is_object())
-                .unwrap_or(&value);
-            if state["state"] == "missing"
-                && row.get::<DateTime<Utc>, _>("lease_until") < Utc::now()
-            {
-                apply_state(
-                    &s.pool,
-                    row.get("id"),
-                    row.get("generation"),
-                    &json!({"state":"closed"}),
-                )
-                .await?;
-            } else {
-                apply_state(&s.pool, row.get("id"), row.get("generation"), state).await?;
-            }
-        }
-        Err(_) => {
-            sqlx::query("UPDATE terminals SET state='unknown',attached=false WHERE id=$1 AND lease_until<now() AND state NOT IN ('created','closed')").bind(row.get::<Uuid,_>("id")).execute(&s.pool).await?;
-        }
-    }
-    Ok(())
-}
+
 pub(crate) async fn create(
     State(s): State<App>,
     h: HeaderMap,
@@ -214,7 +107,7 @@ pub(crate) async fn create(
         refresh(&s,&previous).await?;
     }
     let mut tx = s.pool.begin().await?;
-    api::reauthorize(&mut tx, &who, "operator").await?;
+    auth::workspace::reauthorize(&mut tx, &who, "operator").await?;
     sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
         .bind(format!(
             "session:{}:{}:{}",
@@ -262,6 +155,7 @@ pub(crate) async fn create(
     tx.commit().await?;
     Ok(Json(id_json(&row)))
 }
+
 pub(crate) async fn get(
     State(s): State<App>,
     h: HeaderMap,
@@ -272,6 +166,7 @@ pub(crate) async fn get(
     refresh(&s, &row).await?;
     Ok(Json(id_json(&owned(&s, &who, id).await?)))
 }
+
 pub(crate) async fn attach(
     State(s): State<App>,
     h: HeaderMap,
@@ -279,7 +174,7 @@ pub(crate) async fn attach(
 ) -> Result<Json<Value>> {
     let who = actor(&s, &h, true).await?;
     let mut tx = s.pool.begin().await?;
-    api::reauthorize(&mut tx, &who, "operator").await?;
+    auth::workspace::reauthorize(&mut tx, &who, "operator").await?;
     let row=sqlx::query("SELECT * FROM terminals WHERE id=$1 AND workspace_id=$2 AND user_id=$3 AND credential=$4 FOR UPDATE").bind(id).bind(who.workspace()?).bind(who.id).bind(&who.credential).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
     if row.get::<bool, _>("attached")
         || ["closed", "closing", "unknown"].contains(&row.get::<String, _>("state").as_str())
@@ -298,11 +193,12 @@ pub(crate) async fn attach(
     if !ready {
         return Err(Error::conflict("Runner runtime changed"));
     }
-    let ticket = auth::secret();
-    sqlx::query("UPDATE terminals SET ticket_hash=$2,ticket_expires=now()+interval '30 seconds' WHERE id=$1").bind(id).bind(auth::hash(&ticket)).execute(&mut *tx).await?;
+    let ticket = auth::credentials::secret();
+    sqlx::query("UPDATE terminals SET ticket_hash=$2,ticket_expires=now()+interval '30 seconds' WHERE id=$1").bind(id).bind(auth::credentials::hash(&ticket)).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(json!({"ticket":ticket,"expires_in":30})))
 }
+
 pub(crate) async fn close(
     State(s): State<App>,
     h: HeaderMap,
@@ -313,46 +209,7 @@ pub(crate) async fn close(
     stop(&s, &row).await?;
     Ok(Json(id_json(&owned(&s, &who, id).await?)))
 }
-async fn stop(s: &App, row: &PgRow) -> Result<()> {
-    let id: Uuid = row.get("id");
-    let mut tx = s.pool.begin().await?;
-    let state: String = sqlx::query_scalar("SELECT state FROM terminals WHERE id=$1 FOR UPDATE")
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
-    if state == "closed" {
-        return Ok(());
-    }
-    if state == "created" {
-        sqlx::query("UPDATE terminals SET state='closed',closed_at=now(),attached=false,ticket_hash=NULL WHERE id=$1").bind(id).execute(&mut *tx).await?;
-        tx.commit().await?;
-        return Ok(());
-    }
-    sqlx::query("UPDATE terminals SET state='closing',ticket_hash=NULL WHERE id=$1")
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    let _ = rpc(s, request(row, "close", json!({}))).await?;
-    let deadline = Instant::now() + Duration::from_secs(7);
-    loop {
-        refresh(s, row).await?;
-        let state: String = sqlx::query_scalar("SELECT state FROM terminals WHERE id=$1")
-            .bind(id)
-            .fetch_one(&s.pool)
-            .await?;
-        if matches!(state.as_str(), "closed" | "unknown") {
-            return Ok(());
-        }
-        if Instant::now() > deadline {
-            return Err(Error(
-                StatusCode::GATEWAY_TIMEOUT,
-                "terminal cleanup is pending".into(),
-            ));
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-}
+
 pub(crate) async fn stream(
     State(s): State<App>,
     h: HeaderMap,
@@ -381,6 +238,7 @@ pub(crate) async fn stream(
         .into_response())
 }
 use axum::response::IntoResponse;
+
 async fn socket_loop(
     s: App,
     h: HeaderMap,
@@ -399,9 +257,9 @@ async fn socket_loop(
     let init: Value = serde_json::from_str(&text)?;
     let _ = wire::dimensions(&init).map_err(|e| Error::bad(e.to_string()))?;
     let mut tx = s.pool.begin().await?;
-    api::reauthorize(&mut tx, &who, "operator").await?;
+    auth::workspace::reauthorize(&mut tx, &who, "operator").await?;
     let row=sqlx::query("UPDATE terminals SET attached=true,ticket_hash=NULL,generation=generation+1,lease_until=now()+interval '30 seconds',state=CASE WHEN state='created' THEN 'starting' ELSE state END WHERE id=$1 AND workspace_id=$2 AND user_id=$3 AND credential=$4 AND NOT attached AND state IN ('created','starting','running') AND ticket_hash=$5 AND ticket_expires>now() AND lease_until>now() RETURNING *")
-        .bind(id).bind(who.workspace()?).bind(who.id).bind(&who.credential).bind(auth::hash(init["ticket"].as_str().unwrap_or_default())).fetch_optional(&mut *tx).await?.ok_or_else(||Error::conflict("terminal ticket expired or already used"))?;
+        .bind(id).bind(who.workspace()?).bind(who.id).bind(&who.credential).bind(auth::credentials::hash(init["ticket"].as_str().unwrap_or_default())).fetch_optional(&mut *tx).await?.ok_or_else(||Error::conflict("terminal ticket expired or already used"))?;
     tx.commit().await?;
     let generation: i64 = row.get("generation");
     let mut output = s
@@ -430,7 +288,7 @@ async fn socket_loop(
                     let Some(item)=item else{break};let item=item.map_err(anyhow::Error::from)?;
                     let Message::Text(text)=item else{if matches!(item,Message::Close(_)){break}else{continue}};
                     let message:Value=serde_json::from_str(&text)?;
-                    api::user(&s,&h,"operator",false).await?;
+                    api::access::user(&s,&h,"operator",false).await?;
                     let active=owned(&s,&who,id).await?;
                     if active.get::<i64,_>("generation")!=generation || !active.get::<bool,_>("attached") || !["starting","running"].contains(&active.get::<String,_>("state").as_str()){break}
                     let action=message["kind"].as_str().unwrap_or("");
@@ -455,7 +313,7 @@ async fn socket_loop(
                 },
                 _=heartbeat.tick()=>{
                     if last.elapsed()>Duration::from_secs(15){break}
-                    api::user(&s,&h,"operator",false).await?;
+                    api::access::user(&s,&h,"operator",false).await?;
                     let active=owned(&s,&who,id).await?;
                     if active.get::<i64,_>("generation")!=generation || !active.get::<bool,_>("attached") || !["starting","running"].contains(&active.get::<String,_>("state").as_str()){break}
                     let updated=sqlx::query("UPDATE terminals SET lease_until=now()+interval '30 seconds' WHERE id=$1 AND generation=$2 AND attached AND state IN ('starting','running')").bind(id).bind(generation).execute(&s.pool).await?;
@@ -475,7 +333,7 @@ async fn socket_loop(
             ))
             .await;
     }
-    let permission = api::user(&s, &h, "operator", false).await;
+    let permission = api::access::user(&s, &h, "operator", false).await;
     if permission.is_err() || owned(&s, &who, id).await.is_err() {
         let _ = stop(&s, &row).await;
     } else {
@@ -486,64 +344,4 @@ async fn socket_loop(
     let _ = output.unsubscribe().await;
     let _ = socket.close().await;
     result
-}
-
-/// Reconcile metadata after lost connections or Runner restarts. Never starts a process.
-pub(crate) async fn maintain(s: &App) -> Result<()> {
-    let rows=sqlx::query("SELECT t.*, EXISTS(SELECT 1 FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=t.workspace_id JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=t.credential AND c.user_id=t.user_id AND (c.expires_at IS NULL OR c.expires_at>now()) AND u.active AND m.active AND m.role IN ('admin','operator') AND NOT w.is_demo) AND NOT r.revoked AS authorized FROM terminals t JOIN runners r ON r.id=t.runner_id WHERE t.state<>'closed' AND (t.lease_until<now() OR NOT t.attached) ORDER BY t.created_at LIMIT 100").fetch_all(&s.pool).await?;
-    for row in rows {
-        if !row.get::<bool, _>("authorized") {
-            let _ = stop(s, &row).await;
-        }
-        refresh(s, &row).await?;
-    }
-    Ok(())
-}
-
-/// Reconcile occupancy while the caller holds the common Session transaction lock.
-/// A missed ephemeral close frame must not make the next task skip a free Session.
-pub(crate) async fn refresh_session(
-    s: &App,
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    runner: Uuid,
-    agent: &str,
-    session: &str,
-) -> Result<()> {
-    let rows=sqlx::query("SELECT * FROM terminals WHERE runner_id=$1 AND agent=$2 AND session_id=$3 AND state<>'closed'").bind(runner).bind(agent).bind(session).fetch_all(&mut **tx).await?;
-    if rows.is_empty() {
-        return Ok(());
-    }
-    let runtime: Option<Uuid> = sqlx::query_scalar("SELECT runtime_id FROM runners WHERE id=$1")
-        .bind(runner)
-        .fetch_one(&mut **tx)
-        .await?;
-    for row in rows {
-        let expired = row.get::<DateTime<Utc>, _>("lease_until") < Utc::now();
-        let mut control = request(&row, "status", json!({}));
-        if let Some(runtime) = runtime {
-            control.runtime_id = runtime;
-        }
-        let state = if expired && row.get::<String, _>("state") == "created" {
-            json!({"state":"closed"})
-        } else {
-            match rpc(s, control).await {
-                Ok(value) => {
-                    let state = value
-                        .get("state")
-                        .filter(|v| v.is_object())
-                        .unwrap_or(&value)
-                        .clone();
-                    if state["state"] == "missing" && expired {
-                        json!({"state":"closed"})
-                    } else {
-                        state
-                    }
-                }
-                Err(_) if expired => json!({"state":"unknown"}),
-                Err(_) => continue,
-            }
-        };
-        apply_state(&mut **tx, row.get("id"), row.get("generation"), &state).await?;
-    }
-    Ok(())
 }

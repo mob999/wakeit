@@ -1,3 +1,4 @@
+use crate::config::GatewayConfig;
 use anyhow::{Result, ensure};
 use argon2::{
     Argon2, PasswordHasher, PasswordVerifier,
@@ -69,4 +70,50 @@ pub async fn bootstrap(pool: &PgPool, username: &str, pw: &str) -> Result<()> {
         .bind(id).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(())
+}
+
+pub(crate) fn validate_github(config: &GatewayConfig) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        ["local", "github"].contains(&config.auth.mode.as_str()),
+        "auth.mode must be local or github"
+    );
+    wakeit_core::device_auth::validate_url(&config.public_url)?;
+    anyhow::ensure!(
+        !config.auth.session_cookie.is_empty()
+            && config.auth.session_cookie.len() <= 64
+            && config
+                .auth
+                .session_cookie
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'),
+        "invalid session cookie name"
+    );
+    if config.auth.mode == "github" {
+        github_credentials(config)?;
+        anyhow::ensure!(
+            !config.auth.allow_registration,
+            "password registration cannot be enabled in GitHub mode"
+        );
+    }
+    anyhow::ensure!(
+        !config.auth.demo_workspace || config.auth.mode == "github",
+        "demo workspace requires GitHub authentication"
+    );
+    Ok(())
+}
+pub(crate) fn github_credentials(config: &GatewayConfig) -> anyhow::Result<(String, String)> {
+    let provider = config
+        .auth
+        .github
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("GitHub authentication configuration is required"))?;
+    let id = std::env::var(&provider.client_id_env)
+        .map_err(|_| anyhow::anyhow!("GitHub Client ID environment variable is missing"))?;
+    let secret = std::env::var(&provider.client_secret_env)
+        .map_err(|_| anyhow::anyhow!("GitHub Client Secret environment variable is missing"))?;
+    anyhow::ensure!(
+        !id.trim().is_empty() && !secret.trim().is_empty(),
+        "GitHub credentials must not be empty"
+    );
+    Ok((id, secret))
 }

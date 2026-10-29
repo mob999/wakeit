@@ -1,0 +1,146 @@
+//! Identity and workspace authorization are distinct. A workspace key never chooses its scope.
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Postgres, Row, Transaction};
+use uuid::Uuid;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Identity {
+    pub id: Uuid,
+    pub username: String,
+    pub instance_admin: bool,
+    pub kind: String,
+    pub workspace_id: Option<Uuid>,
+    #[serde(skip)]
+    pub credential: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct WorkspaceContext {
+    pub role: String,
+    pub demo: bool,
+}
+
+pub async fn identity(pool: &PgPool, credential: &str) -> Result<Option<Identity>> {
+    let row = sqlx::query("SELECT u.id,u.username,u.instance_admin,c.kind,c.workspace_id FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND u.active AND (c.expires_at IS NULL OR c.expires_at>now())")
+        .bind(credential).fetch_optional(pool).await?;
+    Ok(row.map(|r| Identity {
+        id: r.get("id"),
+        username: r.get("username"),
+        instance_admin: r.get("instance_admin"),
+        kind: r.get("kind"),
+        workspace_id: r.get("workspace_id"),
+        credential: credential.into(),
+    }))
+}
+
+pub async fn authorize(
+    pool: &PgPool,
+    identity: &Identity,
+    workspace: Uuid,
+) -> Result<Option<WorkspaceContext>> {
+    if identity.kind == "api" && identity.workspace_id != Some(workspace) {
+        return Ok(None);
+    }
+    let row=sqlx::query("SELECT w.is_demo,m.role,m.active,u.active AS user_active,EXISTS(SELECT 1 FROM user_identities i WHERE i.user_id=u.id AND i.provider='github') AS github FROM workspaces w JOIN users u ON u.id=$2 LEFT JOIN workspace_members m ON m.workspace_id=w.id AND m.user_id=u.id WHERE w.id=$1")
+        .bind(workspace).bind(identity.id).fetch_optional(pool).await?;
+    Ok(row.and_then(|r| {
+        if !r.get::<bool, _>("user_active") {
+            return None;
+        }
+        let demo = r.get::<bool, _>("is_demo");
+        if demo && identity.kind == "session" && r.get::<bool, _>("github") {
+            return Some(WorkspaceContext {
+                role: "viewer".into(),
+                demo: true,
+            });
+        }
+        if demo {
+            return None;
+        }
+        if r.get::<Option<bool>, _>("active") != Some(true) {
+            return None;
+        }
+        Some(WorkspaceContext {
+            role: r.get("role"),
+            demo,
+        })
+    }))
+}
+
+#[derive(Debug)]
+pub(crate) struct PermissionDenied(pub &'static str);
+
+impl std::fmt::Display for PermissionDenied {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for PermissionDenied {}
+
+pub async fn check_member(
+    tx: &mut Transaction<'_, Postgres>,
+    credential: &str,
+    workspace: Uuid,
+    needed: &str,
+) -> Result<Uuid> {
+    let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2)")
+        .bind(credential).bind(workspace).fetch_optional(&mut **tx).await?.ok_or(PermissionDenied("workspace access denied"))?;
+    if row.get::<bool, _>("is_demo") {
+        return Err(PermissionDenied("demo workspace is read only").into());
+    }
+    if crate::auth::credentials::role(&row.get::<String, _>("role"))
+        < crate::auth::credentials::role(needed)
+    {
+        return Err(PermissionDenied("insufficient permissions").into());
+    }
+    Ok(row.get("id"))
+}
+
+#[derive(Debug)]
+pub(crate) struct MissingWorkspace;
+impl std::fmt::Display for MissingWorkspace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("workspace is required")
+    }
+}
+impl std::error::Error for MissingWorkspace {}
+#[derive(Clone)]
+pub struct User {
+    pub id: Uuid,
+    pub role: String,
+    pub username: String,
+    pub credential: String,
+    pub workspace_id: Option<Uuid>,
+    pub instance_admin: bool,
+    pub kind: String,
+}
+impl User {
+    pub(crate) fn workspace(&self) -> Result<Uuid> {
+        self.workspace_id.ok_or_else(|| MissingWorkspace.into())
+    }
+}
+pub(crate) async fn reauthorize(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    actor: &User,
+    needed: &str,
+) -> Result<User> {
+    let mut current = actor.clone();
+    if let Some(workspace) = actor.workspace_id {
+        crate::auth::workspace::check_member(tx, &actor.credential, workspace, needed).await?;
+        current.role = sqlx::query_scalar(
+            "SELECT role FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+        )
+        .bind(workspace)
+        .bind(actor.id)
+        .fetch_one(&mut **tx)
+        .await?;
+    } else {
+        let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND c.kind='session' AND u.active AND u.instance_admin AND (c.expires_at IS NULL OR c.expires_at>now()))").bind(&actor.credential).fetch_one(&mut **tx).await?;
+        if !allowed {
+            return Err(PermissionDenied("instance administrator required").into());
+        }
+    }
+    Ok(current)
+}

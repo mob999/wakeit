@@ -79,7 +79,8 @@ impl Authority {
                 .fetch_all(&mut *tx)
                 .await?;
         let jwt = self.account_jwt(revoked)?;
-        let client = crate::bus::connect(url, &self.dir.join("system.creds"), None).await?;
+        let client =
+            crate::transport::streams::connect(url, &self.dir.join("system.creds"), None).await?;
         let message = client.request("$SYS.REQ.CLAIMS.UPDATE", jwt.into()).await?;
         let response: Value = serde_json::from_slice(&message.payload)?;
         ensure!(

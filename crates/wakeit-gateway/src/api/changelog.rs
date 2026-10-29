@@ -2,8 +2,8 @@
 use axum::{Json, Router, extract::Query, routing::get};
 use serde::{Deserialize, Serialize};
 
-const ENGLISH: &str = include_str!("../../../CHANGELOG.md");
-const CHINESE: &str = include_str!("../../../CHANGELOG.zh-CN.md");
+const ENGLISH: &str = include_str!("../../../../CHANGELOG.md");
+const CHINESE: &str = include_str!("../../../../CHANGELOG.zh-CN.md");
 
 #[derive(Deserialize)]
 struct LanguageQuery {
@@ -16,11 +16,17 @@ pub struct Changelog {
     pub content: &'static str,
 }
 
-async fn read(Query(query): Query<LanguageQuery>) -> Result<Json<Changelog>, crate::api::Error> {
+async fn read(
+    Query(query): Query<LanguageQuery>,
+) -> Result<Json<Changelog>, crate::api::http::Error> {
     let content = match query.lang.as_deref().unwrap_or("en") {
         "en" => ENGLISH,
         "zh" => CHINESE,
-        _ => return Err(crate::api::Error::bad("unsupported changelog language")),
+        _ => {
+            return Err(crate::api::http::Error::bad(
+                "unsupported changelog language",
+            ));
+        }
     };
     Ok(Json(Changelog {
         version: env!("CARGO_PKG_VERSION"),
@@ -39,7 +45,7 @@ mod tests {
 
     #[tokio::test]
     async fn public_route_serves_embedded_locales_and_rejects_unsupported_languages() {
-        let spec = crate::openapi::document();
+        let spec = crate::api::openapi::document();
         let operation = &spec["paths"]["/api/v1/changelog"]["get"];
         assert_eq!(operation["security"], serde_json::json!([]));
         assert_eq!(

@@ -1,9 +1,15 @@
 use crate::{
-    api::{self, ApiJson, App, Error, Path, User, user},
+    api::{
+        self,
+        access::user,
+        http::{ApiJson, Error, Path},
+    },
+    auth::workspace::User,
     config::TaskConfig,
+    state::App,
     store,
+    store::workspaces,
     task_templates::{self as templates, Definition, InstanceRequest, Issue, Preview},
-    workspaces,
 };
 use axum::{
     Json,
@@ -42,7 +48,7 @@ pub struct List {
     #[serde(default)]
     pub archived: bool,
 }
-type Result<T> = api::Result<T>;
+type Result<T> = api::http::Result<T>;
 
 fn invalid(issues: Vec<Issue>) -> Response {
     (
@@ -57,7 +63,7 @@ async fn authorize(
     workspace: Uuid,
 ) -> Result<()> {
     workspaces::lock(tx, workspace).await?;
-    workspaces::check_member(tx, &actor.credential, workspace, "operator")
+    crate::auth::workspace::check_member(tx, &actor.credential, workspace, "operator")
         .await
         .map(|_| ())
         .map_err(|_| {
@@ -82,9 +88,9 @@ pub(crate) async fn list(
 ) -> Result<Json<Value>> {
     let actor = user(&s, &h, "viewer", false).await?;
     let workspace = actor.workspace()?;
-    let (page, size) = api::pagination(q.page, q.page_size)?;
+    let (page, size) = api::http::pagination(q.page, q.page_size)?;
     let value=sqlx::query_scalar("WITH filtered AS (SELECT * FROM task_templates WHERE workspace_id=$1 AND (archived_at IS NOT NULL)=$2 AND ($3::text IS NULL OR concat_ws(' ',definition->>'name',definition->>'description',id) ILIKE $3)), paged AS (SELECT to_jsonb(t.*) AS item FROM filtered t ORDER BY updated_at DESC,id LIMIT $4 OFFSET $5) SELECT jsonb_build_object('items',COALESCE((SELECT jsonb_agg(item) FROM paged),'[]'::jsonb),'total',(SELECT count(*) FROM filtered),'page',$6::bigint,'page_size',$7::bigint)")
-        .bind(workspace).bind(q.archived).bind(api::search_pattern(q.q)?).bind(size).bind((page-1)*size).bind(page).bind(size).fetch_one(&s.pool).await?;
+        .bind(workspace).bind(q.archived).bind(api::http::search_pattern(q.q)?).bind(size).bind((page-1)*size).bind(page).bind(size).fetch_one(&s.pool).await?;
     Ok(Json(value))
 }
 pub(crate) async fn get(
@@ -326,9 +332,9 @@ async fn validate_bindings(
                         .unwrap_or("default")
                 )
             });
-        let runner = match crate::dag_store::runner(tx, workspace, &execution).await {
+        let runner = match crate::store::runners::runner(tx, workspace, &execution).await {
             Ok(runner) => runner,
-            Err(e) if e.is::<crate::dag_store::RunnerBindingError>() => {
+            Err(e) if e.is::<crate::store::runners::RunnerBindingError>() => {
                 let mut issue = Issue::new("binding", &path, e.to_string());
                 issue.node_id = node;
                 issues.push(issue);
@@ -452,7 +458,7 @@ pub(crate) async fn instantiate(
 ) -> Result<Response> {
     let actor = user(&s, &h, "operator", true).await?;
     let workspace = actor.workspace()?;
-    let key = api::request_key(&h)?;
+    let key = api::http::request_key(&h)?;
     let hash = fingerprint(&id, &request)?;
     // This path deliberately precedes reading the current template: successful
     // lost responses replay even after the template is edited or archived.
@@ -510,7 +516,7 @@ pub(crate) async fn instantiate(
     if !issues.is_empty() {
         return Ok(invalid(issues));
     }
-    let created = store::apply_task_tx(
+    let created = store::tasks::apply_task_tx(
         &mut tx,
         workspace,
         &actor.credential,
@@ -546,7 +552,7 @@ pub(crate) async fn instantiate(
         .execute(&mut *tx)
         .await?;
     let run = if request.run_now {
-        let run = store::trigger_tx(
+        let run = store::runs::trigger_tx(
             &mut tx,
             workspace,
             &actor.credential,
