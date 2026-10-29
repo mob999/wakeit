@@ -1,7 +1,7 @@
 //! Runner-owned, single-controller PTYs. No terminal bytes are written to the Journal.
 use crate::{
-    config::RunnerConfig,
     process::ProcessGroup,
+    runner::config::RunnerConfig,
     runner::journal::Journal,
     runner::sessions,
     terminal_protocol::{self as wire, Control, Frame},

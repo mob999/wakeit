@@ -1,4 +1,4 @@
-use crate::{auth, config::TaskConfig, protocol, transport::streams as bus};
+use crate::{auth, protocol, transport::streams as bus};
 use axum::{
     Json,
     extract::State,
@@ -9,6 +9,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
 use uuid::Uuid;
+use wakeit_core::config::TaskConfig;
 
 use crate::api::access::device;
 use crate::api::http::{ApiJson, Error, Result, true_value};
@@ -25,7 +26,7 @@ pub(crate) async fn enroll(
     State(s): State<App>,
     ApiJson(b): ApiJson<Enroll>,
 ) -> Result<Json<Value>> {
-    crate::config::validate_id(&b.name).map_err(|e| Error::bad(e.to_string()))?;
+    wakeit_core::config::validate_id(&b.name).map_err(|e| Error::bad(e.to_string()))?;
     let id = Uuid::new_v4();
     let jwt = s
         .authority
@@ -230,7 +231,7 @@ pub(crate) async fn claim(
     }
     let workspace: Uuid = row.get("workspace_id");
     let task: TaskConfig = serde_json::from_value(row.get("config"))?;
-    if task.execution.misfire == crate::config::Misfire::Skip
+    if task.execution.misfire == wakeit_core::config::Misfire::Skip
         && row.get::<String, _>("source") == "schedule"
         && claim_now - row.get::<DateTime<Utc>, _>("scheduled_at") > chrono::Duration::seconds(5)
     {
@@ -267,7 +268,7 @@ pub(crate) async fn claim(
             return Ok(Json(json!({"execute":false,"state":state})));
         }
     }
-    if graph_parent.is_none() && task.execution.overlap == crate::config::Overlap::Skip {
+    if graph_parent.is_none() && task.execution.overlap == wakeit_core::config::Overlap::Skip {
         let busy:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runs WHERE workspace_id=$3 AND task_id=$1 AND id<>$2 AND state IN ('starting','running','unknown'))").bind(&task.id).bind(b.run_id).bind(workspace).fetch_one(&mut *tx).await?;
         if busy {
             return Err(Error::conflict("task has an active run"));
@@ -283,7 +284,7 @@ pub(crate) async fn claim(
                 .bind(workspace)
                 .fetch_one(&mut *tx)
                 .await?;
-        snapshot["session_title"] = json!(crate::config::generated_session_title(
+        snapshot["session_title"] = json!(wakeit_core::config::generated_session_title(
             &task.name, claim_now, &timezone
         )?);
         sqlx::query("UPDATE runs SET execution_snapshot=$2 WHERE id=$1")

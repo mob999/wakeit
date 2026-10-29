@@ -1,5 +1,6 @@
-use crate::config::{self, RunnerConfig};
+use crate::config;
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::{
     fs::{File, OpenOptions},
     path::{Path, PathBuf},
@@ -92,4 +93,30 @@ pub fn read_runner(path: &Path) -> Result<RunnerConfig> {
         }
     }
     Ok(config)
+}
+
+fn version() -> u32 {
+    1
+}
+fn concurrency() -> usize {
+    2
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunnerConfig {
+    #[serde(default = "version")]
+    pub version: u32,
+    pub gateway: String,
+    pub id: uuid::Uuid,
+    pub name: String,
+    pub token_file: PathBuf,
+    pub nats_url: String,
+    pub credentials_file: PathBuf,
+    pub data_dir: PathBuf,
+    #[serde(default = "concurrency")]
+    pub concurrency: usize,
+    pub agents: Vec<PathBuf>,
+    #[serde(default)]
+    pub allowed_roots: Vec<PathBuf>,
 }

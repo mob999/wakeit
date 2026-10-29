@@ -1,7 +1,8 @@
 //! Native session references and local, user-owned continuation. Never execute commands from Gateway data.
 use super::config::{private_directory, private_file, read_runner, registered_configs};
+use crate::runner::config::RunnerConfig;
 use crate::{
-    config::{self, AgentConfig, CommandSpec, RunnerConfig, TaskConfig},
+    config::{self, AgentConfig, CommandSpec, TaskConfig},
     process,
 };
 use anyhow::{Context, Result, bail, ensure};

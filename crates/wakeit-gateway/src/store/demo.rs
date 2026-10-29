@@ -47,7 +47,7 @@ pub async fn seed(pool: &PgPool) -> Result<()> {
         ),
     ];
     for (i, (id, name, prompt, result)) in examples.into_iter().enumerate() {
-        let config: crate::config::TaskConfig = serde_json::from_value(
+        let config: wakeit_core::config::TaskConfig = serde_json::from_value(
             json!({"version":1,"id":id,"name":name,"runner":"demo-runner","agent":"codex","cwd":"/demo/project","prompt":prompt,"enabled":false,"schedule":null}),
         )?;
         let config = serde_json::to_value(config)?;

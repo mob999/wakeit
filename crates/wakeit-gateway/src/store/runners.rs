@@ -1,9 +1,9 @@
 //! Gateway-owned orchestration. Runners only receive ordinary version-1 assignments.
-use crate::config::TaskConfig;
 use anyhow::Result;
 use serde_json::{Value, json};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
+use wakeit_core::config::TaskConfig;
 
 #[derive(Debug)]
 pub(crate) struct RunnerBindingError(String);
@@ -32,7 +32,7 @@ pub async fn runner(
     if c.session.is_some() && agent["session_supported"] != true {
         return Err(RunnerBindingError("agent does not advertise session support".into()).into());
     }
-    crate::config::resolve_parameters(
+    wakeit_core::config::resolve_parameters(
         &serde_json::from_value(agent.get("parameters").cloned().unwrap_or(json!({})))?,
         &c.parameters,
     )

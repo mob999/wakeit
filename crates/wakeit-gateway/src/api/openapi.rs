@@ -39,7 +39,7 @@ pub fn document() -> Value {
 
     add!("FilePreviewRequest", crate::api::files::Preview);
     add!("DagValidationIssue", crate::dag::ValidationIssue);
-    add!("Task", crate::config::TaskConfig);
+    add!("Task", wakeit_core::config::TaskConfig);
     add!("EditorLayout", crate::editor_layout::EditorLayout);
     add!("TaskTemplate", crate::task_templates::Definition);
     add!(
@@ -108,8 +108,8 @@ pub fn document() -> Value {
             "template_origin":{"anyOf":[{"$ref":"#/components/schemas/TaskTemplateOrigin"},{"type":"null"}]}
         }
     }));
-    add!("Agent", crate::config::AgentConfig);
-    add!("Schedule", crate::config::Schedule);
+    add!("Agent", wakeit_core::config::AgentConfig);
+    add!("Schedule", wakeit_core::config::Schedule);
     add!("Login", crate::api::sessions::Login);
     add!("Changelog", crate::api::changelog::Changelog);
     add!("DeviceIntent", crate::api::device_grants::Intent);

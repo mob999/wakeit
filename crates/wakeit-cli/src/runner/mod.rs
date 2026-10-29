@@ -9,9 +9,10 @@ pub(crate) mod service;
 pub mod sessions;
 mod terminal;
 
+use crate::runner::config::RunnerConfig;
 use crate::{
     bus,
-    config::{AgentConfig, AgentMode, OutputFormat, RunnerConfig, TaskConfig, duration},
+    config::{AgentConfig, AgentMode, OutputFormat, TaskConfig, duration},
     process::{self, LogSink},
     protocol::{self, AgentInfo, Assignment},
     runner::journal::{Journal, LocalRun},

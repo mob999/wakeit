@@ -1,11 +1,9 @@
-use crate::{
-    config::{Misfire, Overlap, TaskConfig, duration},
-    schedule,
-};
+use crate::schedule;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
+use wakeit_core::config::{Misfire, Overlap, TaskConfig, duration};
 
 use super::runs::{NewRun, create_run};
 pub async fn tick(pool: &PgPool) -> Result<()> {

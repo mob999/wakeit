@@ -1,9 +1,8 @@
-use super::version;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-fn concurrency() -> usize {
-    2
+fn version() -> u32 {
+    1
 }
 fn address() -> String {
     "127.0.0.1:8080".into()
@@ -70,22 +69,4 @@ impl Default for GatewayAuth {
             demo_workspace: false,
         }
     }
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RunnerConfig {
-    #[serde(default = "version")]
-    pub version: u32,
-    pub gateway: String,
-    pub id: uuid::Uuid,
-    pub name: String,
-    pub token_file: PathBuf,
-    pub nats_url: String,
-    pub credentials_file: PathBuf,
-    pub data_dir: PathBuf,
-    #[serde(default = "concurrency")]
-    pub concurrency: usize,
-    pub agents: Vec<PathBuf>,
-    #[serde(default)]
-    pub allowed_roots: Vec<PathBuf>,
 }

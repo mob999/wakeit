@@ -1,7 +1,8 @@
-use crate::{config::Schedule, schedule, store};
+use crate::{schedule, store};
 use axum::{Json, extract::State, http::HeaderMap};
 use chrono::Utc;
 use serde_json::{Value, json};
+use wakeit_core::config::Schedule;
 
 use crate::api::access::{user, workspace_header};
 use crate::api::http::{ApiJson, Error, Result};

@@ -115,7 +115,7 @@ async fn create(State(s): State<App>, Json(intent): Json<Intent>) -> Result<Json
         return Err(Error::bad("invalid device details"));
     }
     if intent.register_runner {
-        crate::config::validate_id(&intent.name).map_err(|e| Error::bad(e.to_string()))?;
+        wakeit_core::config::validate_id(&intent.name).map_err(|e| Error::bad(e.to_string()))?;
     }
     let base = validate_url(&s.config.public_url).map_err(|e| Error::bad(e.to_string()))?;
     let mut tx = s.pool.begin().await?;
@@ -349,7 +349,7 @@ async fn connect(
 ) -> Result<Json<Value>> {
     let initial = user(&s, &h, "operator", true).await?;
     let workspace = initial.workspace()?;
-    crate::config::validate_id(&b.name).map_err(|e| Error::bad(e.to_string()))?;
+    wakeit_core::config::validate_id(&b.name).map_err(|e| Error::bad(e.to_string()))?;
     if (chrono::Utc::now().timestamp() - b.timestamp).abs() > 60
         || b.allowed_roots.is_empty()
         || b.allowed_roots.len() > 32

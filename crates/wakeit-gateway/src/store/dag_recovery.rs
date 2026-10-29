@@ -1,13 +1,13 @@
 //! Manual recovery is an atomic change to a frozen graph, never a new graph round.
 use crate::{
     auth::workspace::{User, reauthorize},
-    config::{Overlap, TaskConfig, duration},
     dag, protocol,
     state::App,
     store,
     store::Error,
     store::dag as dag_store,
 };
+use wakeit_core::config::{Overlap, TaskConfig, duration};
 
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};

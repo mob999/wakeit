@@ -2,6 +2,7 @@
 use anyhow::{Context, Result, ensure};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     io::Write,
@@ -74,7 +75,11 @@ pub fn name(gateway: &str) -> String {
         .ok()
         .and_then(|u| u.host_str().map(str::to_owned))
         .unwrap_or_else(|| "gateway".into());
-    format!("{}-{}", host, &wakeit_core::identity::hash(gateway)[..8])
+    format!(
+        "{}-{}",
+        host,
+        &hex::encode(Sha256::digest(gateway.as_bytes()))[..8]
+    )
 }
 pub fn update(f: impl FnOnce(&mut Profiles) -> Result<()>) -> Result<()> {
     let dir = directory()?;

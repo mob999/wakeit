@@ -1,4 +1,4 @@
-use crate::{config::TaskConfig, store};
+use crate::store;
 use axum::{
     Json,
     extract::{Query, State},
@@ -6,6 +6,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
+use wakeit_core::config::TaskConfig;
 
 use crate::api::access::{user, workspace_header};
 use crate::api::http::{ApiJson, Error, Path, Result, pagination, request_key, search_pattern};

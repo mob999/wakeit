@@ -5,7 +5,6 @@ use crate::{
         http::{ApiJson, Error, Path},
     },
     auth::workspace::User,
-    config::TaskConfig,
     state::App,
     store,
     store::workspaces,
@@ -22,6 +21,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
+use wakeit_core::config::TaskConfig;
 
 #[derive(Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]

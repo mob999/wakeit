@@ -1,6 +1,6 @@
+use crate::runner::config::RunnerConfig;
 use crate::{
-    config::{self, RunnerConfig},
-    connection as c,
+    config, connection as c,
     device_auth::{Connect, Intent},
 };
 use anyhow::{Context, Result, bail, ensure};

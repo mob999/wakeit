@@ -36,7 +36,7 @@ pub(crate) async fn template(
     user(&s, &h, "viewer", false).await?;
     Ok((
         [(header::CONTENT_TYPE, "application/yaml")],
-        crate::config::builtin(&id).map_err(|_| Error::missing())?,
+        wakeit_core::config::builtin(&id).map_err(|_| Error::missing())?,
     )
         .into_response())
 }

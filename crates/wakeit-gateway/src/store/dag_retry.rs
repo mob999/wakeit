@@ -1,14 +1,12 @@
 //! Retry scheduling is Gateway-owned; attempts remain ordinary child Runs.
-use crate::{
-    config::{TaskConfig, duration},
-    protocol, store,
-};
+use crate::{protocol, store};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde_json::{Value, json};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
+use wakeit_core::config::{TaskConfig, duration};
 
 pub fn delay(retry: u32, factor: f64) -> std::time::Duration {
     let seconds = 5u64

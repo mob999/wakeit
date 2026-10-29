@@ -1,9 +1,10 @@
-use crate::{config::TaskConfig, schedule};
+use crate::schedule;
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
+use wakeit_core::config::TaskConfig;
 
 use crate::store::audit;
 pub async fn apply_task(

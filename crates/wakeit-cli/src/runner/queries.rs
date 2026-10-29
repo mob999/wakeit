@@ -1,6 +1,7 @@
 //! Read-only device capabilities. Queries never enter the execution journal or durable queues.
+use crate::runner::config::RunnerConfig;
 use crate::{
-    config::{AgentConfig, RunnerConfig, TaskConfig},
+    config::{AgentConfig, TaskConfig},
     process,
     protocol::{self, ModelCatalog, QueryError, QueryReply, QueryRequest},
 };

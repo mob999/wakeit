@@ -1,4 +1,3 @@
-use crate::config::TaskConfig;
 use axum::{
     Json,
     extract::State,
@@ -7,6 +6,7 @@ use axum::{
 };
 use serde_json::{Value, json};
 use sqlx::Row;
+use wakeit_core::config::TaskConfig;
 
 use crate::api::access::user;
 use crate::api::http::{Error, Path, Result};
@@ -22,7 +22,7 @@ pub(crate) async fn ready(State(s): State<App>) -> Result<Json<Value>> {
 
 pub(crate) async fn schema(Path(kind): Path<String>) -> Result<Json<Value>> {
     Ok(Json(match kind.as_str() {
-        "agent" => serde_json::to_value(schemars::schema_for!(crate::config::AgentConfig))?,
+        "agent" => serde_json::to_value(schemars::schema_for!(wakeit_core::config::AgentConfig))?,
         "task" => serde_json::to_value(schemars::schema_for!(TaskConfig))?,
         "template" => {
             serde_json::to_value(schemars::schema_for!(crate::task_templates::Definition))?

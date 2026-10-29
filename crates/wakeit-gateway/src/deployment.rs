@@ -99,7 +99,7 @@ pub fn generate(options: &ServiceOptions) -> Result<BTreeMap<String, String>> {
     let config = absolute(&options.config)?;
     let env = absolute(&options.env_file)?;
     read_environment(&options.env_file)?;
-    let gateway: crate::config::GatewayConfig = crate::config::read(&options.config)?;
+    let gateway: crate::config::GatewayConfig = wakeit_core::config::read(&options.config)?;
     ensure!(
         gateway.version == 1,
         "unsupported Gateway configuration version"

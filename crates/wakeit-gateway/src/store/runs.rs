@@ -1,11 +1,9 @@
-use crate::{
-    config::{Overlap, TaskConfig, duration},
-    protocol::{self, Assignment},
-};
+use crate::protocol::{self, Assignment};
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
+use wakeit_core::config::{Overlap, TaskConfig, duration};
 
 use crate::store::{audit, outbox::enqueue};
 pub(super) struct NewRun<'a> {

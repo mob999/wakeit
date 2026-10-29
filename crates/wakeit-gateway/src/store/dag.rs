@@ -1,6 +1,5 @@
 //! Gateway-owned orchestration. Runners only receive ordinary version-1 assignments.
 use crate::{
-    config::{TaskConfig, duration},
     dag::{self, ValidationIssue},
     protocol, store,
 };
@@ -10,6 +9,7 @@ use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use std::collections::BTreeMap;
 use uuid::Uuid;
+use wakeit_core::config::{TaskConfig, duration};
 
 use super::runners::{RunnerBindingError, runner};
 pub async fn validation(

@@ -1,5 +1,4 @@
 mod agent;
-mod host;
 mod task;
 
 pub use agent::{
@@ -7,7 +6,6 @@ pub use agent::{
     ParameterSpec, SessionAdapter, builtin, render, render_named, resolve_parameters,
     validate_template,
 };
-pub use host::{GatewayAuth, GatewayConfig, GitHubAuth, RunnerConfig};
 pub use task::{
     Execution, Misfire, Overlap, Schedule, SessionBinding, TaskConfig, generated_session_title,
 };

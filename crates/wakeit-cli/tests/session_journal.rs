@@ -264,7 +264,7 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
         .unwrap();
     let _guard =
         wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
-    let config:config::RunnerConfig=serde_json::from_value(json!({"version":1,"gateway":"http://localhost:1","id":journal.runner,"name":"fixture","token_file":"unused","nats_url":"nats://localhost:1","credentials_file":"unused","data_dir":directory.path(),"agents":[],"allowed_roots":[directory.path()]})).unwrap();
+    let config:wakeit::runner::config::RunnerConfig=serde_json::from_value(json!({"version":1,"gateway":"http://localhost:1","id":journal.runner,"name":"fixture","token_file":"unused","nats_url":"nats://localhost:1","credentials_file":"unused","data_dir":directory.path(),"agents":[],"allowed_roots":[directory.path()]})).unwrap();
     assert!(
         wakeit::runner::sessions::ensure_idle(
             &config,

@@ -3,11 +3,9 @@ use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
+use wakeit_core::config;
 use wakeit_gateway::{
-    auth,
-    config::{self, GatewayConfig},
-    gateway, store,
-    transport::authority as nats_auth,
+    auth, config::GatewayConfig, gateway, store, transport::authority as nats_auth,
 };
 #[derive(Parser)]
 #[command(name = "wakeit-gateway", version, about = "Wakeit scheduling service")]
