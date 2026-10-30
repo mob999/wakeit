@@ -263,7 +263,6 @@ pub fn document() -> Value {
         ("/runners/enrollment", vec!["post"]),
         ("/runners/{id}/revoke", vec!["post"]),
         ("/agents", vec!["get"]),
-        ("/agents/templates/{id}", vec!["get"]),
         ("/users", vec!["get", "post"]),
         ("/users/{id}", vec!["put"]),
         ("/users/{id}/password", vec!["post"]),
@@ -483,8 +482,6 @@ pub fn document() -> Value {
             }
             op["responses"]["200"]["content"] = if path == "/runs/{id}/stream" {
                 json!({"text/event-stream":{"schema":{"type":"string"}}})
-            } else if path == "/agents/templates/{id}" {
-                json!({"application/yaml":{"schema":{"type":"string"}}})
             } else {
                 json!({"application/json":{"schema":{}}})
             };

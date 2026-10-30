@@ -1,3 +1,5 @@
+#[path = "../../../fixtures/official_agent.rs"]
+mod support;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -24,7 +26,17 @@ fn native_cwd(path: &Path) -> std::path::PathBuf {
 
 fn inspect(protocol: &str, id: &str, cwd: &Path, home: &Path, storage: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_wakeit"))
-        .args(["adapter", "session", "inspect", protocol, id])
+        .args([
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
+            "adapter",
+            "--",
+            "session",
+            "inspect",
+            protocol,
+            id,
+        ])
         .current_dir(cwd)
         .env("HOME", home)
         .env("USERPROFILE", home)
@@ -158,7 +170,11 @@ fn resume_missing_session_does_not_execute_the_supplied_command() {
     fs::create_dir(&storage).unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_wakeit"))
         .args([
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
             "adapter",
+            "--",
             "session",
             "resume",
             "pi",
@@ -187,7 +203,19 @@ fn resume_identity_mismatch_is_failure_even_with_native_exit_zero() {
     let code = r#"console.log(JSON.stringify({type:'session',id:'different-session',cwd:process.cwd()}));console.log(JSON.stringify({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'must not become successful report'}],stopReason:'stop'}}))"#;
     let result = Command::new(env!("CARGO_BIN_EXE_wakeit"))
         .args([
-            "adapter", "session", "resume", "pi", ID, "--", "node", "-e", code,
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
+            "adapter",
+            "--",
+            "session",
+            "resume",
+            "pi",
+            ID,
+            "--",
+            "node",
+            "-e",
+            code,
         ])
         .current_dir(&cwd)
         .env("PI_CODING_AGENT_SESSION_DIR", storage)
@@ -200,7 +228,16 @@ fn resume_identity_mismatch_is_failure_even_with_native_exit_zero() {
 
 fn list(protocol: &str, cwd: &Path, storage: &Path, more: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_wakeit"))
-        .args(["adapter", "session", "list", protocol])
+        .args([
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
+            "adapter",
+            "--",
+            "session",
+            "list",
+            protocol,
+        ])
         .args(more)
         .current_dir(cwd)
         .env("HOME", cwd)
@@ -384,8 +421,7 @@ fn claude_inspection_and_catalog_prefer_actual_custom_title_over_stale_index() {
 #[test]
 fn builtin_names_only_new_sessions_and_codex_has_a_metadata_rename_command() {
     for protocol in ["codex", "claude-code", "pi", "opencode"] {
-        let agent: wakeit::config::AgentConfig =
-            yaml_serde::from_str(wakeit::config::builtin(protocol).unwrap()).unwrap();
+        let agent: wakeit::config::AgentConfig = support::official_agent(protocol);
         let session = agent.session.unwrap();
         fn literals(spec: &wakeit::config::CommandSpec) -> Vec<&str> {
             spec.args

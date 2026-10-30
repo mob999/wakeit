@@ -65,7 +65,7 @@ Restart the Runner after updating. Gateway/WebUI and CLI/Runner are released ind
 |---|---|
 | Installation and deployment | [CLI](docs/install.md) · [Gateway](docs/operations.md) |
 | Tasks, runs and automation | [CLI](docs/cli.md) · [DAGs](docs/dag.md) · [Presets](docs/templates.md) |
-| Agents and custom adapters | [Supported Agents](docs/agents.md) · [Adapter protocol](docs/protocol.md) |
+| Agents and custom adapters | [Supported Agents](docs/agents.md) · [Plugins](docs/plugins.md) · [Adapter protocol](docs/protocol.md) |
 | Teams and access | [Workspaces](docs/workspaces.md) |
 | Development and integrations | [Contributing](CONTRIBUTING.md) · [REST API](docs/api.md) |
 | Release notes | [Gateway](CHANGELOG.md) · [CLI](CHANGELOG.cli.md) |

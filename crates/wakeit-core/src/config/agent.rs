@@ -137,6 +137,23 @@ pub struct AgentConfig {
     pub poll_interval: String,
 }
 impl AgentConfig {
+    pub fn commands_mut(&mut self) -> Vec<&mut CommandSpec> {
+        let mut commands = vec![&mut self.submit];
+        commands.extend(self.status.iter_mut());
+        commands.extend(self.cancel.iter_mut());
+        commands.extend(self.detect.iter_mut());
+        commands.extend(self.models.iter_mut());
+        if let Some(session) = &mut self.session {
+            commands.extend(session.list.iter_mut());
+            commands.extend(session.rename.iter_mut());
+            commands.extend([
+                &mut session.inspect,
+                &mut session.resume,
+                &mut session.interactive,
+            ]);
+        }
+        commands
+    }
     pub fn validate(&self) -> Result<()> {
         ensure!(self.version == 1, "unsupported agent configuration version");
         validate_id(&self.id)?;
@@ -311,36 +328,4 @@ pub fn render_named(
     }
     result.push_str(rest);
     Ok(result)
-}
-pub const BUILTIN_AGENTS: &[(&str, &str)] = &[
-    ("codex", include_str!("../../../../agents/codex.yaml")),
-    (
-        "claude-code",
-        include_str!("../../../../agents/claude-code.yaml"),
-    ),
-    ("pi", include_str!("../../../../agents/pi.yaml")),
-    ("opencode", include_str!("../../../../agents/opencode.yaml")),
-    (
-        "kimi-code",
-        include_str!("../../../../agents/kimi-code.yaml"),
-    ),
-    ("agy", include_str!("../../../../agents/agy.yaml")),
-    (
-        "gemini-cli",
-        include_str!("../../../../agents/gemini-cli.yaml"),
-    ),
-    (
-        "qwen-code",
-        include_str!("../../../../agents/qwen-code.yaml"),
-    ),
-    ("cursor", include_str!("../../../../agents/cursor.yaml")),
-    ("copilot", include_str!("../../../../agents/copilot.yaml")),
-    ("cline", include_str!("../../../../agents/cline.yaml")),
-    ("goose", include_str!("../../../../agents/goose.yaml")),
-];
-pub fn builtin(id: &str) -> Result<&'static str> {
-    BUILTIN_AGENTS
-        .iter()
-        .find_map(|(name, yaml)| (*name == id).then_some(*yaml))
-        .with_context(|| format!("unknown builtin agent: {id}"))
 }

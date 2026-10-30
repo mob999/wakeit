@@ -30,6 +30,13 @@ def main():
     for path in [ROOT / 'examples/task-template.yaml', ROOT / 'skills/wakeit/assets/task-template.yaml']:
         jsonschema.validate(yaml.safe_load(path.read_text(encoding='utf-8')), template_schema)
     assert (ROOT / 'examples/task-template.yaml').read_bytes() == (ROOT / 'skills/wakeit/assets/task-template.yaml').read_bytes()
+    plugin=json.loads((ROOT/'wakeit-plugin.json').read_text())
+    jsonschema.validate(plugin,json.loads((ROOT/'schemas/plugin.v1.json').read_text()))
+    for identity,resource in plugin['wakeit']['agents'].items():
+        agent=yaml.safe_load((ROOT/resource).read_text())
+        agent['id']=identity
+        jsonschema.validate(agent,json.loads((ROOT/'schemas/agent.v1.json').read_text()))
+
     adapter = ROOT / 'skills/wakeit/references/adapters.md'
     stream_schema = json.loads((ROOT / 'schemas/stream.v1.json').read_text(encoding='utf-8'))
     for line in adapter.read_text(encoding='utf-8').splitlines():

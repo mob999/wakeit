@@ -1,3 +1,11 @@
+## 0.2.0
+
+- Install and update third-party Agent plugins from Git repositories or local directories with `wakeit plugin`.
+- Official Agent adapters come preinstalled and use the same plugin format as third-party adapters.
+- CLI installation and updates include the official plugin bundle. Existing tasks keep their Agent IDs.
+- Large output no longer blocks results from other runs or leaves completed tasks occupying execution slots while results wait to upload.
+- **Breaking:** removed `wakeit adapter` commands. Regenerate official Agent YAML with `wakeit agent init`; new Runner setup uses plugin resources directly. Gateway does not require an upgrade.
+
 ## 0.1.1
 
 - Install or update the Wakeit Skill with `wakeit skill install`, with a default location and an optional custom directory.

@@ -2,9 +2,8 @@ mod agent;
 mod task;
 
 pub use agent::{
-    AgentConfig, AgentMode, BUILTIN_AGENTS, CommandArg, CommandSpec, OutputFormat, OutputSpec,
-    ParameterSpec, SessionAdapter, builtin, render, render_named, resolve_parameters,
-    validate_template,
+    AgentConfig, AgentMode, CommandArg, CommandSpec, OutputFormat, OutputSpec, ParameterSpec,
+    SessionAdapter, render, render_named, resolve_parameters, validate_template,
 };
 pub use task::{
     Execution, Misfire, Overlap, Schedule, SessionBinding, TaskConfig, generated_session_title,

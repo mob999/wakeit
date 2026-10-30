@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "Artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "checksums_url": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    },
+    "Resources": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Agent IDs are declared here; package YAML need not repeat them.",
+          "type": "object"
+        },
+        "artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Artifact"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifacts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Artifact"
+          },
+          "type": "object"
+        },
+        "commands": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "protocol": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "runtimes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "protocol",
+        "agents"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "manifest_version": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "wakeit": {
+      "$ref": "#/$defs/Resources"
+    }
+  },
+  "required": [
+    "manifest_version",
+    "name",
+    "version",
+    "wakeit"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

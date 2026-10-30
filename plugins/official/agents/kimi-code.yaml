@@ -1,0 +1,42 @@
+version: 1
+name: Kimi Code
+logo: /agent-logos/kimi-code.svg
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+submit:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args:
+    - kimi
+    - --title
+    - '{{session.title}}'
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+  stdin: '{{task.prompt}}'
+session:
+  list:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args: [ session, list, kimi-code, --limit, '10000']
+    timeout: 25s
+  inspect:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args: [ session, inspect, kimi-code, '{{session.id}}']
+    timeout: 25s
+  resume:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args:
+      - kimi
+      - --session
+      - '{{session.id}}'
+      - when_set: model
+        args: [--model, '{{parameters.model}}']
+    stdin: '{{task.prompt}}'
+  interactive:
+    command: kimi
+    args: [--session, '{{session.id}}']
+detect:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args: [ detect, kimi-code]
+  timeout: 10s
+output:
+  format: events

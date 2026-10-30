@@ -154,6 +154,16 @@
             }
           ]
         },
+        "rename": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CommandSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "resume": {
           "$ref": "#/$defs/CommandSpec"
         }

@@ -1,10 +1,11 @@
 //! Native Copilot CLI JSONL input framing and permissions.
+#[path = "../../../fixtures/official_agent.rs"]
+mod support;
 use wakeit::config::{AgentConfig, CommandArg, OutputFormat};
 
 #[test]
 fn native_pipe_contract_is_jsonl_and_retains_native_permissions() {
-    let config: AgentConfig =
-        yaml_serde::from_str(include_str!("../../../agents/copilot.yaml")).unwrap();
+    let config: AgentConfig = support::official_agent("copilot");
     config.validate().unwrap();
     assert!(matches!(config.output.format, OutputFormat::Events));
     assert_eq!(config.submit.stdin.as_deref(), Some("{{task.prompt}}"));
@@ -22,7 +23,6 @@ fn native_pipe_contract_is_jsonl_and_retains_native_permissions() {
     assert_eq!(
         args,
         [
-            "adapter",
             "stream",
             "copilot",
             "--",
@@ -45,8 +45,7 @@ async fn model_and_multiline_prompt_are_passed_as_literal_argv_and_stdin() {
         process,
     };
 
-    let config: AgentConfig =
-        yaml_serde::from_str(include_str!("../../../agents/copilot.yaml")).unwrap();
+    let config: AgentConfig = support::official_agent("copilot");
     let model = "model with spaces; $(printf expanded) {{task.id}}";
     let prompt = "Keep this literal:\n`printf expanded`\n$(printf expanded)\n'\" {{run.id}} 中文";
     let parameters = resolve_parameters(
@@ -98,7 +97,6 @@ async fn model_and_multiline_prompt_are_passed_as_literal_argv_and_stdin() {
     .unwrap();
     assert_eq!(output.code, Some(0));
     let expected_args = [
-        "adapter",
         "stream",
         "copilot",
         "--",

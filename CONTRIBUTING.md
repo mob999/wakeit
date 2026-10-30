@@ -12,8 +12,11 @@ Keep changes focused on a concrete problem. For installation and usage, start wi
 Build the CLI, which includes the Runner:
 
 ```sh
-cargo build --locked -p wakeit-cli
+cargo build --locked -p wakeit-cli -p wakeit-agent-runtime
+python3 scripts/package-release.py stage --input target/debug/wakeit --output target/debug/wakeit-plugins/0.2.0
 ```
+
+The stage command prepares the same complete plugin bundle used by releases. On Windows, use `target/debug/wakeit.exe` as the input. `WAKEIT_BUNDLED_PLUGIN_DIR` can select another prepared bundle.
 
 Build the Gateway with its embedded WebUI:
 
@@ -23,7 +26,7 @@ npm --prefix web run build
 cargo build --locked -p wakeit-gateway
 ```
 
-See the [Gateway guide](docs/gateway-service.md) for configuration and startup. Source lives in `crates/wakeit-cli`, `crates/wakeit-gateway`, `crates/wakeit-core` and `web/src`.
+See the [Gateway guide](docs/gateway-service.md) for configuration and startup. Source lives in `crates/wakeit-cli`, `crates/wakeit-gateway`, `crates/wakeit-core`, `crates/wakeit-agent-runtime` and `web/src`.
 
 ## WebUI hot reload
 

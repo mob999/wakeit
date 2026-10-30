@@ -573,7 +573,7 @@ fn repair_event(payload: &str, capacity: usize) -> Result<Option<String>> {
                 }
             }
             if let Some(result) = event.data.get_mut("result") {
-                data["result"] = crate::output_capture::bounded_value_with_preview(
+                data["result"] = wakeit_core::capture::bounded_value_with_preview(
                     result.take(),
                     capacity / 3,
                     (capacity / 16).min(64 * 1024),

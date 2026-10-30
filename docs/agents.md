@@ -21,7 +21,9 @@ Runner 调用设备上已安装、已登录的原生 CLI，不安装 Agent、不
 
 ## 导出和启用
 
-新设备通过 `wakeit setup` 导出全部内置模板。已有 Runner 不自动覆盖或改写适配文件；可导出新模板，将路径加入本机 `runner.yaml` 的 `agents` 数组，再重启对应用户级 Runner 服务：
+`wakeit setup`／`runner enroll` 默认直接加载官方插件，不复制 YAML。插件变更在 Runner 下次启动生效。
+
+需要单独定制时，用 `agent init` 导出所需配置，将路径加入 `runner.yaml.agents`。若与官方资源使用同一个 ID，可将 `bundled_agents` 设为 `false` 并只列出需要的 YAML；也可给定制配置使用不同的 ID。普通使用无需导出：
 
 ```sh
 wakeit agent init kimi-code --file kimi-code.yaml
@@ -38,16 +40,16 @@ wakeit agent validate --file kimi-code.yaml
 使用已安装并登录对应 Agent 的系统用户。需要测试实际推理时，在允许的测试目录运行 `wakeit agent test --file ...`；该命令会调用 Agent，可能产生费用或修改目录。只检查安装和命令能力可使用：
 
 ```sh
-wakeit adapter detect kimi-code
-wakeit adapter detect agy
-wakeit adapter detect gemini-cli
+wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect kimi-code
+wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect agy
+wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect gemini-cli
 ```
 
 这些探测只运行原生 `--help` / `--version`，不会启动模型会话。Kimi 要求当前 TypeScript Kimi Code 2.x，不把已归档的 Python `kimi-cli` 视为同一协议；Antigravity 探测也会拒绝缺少 headless 参数的同名桌面启动器。
 
 ## Kimi Code
 
-使用 `wakeit adapter kimi` 驱动已安装的 Kimi Code 2.x。
+使用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- kimi` 驱动已安装的 Kimi Code 2.x。
 
 辅助命令为每次执行启动一个仅监听 `127.0.0.1` 的 `kimi web --no-open` 子进程，通过[官方本地 Server API](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/server-api.html)订阅真实 `assistant.delta`、`tool.call.started`、`tool.result` 和 `turn.ended`。先确认订阅成功再提交一次指令，并处理原生心跳；绑定已有会话先通过空的会话级配置调用加载原生上下文，不覆盖已有配置。消息以完整快照更新，工具输出不混入最终报告；只有原生 `completed` 及正常进程退出才发布报告。子进程与 Runner 共用进程树，取消或失败时结束本次执行及其本地服务，不连接用户自行启动的 Kimi 服务，也不打开浏览器。
 
@@ -55,7 +57,7 @@ wakeit adapter detect gemini-cli
 
 新建会话使用原生 API 的 `title` 字段保存“任务名-wakeit-时间戳”；绑定已有会话保持原标题。标题与上下文由 Kimi 自己持久化，不直接改写其状态文件。服务地址来自与子进程 PID 匹配的本地登记，认证使用其私密 `server.token`，不会写入 Wakeit 事件、日志、命令行或 URL。API 密钥和 Agent 登录凭据不读取、不复制、不修改。
 
-会话发现仍只读 `KIMI_CODE_HOME`（默认 `.kimi-code`）中的原生索引及匹配工作目录的 `state.json`，精确校验完整 ID、真实目录和持久化状态。模型沿用本地默认值或任务显式参数；绑定时未覆盖模型则保留原生绑定，不增加静态模型目录。协议来源与真实验收范围见 [Kimi 验证记录](../crates/wakeit-cli/tests/fixtures/kimi-code/README.md)。
+会话发现仍只读 `KIMI_CODE_HOME`（默认 `.kimi-code`）中的原生索引及匹配工作目录的 `state.json`，精确校验完整 ID、真实目录和持久化状态。模型沿用本地默认值或任务显式参数；绑定时未覆盖模型则保留原生绑定，不增加静态模型目录。协议来源与真实验收范围见 [Kimi 验证记录](../crates/wakeit-agent-runtime/tests/fixtures/kimi-code/README.md)。
 
 ## Antigravity CLI（agy）
 
@@ -87,7 +89,7 @@ wakeit adapter detect gemini-cli
 
 使用当前 [Cline CLI JSONL](https://github.com/cline/cline/blob/main/docs/cli/cli-reference.mdx#json-output-for-agent-runs)，通过 `--` 后的独立 argv 传递指令，保留多行、中文及 shell 字面量；当前 3.0.72 的管道输入不能可靠启动任务。解析公开消息、按 `toolCallId` 关联的工具输入、进度与结果，保留源事件时间；不展示隐藏推理。`agent_event.done` 不是最终报告，必须收到 `run_result` 且 `finishReason: completed`；停止、失败或原生非零退出不发布局部答案。
 
-模型、Provider、推理强度按原生参数传入；不修改登录配置或凭据。当前原生一次性模式默认自动批准工具，Wakeit 不额外扩大权限；请只在准备好的执行目录和原生策略下使用。原生会话和模型目录未声明。合成事件与来源见 [Cline fixture](../crates/wakeit-cli/tests/fixtures/cline-provenance.md)。
+模型、Provider、推理强度按原生参数传入；不修改登录配置或凭据。当前原生一次性模式默认自动批准工具，Wakeit 不额外扩大权限；请只在准备好的执行目录和原生策略下使用。原生会话和模型目录未声明。合成事件与来源见 [Cline fixture](../crates/wakeit-agent-runtime/tests/fixtures/cline-provenance.md)。
 
 ## Goose
 

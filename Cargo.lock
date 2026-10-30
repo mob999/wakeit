@@ -3895,8 +3895,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "wakeit-agent-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "futures",
+ "http",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-websockets",
+ "uuid",
+ "wakeit-core",
+ "which",
+ "yaml_serde",
+]
+
+[[package]]
 name = "wakeit-cli"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3928,11 +3949,11 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
- "tokio-websockets",
  "tracing",
  "tracing-subscriber",
  "uuid",
  "vt100",
+ "wakeit-agent-runtime",
  "wakeit-core",
  "which",
  "windows-sys 0.61.2",
@@ -3945,6 +3966,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-nats",
+ "base64 0.22.1",
  "chrono",
  "chrono-tz",
  "croner",
@@ -3962,12 +3984,13 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+ "which",
  "yaml_serde",
 ]
 
 [[package]]
 name = "wakeit-gateway"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "argon2",

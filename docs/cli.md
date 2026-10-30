@@ -194,7 +194,7 @@ wakeit agent test --file codex.yaml --cwd /path/to/project
 
 注册和吊销需要 Admin。Agent 测试实际调用 Agent；默认指令只要求简短问候，异步测试会提交一个外部任务并查询一次状态。完整的异步恢复和取消需要通过 Runner/Run 验证。
 
-内置适配可在本机只读查询已有会话：`wakeit adapter session list codex --cwd /path/to/project --limit 20`，分页使用返回的 next_cursor 对应 `--cursor`，搜索使用 `--query`。protocol 同样支持 claude-code、pi、opencode、kimi-code；只返回所选工作目录下的会话标题与 ID 等元数据，不提供 query/首条指令预览，不执行任务。
+内置适配可在本机只读查询已有会话：`wakeit plugin exec git:github.com/mob999/wakeit adapter -- session list codex --cwd /path/to/project --limit 20`，分页使用返回的 next_cursor 对应 `--cursor`，搜索使用 `--query`。protocol 同样支持 claude-code、pi、opencode、kimi-code；只返回所选工作目录下的会话标题与 ID 等元数据，不提供 query/首条指令预览，不执行任务。
 
 Runner 自启与 Agent 登录身份保持一致，见 [运维指南](operations.md#runner-自启)。第三方适配指南和 fixtures 见 [协议](protocol.md)。
 
@@ -227,7 +227,7 @@ Homebrew、系统包管理器或容器管理的安装应使用相应升级方式
 setup 自启名称包含 Runner ID，支持多 Gateway。Linux 使用 systemd user，macOS 使用当前用户 LaunchAgent，Windows 使用当前用户登录计划任务。默认不保证注销后或 Windows 登录前运行；Agent 的登录和模型保持原样。若服务管理器不可用，setup 报告未完成步骤，不改用 root。
 
 
-内置 Agent 的命令、模型发现、过程与会话能力见[适配指南](agents.md)。模板使用 `wakeit agent init <id> --file <id>.yaml` 导出；安装能力检测使用 `wakeit adapter detect <id>`，不发起推理。新增 ID 包括 `kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。
+内置 Agent 的命令、模型发现、过程与会话能力见[适配指南](agents.md)。模板使用 `wakeit agent init <id> --file <id>.yaml` 导出；安装能力检测使用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect <id>`，不发起推理。新增 ID 包括 `kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。
 
 工作区连接不能跨区复用。多项连接匹配时，先用 `connection use NAME` 明确选择；`--workspace`（或 `WAKEIT_WORKSPACE`）指定作用域。旧连接仅在原 Gateway 认证成功并返回其固定 Default 工作区后补全元数据，不替换凭据或 Runner 配置；失败保留原文件。新 Runner 实例固定一个工作区，同机多工作区使用分别隔离的配置、Journal 和服务。
 
@@ -247,3 +247,7 @@ wakeit skill install --dir /path/to/agent/skills/wakeit
 ```
 
 安装或更新最新正式 CLI Release 中的完整 Skill，默认目录为 `~/.agents/skills/wakeit`。无需 Gateway 连接，支持 `--json`。详见 [Skill 指南](skills.md)。
+
+## Agent 插件
+
+`wakeit plugin install SOURCE` 支持 Git 仓库和本地目录；`list` 查看包与本机 Runner 加载状态，`update [SOURCE]` 更新浮动版本，`remove SOURCE` 取消加载。变更在 Runner 下次启动生效，不自动中断任务。同 ID 冲突使用 `install SOURCE --replace-agent ID` 显式选择。完整格式与示例见[插件指南](plugins-zh.md)。

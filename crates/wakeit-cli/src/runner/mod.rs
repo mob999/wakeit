@@ -1,3 +1,4 @@
+mod catalog;
 pub mod config;
 mod execution;
 pub mod image_preview;
@@ -229,14 +230,9 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         .write(true)
         .open(config.data_dir.join("runner.lock"))?;
     fs2::FileExt::try_lock_exclusive(&lock).context("another runner owns this data directory")?;
-    let mut agents = HashMap::new();
-    for file in &config.agents {
-        let mut agent: AgentConfig = crate::config::read(file)?;
-        crate::adapters::launch::normalize_commands(&mut agent)?;
-        agent.validate()?;
-        ensure!(!agents.contains_key(&agent.id), "duplicate agent id");
-        agents.insert(agent.id.clone(), agent);
-    }
+    let loaded = crate::plugins::load_agents(&config.agents, config.bundled_agents)?;
+    crate::plugins::record_loaded(&config, &loaded.snapshot)?;
+    let agents = loaded.agents;
     let mut info = Vec::new();
     for a in agents.values() {
         info.push(inspect(a, &std::env::current_dir()?).await);
@@ -483,14 +479,6 @@ pub async fn enroll(
         &dir.join("runner.creds"),
         wakeit_core::credentials::credentials(b["jwt"].as_str().context("jwt")?, &key.seed()?),
     )?;
-    let mut files = Vec::new();
-    for id in ["codex", "claude-code", "pi", "opencode"] {
-        let file = dir.join("agents").join(format!("{id}.yaml"));
-        let mut agent: AgentConfig = yaml_serde::from_str(crate::config::builtin(id)?)?;
-        crate::adapters::launch::normalize_commands(&mut agent)?;
-        std::fs::write(&file, yaml_serde::to_string(&agent)?)?;
-        files.push(file);
-    }
     let config = RunnerConfig {
         version: 1,
         gateway: gateway.into(),
@@ -501,7 +489,8 @@ pub async fn enroll(
         nats_url: b["nats_url"].as_str().context("nats_url")?.into(),
         data_dir: dir.join("data"),
         concurrency: 2,
-        agents: files,
+        agents: Vec::new(),
+        bundled_agents: true,
         allowed_roots: roots
             .iter()
             .map(|p| p.canonicalize())

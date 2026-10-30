@@ -26,8 +26,10 @@ class Packaging(unittest.TestCase):
         for product in ('cli', 'gateway'):
             prefix = 'wakeit' if product == 'cli' else 'wakeit-gateway'
             for target in TARGETS:
-                name = f'{prefix}-{target}' + ('.exe' if 'windows' in target else '')
+                name = f'{prefix}-{target}' + ('.tar.gz' if product == 'cli' else ('.exe' if 'windows' in target else ''))
                 (self.source / name).write_bytes(f'fixture: {product} {target}'.encode())
+                if product == 'cli':
+                    (self.source / f'wakeit-agents-{target}.tar.gz').write_bytes(b'plugin fixture')
 
     def assemble(self, product, *args):
         return subprocess.run([sys.executable, str(SCRIPT), 'assemble', '--product', product,
@@ -46,7 +48,7 @@ class Packaging(unittest.TestCase):
                 self.assertEqual(set(manifest['assets']), set(TARGETS))
                 prefix = 'wakeit' if product == 'cli' else 'wakeit-gateway'
                 for target, entry in manifest['assets'].items():
-                    self.assertEqual(entry['name'], f'{prefix}-{target}' + ('.exe' if 'windows' in target else ''))
+                    self.assertEqual(entry['name'], f'{prefix}-{target}' + ('.tar.gz' if product == 'cli' else ('.exe' if 'windows' in target else '')))
                     self.assertEqual(entry['sha256'], hashlib.sha256((output / entry['name']).read_bytes()).hexdigest())
                 installer = 'install.sh' if product == 'cli' else 'deploy-gateway.sh'
                 self.assertEqual((output / installer).read_bytes(), (ROOT / installer).read_bytes())
@@ -60,8 +62,23 @@ class Packaging(unittest.TestCase):
             self.assertIn('wakeit/assets/events-adapter.py', names)
             self.assertTrue(all(name.startswith('wakeit') and '..' not in Path(name).parts for name in names))
 
+    def test_platform_program_archive_does_not_duplicate_git_definitions(self):
+        binary=self.source/'wakeit'
+        binary.write_bytes(b'CLI fixture')
+        (self.source/'wakeit-agent-runtime').write_bytes(b'Runtime fixture')
+        output=self.directory/'native-package'
+        result=subprocess.run([sys.executable,str(SCRIPT),'binary','--product','cli','--target',TARGETS[0],'--input',str(binary),'--output',str(output)],capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        manifest=json.loads((ROOT/'wakeit-plugin.json').read_text())
+        with tarfile.open(output/f'wakeit-agents-{TARGETS[0]}.tar.gz') as archive:
+            self.assertEqual(set(archive.getnames()),set(manifest['wakeit']['commands'].values()))
+        with tarfile.open(output/f'wakeit-{TARGETS[0]}.tar.gz') as archive:
+            prefix=f'wakeit-plugins/{product_version("cli")}/'
+            for resource in manifest['wakeit']['agents'].values():
+                self.assertEqual(archive.extractfile(prefix+resource).read(),(ROOT/resource).read_bytes())
+
     def test_missing_and_duplicate_targets_fail(self):
-        name = f'wakeit-{TARGETS[0]}'
+        name = f'wakeit-{TARGETS[0]}.tar.gz'
         (self.source / name).unlink()
         self.assertNotEqual(self.assemble('cli').returncode, 0)
         (self.source / name).write_bytes(b'fixture')

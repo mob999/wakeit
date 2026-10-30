@@ -1,4 +1,4 @@
-use std::process::Stdio;
+use std::{path::Path, process::Stdio};
 use tokio::{io::AsyncWriteExt, process::Command};
 use wakeit::trace::{RecordData, StreamRecord};
 
@@ -36,9 +36,15 @@ if (protocol === 'agy') {
 } else output();
 }
 "#).unwrap();
-    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../wakeit-agent-runtime/tests/fixtures");
     for (protocol, fixture, has_session) in [
-        ("agy", fixtures.join("agy-stream.ndjson"), true),
+        (
+            "agy",
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../wakeit-agent-runtime/tests/fixtures/agy-stream.ndjson"),
+            true,
+        ),
         ("gemini-cli", fixtures.join("trace/gemini-cli.jsonl"), true),
         (
             "qwen-code",
@@ -53,7 +59,17 @@ if (protocol === 'agy') {
         for failure in ["", "fail", "fail-after"] {
             let mut command = Command::new(env!("CARGO_BIN_EXE_wakeit"));
             command
-                .args(["adapter", "stream", protocol, "--", "node"])
+                .args([
+                    "plugin",
+                    "exec",
+                    "git:github.com/mob999/wakeit",
+                    "adapter",
+                    "--",
+                    "stream",
+                    protocol,
+                    "--",
+                    "node",
+                ])
                 .arg(&script)
                 .arg(protocol)
                 .arg(&fixture)
@@ -155,7 +171,17 @@ process.stdout.write(events.map(e=>JSON.stringify(e)).join('\n')+'\n',()=>proces
             let output = tokio::time::timeout(
                 std::time::Duration::from_secs(20),
                 Command::new(env!("CARGO_BIN_EXE_wakeit"))
-                    .args(["adapter", "stream", protocol, "--", "node"])
+                    .args([
+                        "plugin",
+                        "exec",
+                        "git:github.com/mob999/wakeit",
+                        "adapter",
+                        "--",
+                        "stream",
+                        protocol,
+                        "--",
+                        "node",
+                    ])
                     .arg(&script)
                     .arg(protocol)
                     .arg(outcome)

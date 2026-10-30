@@ -218,7 +218,7 @@ pub async fn serve(
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
                         process::validate_cwd(cwd,&config.allowed_roots)?;
                         let agent=agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
-                        crate::adapters::catalog::query(agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
+                        super::catalog::query(agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
                     }
                     "inspect_session" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;

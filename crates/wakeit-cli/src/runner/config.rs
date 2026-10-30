@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub(super) fn private_directory(path: &Path) -> Result<()> {
+pub(crate) fn private_directory(path: &Path) -> Result<()> {
     std::fs::create_dir_all(path)?;
     #[cfg(unix)]
     {
@@ -15,7 +15,7 @@ pub(super) fn private_directory(path: &Path) -> Result<()> {
     }
     Ok(())
 }
-pub(super) fn private_file(path: &Path) -> Result<File> {
+pub(crate) fn private_file(path: &Path) -> Result<File> {
     let mut options = OpenOptions::new();
     options.create(true).truncate(false).read(true).write(true);
     #[cfg(unix)]
@@ -116,7 +116,10 @@ pub struct RunnerConfig {
     pub data_dir: PathBuf,
     #[serde(default = "concurrency")]
     pub concurrency: usize,
+    #[serde(default)]
     pub agents: Vec<PathBuf>,
+    #[serde(default)]
+    pub bundled_agents: bool,
     #[serde(default)]
     pub allowed_roots: Vec<PathBuf>,
 }

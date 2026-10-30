@@ -1,4 +1,5 @@
 pub mod bus;
+pub mod capture;
 pub mod config;
 pub mod credentials;
 pub mod dag;
@@ -6,9 +7,11 @@ pub mod dag_prompt;
 pub mod device_auth;
 pub mod editor_layout;
 pub mod image_preview;
+pub mod native_command;
 pub mod protocol;
 pub mod result_links;
 pub mod schedule;
+pub mod session_catalog;
 pub mod sessions;
 pub mod shutdown;
 pub mod task_templates;

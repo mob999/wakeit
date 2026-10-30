@@ -1,0 +1,26 @@
+version: 1
+name: Cursor
+logo: /agent-logos/cursor.svg
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+submit:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args:
+    - stream
+    - cursor
+    - '--'
+    - cursor-agent
+    - --print
+    - --output-format
+    - stream-json
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+    - '--'
+    - '{{task.prompt}}'
+detect:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args: [ detect, cursor]
+  timeout: 10s
+output:
+  format: events

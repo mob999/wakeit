@@ -1,0 +1,63 @@
+version: 1
+name: Claude Code
+logo: /agent-logos/claude-code.svg
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+  reasoning: {type: string, label: 推理强度}
+submit:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args:
+    - stream
+    - claude-code
+    - '--'
+    - claude
+    - -p
+    - --output-format
+    - stream-json
+    - --verbose
+    - --name
+    - '{{session.title}}'
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+    - when_set: reasoning
+      args: [--effort, '{{parameters.reasoning}}']
+  stdin: '{{task.prompt}}'
+session:
+  list:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args: [ session, list, claude-code, --limit, '10000']
+    timeout: 25s
+  inspect:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args: [ session, inspect, claude-code, '{{session.id}}']
+    timeout: 20s
+  resume:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args:
+      - session
+      - resume
+      - claude-code
+      - '{{session.id}}'
+      - '--'
+      - claude
+      - -p
+      - --resume
+      - '{{session.id}}'
+      - --output-format
+      - stream-json
+      - --verbose
+      - when_set: model
+        args: [--model, '{{parameters.model}}']
+      - when_set: reasoning
+        args: [--effort, '{{parameters.reasoning}}']
+    stdin: '{{task.prompt}}'
+  interactive:
+    command: claude
+    args: ['--resume', '{{session.id}}']
+detect:
+  command: claude
+  args: [--version]
+  timeout: 10s
+output:
+  format: events

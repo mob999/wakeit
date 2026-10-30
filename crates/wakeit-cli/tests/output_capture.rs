@@ -177,7 +177,19 @@ async fn validation_rejects_invalid_unicode_and_unpaired_surrogates_beyond_previ
 async fn native(protocol: &str, code: &str) -> std::process::Output {
     let dir = tempfile::tempdir().unwrap();
     tokio::process::Command::new(env!("CARGO_BIN_EXE_wakeit"))
-        .args(["adapter", "stream", protocol, "--", "node", "-e", code])
+        .args([
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
+            "adapter",
+            "--",
+            "stream",
+            protocol,
+            "--",
+            "node",
+            "-e",
+            code,
+        ])
         .current_dir(dir.path())
         .output()
         .await

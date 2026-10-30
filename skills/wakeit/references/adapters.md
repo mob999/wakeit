@@ -43,7 +43,7 @@ parameters 必须与适配声明对应。没接口只手填，空列表或失败
 {"version":1,"type":"result","data":"## 检查结果\n仓库状态正常。"}
 ```
 
-同一节点 id 更新用完整快照；parent_id 可表示真实父子关系。不要提供未公开的推理内容。最终结果独立输出，退出码仍决定同步执行成功/失败。可运行 `wakeit schema stream` 获取精确契约，`wakeit adapter stream <protocol> -- <command> <args...>` 归一化内置原生协议。
+同一节点 id 更新用完整快照；parent_id 可表示真实父子关系。不要提供未公开的推理内容。最终结果独立输出，退出码仍决定同步执行成功/失败。可运行 `wakeit schema stream` 获取精确契约，`wakeit plugin exec git:github.com/mob999/wakeit adapter -- stream <protocol> -- <command> <args...>` 归一化内置原生协议。
 
 展示容量不足不能伪造 Agent 执行失败。Copilot、Cursor、Qwen Code 的过程预算耗尽时仅截断或省略过程，继续消费原生终态和最终结果；通过 diagnostic 日志标记过程不完整。最终结果的截断使用 `{"truncated":true,"preview":"..."}`，不得把省略说明当作完整正文供 DAG 下游引用。执行错误、缺少终态及真实协议错误仍需如实报告。
 
@@ -59,7 +59,7 @@ inspect 的 stdout 是 `{"version":1,"id":"原生ID","cwd":"原生工作目录",
 
 inspect 不接收任务指令、环境变量实际值或凭据文件内容。文件型会话由适配器在自己的会话存储内解析 ID，不能把任意用户路径当作会话输入。完整使用边界见 [会话](sessions.md)。
 
-可选 `session.list` 命令只读返回 `{"version":1,"sessions":[{"id":"...","title":"...","cwd":"...","updated_at":"..."}],"next_cursor":null}`，供工作目录内的已有会话选择。内置辅助入口是 `wakeit adapter session list <protocol> --cwd <directory> --limit 20`，可用 `--cursor`、`--query`；查询不提交指令。详细字段和分页约定以当前 Schema 为准。
+可选 `session.list` 命令只读返回 `{"version":1,"sessions":[{"id":"...","title":"...","cwd":"...","updated_at":"..."}],"next_cursor":null}`，供工作目录内的已有会话选择。内置辅助入口是 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- session list <protocol> --cwd <directory> --limit 20`，可用 `--cursor`、`--query`；查询不提交指令。详细字段和分页约定以当前 Schema 为准。
 
 WebUI 的续聊复制来自 interactive 命令的原生 argv 与 cwd，不包含 task.prompt、env 或 env_from 的值。交互入口不要直接写入凭据；需要额外环境时不导出原生命令，可选用本地 `wakeit run resume`。原生命令绕过 Wakeit 互斥，保留这一使用边界。
 
@@ -68,6 +68,8 @@ WebUI 的续聊复制来自 interactive 命令的原生 argv 与 cwd，不包含
 不能在 submit 命名的适配可选配 `session.rename: CommandSpec`，以 `{{session.id}}` 和 `{{session.title}}` 在执行后更新原生名称；仅对新会话调用。rename 后读取 inspect，title 必须与期望完全一致。不支持或保存失败时保留实际信息与错误，不伪造成功标题、不重跑 Agent。Codex 内置通过原生辅助命令 rename，其他内置在 submit 传入名称。
 
 
-内置模板 ID 为 `codex`、`claude-code`、`pi`、`opencode`、`kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。新增适配可用 `wakeit adapter detect <id>` 只读检查原生帮助/版本。Kimi Code 2.x 支持只读会话索引、精确绑定和续聊，模型手填；agy 支持原生模型查询，但未声明 Wakeit 会话能力。Cursor、Cline、Goose、Qwen Code 提供公开过程及最终结果，Copilot 提供原生最终文本；这些适配的模型手填，不声明未经验证的模型和会话目录。Cursor 默认不强制应用文件修改，Copilot 不自动授予工具权限，Cline 一次性模式沿用原生自动批准默认值，Goose 沿用原生无人值守模式。配置事件输出不意味着支持模型或会话发现，不增加静态模型目录兜底。任务选择器仅展示 Runner 检测到的 Agent；Runner Agents 页仍展示完整安装状态。
+内置模板 ID 为 `codex`、`claude-code`、`pi`、`opencode`、`kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。新增适配可用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect <id>` 只读检查原生帮助/版本。Kimi Code 2.x 支持只读会话索引、精确绑定和续聊，模型手填；agy 支持原生模型查询，但未声明 Wakeit 会话能力。Cursor、Cline、Goose、Qwen Code 提供公开过程及最终结果，Copilot 提供原生最终文本；这些适配的模型手填，不声明未经验证的模型和会话目录。Cursor 默认不强制应用文件修改，Copilot 不自动授予工具权限，Cline 一次性模式沿用原生自动批准默认值，Goose 沿用原生无人值守模式。配置事件输出不意味着支持模型或会话发现，不增加静态模型目录兜底。任务选择器仅展示 Runner 检测到的 Agent；Runner Agents 页仍展示完整安装状态。
 
 普通 `log.diagnostic` 只写日志。明确损失过程记录时，可给同一 version-1 log 添加可选 `recording_issue`（`content_shortened` / `event_limit` / `event_unsupported` / `event_parse_failed` / `event_too_large` / `content_limit`）；Runner 按原因去重生成 `trace_status`，不改变执行结果。内容明确为截断预览时，Runner 也会记录 `content_shortened`。未知历史原因不能由日志文案推测。
+
+插件管理：`wakeit plugin install <Git URL或本地目录>`，用 `list` 查看、`update [来源]` 更新、`remove <来源>` 移除；Runner 下次启动生效。包根清单 `wakeit-plugin.json` 声明 version 1 协议和 Agent YAML；命令相对包根目录解析，参数中的包内文件可用 `{{plugin.root}}`。官方适配器预装，第三方也可只写脚本并输出现有 events 协议。

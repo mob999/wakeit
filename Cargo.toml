@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/wakeit-cli", "crates/wakeit-gateway", "crates/wakeit-core"]
+members = ["crates/wakeit-cli", "crates/wakeit-gateway", "crates/wakeit-core", "crates/wakeit-agent-runtime"]
 resolver = "2"
 
 [workspace.package]

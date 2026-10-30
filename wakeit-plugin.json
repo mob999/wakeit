@@ -1,0 +1,29 @@
+{
+  "manifest_version": 1,
+  "name": "@wakeit/agents",
+  "version": "0.2.0",
+  "wakeit": {
+    "protocol": 1,
+    "agents": {
+      "agy": "plugins/official/agents/agy.yaml",
+      "claude-code": "plugins/official/agents/claude-code.yaml",
+      "cline": "plugins/official/agents/cline.yaml",
+      "codex": "plugins/official/agents/codex.yaml",
+      "copilot": "plugins/official/agents/copilot.yaml",
+      "cursor": "plugins/official/agents/cursor.yaml",
+      "gemini-cli": "plugins/official/agents/gemini-cli.yaml",
+      "goose": "plugins/official/agents/goose.yaml",
+      "kimi-code": "plugins/official/agents/kimi-code.yaml",
+      "opencode": "plugins/official/agents/opencode.yaml",
+      "pi": "plugins/official/agents/pi.yaml",
+      "qwen-code": "plugins/official/agents/qwen-code.yaml"
+    },
+    "commands": {
+      "adapter": "plugins/official/bin/wakeit-agent-runtime"
+    },
+    "artifact": {
+      "url": "https://github.com/mob999/wakeit/releases/download/cli-v{version}/wakeit-agents-{target}.tar.gz",
+      "checksums_url": "https://github.com/mob999/wakeit/releases/download/cli-v{version}/SHA256SUMS"
+    }
+  }
+}

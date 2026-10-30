@@ -16,7 +16,7 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
                 .clone()
                 .unwrap_or_else(|| PathBuf::from(format!("{id}.yaml")));
             ensure!(!file.exists(), "file already exists");
-            std::fs::write(&file, config::builtin(id)?)?;
+            std::fs::write(&file, yaml_serde::to_string(&crate::plugins::agent(id)?)?)?;
             println!("{}", file.display());
         }
         Agent::Validate { file } => {
@@ -30,17 +30,17 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
         Agent::Doctor { config } => {
             let c = read_runner(config)?;
             let mut items = vec![];
-            for file in c.agents {
-                let mut a: AgentConfig = config::read(&file)?;
-                crate::adapters::launch::normalize_commands(&mut a)?;
-                a.validate()?;
-                items.push(runner::inspect(&a, &std::env::current_dir()?).await);
+            for a in crate::plugins::load_agents(&c.agents, c.bundled_agents)?
+                .agents
+                .values()
+            {
+                items.push(runner::inspect(a, &std::env::current_dir()?).await);
             }
             display(json!(items), cli.json);
         }
         Agent::Test { file, cwd, prompt } => {
             let mut a: AgentConfig = config::read(file)?;
-            crate::adapters::launch::normalize_commands(&mut a)?;
+            crate::launch::normalize_commands(&mut a)?;
             a.validate()?;
             let mut t = TaskConfig {
                 dag: None,
@@ -79,7 +79,11 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
             .await?;
             ensure!(
                 out.code == Some(0) && out.stopped.is_none() && out.confirmed,
-                "agent submit failed: {}",
+                "agent submit failed (exit {:?}, stopped {:?}, confirmed {}): {}{}",
+                out.code,
+                out.stopped,
+                out.confirmed,
+                out.stderr,
                 out.stdout
             );
             if a.mode == config::AgentMode::Sync {
@@ -109,81 +113,5 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
         }
         Agent::List => display(Client::new(cli)?.get("/agents").await?, cli.json),
     };
-    Ok(())
-}
-pub(super) async fn adapter(command: &Adapter) -> Result<()> {
-    match command {
-        Adapter::Kimi {
-            model,
-            session,
-            title,
-            command,
-        } => {
-            let code = crate::adapters::kimi_server::run(
-                command,
-                model.as_deref(),
-                session.as_deref(),
-                title.as_deref(),
-            )
-            .await?;
-            std::process::exit(code);
-        }
-        Adapter::Detect { id } => {
-            println!("{}", crate::adapters::discovery::detect(id).await?);
-        }
-        Adapter::Models { id } => {
-            println!(
-                "{}",
-                serde_json::to_string(&crate::adapters::discovery::discover(id).await?)?
-            );
-        }
-        Adapter::Session { command } => match command {
-            AdapterSession::Rename {
-                protocol,
-                id,
-                title,
-                cwd,
-            } => {
-                crate::adapters::sessions::rename(protocol, id, title, cwd).await?;
-            }
-            AdapterSession::List {
-                protocol,
-                cwd,
-                cursor,
-                limit,
-                query,
-            } => {
-                let list = crate::adapters::sessions::list(
-                    protocol,
-                    cwd,
-                    cursor.as_deref(),
-                    *limit,
-                    query.as_deref(),
-                )
-                .await?;
-                println!("{}", serde_json::to_string(&list)?);
-            }
-            AdapterSession::Inspect { protocol, id, cwd } => {
-                let info = crate::adapters::sessions::inspect(protocol, id, cwd).await?;
-                println!("{}", serde_json::to_string(&info)?);
-            }
-            AdapterSession::Resume {
-                protocol,
-                id,
-                command,
-            } => {
-                let code = crate::adapters::sessions::resume(protocol, id, command.clone()).await?;
-                if code != 0 {
-                    std::process::exit(code);
-                }
-            }
-        },
-        Adapter::Stream { protocol, command } => {
-            let code = crate::adapters::stream::stream(protocol, command).await?;
-            if code != 0 {
-                std::process::exit(code);
-            }
-        }
-    }
     Ok(())
 }

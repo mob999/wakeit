@@ -205,7 +205,7 @@ def main():
         assert next(a for a in api('/agents') if a['id']=='mock-events')['trace_supported']
         assert not next(a for a in api('/agents') if a['id']=='mock-sync')['trace_supported']
         for native in ['codex','claude-code','pi','opencode']:
-            native_args=[BIN,'adapter','stream',native,'--',MOCK,'native',ROOT/'crates/wakeit-cli/tests/fixtures/trace'/f'{native}.jsonl']
+            native_args=[BIN,'plugin','exec','git:github.com/mob999/wakeit','adapter','--','stream',native,'--',MOCK,'native',ROOT/'crates/wakeit-agent-runtime/tests/fixtures/trace'/f'{native}.jsonl']
             records=[json.loads(line) for line in command(native_args).splitlines()]
             assert any(r['type']=='result' and r['data']=='# 完成\n\n报告' for r in records)
             failure=subprocess.run([str(a) for a in native_args]+['fail'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

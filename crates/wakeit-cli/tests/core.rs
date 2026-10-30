@@ -1,3 +1,5 @@
+#[path = "../../../fixtures/official_agent.rs"]
+mod support;
 use chrono::Utc;
 use serde_json::json;
 use uuid::Uuid;
@@ -25,7 +27,7 @@ async fn journal_limits_large_results_and_preserves_pending_uploads() {
     let dir = tempfile::tempdir().unwrap();
     let runner = Uuid::new_v4();
     let id = Uuid::new_v4();
-    let agent: AgentConfig = yaml_serde::from_str(builtin("codex").unwrap()).unwrap();
+    let agent: AgentConfig = support::official_agent("codex");
     let a = Assignment {
         version: 1,
         run_id: id,
@@ -75,7 +77,7 @@ async fn logs_preserve_utf8_split_across_pipe_reads() {
     let t = task(dir.path().to_str().unwrap());
     let id = Uuid::new_v4();
     let runner = Uuid::new_v4();
-    let agent: AgentConfig = yaml_serde::from_str(builtin("codex").unwrap()).unwrap();
+    let agent: AgentConfig = support::official_agent("codex");
     let journal = Journal::open(&dir.path().join("journal"), runner)
         .await
         .unwrap();
@@ -121,7 +123,7 @@ async fn journal_survives_reopen_and_deduplicates() {
     let dir = tempfile::tempdir().unwrap();
     let id = Uuid::new_v4();
     let runner = Uuid::new_v4();
-    let agent: AgentConfig = yaml_serde::from_str(builtin("codex").unwrap()).unwrap();
+    let agent: AgentConfig = support::official_agent("codex");
     let a = Assignment {
         version: 1,
         run_id: id,
@@ -381,7 +383,7 @@ fn directory_boundaries() {
 
 #[tokio::test]
 async fn agent_logo_configuration_and_runner_manifest() {
-    let mut agent: AgentConfig = yaml_serde::from_str(builtin("pi").unwrap()).unwrap();
+    let mut agent: AgentConfig = support::official_agent("pi");
     agent.detect = None;
     agent.validate().unwrap();
     let info = wakeit::runner::inspect(&agent, std::path::Path::new(".")).await;
