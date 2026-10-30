@@ -145,7 +145,8 @@ export function RunTrace({
   const anchor = useRef(reading.anchor),
     previous = useRef<Map<string, number> | null>(null)
   const jump = useRef(reading.jump),
-    restoring = useRef(false)
+    restoring = useRef(false),
+    userScrolling = useRef(false)
   const getHost = () =>
     viewport?.current ?? root.current?.closest<HTMLDivElement>('.run-page') ?? null
   function capture() {
@@ -170,20 +171,46 @@ export function RunTrace({
     if (!host) return
     let frame = 0
     const onScroll = () => {
-      if (restoring.current) return
+      if (restoring.current && !userScrolling.current) return
+      capture()
+      userScrolling.current = false
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
-        capture()
         if (!tail.current) return
-        const follow = followingTail(
-          tail.current.getBoundingClientRect().bottom - host.getBoundingClientRect().bottom,
-        )
+        const follow =
+          current.current.follow &&
+          followingTail(
+            tail.current.getBoundingClientRect().bottom - host.getBoundingClientRect().bottom,
+          )
         if (follow !== current.current.follow || (follow && current.current.unseen.length))
           update({ follow, unseen: follow ? [] : current.current.unseen })
       })
     }
+    const pause = () => {
+      userScrolling.current = true
+      if (current.current.follow) {
+        current.current = { ...current.current, follow: false }
+        update({ follow: false })
+      }
+    }
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) pause()
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        ['ArrowUp', 'PageUp', 'Home'].includes(event.key) ||
+        (event.key === ' ' && event.shiftKey)
+      )
+        pause()
+    }
+    host.addEventListener('wheel', onWheel, { passive: true })
+    host.addEventListener('touchstart', pause, { passive: true })
+    host.addEventListener('keydown', onKey)
     host.addEventListener('scroll', onScroll, { passive: true })
     return () => {
+      host.removeEventListener('wheel', onWheel)
+      host.removeEventListener('touchstart', pause)
+      host.removeEventListener('keydown', onKey)
       host.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(frame)
       update({ anchor: anchor.current })
@@ -211,7 +238,7 @@ export function RunTrace({
     if (reading.follow && tail.current)
       host.scrollTop +=
         tail.current.getBoundingClientRect().bottom - host.getBoundingClientRect().bottom
-    else if (anchor.current) {
+    else if (!userScrolling.current && anchor.current) {
       const row = [...root.current!.querySelectorAll<HTMLElement>('[data-trace-id]')].find(
         (el) => el.dataset.traceId === anchor.current!.id,
       )
@@ -219,7 +246,7 @@ export function RunTrace({
         host.scrollTop +=
           row.getBoundingClientRect().top - host.getBoundingClientRect().top - anchor.current.offset
     }
-    capture()
+    if (!userScrolling.current) capture()
     const frame = requestAnimationFrame(() => {
       restoring.current = false
     })
@@ -279,12 +306,15 @@ export function RunTrace({
               : undefined
           }
           open={isExpanded(reading, node.id, latest)}
-          toggle={() =>
+          toggle={() => {
+            userScrolling.current = false
+            capture()
             update((old) => ({
               ...old,
+              follow: false,
               expanded: { ...old.expanded, [node.id]: !isExpanded(old, node.id, latest) },
             }))
-          }
+          }}
           execution={run.id}
         />
       ))}

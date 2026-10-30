@@ -37,6 +37,7 @@ export type ReadingState = {
   autoExpand: boolean
   autoId?: string
   follow: boolean
+  traceVisited: boolean
   unseen: string[]
   jump: number
   anchor?: { id: string; offset: number }
@@ -44,7 +45,9 @@ export type ReadingState = {
   resultReady: boolean
 }
 export function runTab(state: ReadingState, outputAvailable: boolean): RunTab {
-  return state.viewTab ?? (outputAvailable && state.follow ? 'output' : 'trace')
+  return (
+    state.viewTab ?? (outputAvailable && (state.follow || !state.traceVisited) ? 'output' : 'trace')
+  )
 }
 export function freshReading(): ReadingState {
   return {
@@ -52,7 +55,8 @@ export function freshReading(): ReadingState {
     payload: {},
     full: {},
     autoExpand: false,
-    follow: true,
+    follow: false,
+    traceVisited: false,
     unseen: [],
     jump: 0,
     highlighted: false,

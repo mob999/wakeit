@@ -12,6 +12,7 @@ export function RunLogs({
   run,
   text,
   follow,
+  onFollowChange,
   visible,
   error,
   retry,
@@ -19,6 +20,7 @@ export function RunLogs({
   run: Run
   text: string
   follow: boolean
+  onFollowChange: (follow: boolean) => void
   visible: boolean
   error: boolean
   retry: () => void
@@ -38,7 +40,21 @@ export function RunLogs({
           </IconButton>
         </div>
       )}
-      <pre ref={output} className="logs">
+      <pre
+        ref={output}
+        className="logs"
+        onWheel={(event) => {
+          if (event.deltaY < 0 && follow) onFollowChange(false)
+        }}
+        onTouchStart={() => {
+          if (follow) onFollowChange(false)
+        }}
+        onScroll={(event) => {
+          const pane = event.currentTarget
+          if (follow && pane.scrollHeight - pane.clientHeight - pane.scrollTop > 48)
+            onFollowChange(false)
+        }}
+      >
         {text ||
           (terminal(run.state) || run.state === 'unknown' ? tr('暂无输出') : tr('等待执行输出…'))}
         {['queued', 'starting', 'running'].includes(run.state) && <span className="cursor">▌</span>}

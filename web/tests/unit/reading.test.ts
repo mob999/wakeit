@@ -53,8 +53,11 @@ test('run tabs default to Trace while waiting and Output when available', () => 
   const state = freshReading()
   assert.equal(runTab(state, false), 'trace')
   assert.equal(runTab(state, true), 'output')
-  state.follow = false
+  assert.equal(state.follow, false)
+  state.traceVisited = true
   assert.equal(runTab(state, true), 'trace')
+  state.follow = true
+  assert.equal(runTab(state, true), 'output')
 })
 test('explicit tabs survive result arrival, follow changes and unavailable output', () => {
   for (const viewTab of ['output', 'trace', 'details'] as const)
