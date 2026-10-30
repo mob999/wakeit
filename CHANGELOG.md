@@ -1,3 +1,11 @@
+## 0.4.3
+
+### Fixed
+
+- Short activity reports and runs without a returned result now start at the top of the reader.
+- Execution traces and logs keep your reading position instead of automatically jumping to the latest message. Select “Back to latest” to follow live updates.
+- Tasks with very large instructions or output no longer prevent other tasks and results from being processed. Work that cannot be delivered is reported explicitly.
+
 ## 0.4.2
 
 ### Added
