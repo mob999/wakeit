@@ -22,6 +22,7 @@
 }
 .report-reader.is-filled .report-grid {
   min-height: var(--report-viewport-height);
+  @apply content-start;
 }
 .report-reader.is-filled .report-tools {
   @apply sticky top-0 z-3 bg-canvas h-8 min-h-8 py-0;
