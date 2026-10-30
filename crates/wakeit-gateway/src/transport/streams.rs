@@ -8,7 +8,7 @@ use async_nats::jetstream::{
 use std::time::Duration;
 use uuid::Uuid;
 
-pub use wakeit_core::bus::{connect, publish};
+pub use wakeit_core::bus::{connect, is_payload_too_large, publish};
 pub async fn setup(js: &jetstream::Context, replicas: usize) -> Result<()> {
     for (name, subject) in [
         ("WAKEIT_WORK", "wakeit.v1.runner.*.work"),
