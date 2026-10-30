@@ -39,19 +39,29 @@ with open(os.environ['FIXTURE_LOG'],'a') as log: log.write(url+'\\n')
 if os.environ.get('FAIL_DOWNLOAD') == url.rsplit('/',1)[-1]: sys.exit(22)
 out=pathlib.Path(args[args.index('--output')+1])
 shutil.copyfile(pathlib.Path(os.environ['FIXTURE_RELEASE'])/url.rsplit('/',1)[-1],out)
-if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.suffix != '.gz': out.write_bytes(b'corrupt')
+if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.name != 'wakeit-skill.tar.gz': out.write_bytes(b'corrupt')
 ''')
         assets = {}
         lines = []
         for target in ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
                        'aarch64-apple-darwin'):
-            name = f'wakeit-{target}'
+            name = f'wakeit-{target}.tar.gz'
             binary = self.fixture / name
-            binary.write_text('#!/bin/sh\nprintf "wakeit 0.1.1\\n"\n')
+            with tarfile.open(binary, 'w:gz') as archive:
+                files = {
+                    'wakeit': b'#!/bin/sh\nprintf "wakeit 0.2.0\\n"\n',
+                    'wakeit-plugins/0.2.0/wakeit-plugin.json': (ROOT / 'wakeit-plugin.json').read_bytes(),
+                    'wakeit-plugins/0.2.0/plugins/official/bin/wakeit-agent-runtime': b'#!/bin/sh\nexit 0\n',
+                }
+                for path, data in files.items():
+                    item = tarfile.TarInfo(path)
+                    item.size = len(data)
+                    item.mode = 0o755 if path.endswith(('wakeit', 'wakeit-agent-runtime')) else 0o644
+                    archive.addfile(item, io.BytesIO(data))
             digest = hashlib.sha256(binary.read_bytes()).hexdigest()
             assets[target] = {'name': name, 'sha256': digest}
             lines.append(f'{digest}  {name}')
-        self.manifest = {'product': 'cli', 'version': '0.1.1', 'assets': assets}
+        self.manifest = {'product': 'cli', 'version': '0.2.0', 'assets': assets}
         self.write_manifest()
         with tarfile.open(self.fixture / 'wakeit-skill.tar.gz', 'w:gz') as archive:
             for name, data in [('wakeit/SKILL.md', b'# Fixture skill'), ('wakeit/references/connect.md', b'Connect')]:
@@ -80,17 +90,18 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
             result = self.install()
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(os.access(self.bin / 'wakeit', os.X_OK))
+        self.assertTrue(os.access(self.bin / 'wakeit-plugins/0.2.0/plugins/official/bin/wakeit-agent-runtime', os.X_OK))
         for stage in range(1, 6):
             self.assertIn(f'[{stage}/5]', result.stderr)
         requests = (self.root / 'requests').read_text().splitlines()
-        self.assertIn('/download/cli-v0.1.1/wakeit-cli-release.json', requests[0])
-        self.assertIn('/download/cli-v0.1.1/SHA256SUMS', requests[1])
+        self.assertIn('/download/cli-v0.2.0/wakeit-cli-release.json', requests[0])
+        self.assertIn('/download/cli-v0.2.0/SHA256SUMS', requests[1])
         startup = self.home / '.zshrc'
         self.assertEqual(startup.read_text().count('# Wakeit PATH:'), 1)
         fresh = subprocess.run(['sh', '-c', '. "$1"; wakeit --version', 'sh', str(startup)],
                                env=self.env, capture_output=True, text=True)
         self.assertEqual(fresh.returncode, 0, fresh.stderr)
-        self.assertEqual(fresh.stdout.strip(), 'wakeit 0.1.1')
+        self.assertEqual(fresh.stdout.strip(), 'wakeit 0.2.0')
         self.assertEqual(list(self.root.glob('wakeit-install.*')), [])
 
     def test_platforms_version_and_custom_directory_without_shell_changes(self):
@@ -98,7 +109,7 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
                                      ('Linux', 'aarch64', 'aarch64-unknown-linux-gnu'),
                                      ('Darwin', 'arm64', 'aarch64-apple-darwin')]:
             with self.subTest(system=system, arch=arch):
-                result = self.install('--version', 'v0.1.1', '--bin-dir', str(self.root / target),
+                result = self.install('--version', 'v0.2.0', '--bin-dir', str(self.root / target),
                                       '--no-modify-path', FIXTURE_OS=system, FIXTURE_ARCH=arch)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertTrue((self.root / target / 'wakeit').exists())
@@ -162,7 +173,7 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
         self.assertTrue((skill / 'references/connect.md').exists())
         self.assertFalse(self.bin.exists())
         self.assertFalse((self.home / '.zshrc').exists())
-        self.assertNotIn('/wakeit-aarch64-apple-darwin', (self.root / 'requests').read_text())
+        self.assertNotIn('/wakeit-aarch64-apple-darwin.tar.gz', (self.root / 'requests').read_text())
         self.bin.mkdir(parents=True)
         existing = self.bin / 'wakeit'
         existing.write_bytes(b'existing CLI')

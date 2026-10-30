@@ -2,13 +2,13 @@ use chrono::Utc;
 use serde_json::{Value, json};
 use uuid::Uuid;
 use wakeit::{
-    adapters::stream::Normalizer,
     config::{self, AgentConfig, TaskConfig},
     protocol::{Assignment, RunEvent},
     runner::journal::Journal,
     runner::sessions::{RunSession, SessionInfo},
     trace::{Lines, RecordData, StreamRecord},
 };
+use wakeit_agent_runtime::stream::Normalizer;
 
 const ID: &str = "550e8400-e29b-41d4-a716-446655440000";
 

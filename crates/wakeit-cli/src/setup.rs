@@ -356,15 +356,6 @@ pub async fn run(
                 &key.seed()?,
             ),
         )?;
-        std::fs::create_dir_all(dir.join("agents"))?;
-        let mut agents = Vec::new();
-        for &(id, _) in config::BUILTIN_AGENTS {
-            let path = dir.join("agents").join(format!("{id}.yaml"));
-            if !path.exists() {
-                c::atomic(&path, config::builtin(id)?)?;
-            }
-            agents.push(path);
-        }
         let r = RunnerConfig {
             version: 1,
             id: response["id"].as_str().context("runner ID")?.parse()?,
@@ -375,7 +366,8 @@ pub async fn run(
             nats_url: response["nats_url"].as_str().context("NATS URL")?.into(),
             data_dir: dir.join("data"),
             concurrency: 2,
-            agents,
+            agents: Vec::new(),
+            bundled_agents: true,
             allowed_roots: pending.roots.iter().map(PathBuf::from).collect(),
         };
         let path = dir.join("runner.yaml");

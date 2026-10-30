@@ -1,0 +1,26 @@
+version: 1
+id: qwen-code
+name: Qwen Code
+logo: /agent-logos/qwen-code.svg
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+submit:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args:
+    - stream
+    - qwen-code
+    - '--'
+    - qwen
+    - --prompt
+    - '{{task.prompt}}'
+    - --output-format
+    - stream-json
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+detect:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args: [ detect, qwen-code]
+  timeout: 10s
+output:
+  format: events

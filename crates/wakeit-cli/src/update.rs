@@ -5,7 +5,7 @@ use crate::releases::{Github, MAX_METADATA, Release, verify_checksum};
 use anyhow::{Context, Result, bail, ensure};
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, io::Write, path::Path, process::Stdio, time::Duration};
+use std::{collections::BTreeMap, path::Path, process::Stdio, time::Duration};
 
 const MAX_BINARY: usize = 128 * 1024 * 1024;
 
@@ -81,14 +81,7 @@ impl Github {
 }
 
 fn binary_name(target: &str) -> String {
-    format!(
-        "wakeit-{target}{}",
-        if target.contains("windows") {
-            ".exe"
-        } else {
-            ""
-        }
-    )
+    format!("wakeit-{target}.tar.gz")
 }
 /// Verify a downloaded candidate before asking the OS to replace this process's
 /// executable. Also used by the isolated cross-platform replacement probe.
@@ -153,6 +146,41 @@ pub async fn replace_verified(candidate: &Path, version: &Version) -> Result<()>
     Ok(())
 }
 
+/// Install a complete CLI release beside this executable, retaining older bundles.
+/// Callers validate the release checksum and hold the update lock before invoking this.
+pub async fn replace_bundle(bytes: &[u8], version: &Version) -> Result<()> {
+    let executable = std::env::current_exe()?.canonicalize()?;
+    let directory = executable.parent().context("executable directory")?;
+    let staged = tempfile::Builder::new()
+        .prefix(".wakeit-update-")
+        .tempdir_in(directory)?;
+    crate::plugins::unpack_bundle(bytes, staged.path())?;
+    let candidate = staged.path().join(if cfg!(windows) {
+        "wakeit.exe"
+    } else {
+        "wakeit"
+    });
+    let bundle = staged
+        .path()
+        .join("wakeit-plugins")
+        .join(version.to_string());
+    let manifest = crate::plugins::manifest::read(&bundle)?;
+    crate::plugins::manifest::agents(&bundle, &manifest)?;
+    let installed = directory.join("wakeit-plugins").join(version.to_string());
+    std::fs::create_dir_all(installed.parent().unwrap())?;
+    // A distinct version directory preserves every running Runner and saved session.
+    ensure!(
+        !installed.exists(),
+        "plugin bundle for this version already exists; inspect the installation before retrying"
+    );
+    std::fs::rename(&bundle, &installed)?;
+    if let Err(error) = replace_verified(&candidate, version).await {
+        let _ = std::fs::remove_dir_all(&installed);
+        return Err(error);
+    }
+    Ok(())
+}
+
 pub async fn run(check_only: bool, json: bool) -> Result<()> {
     let current = Version::parse(env!("CARGO_PKG_VERSION"))?;
     let github = Github::new().await?;
@@ -204,17 +232,7 @@ pub async fn run(check_only: bool, json: bool) -> Result<()> {
                 .context("update needs write access to the executable directory")?;
             fs2::FileExt::try_lock_exclusive(&lock).context("another update is in progress")?;
             let bytes = github.candidate(&version, &release, report.target).await?;
-            let mut file = tempfile::Builder::new()
-                .prefix(".wakeit-update-")
-                .suffix(std::env::consts::EXE_SUFFIX)
-                .tempfile_in(directory)?;
-            file.write_all(&bytes)?;
-            file.as_file().sync_all()?;
-            std::fs::set_permissions(file.path(), std::fs::metadata(&executable)?.permissions())?;
-            // Windows cannot execute a candidate while its writable handle is
-            // open; keep only the TempPath until replacement finishes.
-            let path = file.into_temp_path();
-            replace_verified(&path, &version).await?;
+            replace_bundle(&bytes, &version).await?;
             report.status = "updated";
             report.update_available = false;
         }
@@ -283,7 +301,7 @@ mod tests {
         assert!(verify_checksum(b"binary", &digest).is_ok());
         assert!(verify_checksum(b"modified", &digest).is_err());
         assert!(verify_checksum(b"binary", "broken").is_err());
-        assert!(binary_name("x86_64-pc-windows-msvc").ends_with(".exe"));
+        assert!(binary_name("x86_64-pc-windows-msvc").ends_with(".tar.gz"));
     }
     async fn github(router: Router) -> Github {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

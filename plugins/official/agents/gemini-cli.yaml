@@ -1,0 +1,27 @@
+version: 1
+id: gemini-cli
+name: Gemini CLI
+logo: /agent-logos/gemini-cli.svg
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+submit:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args:
+    - stream
+    - gemini-cli
+    - '--'
+    - gemini
+    - --prompt
+    - ''
+    - --output-format
+    - stream-json
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+  stdin: '{{task.prompt}}'
+detect:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args: [ detect, gemini-cli]
+  timeout: 10s
+output:
+  format: events

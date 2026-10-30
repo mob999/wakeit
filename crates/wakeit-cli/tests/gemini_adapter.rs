@@ -1,11 +1,9 @@
+use wakeit_agent_runtime::gemini::GeminiNormalizer;
 mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit::{
-    adapters::gemini::GeminiNormalizer,
-    trace::{RecordData, TraceKind, TraceState},
-};
+use wakeit::trace::{RecordData, TraceKind, TraceState};
 
 #[test]
 fn native_fixture_preserves_chunks_and_tool_lifecycle() {

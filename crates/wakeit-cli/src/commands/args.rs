@@ -79,9 +79,10 @@ pub(super) enum Command {
         #[command(subcommand)]
         command: Members,
     },
-    Adapter {
+    /// Manage adapter packages on this device.
+    Plugin {
         #[command(subcommand)]
-        command: Adapter,
+        command: Plugin,
     },
     Schema {
         kind: String,
@@ -91,69 +92,6 @@ pub(super) enum Command {
 pub(super) enum Connection {
     List,
     Use { name: String },
-}
-#[derive(Subcommand)]
-pub(super) enum Adapter {
-    /// Stream Kimi's native local Server API with durable session metadata.
-    Kimi {
-        #[arg(long)]
-        model: Option<String>,
-        #[arg(long)]
-        session: Option<String>,
-        #[arg(long)]
-        title: Option<String>,
-        #[arg(last = true)]
-        command: Vec<String>,
-    },
-    Detect {
-        id: String,
-    },
-    Models {
-        id: String,
-    },
-    Session {
-        #[command(subcommand)]
-        command: AdapterSession,
-    },
-    Stream {
-        protocol: String,
-        #[arg(last = true, required = true)]
-        command: Vec<String>,
-    },
-}
-#[derive(Subcommand)]
-pub(super) enum AdapterSession {
-    Rename {
-        protocol: String,
-        id: String,
-        #[arg(allow_hyphen_values = true)]
-        title: String,
-        #[arg(long, default_value = ".")]
-        cwd: PathBuf,
-    },
-    List {
-        protocol: String,
-        #[arg(long, default_value = ".")]
-        cwd: PathBuf,
-        #[arg(long)]
-        cursor: Option<String>,
-        #[arg(long, default_value_t = 20)]
-        limit: usize,
-        #[arg(long)]
-        query: Option<String>,
-    },
-    Inspect {
-        protocol: String,
-        id: String,
-        #[arg(long, default_value = ".")]
-        cwd: PathBuf,
-    },
-    Resume {
-        protocol: String,
-        id: String,
-        #[arg(last = true, required = true)]
-        command: Vec<String>,
-    },
 }
 #[derive(Subcommand)]
 pub(super) enum Runner {
@@ -370,5 +308,28 @@ pub(super) enum Skill {
         /// Destination skill directory (default: ~/.agents/skills/wakeit).
         #[arg(long)]
         dir: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+pub(super) enum Plugin {
+    Install {
+        source: String,
+        #[arg(long = "replace-agent")]
+        replace: Vec<String>,
+    },
+    List,
+    Update {
+        source: Option<String>,
+    },
+    Remove {
+        source: String,
+    },
+    /// Invoke a command declared by an installed plugin.
+    Exec {
+        source: String,
+        command: String,
+        #[arg(last = true)]
+        args: Vec<String>,
     },
 }

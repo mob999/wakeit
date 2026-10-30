@@ -137,6 +137,23 @@ pub struct AgentConfig {
     pub poll_interval: String,
 }
 impl AgentConfig {
+    pub fn commands_mut(&mut self) -> Vec<&mut CommandSpec> {
+        let mut commands = vec![&mut self.submit];
+        commands.extend(self.status.iter_mut());
+        commands.extend(self.cancel.iter_mut());
+        commands.extend(self.detect.iter_mut());
+        commands.extend(self.models.iter_mut());
+        if let Some(session) = &mut self.session {
+            commands.extend(session.list.iter_mut());
+            commands.extend(session.rename.iter_mut());
+            commands.extend([
+                &mut session.inspect,
+                &mut session.resume,
+                &mut session.interactive,
+            ]);
+        }
+        commands
+    }
     pub fn validate(&self) -> Result<()> {
         ensure!(self.version == 1, "unsupported agent configuration version");
         validate_id(&self.id)?;

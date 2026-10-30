@@ -64,7 +64,15 @@ jobs:
       - run: npm ci && npm run build
         if: needs.product.outputs.name == 'gateway'
         working-directory: web
-      - run: cargo build --locked --release --package wakeit-${{ needs.product.outputs.name }} --target ${{ matrix.target }}
+      - name: Build native product
+        shell: bash
+        env:
+          PRODUCT: ${{ needs.product.outputs.name }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          packages=(-p "wakeit-$PRODUCT")
+          if [[ "$PRODUCT" == cli ]]; then packages+=(-p wakeit-agent-runtime); fi
+          cargo build --locked --release "${packages[@]}" --target "$TARGET"
       - name: Verify native executable and package binary
         shell: bash
         env:
@@ -77,6 +85,10 @@ jobs:
           binary="target/$TARGET/release/$BINARY$suffix"
           "$binary" --version
           "$binary" --help
+          if [[ "$PRODUCT" == cli ]]; then
+            "target/$TARGET/release/wakeit-agent-runtime$suffix" --version
+            "target/$TARGET/release/wakeit-agent-runtime$suffix" --help
+          fi
           python scripts/package-release.py binary --product "$PRODUCT" --target "$TARGET" --input "$binary" --output .local/release-native
       - uses: actions/upload-artifact@v4
         with:

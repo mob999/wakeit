@@ -10,8 +10,31 @@ fn initialized_agent_survives_removing_the_installation_executable() {
     let cli = env!("CARGO_BIN_EXE_wakeit");
     let installer = dir.path().join("temporary-wakeit");
     fs::copy(cli, &installer).unwrap();
+    let bundle = dir.path().join("bundle");
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(source.join("wakeit-plugin.json")).unwrap()).unwrap();
+    for path in manifest["wakeit"]["agents"].as_array().unwrap() {
+        let path = std::path::Path::new(path.as_str().unwrap());
+        fs::create_dir_all(bundle.join(path).parent().unwrap()).unwrap();
+        fs::copy(source.join(path), bundle.join(path)).unwrap();
+    }
+    fs::copy(
+        source.join("wakeit-plugin.json"),
+        bundle.join("wakeit-plugin.json"),
+    )
+    .unwrap();
+    let helper = bundle.join("plugins/official/bin/wakeit-agent-runtime");
+    fs::create_dir_all(helper.parent().unwrap()).unwrap();
+    fs::copy(
+        std::path::Path::new(cli).with_file_name("wakeit-agent-runtime"),
+        &helper,
+    )
+    .unwrap();
     let agent = dir.path().join("kimi.yaml");
     let initialized = Command::new(&installer)
+        .env("WAKEIT_BUNDLED_PLUGIN_DIR", &bundle)
+        .env("WAKEIT_PLUGIN_HOME", dir.path().join("plugins"))
         .args(["agent", "init", "kimi-code", "--file"])
         .arg(&agent)
         .output()
@@ -38,6 +61,8 @@ fn initialized_agent_survives_removing_the_installation_executable() {
     )
     .unwrap();
     let doctor = Command::new(cli)
+        .env("WAKEIT_BUNDLED_PLUGIN_DIR", &bundle)
+        .env("WAKEIT_PLUGIN_HOME", dir.path().join("plugins"))
         .args(["--json", "agent", "doctor", "--config"])
         .arg(runner)
         .env("PATH", dir.path())

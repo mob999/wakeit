@@ -79,7 +79,7 @@ async fn sessions_in(home: &Path, cwd: &Path) -> Result<Vec<KimiSession>> {
         let Ok(item) = serde_json::from_slice::<IndexEntry>(&bytes) else {
             continue;
         };
-        if crate::runner::sessions::validate_id(&item.session_id).is_err() {
+        if wakeit_core::sessions::validate_id(&item.session_id).is_err() {
             continue;
         }
         entries.insert(item.session_id.clone(), item);

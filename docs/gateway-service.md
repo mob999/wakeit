@@ -1,6 +1,6 @@
 # Gateway 系统服务
 
-Gateway 0.4.2 使用独立的 `wakeit-gateway`，不依赖 CLI 安装。CLI/Runner 0.1.1 的 `wakeit` 只负责接入和操作 Wakeit。
+Gateway 0.4.2 使用独立的 `wakeit-gateway`，不依赖 CLI 安装。CLI/Runner 的 `wakeit` 只负责接入和操作 Wakeit。
 
 ## 安装程序
 

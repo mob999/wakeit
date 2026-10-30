@@ -8,7 +8,7 @@ Install Wakeit CLI and Runner for the current user (macOS / Linux GNU).
 
 Usage: sh install.sh [--version VERSION] [--bin-dir DIRECTORY] [--skill-dir DIRECTORY] [--skill-only] [--no-modify-path]
 
-  --version VERSION  Install a stable release, e.g. 0.1.1 (default: 0.1.1)
+  --version VERSION  Install a stable release, e.g. 0.2.0 (default: 0.2.0)
   --bin-dir PATH     Install directory (default: $HOME/.local/bin)
   --skill-dir PATH   Install the Wakeit skill at this directory
   --skill-only       Install only the skill; requires --skill-dir
@@ -22,7 +22,7 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1
 quote() { printf "'"; printf '%s' "$1" | sed "s/'/'\\\\''/g"; printf "'"; }
 
 main() {
-  requested=0.1.1
+  requested=0.2.0
   bin_dir=${HOME:?HOME is required}/.local/bin
   modify_path=true
   skill_dir=
@@ -45,7 +45,7 @@ main() {
   need curl
   need awk
   need sed
-  printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable version such as 0.1.1'
+  printf '%s\n' "$requested" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'Use a stable version such as 0.2.0'
   case "$bin_dir" in /*) ;; *) bin_dir="$PWD/$bin_dir" ;; esac
   case "$bin_dir" in *'
 '*) fail 'The installation directory cannot contain a newline' ;; esac
@@ -88,9 +88,11 @@ main() {
   product=$(sed -nE 's/^[[:space:]]*"product"[[:space:]]*:[[:space:]]*"([a-z]+)"[[:space:]]*,?[[:space:]]*$/\1/p' "$temp_dir/manifest.json")
   [ "$product" = cli ] || fail 'The release manifest is not a CLI release'
   base=$release_root/download/cli-v$version
-  asset=wakeit-$target
+  asset=wakeit-$target.tar.gz
   download "$base/SHA256SUMS" "$temp_dir/SHA256SUMS"
   if [ "$skill_only" = false ]; then
+    need tar
+    need diff
     download "$base/$asset" "$temp_dir/$asset"
   fi
 
@@ -105,6 +107,14 @@ main() {
     verify_checksum "$asset"
     manifest_hash=$(awk -F '"' -v target="$target" '$2 == target { inside=1; next } inside && $2 == "sha256" { print $4; exit } inside && /^[[:space:]]*}/ { exit }' "$temp_dir/manifest.json")
     [ "$manifest_hash" = "$expected" ] || fail 'The manifest and checksum list disagree'
+    tar -tzf "$temp_dir/$asset" > "$temp_dir/cli-files" || fail 'The CLI archive is invalid'
+    awk -v version="$version" '$0 != "wakeit" && index($0, "wakeit-plugins/" version "/") != 1 { exit 1 } /(^|\/)\.\.(\/|$)/ { exit 1 }' "$temp_dir/cli-files" || fail 'The CLI archive contains unsafe paths'
+    tar -tvzf "$temp_dir/$asset" | awk 'substr($0,1,1) !~ /[-d]/ { exit 1 }' || fail 'The CLI archive contains unsupported links or special files'
+    mkdir "$temp_dir/cli"
+    tar -xzf "$temp_dir/$asset" -C "$temp_dir/cli" || fail 'Cannot unpack the CLI'
+    bundle="$temp_dir/cli/wakeit-plugins/$version"
+    [ -f "$bundle/wakeit-plugin.json" ] && [ -x "$bundle/plugins/official/bin/wakeit-agent-runtime" ] || fail 'The CLI archive is missing its official adapters'
+
   fi
   if [ -n "$skill_dir" ]; then
     verify_checksum wakeit-skill.tar.gz
@@ -125,10 +135,17 @@ main() {
     bin_dir=$(cd "$bin_dir" && pwd -P)
     [ ! -d "$bin_dir/wakeit" ] || fail "$bin_dir/wakeit is a directory"
     stage=$(mktemp "$bin_dir/.wakeit-install.XXXXXX") || fail "Cannot write to $bin_dir"
-    cp "$temp_dir/$asset" "$stage" || fail 'Cannot stage the executable'
+    cp "$temp_dir/cli/wakeit" "$stage" || fail 'Cannot stage the executable'
     chmod 755 "$stage"
     reported=$("$stage" --version) || fail 'The downloaded binary cannot run on this system'
     [ "$reported" = "wakeit $version" ] || fail 'The executable version does not match the release manifest'
+    mkdir -p "$bin_dir/wakeit-plugins" || fail 'Cannot create the plugin directory'
+    installed_bundle="$bin_dir/wakeit-plugins/$version"
+    if [ -e "$installed_bundle" ]; then
+      diff -qr "$bundle" "$installed_bundle" >/dev/null 2>&1 || fail 'A different plugin bundle is already installed for this version'
+    else
+      mv "$bundle" "$installed_bundle" || fail 'Cannot install the official adapters'
+    fi
     mv -f "$stage" "$bin_dir/wakeit" || fail 'Cannot replace the executable; the current installation was kept'
     stage=''
     printf '  %s\n' "$bin_dir/wakeit" >&2

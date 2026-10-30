@@ -50,7 +50,7 @@ impl CopilotNormalizer {
         )
     }
     fn preview(value: Value, limit: usize) -> Value {
-        crate::output_capture::bounded_value_with_preview(value, limit, 32 * 1024)
+        wakeit_core::capture::bounded_value_with_preview(value, limit, 32 * 1024)
     }
     fn final_message(&mut self, data: &Value) -> Vec<StreamRecord> {
         if data["messageId"]

@@ -1,12 +1,10 @@
+use wakeit_agent_runtime::copilot::CopilotNormalizer;
+use wakeit_agent_runtime::stream::Normalizer;
 mod support;
 use support::assert_single_report;
 
 use serde_json::json;
-use wakeit::{
-    adapters::copilot::CopilotNormalizer,
-    adapters::stream::Normalizer,
-    trace::{RecordData, TraceState},
-};
+use wakeit::trace::{RecordData, TraceState};
 #[test]
 fn cli_jsonl_tracks_public_messages_and_tools_and_emits_one_final_report() {
     let mut n = CopilotNormalizer::default();

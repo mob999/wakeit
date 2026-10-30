@@ -365,7 +365,7 @@ pub(crate) async fn prepare_local(
     let guard = lock(config, &session.agent, &session.id)?;
     ensure_idle(config, &session, Some(run)).await?;
     let mut agent = saved.agent;
-    crate::adapters::launch::normalize_commands(&mut agent)?;
+    crate::launch::normalize_commands(&mut agent)?;
     agent.validate()?;
     let mut task = saved.assignment.task;
     task.cwd = session.cwd.clone();
@@ -449,7 +449,7 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
     );
     let _guard = lock(&config, &session.agent, &session.id)?;
     ensure_idle(&config, &session, Some(run_id)).await?;
-    crate::adapters::launch::normalize_commands(&mut agent)?;
+    crate::launch::normalize_commands(&mut agent)?;
     agent.validate()?;
     let mut task = assignment.task;
     task.cwd = session.cwd.clone();
@@ -518,6 +518,7 @@ mod tests {
             data_dir: dir.join("data"),
             concurrency: 2,
             agents: vec![],
+            bundled_agents: false,
             allowed_roots: vec![dir.to_owned()],
         }
     }

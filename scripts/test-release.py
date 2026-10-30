@@ -26,8 +26,10 @@ class Packaging(unittest.TestCase):
         for product in ('cli', 'gateway'):
             prefix = 'wakeit' if product == 'cli' else 'wakeit-gateway'
             for target in TARGETS:
-                name = f'{prefix}-{target}' + ('.exe' if 'windows' in target else '')
+                name = f'{prefix}-{target}' + ('.tar.gz' if product == 'cli' else ('.exe' if 'windows' in target else ''))
                 (self.source / name).write_bytes(f'fixture: {product} {target}'.encode())
+                if product == 'cli':
+                    (self.source / f'wakeit-agents-{target}.tar.gz').write_bytes(b'plugin fixture')
 
     def assemble(self, product, *args):
         return subprocess.run([sys.executable, str(SCRIPT), 'assemble', '--product', product,
@@ -46,7 +48,7 @@ class Packaging(unittest.TestCase):
                 self.assertEqual(set(manifest['assets']), set(TARGETS))
                 prefix = 'wakeit' if product == 'cli' else 'wakeit-gateway'
                 for target, entry in manifest['assets'].items():
-                    self.assertEqual(entry['name'], f'{prefix}-{target}' + ('.exe' if 'windows' in target else ''))
+                    self.assertEqual(entry['name'], f'{prefix}-{target}' + ('.tar.gz' if product == 'cli' else ('.exe' if 'windows' in target else '')))
                     self.assertEqual(entry['sha256'], hashlib.sha256((output / entry['name']).read_bytes()).hexdigest())
                 installer = 'install.sh' if product == 'cli' else 'deploy-gateway.sh'
                 self.assertEqual((output / installer).read_bytes(), (ROOT / installer).read_bytes())
@@ -61,7 +63,7 @@ class Packaging(unittest.TestCase):
             self.assertTrue(all(name.startswith('wakeit') and '..' not in Path(name).parts for name in names))
 
     def test_missing_and_duplicate_targets_fail(self):
-        name = f'wakeit-{TARGETS[0]}'
+        name = f'wakeit-{TARGETS[0]}.tar.gz'
         (self.source / name).unlink()
         self.assertNotEqual(self.assemble('cli').returncode, 0)
         (self.source / name).write_bytes(b'fixture')

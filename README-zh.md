@@ -65,7 +65,7 @@ wakeit update
 |---|---|
 | 安装与部署 | [CLI](docs/install-zh.md) · [Gateway](docs/operations.md) |
 | 任务、运行与自动化 | [CLI](docs/cli.md) · [DAG](docs/dag.md) · [预设](docs/templates.md) |
-| Agent 与自定义适配 | [支持的 Agent](docs/agents.md) · [适配协议](docs/protocol.md) |
+| Agent 与自定义适配 | [支持的 Agent](docs/agents.md) · [插件](docs/plugins-zh.md) · [适配协议](docs/protocol.md) |
 | 团队与权限 | [工作区](docs/workspaces.md) |
 | 开发与集成 | [开发指南](CONTRIBUTING.md) · [REST API](docs/api.md) |
 | 版本记录 | [Gateway](CHANGELOG.zh-CN.md) · [CLI](CHANGELOG.cli.zh-CN.md) |

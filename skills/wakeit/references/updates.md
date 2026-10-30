@@ -1,6 +1,6 @@
 # 更新
 
-CLI/Runner 和 Gateway 分别更新，产品版本不需要相同。当前 CLI/Runner 为 0.1.1，Gateway 为 0.4.2。
+CLI/Runner 和 Gateway 分别更新，产品版本不需要相同。当前 CLI/Runner 为 0.2.0，Gateway 为 0.4.2。
 
 ## CLI 与 Runner
 

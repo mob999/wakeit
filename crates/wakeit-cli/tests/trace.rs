@@ -3,13 +3,13 @@ use serde_json::{Value, json};
 use std::time::Duration;
 use uuid::Uuid;
 use wakeit::{
-    adapters::stream::Normalizer,
     config::*,
     process::{self, LogSink},
     protocol::Assignment,
     runner::journal::Journal,
     trace::{Lines, RecordData, StreamRecord, TraceState},
 };
+use wakeit_agent_runtime::stream::Normalizer;
 fn task(cwd: &str) -> TaskConfig {
     TaskConfig {
         dag: None,
@@ -297,7 +297,11 @@ async fn stream_helper_keeps_native_children_in_the_runner_process_tree() {
     let spec = CommandSpec {
         command: env!("CARGO_BIN_EXE_wakeit").into(),
         args: vec![
+            "plugin".into(),
+            "exec".into(),
+            "git:github.com/mob999/wakeit".into(),
             "adapter".into(),
+            "--".into(),
             "stream".into(),
             "codex".into(),
             "--".into(),

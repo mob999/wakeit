@@ -11,6 +11,7 @@ pulldown-cmark = "0.13"
 scraper = "0.24"
 percent-encoding = "2"
 anyhow = "1"
+base64 = "0.22"
 async-nats = "0.50"
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = { version = "0.10", features = ["serde"] }
@@ -26,6 +27,7 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 yaml_serde = "0.10"
+which = "8"
 
 [dev-dependencies]
 tempfile = "3"

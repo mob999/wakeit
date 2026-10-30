@@ -3,10 +3,8 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::Command,
 };
-use wakeit::{
-    adapters::kimi_server::LiveNormalizer,
-    trace::{RECORD_LIMIT, RecordData, StreamRecord, TraceState},
-};
+use wakeit::trace::{RECORD_LIMIT, RecordData, StreamRecord, TraceState};
+use wakeit_agent_runtime::kimi_server::LiveNormalizer;
 fn event(kind: &str, p: Value) -> Value {
     json!({"type":kind,"payload":p,"timestamp":"2026-10-16T00:00:00Z"})
 }
@@ -279,7 +277,11 @@ async fn real_time_server_bridge_preserves_titles_and_fails_closed() {
         let cwd = tempfile::tempdir().unwrap();
         let mut p = Command::new(env!("CARGO_BIN_EXE_wakeit"));
         p.args([
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
             "adapter",
+            "--",
             "kimi",
             "--title",
             "中文 literal {{task.prompt}}-wakeit-20261016",
@@ -391,7 +393,11 @@ async fn bound_session_is_activated_before_subscription_and_keeps_its_title_and_
         .join("tests/fixtures/kimi-code/live-server.cjs");
     let mut child = Command::new(env!("CARGO_BIN_EXE_wakeit"))
         .args([
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
             "adapter",
+            "--",
             "kimi",
             "--session",
             "session_fixture-live",

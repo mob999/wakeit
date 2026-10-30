@@ -8,12 +8,16 @@ parameters:
   reasoning: {type: string, label: 推理强度}
 models:
   command: wakeit
-  args: [adapter, models, agy]
+  args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", models, agy]
   timeout: 25s
 submit:
   command: wakeit
   args:
+    - plugin
+    - exec
+    - git:github.com/mob999/wakeit
     - adapter
+    - "--"
     - stream
     - agy
     - '--'
@@ -30,7 +34,7 @@ submit:
   stdin: '{{task.prompt}}'
 detect:
   command: wakeit
-  args: [adapter, detect, agy]
+  args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", detect, agy]
   timeout: 10s
 output:
   format: events

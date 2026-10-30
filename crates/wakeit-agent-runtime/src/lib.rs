@@ -1,13 +1,14 @@
+pub use wakeit_core::{config, protocol, trace};
+mod launch;
+use wakeit_core::session_catalog as catalog;
 pub mod agy;
-pub(crate) mod catalog;
 pub mod cline;
 pub mod copilot;
-pub(crate) mod discovery;
+pub mod discovery;
 pub mod gemini;
 pub mod goose;
 pub mod kimi;
 pub mod kimi_server;
-pub(crate) mod launch;
 pub mod qwen_cursor;
-pub(crate) mod sessions;
+pub mod sessions;
 pub mod stream;

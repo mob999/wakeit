@@ -27,7 +27,7 @@ For ordinary UI or copy changes, inspect the affected page and interactions thro
 | Packaging/changelog scripts | Packaging and documentation checks |
 | Native-check script / service-integration scripts | Native Rust checks / service integration respectively |
 
-Unknown code/configuration paths run all checks until their owner is added in `scripts/ci_scope.py`. CLI and Gateway have independent check jobs. The CLI job requires no Node, WebUI assets or Gateway build; integration builds both programs to exercise their connection. Frontend-only and documentation-only changes do not start Rust or service checks.
+Unknown code/configuration paths run all checks until their owner is added in `scripts/ci_scope.py`. CLI and Gateway have independent check jobs. The CLI job requires no WebUI assets or Gateway build; integration builds both programs to exercise their connection. Frontend-only and documentation-only changes do not start Rust or service checks.
 
 Rust formatting runs once per affected package on Linux; compilation and behavior tests retain all three platforms. Unpublished database repair scripts are retired; published migrations and their preservation checks remain.
 

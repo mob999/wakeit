@@ -54,7 +54,7 @@ impl State {
         )
     }
     fn bounded(value: Value) -> Value {
-        crate::output_capture::bounded_value_with_preview(value, RECORD_LIMIT - 8192, 32 * 1024)
+        wakeit_core::capture::bounded_value_with_preview(value, RECORD_LIMIT - 8192, 32 * 1024)
     }
     fn message(&mut self, event: &Value, prefix: &str) -> Vec<StreamRecord> {
         if self.trace_omitted {
@@ -393,5 +393,5 @@ impl CursorNormalizer {
 pub fn native_session_id(event: &Value) -> Option<&str> {
     event["session_id"]
         .as_str()
-        .filter(|id| crate::runner::sessions::validate_id(id).is_ok())
+        .filter(|id| wakeit_core::sessions::validate_id(id).is_ok())
 }

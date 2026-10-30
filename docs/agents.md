@@ -38,16 +38,16 @@ wakeit agent validate --file kimi-code.yaml
 使用已安装并登录对应 Agent 的系统用户。需要测试实际推理时，在允许的测试目录运行 `wakeit agent test --file ...`；该命令会调用 Agent，可能产生费用或修改目录。只检查安装和命令能力可使用：
 
 ```sh
-wakeit adapter detect kimi-code
-wakeit adapter detect agy
-wakeit adapter detect gemini-cli
+wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect kimi-code
+wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect agy
+wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect gemini-cli
 ```
 
 这些探测只运行原生 `--help` / `--version`，不会启动模型会话。Kimi 要求当前 TypeScript Kimi Code 2.x，不把已归档的 Python `kimi-cli` 视为同一协议；Antigravity 探测也会拒绝缺少 headless 参数的同名桌面启动器。
 
 ## Kimi Code
 
-使用 `wakeit adapter kimi` 驱动已安装的 Kimi Code 2.x。
+使用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- kimi` 驱动已安装的 Kimi Code 2.x。
 
 辅助命令为每次执行启动一个仅监听 `127.0.0.1` 的 `kimi web --no-open` 子进程，通过[官方本地 Server API](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/server-api.html)订阅真实 `assistant.delta`、`tool.call.started`、`tool.result` 和 `turn.ended`。先确认订阅成功再提交一次指令，并处理原生心跳；绑定已有会话先通过空的会话级配置调用加载原生上下文，不覆盖已有配置。消息以完整快照更新，工具输出不混入最终报告；只有原生 `completed` 及正常进程退出才发布报告。子进程与 Runner 共用进程树，取消或失败时结束本次执行及其本地服务，不连接用户自行启动的 Kimi 服务，也不打开浏览器。
 

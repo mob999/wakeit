@@ -1,0 +1,68 @@
+version: 1
+id: codex
+name: Codex
+logo: /agent-logos/codex.svg
+mode: sync
+parameters:
+  model: {type: string, label: 模型}
+  reasoning: {type: string, label: 推理强度}
+models:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args: [ models, codex]
+  timeout: 25s
+submit:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args:
+    - stream
+    - codex
+    - '--'
+    - codex
+    - exec
+    - --json
+    - when_set: model
+      args: [--model, '{{parameters.model}}']
+    - when_set: reasoning
+      args: [-c, 'model_reasoning_effort="{{parameters.reasoning}}"']
+    - '-'
+  stdin: '{{task.prompt}}'
+session:
+  rename:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args: [ session, rename, codex, '{{session.id}}', '{{session.title}}']
+    timeout: 20s
+  list:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args: [ session, list, codex, --limit, '10000']
+    timeout: 25s
+  inspect:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args: [ session, inspect, codex, '{{session.id}}']
+    timeout: 20s
+  resume:
+    command: ./plugins/official/bin/wakeit-agent-runtime
+    args:
+      - session
+      - resume
+      - codex
+      - '{{session.id}}'
+      - '--'
+      - codex
+      - exec
+      - resume
+      - '{{session.id}}'
+      - --json
+      - when_set: model
+        args: [--model, '{{parameters.model}}']
+      - when_set: reasoning
+        args: [-c, 'model_reasoning_effort="{{parameters.reasoning}}"']
+      - '-'
+    stdin: '{{task.prompt}}'
+  interactive:
+    command: codex
+    args: ['resume', '{{session.id}}']
+detect:
+  command: codex
+  args: [--version]
+  timeout: 10s
+output:
+  format: events

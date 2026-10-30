@@ -3,6 +3,7 @@
 import argparse
 import getpass
 import hashlib
+import json
 import os
 from pathlib import Path
 import plistlib
@@ -16,8 +17,8 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(*args):
-    result = subprocess.run([str(a) for a in args], capture_output=True, text=True, encoding="utf-8", check=True)
+def run(*args, env=None):
+    result = subprocess.run([str(a) for a in args], capture_output=True, text=True, encoding="utf-8", check=True, env=env)
     return result.stdout
 
 
@@ -26,6 +27,7 @@ def main():
     parser.add_argument('--product', choices=['cli', 'gateway'], required=True)
     parser.add_argument('--binary', type=Path, required=True)
     parser.add_argument('--probe', type=Path)
+    parser.add_argument('--bundle', type=Path)
     args = parser.parse_args()
     binary = args.binary.resolve()
     if args.product == 'cli' and not args.probe:
@@ -80,7 +82,19 @@ def main():
         run(copy, candidate)
         assert hashlib.sha256(copy.read_bytes()).digest() == hashlib.sha256(binary.read_bytes()).digest()
         assert run(copy, '--version').strip() == run(binary, '--version').strip()
-        print('CLI replacement and failed-candidate checks passed.')
+        if args.bundle:
+            bundle_probe=folder / ('bundle-probe.exe' if os.name == 'nt' else 'bundle-probe')
+            shutil.copy2(probe,bundle_probe)
+            run(bundle_probe,args.bundle.resolve())
+            assert hashlib.sha256(bundle_probe.read_bytes()).digest()==hashlib.sha256(binary.read_bytes()).digest()
+            env={**os.environ,'HOME':str(folder),'APPDATA':str(folder),'WAKEIT_PLUGIN_HOME':str(folder/'user-plugins')}
+            env.pop('WAKEIT_BUNDLED_PLUGIN_DIR',None)
+            packages=json.loads(run(bundle_probe,'--json','plugin','list',env=env))['packages']
+            official=next(p for p in packages if p['bundled'])
+            declared=json.loads((ROOT/'wakeit-plugin.json').read_text())['wakeit']['agents']
+            assert len(official['agents'])==len(declared)
+            assert (folder/'wakeit-plugins'/run(binary,'--version').strip().split()[-1]/'wakeit-plugin.json').is_file()
+        print('CLI executable/bundle replacement and failed-candidate checks passed.')
     finally:
         for attempt in range(40):
             try:

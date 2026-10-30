@@ -8,7 +8,11 @@ parameters:
 submit:
   command: wakeit
   args:
+    - plugin
+    - exec
+    - git:github.com/mob999/wakeit
     - adapter
+    - "--"
     - stream
     - cursor
     - '--'
@@ -22,7 +26,7 @@ submit:
     - '{{task.prompt}}'
 detect:
   command: wakeit
-  args: [adapter, detect, cursor]
+  args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", detect, cursor]
   timeout: 10s
 output:
   format: events

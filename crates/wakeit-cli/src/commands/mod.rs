@@ -31,7 +31,10 @@ pub fn entry() {
         .build()
         .expect("Tokio runtime");
     let json_output = cli.json;
-    let local_install = matches!(&cli.command, Command::Update { .. } | Command::Skill { .. });
+    let local_install = matches!(
+        &cli.command,
+        Command::Update { .. } | Command::Skill { .. } | Command::Plugin { .. }
+    );
     let watch_id = match &cli.command {
         Command::Run {
             command: Run::Watch { id, .. },
@@ -59,7 +62,7 @@ async fn run(mut cli: Cli) -> Result<()> {
     }
     let local_only = matches!(
         &cli.command,
-        Command::Adapter { .. }
+        Command::Plugin { .. }
             | Command::Template {
                 command: Template::Validate { .. }
             }
@@ -177,9 +180,30 @@ async fn run(mut cli: Cli) -> Result<()> {
             password_env,
         } => accounts::login(&cli, username, password_env, explicit_token_file).await?,
         Command::Members { command } => accounts::members(&cli, command).await?,
-        Command::Adapter { command } => agents::adapter(command).await?,
+        Command::Plugin { command } => {
+            let value = match command {
+                Plugin::Install { source, replace } => {
+                    crate::plugins::install(source, replace).await?
+                }
+                Plugin::List => crate::plugins::list()?,
+                Plugin::Update { source } => crate::plugins::update(source.as_deref()).await?,
+                Plugin::Remove { source } => crate::plugins::remove(source)?,
+                Plugin::Exec {
+                    source,
+                    command,
+                    args,
+                } => {
+                    crate::plugins::execute(source, command, args)?;
+                    return Ok(());
+                }
+            };
+            display(value, cli.json);
+        }
         Command::Schema { kind } => {
             let value = match kind.as_str() {
+                "plugin" => {
+                    serde_json::to_value(schemars::schema_for!(crate::plugins::manifest::Manifest))?
+                }
                 "agent" => serde_json::to_value(schemars::schema_for!(AgentConfig))?,
                 "task" => serde_json::to_value(schemars::schema_for!(TaskConfig))?,
                 "template" => {
@@ -200,7 +224,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                         .json()
                         .await?
                 }
-                _ => bail!("kind must be agent, task, template, stream or openapi"),
+                _ => bail!("kind must be agent, plugin, task, template, stream or openapi"),
             };
             display(value, true)
         }

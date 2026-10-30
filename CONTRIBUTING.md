@@ -12,7 +12,7 @@ Keep changes focused on a concrete problem. For installation and usage, start wi
 Build the CLI, which includes the Runner:
 
 ```sh
-cargo build --locked -p wakeit-cli
+cargo build --locked -p wakeit-cli -p wakeit-agent-runtime
 ```
 
 Build the Gateway with its embedded WebUI:
@@ -23,7 +23,7 @@ npm --prefix web run build
 cargo build --locked -p wakeit-gateway
 ```
 
-See the [Gateway guide](docs/gateway-service.md) for configuration and startup. Source lives in `crates/wakeit-cli`, `crates/wakeit-gateway`, `crates/wakeit-core` and `web/src`.
+See the [Gateway guide](docs/gateway-service.md) for configuration and startup. Source lives in `crates/wakeit-cli`, `crates/wakeit-gateway`, `crates/wakeit-core`, `crates/wakeit-agent-runtime` and `web/src`.
 
 ## WebUI hot reload
 

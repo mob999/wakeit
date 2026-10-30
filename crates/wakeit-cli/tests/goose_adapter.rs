@@ -1,11 +1,9 @@
+use wakeit_agent_runtime::goose::GooseNormalizer;
 mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit::{
-    adapters::goose::GooseNormalizer,
-    trace::{RecordData, TraceKind, TraceState},
-};
+use wakeit::trace::{RecordData, TraceKind, TraceState};
 
 fn message(content: Value) -> Value {
     json!({"type":"message","message":{"id":"native-1","role":"assistant","created":1792108800,"content":content,"metadata":{"userVisible":true,"agentVisible":true}}})

@@ -7,12 +7,16 @@ parameters:
   model: {type: string, label: 模型}
 models:
   command: wakeit
-  args: [adapter, models, opencode]
+  args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", models, opencode]
   timeout: 25s
 submit:
   command: wakeit
   args:
+    - plugin
+    - exec
+    - git:github.com/mob999/wakeit
     - adapter
+    - "--"
     - stream
     - opencode
     - '--'
@@ -28,16 +32,20 @@ submit:
 session:
   list:
     command: wakeit
-    args: [adapter, session, list, opencode, --limit, '10000']
+    args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", session, list, opencode, --limit, '10000']
     timeout: 25s
   inspect:
     command: wakeit
-    args: [adapter, session, inspect, opencode, '{{session.id}}']
+    args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", session, inspect, opencode, '{{session.id}}']
     timeout: 20s
   resume:
     command: wakeit
     args:
+      - plugin
+      - exec
+      - git:github.com/mob999/wakeit
       - adapter
+      - "--"
       - session
       - resume
       - opencode

@@ -232,7 +232,7 @@ pub async fn discover_models() -> Result<ModelCatalog> {
                 .collect(),
             ..Default::default()
         };
-        crate::adapters::launch::normalize_native_command(&mut spec)?;
+        crate::launch::normalize_native_command(&mut spec)?;
         let mut command = Command::new(&spec.command);
         for arg in &spec.args {
             if let crate::config::CommandArg::Literal(value) = arg {

@@ -57,7 +57,7 @@ Trace 的 id 在一次 Run 内稳定，parent_id 可选，仅使用来源实际�
 
 result 单独保存为最终报告，最后一个 result 记录覆盖前值；它不应包含完整事件流或工具输出。Run 的终态依据命令退出码、超时和终止确认，Trace 不设置 Run 状态。纯文本不猜测工具事件，异步适配继续使用 status/result，不接受 events 格式。
 
-内置 YAML 使用 `wakeit adapter stream <codex|claude-code|pi|opencode|kimi-code|agy|gemini-cli> -- <可执行文件> <独立参数>`。辅助命令继承 Runner 的进程组/Windows Job Object，stdin 和 stderr 直接传递；内置或第三方适配使用同一事件解析器。辅助命令保留原生非零退出码；原生明确失败却返回 0（例如 Pi JSON 模式）时返回 1，保持失败的非交互执行语义。它忽略推理内容，只转换公开消息与工具结果。Pi 的消息增量先合并为完整快照，实时快照最多约每 100ms 一次，结束快照立即回传。协议依据：[Codex](https://developers.openai.com/codex/noninteractive/)、[Claude Code](https://code.claude.com/docs/en/headless)、[Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/json.md)、[OpenCode](https://opencode.ai/docs/cli/)。
+内置 YAML 使用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- stream <codex|claude-code|pi|opencode|kimi-code|agy|gemini-cli> -- <可执行文件> <独立参数>`。辅助命令继承 Runner 的进程组/Windows Job Object，stdin 和 stderr 直接传递；内置或第三方适配使用同一事件解析器。辅助命令保留原生非零退出码；原生明确失败却返回 0（例如 Pi JSON 模式）时返回 1，保持失败的非交互执行语义。它忽略推理内容，只转换公开消息与工具结果。Pi 的消息增量先合并为完整快照，实时快照最多约每 100ms 一次，结束快照立即回传。协议依据：[Codex](https://developers.openai.com/codex/noninteractive/)、[Claude Code](https://code.claude.com/docs/en/headless)、[Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/json.md)、[OpenCode](https://opencode.ai/docs/cli/)。
 
 日志和 Trace 共用默认 20 MiB 容量及 7 天内容保留期限，结果单独受消息上限保护。Journal 与 Gateway 在超额时记录 trace_status: truncated；损坏/未知事件记录 incomplete 并继续读，既不重新执行，也不据此改变 Run 终态。过期清理删除内容，保留 trace_status: expired，直到 Run 的 90 天记录期限结束。原生事件没有结束记录时不会根据进程退出补造工具成功。
 

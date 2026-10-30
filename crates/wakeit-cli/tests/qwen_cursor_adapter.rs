@@ -2,8 +2,8 @@ mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit::adapters::qwen_cursor::{CursorNormalizer, QwenNormalizer, native_session_id};
 use wakeit::trace::{RECORD_LIMIT, RecordData, StreamRecord, TraceKind, TraceNode, TraceState};
+use wakeit_agent_runtime::qwen_cursor::{CursorNormalizer, QwenNormalizer, native_session_id};
 
 fn success(text: &str) -> Value {
     json!({"type":"result","subtype":"success","is_error":false,"result":text})

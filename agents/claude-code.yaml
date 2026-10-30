@@ -9,7 +9,11 @@ parameters:
 submit:
   command: wakeit
   args:
+    - plugin
+    - exec
+    - git:github.com/mob999/wakeit
     - adapter
+    - "--"
     - stream
     - claude-code
     - '--'
@@ -28,16 +32,20 @@ submit:
 session:
   list:
     command: wakeit
-    args: [adapter, session, list, claude-code, --limit, '10000']
+    args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", session, list, claude-code, --limit, '10000']
     timeout: 25s
   inspect:
     command: wakeit
-    args: [adapter, session, inspect, claude-code, '{{session.id}}']
+    args: [plugin, exec, "git:github.com/mob999/wakeit", adapter, "--", session, inspect, claude-code, '{{session.id}}']
     timeout: 20s
   resume:
     command: wakeit
     args:
+      - plugin
+      - exec
+      - git:github.com/mob999/wakeit
       - adapter
+      - "--"
       - session
       - resume
       - claude-code

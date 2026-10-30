@@ -22,7 +22,11 @@ fn native_pipe_contract_is_jsonl_and_retains_native_permissions() {
     assert_eq!(
         args,
         [
+            "plugin",
+            "exec",
+            "git:github.com/mob999/wakeit",
             "adapter",
+            "--",
             "stream",
             "copilot",
             "--",
@@ -98,7 +102,11 @@ async fn model_and_multiline_prompt_are_passed_as_literal_argv_and_stdin() {
     .unwrap();
     assert_eq!(output.code, Some(0));
     let expected_args = [
+        "plugin",
+        "exec",
+        "git:github.com/mob999/wakeit",
         "adapter",
+        "--",
         "stream",
         "copilot",
         "--",
