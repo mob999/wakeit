@@ -7,9 +7,12 @@ import './RunTabs.css'
 
 const tabs = ['output', 'trace', 'details'] as const
 
-export function useRunView(id: string, outputAvailable: boolean) {
+export function useRunView(id: string, outputAvailable: boolean, loaded = true) {
   const [reading, updateReading] = useRunReading(id)
   const tab = runTab(reading, outputAvailable)
+  useEffect(() => {
+    if (loaded && tab === 'trace' && !reading.traceVisited) updateReading({ traceVisited: true })
+  }, [loaded, tab, reading.traceVisited, updateReading])
   useEffect(() => {
     if (outputAvailable && !reading.highlighted)
       updateReading({ highlighted: true, resultReady: tab !== 'output', viewTab: tab })

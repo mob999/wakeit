@@ -53,9 +53,10 @@ function SingleRunDetail({
   const { reading, updateReading, tab, setTab } = useRunView(
     `execution:${id}`,
     hasResult || run.data?.state === 'succeeded',
+    !!run.data,
   )
   const trace = useRunTrace(id)
-  const [follow, setFollow] = useState(true)
+  const [follow, setFollow] = useState(false)
   useEffect(() => {
     if (run.data?.execution_snapshot?.trace_supported === false) updateReading({ follow })
   }, [run.data?.execution_snapshot?.trace_supported, follow, updateReading])
@@ -158,6 +159,7 @@ function SingleRunDetail({
               run={r}
               text={logs}
               follow={follow}
+              onFollowChange={setFollow}
               visible={tab === 'trace'}
               error={logError}
               retry={() => setLogAttempt((v) => v + 1)}
@@ -184,6 +186,7 @@ function SingleRunDetail({
             run={r}
             text={logs}
             follow={follow}
+            onFollowChange={setFollow}
             visible={tab === 'details' && logsOpen}
             error={logError}
             retry={() => setLogAttempt((v) => v + 1)}
