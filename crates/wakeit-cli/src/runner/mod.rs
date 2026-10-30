@@ -230,8 +230,9 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         .write(true)
         .open(config.data_dir.join("runner.lock"))?;
     fs2::FileExt::try_lock_exclusive(&lock).context("another runner owns this data directory")?;
-    let agents = crate::plugins::load_agents(&config.agents, config.bundled_agents)?;
-    crate::plugins::record_loaded(&config)?;
+    let loaded = crate::plugins::load_agents(&config.agents, config.bundled_agents)?;
+    crate::plugins::record_loaded(&config, &loaded.snapshot)?;
+    let agents = loaded.agents;
     let mut info = Vec::new();
     for a in agents.values() {
         info.push(inspect(a, &std::env::current_dir()?).await);

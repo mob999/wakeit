@@ -220,7 +220,7 @@ First version provides creating new instances and normal Task editing. An existi
 
 ## Workspace API and CLI
 
-These are proposed workspace-scoped routes under `/api/v1/workspaces/{workspace}`; existing `/agents/templates/{id}` remains the built-in Agent-adapter template endpoint.
+These are proposed workspace-scoped routes under `/api/v1/workspaces/{workspace}`; Agent adapters are managed locally by CLI plugins and do not use these workspace template routes.
 
 | Method and route | Purpose | Minimum role |
 |---|---|---|

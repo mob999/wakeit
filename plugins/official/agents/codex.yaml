@@ -1,5 +1,4 @@
 version: 1
-id: codex
 name: Codex
 logo: /agent-logos/codex.svg
 mode: sync

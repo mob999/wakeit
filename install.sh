@@ -113,7 +113,7 @@ main() {
     mkdir "$temp_dir/cli"
     tar -xzf "$temp_dir/$asset" -C "$temp_dir/cli" || fail 'Cannot unpack the CLI'
     bundle="$temp_dir/cli/wakeit-plugins/$version"
-    [ -f "$bundle/wakeit-plugin.json" ] && [ -x "$bundle/plugins/official/bin/wakeit-agent-runtime" ] || fail 'The CLI archive is missing its official adapters'
+    "$temp_dir/cli/wakeit" --json plugin validate --dir "$bundle" >/dev/null || fail 'The CLI archive contains an incomplete plugin bundle'
 
   fi
   if [ -n "$skill_dir" ]; then

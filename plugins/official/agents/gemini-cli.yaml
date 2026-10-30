@@ -1,5 +1,4 @@
 version: 1
-id: gemini-cli
 name: Gemini CLI
 logo: /agent-logos/gemini-cli.svg
 mode: sync

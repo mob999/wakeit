@@ -1,5 +1,4 @@
 version: 1
-id: claude-code
 name: Claude Code
 logo: /agent-logos/claude-code.svg
 mode: sync

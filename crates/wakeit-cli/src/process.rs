@@ -18,6 +18,7 @@ pub struct Output {
     pub stopped: Option<&'static str>,
     pub confirmed: bool,
     pub stdout_truncated: bool,
+    pub stderr: String,
     output_error: Option<String>,
 }
 impl Output {
@@ -276,18 +277,14 @@ pub async fn execute_output_named_format(
             ReadOutput::default()
         }
     };
-    match tokio::time::timeout(Duration::from_secs(5), &mut stderr).await {
-        Ok(r) => {
-            r??;
-        }
-        Err(_) => {
-            stderr.abort();
-            confirmed = false;
-        }
+    let err = match tokio::time::timeout(Duration::from_secs(5), &mut stderr).await {
+        Ok(r)=>r??,
+        Err(_)=>{stderr.abort();confirmed=false;ReadOutput::default()},
     };
     Ok(Output {
         code: status.code(),
         stdout: String::from_utf8_lossy(&out.bytes).into_owned(),
+        stderr: String::from_utf8_lossy(&err.bytes).into_owned(),
         result: out.result,
         stopped,
         confirmed,

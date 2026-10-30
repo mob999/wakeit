@@ -21,7 +21,9 @@ Runner 调用设备上已安装、已登录的原生 CLI，不安装 Agent、不
 
 ## 导出和启用
 
-新设备通过 `wakeit setup` 导出全部内置模板。已有 Runner 不自动覆盖或改写适配文件；可导出新模板，将路径加入本机 `runner.yaml` 的 `agents` 数组，再重启对应用户级 Runner 服务：
+`wakeit setup`／`runner enroll` 默认直接加载官方插件，不复制 YAML。插件变更在 Runner 下次启动生效。
+
+需要单独定制时，用 `agent init` 导出所需配置，将路径加入 `runner.yaml.agents`。若与官方资源使用同一个 ID，可将 `bundled_agents` 设为 `false` 并只列出需要的 YAML；也可给定制配置使用不同的 ID。普通使用无需导出：
 
 ```sh
 wakeit agent init kimi-code --file kimi-code.yaml
@@ -55,7 +57,7 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect gemini-cli
 
 新建会话使用原生 API 的 `title` 字段保存“任务名-wakeit-时间戳”；绑定已有会话保持原标题。标题与上下文由 Kimi 自己持久化，不直接改写其状态文件。服务地址来自与子进程 PID 匹配的本地登记，认证使用其私密 `server.token`，不会写入 Wakeit 事件、日志、命令行或 URL。API 密钥和 Agent 登录凭据不读取、不复制、不修改。
 
-会话发现仍只读 `KIMI_CODE_HOME`（默认 `.kimi-code`）中的原生索引及匹配工作目录的 `state.json`，精确校验完整 ID、真实目录和持久化状态。模型沿用本地默认值或任务显式参数；绑定时未覆盖模型则保留原生绑定，不增加静态模型目录。协议来源与真实验收范围见 [Kimi 验证记录](../crates/wakeit-cli/tests/fixtures/kimi-code/README.md)。
+会话发现仍只读 `KIMI_CODE_HOME`（默认 `.kimi-code`）中的原生索引及匹配工作目录的 `state.json`，精确校验完整 ID、真实目录和持久化状态。模型沿用本地默认值或任务显式参数；绑定时未覆盖模型则保留原生绑定，不增加静态模型目录。协议来源与真实验收范围见 [Kimi 验证记录](../crates/wakeit-agent-runtime/tests/fixtures/kimi-code/README.md)。
 
 ## Antigravity CLI（agy）
 
@@ -87,7 +89,7 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect gemini-cli
 
 使用当前 [Cline CLI JSONL](https://github.com/cline/cline/blob/main/docs/cli/cli-reference.mdx#json-output-for-agent-runs)，通过 `--` 后的独立 argv 传递指令，保留多行、中文及 shell 字面量；当前 3.0.72 的管道输入不能可靠启动任务。解析公开消息、按 `toolCallId` 关联的工具输入、进度与结果，保留源事件时间；不展示隐藏推理。`agent_event.done` 不是最终报告，必须收到 `run_result` 且 `finishReason: completed`；停止、失败或原生非零退出不发布局部答案。
 
-模型、Provider、推理强度按原生参数传入；不修改登录配置或凭据。当前原生一次性模式默认自动批准工具，Wakeit 不额外扩大权限；请只在准备好的执行目录和原生策略下使用。原生会话和模型目录未声明。合成事件与来源见 [Cline fixture](../crates/wakeit-cli/tests/fixtures/cline-provenance.md)。
+模型、Provider、推理强度按原生参数传入；不修改登录配置或凭据。当前原生一次性模式默认自动批准工具，Wakeit 不额外扩大权限；请只在准备好的执行目录和原生策略下使用。原生会话和模型目录未声明。合成事件与来源见 [Cline fixture](../crates/wakeit-agent-runtime/tests/fixtures/cline-provenance.md)。
 
 ## Goose
 

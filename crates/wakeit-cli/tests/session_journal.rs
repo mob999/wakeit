@@ -1,8 +1,10 @@
+#[path = "../../../fixtures/official_agent.rs"]
+mod support;
 use chrono::Utc;
 use serde_json::{Value, json};
 use uuid::Uuid;
 use wakeit::{
-    config::{self, AgentConfig, TaskConfig},
+    config::{AgentConfig, TaskConfig},
     protocol::{Assignment, RunEvent},
     runner::journal::Journal,
     runner::sessions::{RunSession, SessionInfo},
@@ -17,7 +19,7 @@ async fn fixture(bound: bool) -> (tempfile::TempDir, Journal, Uuid) {
     let runner = Uuid::new_v4();
     let journal = Journal::open(directory.path(), runner).await.unwrap();
     let task: TaskConfig = serde_json::from_value(json!({"version":1,"id":"session-fixture","name":"Session","runner":"runner","agent":"pi","cwd":directory.path(),"prompt":"OK","parameters":{},"session":if bound {json!({"id":ID})}else{Value::Null},"schedule":null,"enabled":false})).unwrap();
-    let agent: AgentConfig = yaml_serde::from_str(config::builtin("pi").unwrap()).unwrap();
+    let agent: AgentConfig = support::official_agent("pi");
     let run = Uuid::new_v4();
     journal
         .insert(
@@ -47,13 +49,22 @@ fn info(id: &str, cwd: &str) -> SessionInfo {
 #[test]
 fn all_native_protocols_capture_one_id_and_ignore_repeated_late_identity() {
     for (protocol, source) in [
-        ("codex", include_str!("fixtures/sessions/codex.jsonl")),
+        (
+            "codex",
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/sessions/codex.jsonl"),
+        ),
         (
             "claude-code",
-            include_str!("fixtures/sessions/claude-code.jsonl"),
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/sessions/claude-code.jsonl"),
         ),
-        ("pi", include_str!("fixtures/sessions/pi.jsonl")),
-        ("opencode", include_str!("fixtures/sessions/opencode.jsonl")),
+        (
+            "pi",
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/sessions/pi.jsonl"),
+        ),
+        (
+            "opencode",
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/sessions/opencode.jsonl"),
+        ),
     ] {
         let mut normalizer = Normalizer::new(protocol).unwrap();
         let events: Vec<Value> = source

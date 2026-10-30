@@ -1,3 +1,5 @@
+#[path = "../../../fixtures/official_agent.rs"]
+mod support;
 use chrono::Utc;
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -30,13 +32,22 @@ fn task(cwd: &str) -> TaskConfig {
 #[test]
 fn native_fixtures_preserve_public_steps_and_separate_the_report() {
     for (protocol, fixture) in [
-        ("codex", include_str!("fixtures/trace/codex.jsonl")),
+        (
+            "codex",
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/trace/codex.jsonl"),
+        ),
         (
             "claude-code",
-            include_str!("fixtures/trace/claude-code.jsonl"),
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/trace/claude-code.jsonl"),
         ),
-        ("pi", include_str!("fixtures/trace/pi.jsonl")),
-        ("opencode", include_str!("fixtures/trace/opencode.jsonl")),
+        (
+            "pi",
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/trace/pi.jsonl"),
+        ),
+        (
+            "opencode",
+            include_str!("../../wakeit-agent-runtime/tests/fixtures/trace/opencode.jsonl"),
+        ),
     ] {
         let mut normalizer = Normalizer::new(protocol).unwrap();
         let mut records = vec![];
@@ -95,7 +106,7 @@ async fn events_stream_live_to_durable_journal_and_result_survives_large_stdout(
     let journal = Journal::open(&dir.path().join("journal"), runner)
         .await
         .unwrap();
-    let a: AgentConfig = yaml_serde::from_str(builtin("codex").unwrap()).unwrap();
+    let a: AgentConfig = support::official_agent("codex");
     journal
         .insert(
             &Assignment {
@@ -382,7 +393,7 @@ async fn recording_sample(script: &str) -> (process::Output, Vec<Value>) {
     let journal = Journal::open(&dir.path().join("journal"), runner)
         .await
         .unwrap();
-    let agent: AgentConfig = yaml_serde::from_str(builtin("codex").unwrap()).unwrap();
+    let agent: AgentConfig = support::official_agent("codex");
     journal
         .insert(
             &Assignment {

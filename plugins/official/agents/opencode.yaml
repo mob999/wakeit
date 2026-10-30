@@ -1,5 +1,4 @@
 version: 1
-id: opencode
 name: OpenCode
 logo: /agent-logos/opencode.svg
 mode: sync

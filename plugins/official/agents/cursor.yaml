@@ -1,5 +1,4 @@
 version: 1
-id: cursor
 name: Cursor
 logo: /agent-logos/cursor.svg
 mode: sync

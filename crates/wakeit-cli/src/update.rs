@@ -154,7 +154,7 @@ pub async fn replace_bundle(bytes: &[u8], version: &Version) -> Result<()> {
     let staged = tempfile::Builder::new()
         .prefix(".wakeit-update-")
         .tempdir_in(directory)?;
-    crate::plugins::unpack_bundle(bytes, staged.path())?;
+    crate::plugins::unpack_bundle(bytes, staged.path(), &[])?;
     let candidate = staged.path().join(if cfg!(windows) {
         "wakeit.exe"
     } else {
@@ -164,8 +164,7 @@ pub async fn replace_bundle(bytes: &[u8], version: &Version) -> Result<()> {
         .path()
         .join("wakeit-plugins")
         .join(version.to_string());
-    let manifest = crate::plugins::manifest::read(&bundle)?;
-    crate::plugins::manifest::agents(&bundle, &manifest)?;
+    crate::plugins::manifest::validate(&bundle)?;
     let installed = directory.join("wakeit-plugins").join(version.to_string());
     std::fs::create_dir_all(installed.parent().unwrap())?;
     // A distinct version directory preserves every running Runner and saved session.

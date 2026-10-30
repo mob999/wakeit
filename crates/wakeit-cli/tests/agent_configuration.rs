@@ -14,7 +14,7 @@ fn initialized_agent_survives_removing_the_installation_executable() {
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let manifest: Value =
         serde_json::from_slice(&fs::read(source.join("wakeit-plugin.json")).unwrap()).unwrap();
-    for path in manifest["wakeit"]["agents"].as_array().unwrap() {
+    for path in manifest["wakeit"]["agents"].as_object().unwrap().values() {
         let path = std::path::Path::new(path.as_str().unwrap());
         fs::create_dir_all(bundle.join(path).parent().unwrap()).unwrap();
         fs::copy(source.join(path), bundle.join(path)).unwrap();

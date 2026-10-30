@@ -1,9 +1,11 @@
+#[path = "../../../fixtures/official_agent.rs"]
+mod official;
 use wakeit_agent_runtime::gemini::GeminiNormalizer;
 mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit::trace::{RecordData, TraceKind, TraceState};
+use wakeit_core::trace::{RecordData, TraceKind, TraceState};
 
 #[test]
 fn native_fixture_preserves_chunks_and_tool_lifecycle() {
@@ -115,11 +117,10 @@ fn snapshot_messages_replace_text_and_unknown_events_are_diagnostic_only() {
 
 #[test]
 fn yaml_has_explicit_headless_execution_without_invented_models_or_sessions() {
-    let config: Value =
-        yaml_serde::from_str(include_str!("../../../agents/gemini-cli.yaml")).unwrap();
+    let config: Value = serde_json::to_value(official::official_agent("gemini-cli")).unwrap();
     assert_eq!(config["id"], "gemini-cli");
-    assert!(config.get("models").is_none());
-    assert!(config.get("session").is_none());
+    assert!(config["models"].is_null());
+    assert!(config["session"].is_null());
     let args = config["submit"]["args"].as_array().unwrap();
     assert!(args.windows(2).any(|w| w == [json!("--prompt"), json!("")]));
     assert!(
@@ -169,7 +170,7 @@ fn oversized_delta_response_is_bounded_and_never_published_as_complete_answer() 
     assert!(
         overflow
             .iter()
-            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit::trace::RECORD_LIMIT)
+            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit_core::trace::RECORD_LIMIT)
     );
     for _ in 0..10 {
         assert!(

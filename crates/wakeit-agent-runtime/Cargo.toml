@@ -22,4 +22,5 @@ uuid = { version = "1", features = ["v4", "serde"] }
 which = "8"
 
 [dev-dependencies]
+yaml_serde = "0.10"
 tempfile = "3"

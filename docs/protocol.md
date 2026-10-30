@@ -14,11 +14,13 @@ nats_url: wss://mq.example.com
 credentials_file: runner.creds
 data_dir: data
 concurrency: 2
-agents:
-  - agents/codex.yaml
+bundled_agents: true
+agents: []
 allowed_roots:
   - /srv/projects
 ```
+
+官方适配器由插件提供。独立自定义 YAML 可放进 `agents` 列表；相同 Agent ID 不能重复加载，完全使用自定义定义时设 `bundled_agents: false`。
 
 `allowed_roots` 检查 Task 工作目录的规范化路径，防止误选目录；它不是 Agent 的操作系统沙箱。Agent 本身的文件和工具权限由该 Agent 配置决定。
 

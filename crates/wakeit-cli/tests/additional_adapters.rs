@@ -36,7 +36,8 @@ if (protocol === 'agy') {
 } else output();
 }
 "#).unwrap();
-    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../wakeit-agent-runtime/tests/fixtures");
     for (protocol, fixture, has_session) in [
         (
             "agy",

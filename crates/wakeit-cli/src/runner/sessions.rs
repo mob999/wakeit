@@ -70,13 +70,6 @@ fn quote_posix(value: &str) -> String {
 fn quote_powershell(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
-fn windows_shell_path(value: &str) -> String {
-    if let Some(path) = value.strip_prefix(r"\\?\UNC\") {
-        format!(r"\\{path}")
-    } else {
-        value.strip_prefix(r"\\?\").unwrap_or(value).to_owned()
-    }
-}
 fn format_continuation(cwd: &str, argv: &[String], windows: bool) -> Result<String> {
     ensure!(
         !argv.is_empty() && !argv[0].is_empty(),
@@ -95,7 +88,7 @@ fn format_continuation(cwd: &str, argv: &[String], windows: bool) -> Result<Stri
             .enumerate()
             .map(|(index, value)| {
                 quote_powershell(&if index == 0 {
-                    windows_shell_path(value)
+                    wakeit_core::native_command::external_path(Path::new(value))
                 } else {
                     value.clone()
                 })
@@ -105,7 +98,7 @@ fn format_continuation(cwd: &str, argv: &[String], windows: bool) -> Result<Stri
         // A terminating directory error stops this script block before invocation.
         format!(
             "& {{ Set-Location -LiteralPath {} -ErrorAction Stop; & {invocation} }}",
-            quote_powershell(&windows_shell_path(cwd))
+            quote_powershell(&wakeit_core::native_command::external_path(Path::new(cwd)))
         )
     } else {
         let invocation = argv

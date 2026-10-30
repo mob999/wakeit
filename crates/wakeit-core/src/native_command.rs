@@ -94,3 +94,13 @@ pub fn normalize_native_command(spec: &mut CommandSpec) -> Result<()> {
     let _ = spec;
     Ok(())
 }
+
+/// OS path representation for external programs and exported shell commands.
+pub fn external_path(path: &std::path::Path) -> String {
+    let value = path.to_string_lossy();
+    if let Some(path) = value.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{path}")
+    } else {
+        value.strip_prefix(r"\\?\").unwrap_or(&value).to_owned()
+    }
+}

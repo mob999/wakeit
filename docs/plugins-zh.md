@@ -42,15 +42,15 @@ wakeit plugin install https://github.com/example/custom-kimi --replace-agent kim
   "version": "1.0.0",
   "wakeit": {
     "protocol": 1,
-    "agents": ["agents/example.yaml"],
+    "agents": {"example": "agents/example.yaml"},
     "runtimes": ["node"]
   }
 }
 ```
 
-Agent YAML 沿用现有[适配协议](protocol.md)。`command: ./bin/example` 相对于包根目录解析；参数中的包内文件使用 `{{plugin.root}}/adapter.cjs`。进程工作目录仍是任务目录，`node` 等普通命令使用 PATH。脚本通过 `runtimes` 声明所需解释器，Wakeit 不运行构建钩子或自动安装依赖。
+清单映射的键定义 Agent ID，包内 YAML 可省略 `id`。Agent YAML 沿用现有[适配协议](protocol.md)。`command: ./bin/example` 相对于包根目录解析；参数中的包内文件使用 `{{plugin.root}}/adapter.cjs`。进程工作目录仍是任务目录，`node` 等普通命令使用 PATH。脚本通过 `runtimes` 声明所需解释器，Wakeit 不运行构建钩子或自动安装依赖。
 
-原生插件可在 `wakeit.artifacts` 中按平台提供 gzip tar 压缩包：
+原生插件可在 `wakeit.artifacts` 中按平台提供，或通过 `wakeit.artifact` 使用统一 URL 模板声明 gzip tar 压缩包：
 
 ```json
 {
@@ -61,7 +61,7 @@ Agent YAML 沿用现有[适配协议](protocol.md)。`command: ./bin/example` �
 }
 ```
 
-压缩包路径相对于包根目录，仅包含普通文件和目录。也可用 `checksums_url` 指向包含该产物文件名的 SHA256SUMS。平台无产物或缺少解释器时，安装会给出明确原因。完整清单格式见 `wakeit schema plugin`。
+压缩包路径相对于包根目录，仅包含普通文件和目录。平台压缩包补充可执行资源，不能覆盖所选 Git 版本的清单或 Agent YAML。也可用 `checksums_url` 指向包含该产物文件名的 SHA256SUMS。平台无产物或缺少解释器时，安装会给出明确原因。URL 可使用清单版本 `{version}` 和当前平台 `{target}`。用 `wakeit plugin validate --dir ./my-agent` 校验完整性；完整清单格式见 `wakeit schema plugin`。
 
 可选的 `wakeit.commands` 将命令名称映射到包内可执行路径，用 `wakeit plugin exec SOURCE COMMAND -- ARGS` 调用，保持当前工作目录。官方包提供 `adapter` 入口，用于直接检测或查询会话，例如：
 

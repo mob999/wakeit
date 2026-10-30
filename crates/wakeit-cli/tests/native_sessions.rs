@@ -1,3 +1,5 @@
+#[path = "../../../fixtures/official_agent.rs"]
+mod support;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -419,8 +421,7 @@ fn claude_inspection_and_catalog_prefer_actual_custom_title_over_stale_index() {
 #[test]
 fn builtin_names_only_new_sessions_and_codex_has_a_metadata_rename_command() {
     for protocol in ["codex", "claude-code", "pi", "opencode"] {
-        let agent: wakeit::config::AgentConfig =
-            yaml_serde::from_str(wakeit::config::builtin(protocol).unwrap()).unwrap();
+        let agent: wakeit::config::AgentConfig = support::official_agent(protocol);
         let session = agent.session.unwrap();
         fn literals(spec: &wakeit::config::CommandSpec) -> Vec<&str> {
             spec.args

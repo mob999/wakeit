@@ -138,7 +138,6 @@ pub fn router(app: App) -> Router {
         .route("/runners/enrollment", post(runners::enrollment))
         .route("/runners/{id}/revoke", post(runners::revoke))
         .route("/agents", get(runners::agents))
-        .route("/agents/templates/{id}", get(runners::template))
         .route(
             "/settings",
             get(settings::settings).put(settings::update_settings),

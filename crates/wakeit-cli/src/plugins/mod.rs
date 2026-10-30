@@ -33,6 +33,24 @@ pub struct Registry {
     #[serde(default)]
     pub agent_sources: BTreeMap<String, String>,
 }
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentStamp {
+    source: String,
+    root: Option<PathBuf>,
+    version: Option<String>,
+    revision: Option<String>,
+    digest: String,
+}
+pub type Snapshot = BTreeMap<String, AgentStamp>;
+pub struct LoadedAgents {
+    pub agents: HashMap<String, AgentConfig>,
+    pub snapshot: Snapshot,
+}
+struct Selected {
+    agent: AgentConfig,
+    stamp: AgentStamp,
+}
+
 pub fn home() -> Result<PathBuf> {
     let path = if let Some(path) = std::env::var_os("WAKEIT_PLUGIN_HOME") {
         PathBuf::from(path)
@@ -48,40 +66,32 @@ pub fn registry() -> Result<Registry> {
         Err(e) => Err(e.into()),
     }
 }
-fn bundled_root() -> Result<Option<PathBuf>> {
+fn bundled_root() -> Result<PathBuf> {
     if let Some(path) = std::env::var_os("WAKEIT_BUNDLED_PLUGIN_DIR") {
-        return Ok(Some(PathBuf::from(path).canonicalize()?));
+        return Ok(std::env::current_dir()?.join(path));
     }
-    let exe = std::env::current_exe()?;
-    let dir = exe.parent().context("executable directory")?;
-    let root = dir.join("wakeit-plugins").join(env!("CARGO_PKG_VERSION"));
-    if root.join(manifest::FILE).is_file() {
-        return Ok(Some(root));
-    }
-    #[cfg(debug_assertions)]
-    {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .canonicalize()?;
-        if root.join(manifest::FILE).is_file() {
-            return Ok(Some(root));
-        }
-    }
-    Ok(None)
+    Ok(std::env::current_exe()?
+        .parent()
+        .context("executable directory")?
+        .join("wakeit-plugins")
+        .join(env!("CARGO_PKG_VERSION")))
 }
 pub fn packages(registry: &Registry, bundled: bool) -> Result<Vec<Package>> {
     let mut packages = registry.packages.clone();
     if bundled
         && !packages.iter().any(|p| p.source.identity() == OFFICIAL)
-        && !registry.removed.iter().any(|p| p == OFFICIAL)
-        && let Some(root) = bundled_root()?
+        && !registry.removed.iter().any(|s| s == OFFICIAL)
     {
-        let manifest = manifest::read(&root)?;
+        let root = bundled_root()?;
+        let info = manifest::read(&root).ok();
         packages.push(Package {
             source: Source::parse("https://github.com/mob999/wakeit", Path::new("."))?,
             root,
-            name: manifest.name,
-            version: manifest.version,
+            name: info
+                .as_ref()
+                .map(|m| m.name.clone())
+                .unwrap_or_else(|| OFFICIAL.into()),
+            version: info.map(|m| m.version).unwrap_or_else(|| "unknown".into()),
             revision: None,
             pinned: true,
             bundled: true,
@@ -89,47 +99,36 @@ pub fn packages(registry: &Registry, bundled: bool) -> Result<Vec<Package>> {
     }
     Ok(packages)
 }
-pub fn configurations(bundled: bool) -> Result<Vec<(AgentConfig, String)>> {
-    configurations_in(&registry()?, bundled)
-}
-fn configurations_in(registry: &Registry, bundled: bool) -> Result<Vec<(AgentConfig, String)>> {
+/// Resolve source selection before opening any package's Agent YAML.
+fn selected(registry: &Registry, files: &[PathBuf], bundled: bool) -> Result<Vec<Selected>> {
     let mut result = Vec::new();
     let mut owners = HashMap::new();
     for package in packages(registry, bundled)? {
         let source = package.source.identity();
-        for agent in manifest::agents(&package.root, &manifest::read(&package.root)?)? {
-            if registry
-                .agent_sources
-                .get(&agent.id)
-                .is_some_and(|s| s != &source)
-            {
+        let info = manifest::read(&package.root)?;
+        for (id, path) in &info.wakeit.agents {
+            if registry.agent_sources.get(id).is_some_and(|s| s != &source) {
                 continue;
             }
-            if let Some(old) = owners.insert(agent.id.clone(), source.clone()) {
+            let agent = manifest::definition(&package.root, id, path)?;
+            if let Some(old) = owners.insert(id.clone(), source.clone()) {
                 anyhow::bail!(
-                    "agent {} is provided by both {old} and {source}; choose explicitly with plugin install SOURCE --replace-agent {}",
-                    agent.id,
-                    agent.id
+                    "agent {id} is provided by both {old} and {source}; choose explicitly with plugin install SOURCE --replace-agent {id}"
                 );
             }
-            result.push((agent, source.clone()));
+            let stamp = AgentStamp {
+                source: source.clone(),
+                root: Some(package.root.clone()),
+                version: Some(info.version.clone()),
+                revision: package.revision.clone(),
+                digest: agent.digest(),
+            };
+            result.push(Selected { agent, stamp });
         }
     }
-    Ok(result)
-}
-/// Merge explicit YAML and enabled plugin resources, preserving the task's Agent ID.
-pub fn load_agents(files: &[PathBuf], bundled: bool) -> Result<HashMap<String, AgentConfig>> {
-    let registry = registry()?;
-    let mut agents = HashMap::new();
-    let mut sources = HashMap::new();
-    for (mut agent, source) in configurations_in(&registry, bundled)? {
-        crate::launch::normalize_commands(&mut agent)?;
-        sources.insert(agent.id.clone(), source);
-        agents.insert(agent.id.clone(), agent);
-    }
-    for file in files {
-        let mut agent: AgentConfig = crate::config::read(file)?;
-        let source = format!("yaml:{}", file.display());
+    for path in files {
+        let agent: AgentConfig = crate::config::read(path)?;
+        let source = format!("yaml:{}", path.display());
         if registry
             .agent_sources
             .get(&agent.id)
@@ -137,53 +136,85 @@ pub fn load_agents(files: &[PathBuf], bundled: bool) -> Result<HashMap<String, A
         {
             continue;
         }
-        crate::launch::normalize_commands(&mut agent)?;
         agent.validate()?;
+        if let Some(old) = owners.insert(agent.id.clone(), source.clone()) {
+            anyhow::bail!("duplicate agent {} from {old} and {source}", agent.id);
+        }
+        let stamp = AgentStamp {
+            source,
+            root: None,
+            version: None,
+            revision: None,
+            digest: agent.digest(),
+        };
+        result.push(Selected { agent, stamp });
+    }
+    for (id, source) in &registry.agent_sources {
         ensure!(
-            !agents.contains_key(&agent.id),
-            "duplicate agent {} from {} and {source}",
-            agent.id,
-            sources.get(&agent.id).unwrap_or(&source)
+            result
+                .iter()
+                .any(|item| &item.agent.id == id && &item.stamp.source == source),
+            "selected agent {id} is no longer provided by {source}; choose another source before updating"
         );
-        sources.insert(agent.id.clone(), source);
+    }
+    Ok(result)
+}
+fn validate_selection(registry: &Registry) -> Result<()> {
+    selected(registry, &[], true).map(|_| ())
+}
+/// The returned snapshot is produced from exactly the definitions used by this load.
+pub fn load_agents(files: &[PathBuf], bundled: bool) -> Result<LoadedAgents> {
+    let mut agents = HashMap::new();
+    let mut snapshot = Snapshot::new();
+    for Selected { mut agent, stamp } in selected(&registry()?, files, bundled)? {
+        if let Some(root) = &stamp.root {
+            manifest::resolve(root, &mut agent)?;
+        } else {
+            crate::launch::normalize_commands(&mut agent)?;
+        }
+        snapshot.insert(agent.id.clone(), stamp);
         agents.insert(agent.id.clone(), agent);
     }
-    Ok(agents)
+    Ok(LoadedAgents { agents, snapshot })
 }
 pub fn agent(id: &str) -> Result<AgentConfig> {
-    configurations(true)?
-        .into_iter()
-        .find_map(|(agent, _)| (agent.id == id).then_some(agent))
-        .with_context(|| format!("agent {id} is not provided by an enabled plugin"))
+    let registry = registry()?;
+    let mut found = None;
+    for package in packages(&registry, true)? {
+        let source = package.source.identity();
+        if registry.agent_sources.get(id).is_some_and(|s| s != &source) {
+            continue;
+        }
+        let info = manifest::read(&package.root)?;
+        if let Some(path) = info.wakeit.agents.get(id) {
+            ensure!(
+                found.is_none(),
+                "agent {id} has multiple sources; select one with --replace-agent"
+            );
+            let mut agent = manifest::definition(&package.root, id, path)?;
+            manifest::resolve(&package.root, &mut agent)?;
+            found = Some(agent);
+        }
+    }
+    found.with_context(|| format!("agent {id} is not provided by an enabled plugin"))
 }
-/// Run one explicitly declared package command without changing the caller's cwd.
 pub fn execute(source: &str, command: &str, args: &[String]) -> Result<()> {
     let identity = Source::parse(source, &std::env::current_dir()?)?.identity();
     let package = packages(&registry()?, true)?
         .into_iter()
         .find(|p| p.source.identity() == identity)
         .context("plugin source is not installed")?;
-    let manifest = manifest::read(&package.root)?;
-    let relative = manifest
+    let info = manifest::read(&package.root)?;
+    let path = info
         .wakeit
         .commands
         .get(command)
         .context("plugin command is not declared")?;
-    let mut executable = manifest::executable(package.root.join(relative));
-    #[cfg(debug_assertions)]
-    if identity == OFFICIAL && !executable.is_file() {
-        executable = std::env::current_exe()?
-            .parent()
-            .context("executable directory")?
-            .join(if cfg!(windows) {
-                "wakeit-agent-runtime.exe"
-            } else {
-                "wakeit-agent-runtime"
-            });
-    }
+    let executable = manifest::executable(package.root.join(path));
     ensure!(
         executable.is_file(),
-        "plugin executable is unavailable; source builds need cargo build -p wakeit-agent-runtime"
+        "plugin command is missing: {}",
+        executable.display()
     );
     #[cfg(unix)]
     {
@@ -210,84 +241,64 @@ pub fn remove(source: &str) -> Result<serde_json::Value> {
 }
 pub fn list() -> Result<serde_json::Value> {
     let registry = registry()?;
-    let packages = packages(&registry, true)?;
-    let rows = packages
-        .into_iter()
-        .map(|p| -> Result<_> {
-            let info = manifest::read(&p.root)?;
-            let agents = manifest::agents(&p.root, &info)?
-                .into_iter()
-                .map(|a| a.id)
-                .collect::<Vec<_>>();
-            let identity = p.source.identity();
-            let enabled = agents
-                .iter()
-                .filter(|id| {
-                    registry
-                        .agent_sources
-                        .get(*id)
-                        .is_none_or(|s| s == &identity)
-                })
-                .collect::<Vec<_>>();
-            Ok(serde_json::json!({
-                "source":p.source.display(), "name":info.name, "version":info.version,
-                "revision":p.revision, "pinned":p.pinned, "bundled":p.bundled,
-                "enabled_agents":enabled, "agents":agents, "root":p.root
-            }))
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let rows=packages(&registry,true)?.into_iter().map(|p| {
+        let identity=p.source.identity();
+        let mut row=serde_json::json!({"source":p.source.display(),"name":p.name,"version":p.version,"revision":p.revision,"pinned":p.pinned,"bundled":p.bundled,"root":p.root});
+        match manifest::read(&p.root) {
+            Ok(info)=>{
+                let agents=info.wakeit.agents.keys().collect::<Vec<_>>();
+                row["name"]=info.name.into();row["version"]=info.version.into();
+                row["enabled_agents"]=serde_json::json!(agents.iter().filter(|id|registry.agent_sources.get(**id).is_none_or(|s|s==&identity)).collect::<Vec<_>>());
+                row["agents"]=serde_json::json!(agents);
+                let mut errors=Vec::new();
+                for path in info.wakeit.agents.values().chain(info.wakeit.commands.values()) {
+                    if !manifest::executable(p.root.join(path)).is_file() {errors.push(format!("missing resource: {}",path.display()));}
+                }
+                for runtime in info.wakeit.runtimes {if which::which(&runtime).is_err() {errors.push(format!("missing runtime: {runtime}"));}}
+                row["status"]=if errors.is_empty(){"installed".into()}else{"unavailable".into()};row["errors"]=serde_json::json!(errors);
+            },
+            Err(error)=>{row["status"]="unavailable".into();row["errors"]=serde_json::json!([error.to_string()]);},
+        }
+        row
+    }).collect::<Vec<_>>();
     Ok(
-        serde_json::json!({"packages":rows,"removed":registry.removed,"agent_sources":registry.agent_sources,"runners":runner_status()?}),
+        serde_json::json!({"packages":rows,"removed":registry.removed,"agent_sources":registry.agent_sources,"runners":runner_status(&registry)?}),
     )
 }
-fn fingerprints(bundled: bool) -> Result<BTreeMap<String, String>> {
-    packages(&registry()?, bundled)?
-        .into_iter()
-        .map(|p| {
-            let manifest = manifest::read(&p.root)?;
-            let config = manifest::agents(&p.root, &manifest)?
-                .into_iter()
-                .map(|a| a.digest())
-                .collect::<Vec<_>>();
-            Ok((
-                p.source.identity(),
-                format!(
-                    "{}:{}:{}:{config:?}",
-                    p.root.display(),
-                    manifest.version,
-                    p.revision.as_deref().unwrap_or("local")
-                ),
-            ))
-        })
-        .collect()
-}
-pub fn record_loaded(config: &crate::runner::config::RunnerConfig) -> Result<()> {
+pub fn record_loaded(
+    config: &crate::runner::config::RunnerConfig,
+    snapshot: &Snapshot,
+) -> Result<()> {
     crate::connection::atomic(
         &config.data_dir.join("plugins-loaded.json"),
-        serde_json::to_vec(
-            &serde_json::json!({"packages":fingerprints(config.bundled_agents)?,"agent_sources":registry()?.agent_sources}),
-        )?,
+        serde_json::to_vec(snapshot)?,
     )
 }
-fn runner_status() -> Result<Vec<serde_json::Value>> {
+fn runner_status(registry: &Registry) -> Result<Vec<serde_json::Value>> {
     let mut rows = Vec::new();
     for path in crate::runner::config::registered_configs()? {
         let Ok(config) = crate::runner::config::read_runner(&path) else {
             continue;
         };
-        let desired = serde_json::json!({"packages":fingerprints(config.bundled_agents)?,"agent_sources":registry()?.agent_sources});
+        let desired = selected(registry, &config.agents, config.bundled_agents).map(|entries| {
+            entries
+                .into_iter()
+                .map(|s| (s.agent.id, s.stamp))
+                .collect::<Snapshot>()
+        });
         let loaded = std::fs::read(config.data_dir.join("plugins-loaded.json"))
             .ok()
-            .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
+            .and_then(|bytes| serde_json::from_slice::<Snapshot>(&bytes).ok());
         let running = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
             .open(config.data_dir.join("runner.lock"))
             .ok()
-            .is_some_and(|f| fs2::FileExt::try_lock_exclusive(&f).is_err());
-        rows.push(serde_json::json!({"name":config.name,"running":running,"loaded_sources":loaded.as_ref().and_then(|v|v["packages"].as_object()).map(|p|p.keys().collect::<Vec<_>>()),"restart_required":running && loaded.as_ref()!=Some(&desired)}));
+            .is_some_and(|file| fs2::FileExt::try_lock_exclusive(&file).is_err());
+        let error = desired.as_ref().err().map(ToString::to_string);
+        let restart = running && (error.is_some() || loaded.as_ref() != desired.as_ref().ok());
+        rows.push(serde_json::json!({"name":config.name,"running":running,"restart_required":restart,"error":error}));
     }
     Ok(rows)
 }
-
 pub(crate) use store::unpack as unpack_bundle;

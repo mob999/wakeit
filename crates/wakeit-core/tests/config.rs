@@ -20,21 +20,6 @@ fn task(cwd: &str) -> TaskConfig {
 }
 
 #[test]
-fn builtin_templates_validate() {
-    for &(id, _) in BUILTIN_AGENTS {
-        let a: AgentConfig = yaml_serde::from_str(builtin(id).unwrap()).unwrap();
-        a.validate().unwrap();
-        assert_eq!(a.id, id);
-        if let Some(logo) = a.logo.as_deref() {
-            assert!(logo.starts_with("/agent-logos/"));
-            let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../web/public")
-                .join(logo.trim_start_matches('/'));
-            assert!(file.is_file(), "missing builtin logo: {id}");
-        }
-    }
-}
-#[test]
 fn template_expansion_is_literal() {
     let mut t = task(".");
     t.prompt = "$(touch /tmp/should-not-exist)\n'\" {{job.id}} 中文".into();
@@ -47,7 +32,7 @@ fn template_expansion_is_literal() {
 }
 #[test]
 fn rejects_invalid_contracts() {
-    let mut a: AgentConfig = yaml_serde::from_str(builtin("codex").unwrap()).unwrap();
+    let mut a: AgentConfig = serde_json::from_value(serde_json::json!({"version":1,"id":"fixture","name":"Fixture","mode":"sync","submit":{"command":"fixture"}})).unwrap();
     a.mode = AgentMode::Async;
     assert!(a.validate().is_err());
     a.mode = AgentMode::Sync;

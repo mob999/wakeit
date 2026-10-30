@@ -2,8 +2,7 @@ use crate::{auth, protocol, store};
 use axum::{
     Json,
     extract::{Query, State},
-    http::{HeaderMap, StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{HeaderMap, StatusCode},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -26,19 +25,6 @@ pub(crate) async fn agents(State(s): State<App>, h: HeaderMap) -> Result<Json<Va
     let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
     Ok(Json(json!(sqlx::query_scalar::<_,Value>("SELECT a || jsonb_build_object('runner_id',r.id,'runner',r.name) FROM runners r CROSS JOIN LATERAL jsonb_array_elements(r.agents) a WHERE r.workspace_id=$1 AND NOT r.revoked").bind(workspace).fetch_all(&s.pool).await?)))
-}
-
-pub(crate) async fn template(
-    State(s): State<App>,
-    h: HeaderMap,
-    Path(id): Path<String>,
-) -> Result<Response> {
-    user(&s, &h, "viewer", false).await?;
-    Ok((
-        [(header::CONTENT_TYPE, "application/yaml")],
-        wakeit_core::config::builtin(&id).map_err(|_| Error::missing())?,
-    )
-        .into_response())
 }
 
 pub(crate) async fn enrollment(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {

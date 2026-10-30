@@ -59,7 +59,7 @@ impl Device {
 }
 fn package(root: &Path, name: &str, id: &str, answer: &str) {
     fs::create_dir_all(root).unwrap();
-    fs::write(root.join("wakeit-plugin.json"),json!({"manifest_version":1,"name":name,"version":"1.0.0","wakeit":{"protocol":1,"agents":["./agent.yaml"],"runtimes":["node"]}}).to_string()).unwrap();
+    fs::write(root.join("wakeit-plugin.json"),json!({"manifest_version":1,"name":name,"version":"1.0.0","wakeit":{"protocol":1,"agents":{id:"./agent.yaml"},"runtimes":["node"]}}).to_string()).unwrap();
     fs::write(root.join("agent.yaml"),json!({"version":1,"id":id,"name":id,"mode":"sync","submit":{"command":"node","args":["{{plugin.root}}/adapter with spaces.cjs"],"stdin":"{{task.prompt}}"},"output":{"format":"events"}}).to_string()).unwrap();
     fs::write(root.join("adapter with spaces.cjs"),format!("const fs=require('fs');console.log(JSON.stringify({{version:1,type:'result',data:{{answer:{},cwd:process.cwd(),prompt:fs.readFileSync(0,'utf8')}}}}))",serde_json::to_string(answer).unwrap())).unwrap();
 }
@@ -255,6 +255,33 @@ async fn git_tags_are_pinned_and_updates_keep_exported_versions_executable() {
     commit(&repo);
     let update = device.ok(&["--json", "plugin", "update", &source]);
     assert_ne!(update["packages"][0]["revision"], changed["revision"]);
+    let mut removed: Value =
+        serde_json::from_slice(&fs::read(repo.join("wakeit-plugin.json")).unwrap()).unwrap();
+    let mut yaml: Value =
+        serde_json::from_slice(&fs::read(repo.join("agent.yaml")).unwrap()).unwrap();
+    yaml["id"] = "replacement".into();
+    fs::write(repo.join("agent.yaml"), yaml.to_string()).unwrap();
+    removed["wakeit"]["agents"] = json!({"replacement":"agent.yaml"});
+    fs::write(repo.join("wakeit-plugin.json"), removed.to_string()).unwrap();
+    commit(&repo);
+    device.ok(&[
+        "--json",
+        "plugin",
+        "install",
+        &pinned,
+        "--replace-agent",
+        "remote",
+    ]);
+    let missing = device.cli(&["--json", "plugin", "install", &source]);
+    assert!(!missing.status.success());
+    assert!(
+        String::from_utf8_lossy(&missing.stdout)
+            .contains("selected agent remote is no longer provided")
+    );
+    package(&repo, "fixture", "remote", "three");
+    commit(&repo);
+    // Restore the floating version so the subsequent checksum failure also preserves it.
+    let update = device.ok(&["--json", "plugin", "install", &source]);
     let mut invalid: Value =
         serde_json::from_slice(&fs::read(repo.join("wakeit-plugin.json")).unwrap()).unwrap();
     invalid["wakeit"]["artifacts"] = json!({env!("WAKEIT_BUILD_TARGET"):{"url":format!("http://{address}/artifact.tar.gz"),"sha256":"0".repeat(64)}});
@@ -271,9 +298,69 @@ async fn git_tags_are_pinned_and_updates_keep_exported_versions_executable() {
             .iter()
             .find(|p| p["name"] == "fixture")
             .unwrap()["revision"],
-        update["packages"][0]["revision"]
+        update["revision"]
     );
     device.ok(&["--json", "plugin", "remove", &source]);
     assert_eq!(device.execute(&config2)["result"]["answer"], "two");
     server.abort();
+}
+
+#[test]
+fn management_lists_unavailable_packages_and_source_selection_skips_unused_yaml() {
+    let device = Device::new();
+    let one = device.root.join("one");
+    package(&one, "one", "fixture", "one");
+    device.ok(&["--json", "plugin", "install", one.to_str().unwrap()]);
+    let two = device.root.join("two");
+    package(&two, "two", "fixture", "two");
+    device.ok(&[
+        "--json",
+        "plugin",
+        "install",
+        two.to_str().unwrap(),
+        "--replace-agent",
+        "fixture",
+    ]);
+    fs::remove_file(one.join("agent.yaml")).unwrap();
+    let list = device.ok(&["--json", "plugin", "list"]);
+    assert_eq!(
+        list["packages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "one")
+            .unwrap()["status"],
+        "unavailable"
+    );
+    let config = device.root.join("fixture.yaml");
+    assert!(
+        device
+            .cli(&[
+                "agent",
+                "init",
+                "fixture",
+                "--file",
+                config.to_str().unwrap()
+            ])
+            .status
+            .success()
+    );
+    assert_eq!(device.execute(&config)["result"]["answer"], "two");
+}
+#[test]
+fn failed_agent_test_reports_stderr_and_exit_status() {
+    let device = Device::new();
+    let script = device.root.join("failure.yaml");
+    fs::write(&script,json!({"version":1,"id":"fixture","name":"Fixture","mode":"sync","submit":{"command":"node","args":["-e","console.error('fixture diagnostic');process.exit(7)"]}}).to_string()).unwrap();
+    let output = device.cli(&[
+        "agent",
+        "test",
+        "--file",
+        script.to_str().unwrap(),
+        "--cwd",
+        device.root.to_str().unwrap(),
+    ]);
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(error.contains("fixture diagnostic") && error.contains("Some(7)"));
 }

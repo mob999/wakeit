@@ -4,7 +4,7 @@ mod support;
 use support::assert_single_report;
 
 use serde_json::json;
-use wakeit::trace::{RecordData, TraceState};
+use wakeit_core::trace::{RecordData, TraceState};
 #[test]
 fn cli_jsonl_tracks_public_messages_and_tools_and_emits_one_final_report() {
     let mut n = CopilotNormalizer::default();
@@ -106,7 +106,7 @@ fn large_copilot_tool_payloads_are_previews_not_execution_failures() {
     let end=n.accept(json!({"type":"tool.execution_complete","data":{"toolCallId":"large","success":true,"result":{"text":"x".repeat(400_000)}}}));
     assert!(end.iter().any(|r|matches!(&r.record,RecordData::Trace(t) if t.status==TraceState::Succeeded && t.output["truncated"]==true)));
     for record in start.iter().chain(end.iter()) {
-        assert!(serde_json::to_vec(record).unwrap().len() < wakeit::trace::RECORD_LIMIT);
+        assert!(serde_json::to_vec(record).unwrap().len() < wakeit_core::trace::RECORD_LIMIT);
     }
     copilot_done(&mut n, false);
     assert!(!n.failed());

@@ -41,7 +41,6 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 | POST `/runs/{id}/retry` | 创建关联的新 Run | Operator |
 | POST `/runs/{id}/resolve` | `{state,reason}`；仅 unknown，记录核对说明 | Operator |
 | GET `/runners`、`/agents` | 设备及其公开适配能力 | Viewer |
-| GET `/agents/templates/{id}` | 内置模板 YAML | Viewer |
 | POST `/runners/enrollment` | 一次性设备注册 token，兑换时复核签发人的本区权限 | Operator |
 | POST `/runners/{id}/revoke` | 撤销设备；报告 broker_revocation_pending | Admin |
 | GET `/members` | 工作区成员；支持 page/page_size，分页结果含 active_admins | Admin |

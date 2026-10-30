@@ -1,9 +1,11 @@
+#[path = "../../../fixtures/official_agent.rs"]
+mod official;
 use wakeit_agent_runtime::goose::GooseNormalizer;
 mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit::trace::{RecordData, TraceKind, TraceState};
+use wakeit_core::trace::{RecordData, TraceKind, TraceState};
 
 fn message(content: Value) -> Value {
     json!({"type":"message","message":{"id":"native-1","role":"assistant","created":1792108800,"content":content,"metadata":{"userVisible":true,"agentVisible":true}}})
@@ -141,7 +143,7 @@ fn oversized_output_and_native_token_limit_never_become_a_complete_answer() {
     assert!(
         records
             .iter()
-            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit::trace::RECORD_LIMIT)
+            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit_core::trace::RECORD_LIMIT)
     );
     assert!(normalizer.accept(text(&chunk)).is_empty());
     normalizer.accept(json!({"type":"complete"}));
@@ -158,10 +160,10 @@ fn oversized_output_and_native_token_limit_never_become_a_complete_answer() {
 
 #[test]
 fn yaml_uses_aaif_goose_native_stdin_without_claiming_unverified_capabilities() {
-    let config: Value = yaml_serde::from_str(include_str!("../../../agents/goose.yaml")).unwrap();
+    let config: Value = serde_json::to_value(official::official_agent("goose")).unwrap();
     assert_eq!(config["id"], "goose");
-    assert!(config.get("models").is_none());
-    assert!(config.get("session").is_none());
+    assert!(config["models"].is_null());
+    assert!(config["session"].is_null());
     let args = config["submit"]["args"].as_array().unwrap();
     assert!(args.windows(2).any(|w| w == [json!("goose"), json!("run")]));
     assert!(

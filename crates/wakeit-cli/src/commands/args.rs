@@ -313,6 +313,11 @@ pub(super) enum Skill {
 
 #[derive(Subcommand)]
 pub(super) enum Plugin {
+    /// Check a package without installing it or loading user plugins.
+    Validate {
+        #[arg(long)]
+        dir: PathBuf,
+    },
     Install {
         source: String,
         #[arg(long = "replace-agent")]

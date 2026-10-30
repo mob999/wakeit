@@ -1,6 +1,6 @@
 use super::{
-    Package, Registry, configurations_in, home, manifest, packages, registry, runner_status,
-    source::Source,
+    Package, Registry, home, manifest, packages, registry, runner_status, source::Source,
+    validate_selection,
 };
 use anyhow::{Context, Result, ensure};
 use fs2::FileExt;
@@ -52,7 +52,7 @@ async fn git_exists(root: &Path, reference: &str) -> bool {
 async fn prepare(source: Source) -> Result<Package> {
     if let Source::Local { path } = &source {
         let info = manifest::read(path)?;
-        manifest::agents(path, &info)?;
+        manifest::validate(path)?;
         return Ok(Package {
             source: source.clone(),
             root: path.clone(),
@@ -112,13 +112,18 @@ async fn prepare(source: Source) -> Result<Package> {
     .await?;
     git(Some(&root), &["checkout", "--detach", &revision]).await?;
     let info = manifest::read(&root)?;
-    if !info.wakeit.artifacts.is_empty() {
+    if !info.wakeit.artifacts.is_empty() || info.wakeit.artifact.is_some() {
         let artifact = info
             .wakeit
             .artifacts
             .get(env!("WAKEIT_BUILD_TARGET"))
+            .or(info.wakeit.artifact.as_ref())
             .context("plugin has no prebuilt artifact for this platform")?;
-        let url = reqwest::Url::parse(&artifact.url)?;
+        let expand = |v: &str| {
+            v.replace("{version}", &info.version)
+                .replace("{target}", env!("WAKEIT_BUILD_TARGET"))
+        };
+        let url = reqwest::Url::parse(&expand(&artifact.url))?;
         ensure!(
             url.scheme() == "https"
                 || (url.scheme() == "http"
@@ -150,7 +155,7 @@ async fn prepare(source: Source) -> Result<Package> {
                 .checksums_url
                 .as_ref()
                 .context("plugin artifact needs sha256 or checksums_url")?;
-            let checksum_url = reqwest::Url::parse(checksums)?;
+            let checksum_url = reqwest::Url::parse(&expand(checksums))?;
             ensure!(
                 checksum_url.scheme() == "https"
                     || (checksum_url.scheme() == "http"
@@ -175,7 +180,7 @@ async fn prepare(source: Source) -> Result<Package> {
                 text.len() <= 1024 * 1024,
                 "plugin checksum list is too large"
             );
-            let name = reqwest::Url::parse(&artifact.url)?
+            let name = reqwest::Url::parse(&expand(&artifact.url))?
                 .path_segments()
                 .and_then(|mut s| s.next_back())
                 .context("artifact filename")?
@@ -190,9 +195,13 @@ async fn prepare(source: Source) -> Result<Package> {
                 .context("artifact is missing from checksum list")?
         };
         crate::releases::verify_checksum(&bytes, &digest)?;
-        unpack(&bytes, &root)?;
+        unpack(
+            &bytes,
+            &root,
+            &info.wakeit.agents.values().cloned().collect::<Vec<_>>(),
+        )?;
     }
-    manifest::agents(&root, &info)?;
+    manifest::validate(&root)?;
     let destination = directory.join(&revision);
     if !destination.exists() {
         std::fs::rename(&root, &destination)?;
@@ -208,12 +217,27 @@ async fn prepare(source: Source) -> Result<Package> {
     })
 }
 /// Extract regular files and directories only; archive paths cannot escape a package.
-pub(crate) fn unpack(bytes: &[u8], directory: &Path) -> Result<()> {
+pub(crate) fn unpack(
+    bytes: &[u8],
+    directory: &Path,
+    definitions: &[std::path::PathBuf],
+) -> Result<()> {
     let mut archive = tar::Archive::new(flate2::read::GzDecoder::new(bytes));
     for entry in archive.entries()? {
         let mut entry = entry?;
         let path = entry.path()?.into_owned();
         manifest::relative(&path)?;
+        let normalized = |path: &Path| {
+            path.components()
+                .filter(|c| !matches!(c, std::path::Component::CurDir))
+                .collect::<std::path::PathBuf>()
+        };
+        ensure!(
+            !definitions
+                .iter()
+                .any(|definition| normalized(definition) == normalized(&path)),
+            "plugin artifact cannot replace an Agent definition from the selected Git revision"
+        );
         ensure!(
             path != Path::new(manifest::FILE) && !path.starts_with(".git"),
             "plugin artifact cannot replace package metadata"
@@ -239,19 +263,19 @@ pub(super) async fn install(value: &str, replace: &[String]) -> Result<Value> {
         .packages
         .retain(|p| p.source.identity() != identity);
     registry.removed.retain(|s| s != &identity);
-    let provided = manifest::agents(&package.root, &manifest::read(&package.root)?)?;
+    let provided = manifest::read(&package.root)?.wakeit.agents;
     for id in replace {
         ensure!(
-            provided.iter().any(|a| &a.id == id),
+            provided.contains_key(id),
             "plugin does not provide agent {id}"
         );
         registry.agent_sources.insert(id.clone(), identity.clone());
     }
     registry.packages.push(package.clone());
-    configurations_in(&registry, true)?;
+    validate_selection(&registry)?;
     save(&registry)?;
     Ok(
-        json!({"status":"installed","source":package.source.display(),"name":package.name,"version":package.version,"revision":package.revision,"activation":"next_runner_start","runners":runner_status()?}),
+        json!({"status":"installed","source":package.source.display(),"name":package.name,"version":package.version,"revision":package.revision,"activation":"next_runner_start","runners":runner_status(&registry)?}),
     )
 }
 pub(super) async fn update(value: Option<&str>) -> Result<Value> {
@@ -303,6 +327,6 @@ pub(super) fn remove(value: &str) -> Result<Value> {
     }
     save(&registry)?;
     Ok(
-        json!({"status":"removed","source":source.display(),"activation":"next_runner_start","runners":runner_status()?}),
+        json!({"status":"removed","source":source.display(),"activation":"next_runner_start","runners":runner_status(&registry)?}),
     )
 }

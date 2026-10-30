@@ -13,7 +13,10 @@ Build the CLI, which includes the Runner:
 
 ```sh
 cargo build --locked -p wakeit-cli -p wakeit-agent-runtime
+python3 scripts/package-release.py stage --input target/debug/wakeit --output target/debug/wakeit-plugins/0.2.0
 ```
+
+The stage command prepares the same complete plugin bundle used by releases. On Windows, use `target/debug/wakeit.exe` as the input. `WAKEIT_BUNDLED_PLUGIN_DIR` can select another prepared bundle.
 
 Build the Gateway with its embedded WebUI:
 

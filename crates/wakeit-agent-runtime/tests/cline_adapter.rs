@@ -3,7 +3,7 @@ mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit::trace::{RECORD_LIMIT, RecordData, TraceKind, TraceState};
+use wakeit_core::trace::{RECORD_LIMIT, RecordData, TraceKind, TraceState};
 
 #[test]
 fn cline_snapshots_tools_and_authoritative_report_are_separate() {

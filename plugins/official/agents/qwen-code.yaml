@@ -1,5 +1,4 @@
 version: 1
-id: qwen-code
 name: Qwen Code
 logo: /agent-logos/qwen-code.svg
 mode: sync

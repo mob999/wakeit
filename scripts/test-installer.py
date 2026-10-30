@@ -48,15 +48,18 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.n
             name = f'wakeit-{target}.tar.gz'
             binary = self.fixture / name
             with tarfile.open(binary, 'w:gz') as archive:
+                program = b'#!/usr/bin/env python3\nimport json,pathlib,sys\nif sys.argv[1:]==[\'--version\']:\n print(\'wakeit 0.2.0\')\nelif sys.argv[1:4]==[\'--json\',\'plugin\',\'validate\']:\n root=pathlib.Path(sys.argv[sys.argv.index(\'--dir\')+1])\n manifest=json.loads((root/\'wakeit-plugin.json\').read_text())[\'wakeit\']\n if not all((root/p).is_file() for p in [*manifest[\'agents\'].values(),*manifest[\'commands\'].values()]):\n  print(\'missing declared resource\',file=sys.stderr);sys.exit(1)\n print(\'{"valid":true}\')\nelse:\n sys.exit(2)\n'
+                manifest = {'manifest_version':1,'name':'fixture','version':'0.2.0','wakeit':{'protocol':1,'agents':{'fixture':'agent.json'},'commands':{'adapter':'bin/fixture-runtime'}}}
                 files = {
-                    'wakeit': b'#!/bin/sh\nprintf "wakeit 0.2.0\\n"\n',
-                    'wakeit-plugins/0.2.0/wakeit-plugin.json': (ROOT / 'wakeit-plugin.json').read_bytes(),
-                    'wakeit-plugins/0.2.0/plugins/official/bin/wakeit-agent-runtime': b'#!/bin/sh\nexit 0\n',
+                    'wakeit': program,
+                    'wakeit-plugins/0.2.0/wakeit-plugin.json': json.dumps(manifest).encode(),
+                    'wakeit-plugins/0.2.0/agent.json': b'{"version":1,"name":"Fixture","mode":"sync","submit":{"command":"./bin/fixture-runtime"}}',
+                    'wakeit-plugins/0.2.0/bin/fixture-runtime': b'#!/bin/sh\nexit 0\n',
                 }
                 for path, data in files.items():
                     item = tarfile.TarInfo(path)
                     item.size = len(data)
-                    item.mode = 0o755 if path.endswith(('wakeit', 'wakeit-agent-runtime')) else 0o644
+                    item.mode = 0o755 if path.endswith(('wakeit', 'fixture-runtime')) else 0o644
                     archive.addfile(item, io.BytesIO(data))
             digest = hashlib.sha256(binary.read_bytes()).hexdigest()
             assets[target] = {'name': name, 'sha256': digest}
@@ -71,6 +74,26 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.n
         digest = hashlib.sha256((self.fixture / 'wakeit-skill.tar.gz').read_bytes()).hexdigest()
         lines.append(f'{digest}  wakeit-skill.tar.gz')
         (self.fixture / 'SHA256SUMS').write_text('\n'.join(lines) + '\n')
+
+    def test_missing_declared_resource_keeps_the_existing_installation(self):
+        self.bin.mkdir(parents=True)
+        previous=self.bin/'wakeit'
+        previous.write_bytes(b'previous installation')
+        archive=self.fixture/'wakeit-aarch64-apple-darwin.tar.gz'
+        with tarfile.open(archive) as source:
+            files=[(item,source.extractfile(item).read()) for item in source if not item.name.endswith('/agent.json')]
+        with tarfile.open(archive,'w:gz') as output:
+            for item,data in files:output.addfile(item,io.BytesIO(data))
+        digest=hashlib.sha256(archive.read_bytes()).hexdigest()
+        self.manifest['assets']['aarch64-apple-darwin']['sha256']=digest
+        self.write_manifest()
+        checksums=self.fixture/'SHA256SUMS'
+        lines=checksums.read_text().splitlines()
+        checksums.write_text('\n'.join(f'{digest}  {archive.name}' if line.endswith('  '+archive.name) else line for line in lines)+'\n')
+        result=self.install()
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('incomplete plugin bundle',result.stderr)
+        self.assertEqual(previous.read_bytes(),b'previous installation')
 
     def command(self, name, source):
         file = self.commands / name
@@ -90,7 +113,7 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.n
             result = self.install()
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(os.access(self.bin / 'wakeit', os.X_OK))
-        self.assertTrue(os.access(self.bin / 'wakeit-plugins/0.2.0/plugins/official/bin/wakeit-agent-runtime', os.X_OK))
+        self.assertTrue(os.access(self.bin / 'wakeit-plugins/0.2.0/bin/fixture-runtime', os.X_OK))
         for stage in range(1, 6):
             self.assertIn(f'[{stage}/5]', result.stderr)
         requests = (self.root / 'requests').read_text().splitlines()

@@ -67,6 +67,15 @@ jobs:
         if: runner.os == 'Linux'
       - run: cargo clippy --locked -p wakeit-cli -p wakeit-agent-runtime --all-targets -- -D warnings
       - run: cargo build --locked -p wakeit-agent-runtime
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Stage the development plugin bundle
+        shell: bash
+        run: |
+          suffix=''
+          if [[ "$RUNNER_OS" == Windows ]]; then suffix='.exe'; fi
+          version="$(python -c 'import tomllib; print(tomllib.load(open("crates/wakeit-cli/Cargo.toml","rb"))["package"]["version"])')"
+          python scripts/package-release.py stage --input "target/debug/wakeit$suffix" --output "target/debug/wakeit-plugins/$version"
       - run: cargo test --locked -p wakeit-cli -p wakeit-agent-runtime --all-targets
       - run: cargo build --locked -p wakeit-cli --bin wakeit --example update_probe
       - uses: actions/setup-python@v5
@@ -141,6 +150,7 @@ jobs:
           curl -fsSL https://github.com/nats-io/nats-server/releases/download/v2.15.0/nats-server-v2.15.0-linux-amd64.tar.gz | tar xz
           sudo install nats-server-v2.15.0-linux-amd64/nats-server /usr/local/bin/nats-server
       - run: cargo build --locked --workspace --bins --examples
+      - run: python scripts/package-release.py stage --input target/debug/wakeit --output "target/debug/wakeit-plugins/$(target/debug/wakeit --version | cut -d' ' -f2)"
       - run: python3 scripts/workspace_migration_checks.py
       - run: python3 scripts/github_auth_checks.py
       - run: python3 scripts/integration_workspaces.py

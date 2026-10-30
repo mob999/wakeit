@@ -260,7 +260,7 @@ fn trace_count_and_dedup_budgets_do_not_interrupt_native_completion() {
 #[tokio::test]
 async fn real_time_server_bridge_preserves_titles_and_fails_closed() {
     let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/kimi-code/live-server.cjs");
+        .join("../wakeit-agent-runtime/tests/fixtures/kimi-code/live-server.cjs");
     for mode in [
         "ok",
         "fail",
@@ -390,7 +390,7 @@ async fn bound_session_is_activated_before_subscription_and_keeps_its_title_and_
     )
     .unwrap();
     let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/kimi-code/live-server.cjs");
+        .join("../wakeit-agent-runtime/tests/fixtures/kimi-code/live-server.cjs");
     let mut child = Command::new(env!("CARGO_BIN_EXE_wakeit"))
         .args([
             "plugin",

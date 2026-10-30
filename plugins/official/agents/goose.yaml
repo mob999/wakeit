@@ -1,5 +1,4 @@
 version: 1
-id: goose
 name: Goose
 logo: /agent-logos/goose.svg
 mode: sync

@@ -30,7 +30,10 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
         Agent::Doctor { config } => {
             let c = read_runner(config)?;
             let mut items = vec![];
-            for a in crate::plugins::load_agents(&c.agents, c.bundled_agents)?.values() {
+            for a in crate::plugins::load_agents(&c.agents, c.bundled_agents)?
+                .agents
+                .values()
+            {
                 items.push(runner::inspect(a, &std::env::current_dir()?).await);
             }
             display(json!(items), cli.json);
@@ -76,7 +79,11 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
             .await?;
             ensure!(
                 out.code == Some(0) && out.stopped.is_none() && out.confirmed,
-                "agent submit failed: {}",
+                "agent submit failed (exit {:?}, stopped {:?}, confirmed {}): {}{}",
+                out.code,
+                out.stopped,
+                out.confirmed,
+                out.stderr,
                 out.stdout
             );
             if a.mode == config::AgentMode::Sync {

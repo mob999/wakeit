@@ -1,5 +1,5 @@
 use serde_json::Value;
-use wakeit::trace::{RecordData, StreamRecord};
+use wakeit_core::trace::{RecordData, StreamRecord};
 
 // Assert the complete finish contract; empty or duplicate reports must fail.
 pub fn assert_single_report(records: &[StreamRecord], expected: Value) {

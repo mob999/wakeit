@@ -1,5 +1,4 @@
 version: 1
-id: agy
 name: Antigravity CLI
 logo: /agent-logos/agy.svg
 mode: sync

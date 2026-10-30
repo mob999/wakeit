@@ -1,5 +1,4 @@
 version: 1
-id: pi
 name: Pi
 logo: /agent-logos/pi.svg
 mode: sync

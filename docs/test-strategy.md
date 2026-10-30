@@ -17,7 +17,7 @@ For ordinary UI or copy changes, inspect the affected page and interactions thro
 | `web/**` | Frontend build and unit tests; package manifests also check release metadata |
 | Markdown, `docs/**`, `.agents/**` | Documentation links/examples and bilingual changelog structure |
 | `crates/wakeit-*/tests/**` | Owning package checks only; Gateway still builds embedded WebUI assets |
-| CLI source/configuration, `agents/**` | CLI checks on Linux/macOS/Windows and service integration |
+| CLI source/configuration, `plugins/**`, native Agent Runtime | CLI checks on Linux/macOS/Windows and service integration |
 | Gateway source/configuration, database fixtures | Gateway checks on Linux/macOS/Windows and service integration |
 | Core source/configuration, shared Cargo configuration/lockfile | Both products, shared core checks and service integration; package metadata also checks packaging |
 | `schemas/**` | Frontend, Rust, service integration, documentation examples and packaging |

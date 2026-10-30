@@ -1,5 +1,4 @@
 version: 1
-id: cline
 name: Cline
 logo: /agent-logos/cline.svg
 mode: sync

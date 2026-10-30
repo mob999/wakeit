@@ -42,15 +42,15 @@ Place `wakeit-plugin.json` at the repository root:
   "version": "1.0.0",
   "wakeit": {
     "protocol": 1,
-    "agents": ["agents/example.yaml"],
+    "agents": {"example": "agents/example.yaml"},
     "runtimes": ["node"]
   }
 }
 ```
 
-An Agent YAML uses the existing [adapter protocol](protocol.md). `command: ./bin/example` resolves from the package root. Use `{{plugin.root}}/adapter.cjs` for package files in arguments; the process working directory remains the task's directory. Bare commands such as `node` use PATH. Declare any required interpreters in `runtimes`; Wakeit does not run build hooks or install dependencies.
+The manifest keys define Agent IDs; package YAML can omit `id`. An Agent YAML uses the existing [adapter protocol](protocol.md). `command: ./bin/example` resolves from the package root. Use `{{plugin.root}}/adapter.cjs` for package files in arguments; the process working directory remains the task's directory. Bare commands such as `node` use PATH. Declare any required interpreters in `runtimes`; Wakeit does not run build hooks or install dependencies.
 
-Native plugins can supply a gzip tar archive for each platform under `wakeit.artifacts`:
+Native plugins can supply a gzip tar archive for each platform under `wakeit.artifacts`, or use `wakeit.artifact` for a common URL template:
 
 ```json
 {
@@ -61,7 +61,7 @@ Native plugins can supply a gzip tar archive for each platform under `wakeit.art
 }
 ```
 
-Archive paths are relative to the package root and contain regular files/directories. Alternatively, `checksums_url` may point to a SHA256SUMS file containing the artifact filename. An unsupported platform or missing runtime produces an installation error. See `wakeit schema plugin` for the complete manifest schema.
+Archive paths are relative to the package root and contain regular files/directories. Platform archives supply executable resources; they cannot replace the manifest or Agent YAML checked out from Git. Alternatively, `checksums_url` may point to a SHA256SUMS file containing the artifact filename. An unsupported platform or missing runtime produces an installation error. URLs can use `{version}` from the package manifest and `{target}` from the device platform. Check package integrity with `wakeit plugin validate --dir ./my-agent`. See `wakeit schema plugin` for the complete manifest schema.
 
 Optionally declare `wakeit.commands`, a map of command names to package-relative executable paths. Invoke one without changing cwd using `wakeit plugin exec SOURCE COMMAND -- ARGS`. The official package exposes `adapter` for direct detection or session queries, for example:
 
