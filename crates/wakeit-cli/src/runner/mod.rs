@@ -428,8 +428,7 @@ async fn work_loop(r: &Runner, js: &async_nats::jetstream::Context) -> Result<()
             let permit = tokio::select! {_=r.shutdown.cancelled()=>break,p=slots.clone().acquire_owned()=>p?};
             let r = r.clone();
             jobs.spawn(async move {
-                let _permit = permit;
-                if let Err(e) = r.handle(msg).await {
+                if let Err(e) = r.handle(msg, permit).await {
                     tracing::error!(error=%e,"run handling failed; message remains unacknowledged");
                 }
             });

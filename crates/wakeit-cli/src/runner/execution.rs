@@ -1,7 +1,11 @@
 use super::*;
 
 impl Runner {
-    pub(super) async fn handle(&self, msg: async_nats::jetstream::Message) -> Result<()> {
+    pub(super) async fn handle(
+        &self,
+        msg: async_nats::jetstream::Message,
+        permit: tokio::sync::OwnedSemaphorePermit,
+    ) -> Result<()> {
         let assignment: Assignment = serde_json::from_slice(&msg.payload)?;
         ensure!(
             assignment.version == 1 && assignment.runner_id == self.config.id,
@@ -59,10 +63,10 @@ impl Runner {
             self.state(id, "unknown", Some(&e.to_string()), None, Some("unknown"))
                 .await?;
         }
-        // Completion is acknowledged only when all events are durably published.
-        while self.journal.pending(id).await? && !self.shutdown.is_cancelled() {
-            tokio::time::sleep(Duration::from_millis(250)).await;
-        }
+        // The native process has ended and its final state is durable locally.
+        // Event publication has its own persistent retry loop; it must not keep
+        // either an execution permit or the work consumer's ACK window occupied.
+        drop(permit);
         progress_stop.cancel();
         let _ = progress.await;
         if !self.shutdown.is_cancelled() {
