@@ -37,16 +37,22 @@ pub(crate) async fn openapi() -> Json<Value> {
 
 pub(crate) async fn metrics(State(s): State<App>, h: HeaderMap) -> Result<Response> {
     user(&s, &h, "admin", false).await?;
-    let pending: i64 = sqlx::query_scalar("SELECT count(*) FROM outbox WHERE published_at IS NULL")
-        .fetch_one(&s.pool)
-        .await?;
+    let pending: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM outbox WHERE published_at IS NULL AND quarantined_at IS NULL",
+    )
+    .fetch_one(&s.pool)
+    .await?;
+    let quarantined: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM outbox WHERE quarantined_at IS NOT NULL")
+            .fetch_one(&s.pool)
+            .await?;
     let offline:i64=sqlx::query_scalar("SELECT count(*) FROM runners WHERE NOT revoked AND (last_seen IS NULL OR last_seen<now()-interval '60 seconds')").fetch_one(&s.pool).await?;
     let rows = sqlx::query("SELECT state,count(*) AS count FROM runs GROUP BY state")
         .fetch_all(&s.pool)
         .await?;
     let delay:f64=sqlx::query_scalar("SELECT COALESCE(EXTRACT(EPOCH FROM now()-min(next_at)),0)::float8 FROM tasks WHERE enabled AND archived_at IS NULL AND next_at<now()").fetch_one(&s.pool).await?;
     let mut body = format!(
-        "wakeit_outbox_pending {pending}\nwakeit_runners_offline {offline}\nwakeit_scheduler_delay_seconds {delay}\n"
+        "wakeit_outbox_pending {pending}\nwakeit_outbox_quarantined {quarantined}\nwakeit_runners_offline {offline}\nwakeit_scheduler_delay_seconds {delay}\n"
     );
     for r in rows {
         body.push_str(&format!(

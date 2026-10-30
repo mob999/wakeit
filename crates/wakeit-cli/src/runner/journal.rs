@@ -3,12 +3,12 @@ use crate::{
     config::AgentConfig,
     protocol::{Assignment, RunEvent},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 use sqlx::{Row, SqlitePool};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     path::{Path, PathBuf},
     sync::Arc,
@@ -47,11 +47,34 @@ impl Journal {
             .max_connections(1)
             .connect_with(options)
             .await?;
-        sqlx::raw_sql("CREATE TABLE IF NOT EXISTS local_runs (id TEXT PRIMARY KEY,assignment TEXT NOT NULL,agent TEXT NOT NULL,claim TEXT NOT NULL,phase TEXT NOT NULL,job TEXT,started TEXT NOT NULL,seq INTEGER NOT NULL DEFAULT 0,log_bytes INTEGER NOT NULL DEFAULT 0,truncated INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS pending_events(run_id TEXT NOT NULL,seq INTEGER NOT NULL,payload TEXT NOT NULL,published INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(run_id,seq)); CREATE TABLE IF NOT EXISTS cancellations(run_id TEXT PRIMARY KEY);").execute(&pool).await?;
+        sqlx::raw_sql("CREATE TABLE IF NOT EXISTS local_runs (id TEXT PRIMARY KEY,assignment TEXT NOT NULL,agent TEXT NOT NULL,claim TEXT NOT NULL,phase TEXT NOT NULL,job TEXT,started TEXT NOT NULL,seq INTEGER NOT NULL DEFAULT 0,log_bytes INTEGER NOT NULL DEFAULT 0,truncated INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS pending_events(run_id TEXT NOT NULL,seq INTEGER NOT NULL,payload TEXT NOT NULL,published INTEGER NOT NULL DEFAULT 0,rejected INTEGER NOT NULL DEFAULT 0,reject_reason TEXT,PRIMARY KEY(run_id,seq)); CREATE TABLE IF NOT EXISTS cancellations(run_id TEXT PRIMARY KEY);").execute(&pool).await?;
+        sqlx::raw_sql("CREATE TABLE IF NOT EXISTS event_quarantine(run_id TEXT NOT NULL,seq INTEGER NOT NULL,payload TEXT NOT NULL,reason TEXT NOT NULL,PRIMARY KEY(run_id,seq));")
+            .execute(&pool).await?;
         sqlx::raw_sql("CREATE TABLE IF NOT EXISTS local_terminals(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,runtime_id TEXT NOT NULL,state TEXT NOT NULL,pid INTEGER,marker TEXT,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);").execute(&pool).await?;
         let columns = sqlx::query("PRAGMA table_info(local_runs)")
             .fetch_all(&pool)
             .await?;
+        let pending_columns = sqlx::query("PRAGMA table_info(pending_events)")
+            .fetch_all(&pool)
+            .await?;
+        if !pending_columns
+            .iter()
+            .any(|r| r.get::<String, _>("name") == "rejected")
+        {
+            sqlx::query(
+                "ALTER TABLE pending_events ADD COLUMN rejected INTEGER NOT NULL DEFAULT 0",
+            )
+            .execute(&pool)
+            .await?;
+        }
+        if !pending_columns
+            .iter()
+            .any(|r| r.get::<String, _>("name") == "reject_reason")
+        {
+            sqlx::query("ALTER TABLE pending_events ADD COLUMN reject_reason TEXT")
+                .execute(&pool)
+                .await?;
+        }
         if !columns
             .iter()
             .any(|r| r.get::<String, _>("name") == "session")
@@ -395,18 +418,52 @@ impl Journal {
             > 0)
     }
     pub async fn flush(&self, js: &async_nats::jetstream::Context) -> Result<()> {
-        let rows=sqlx::query("SELECT run_id,seq,payload FROM pending_events WHERE published=0 ORDER BY run_id,seq LIMIT 100").fetch_all(&self.pool).await?;
-        for r in rows {
-            let run: String = r.get("run_id");
-            let seq: i64 = r.get("seq");
-            let payload: String = r.get("payload");
-            bus::publish(
+        let rows=sqlx::query("SELECT run_id,seq FROM pending_events e WHERE published=0 AND rejected=0 AND NOT EXISTS(SELECT 1 FROM pending_events previous WHERE previous.run_id=e.run_id AND previous.rejected=1 AND previous.seq<e.seq) ORDER BY run_id,seq LIMIT 100").fetch_all(&self.pool).await?;
+        let mut blocked = HashSet::new();
+        for row in rows {
+            let run: String = row.get("run_id");
+            if blocked.contains(&run) {
+                continue;
+            }
+            let seq: i64 = row.get("seq");
+            let payload: Option<String> = sqlx::query_scalar("SELECT payload FROM pending_events WHERE run_id=? AND seq=? AND published=0 AND rejected=0")
+                .bind(&run).bind(seq).fetch_optional(&self.pool).await?;
+            let Some(payload) = payload else { continue };
+            let message_id = format!("event:{}:{run}:{seq}", self.runner);
+            let result = bus::publish(
                 js,
                 crate::protocol::event_subject(self.runner),
-                format!("event:{}:{run}:{seq}", self.runner),
-                payload.into_bytes(),
+                message_id.clone(),
+                payload.as_bytes().to_vec(),
             )
-            .await?;
+            .await;
+            if let Err(error) = result {
+                if !bus::is_payload_too_large(&error) {
+                    return Err(error);
+                }
+                let replacement = self
+                    .quarantine_payload(
+                        &run,
+                        seq,
+                        &payload,
+                        bus::payload_capacity(js, &message_id),
+                        &error.to_string(),
+                    )
+                    .await?;
+                let Some(replacement) = replacement else {
+                    blocked.insert(run);
+                    continue;
+                };
+                // The replacement keeps the original event identity/order and is
+                // committed locally before attempting reliable publication.
+                bus::publish(
+                    js,
+                    crate::protocol::event_subject(self.runner),
+                    message_id,
+                    replacement.into_bytes(),
+                )
+                .await?;
+            }
             sqlx::query("UPDATE pending_events SET published=1 WHERE run_id=? AND seq=?")
                 .bind(run)
                 .bind(seq)
@@ -415,6 +472,56 @@ impl Journal {
         }
         Ok(())
     }
+    async fn quarantine_payload(
+        &self,
+        run: &str,
+        seq: i64,
+        payload: &str,
+        capacity: usize,
+        reason: &str,
+    ) -> Result<Option<String>> {
+        let replacement = repair_event(payload, capacity)?;
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO event_quarantine(run_id,seq,payload,reason) VALUES(?,?,?,?)",
+        )
+        .bind(run)
+        .bind(seq)
+        .bind(payload)
+        .bind(reason)
+        .execute(&mut *tx)
+        .await?;
+        if let Some(replacement) = &replacement {
+            sqlx::query(
+                "UPDATE pending_events SET payload=?,reject_reason=? WHERE run_id=? AND seq=?",
+            )
+            .bind(replacement)
+            .bind(reason)
+            .bind(run)
+            .bind(seq)
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            // Required identities that cannot fit are retained, never acknowledged
+            // as uploaded. Only this Run is blocked; other Runs can still flush.
+            sqlx::query(
+                "UPDATE pending_events SET rejected=1,reject_reason=? WHERE run_id=? AND seq=?",
+            )
+            .bind(reason)
+            .bind(run)
+            .bind(seq)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        tracing::warn!(
+            run_id = run,
+            seq,
+            repaired = replacement.is_some(),
+            "oversized event quarantined"
+        );
+        Ok(replacement)
+    }
     pub async fn prune(&self) -> Result<()> {
         let log_cutoff = (Utc::now() - chrono::Duration::days(7)).to_rfc3339();
         let run_cutoff = (Utc::now() - chrono::Duration::days(90)).to_rfc3339();
@@ -422,6 +529,10 @@ impl Journal {
         let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM local_runs WHERE phase='done' AND started<? AND NOT EXISTS(SELECT 1 FROM pending_events WHERE run_id=local_runs.id AND published=0)")
             .bind(&log_cutoff).fetch_all(&mut *tx).await?;
         for id in &ids {
+            sqlx::query("DELETE FROM event_quarantine WHERE run_id=?")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
             // Keep the execution tombstone after removing uploaded payloads.
             sqlx::query("DELETE FROM pending_events WHERE run_id=? AND published=1")
                 .bind(id)
@@ -441,5 +552,197 @@ impl Journal {
             }
         }
         Ok(())
+    }
+}
+
+fn repair_event(payload: &str, capacity: usize) -> Result<Option<String>> {
+    let mut event: RunEvent = serde_json::from_str(payload)?;
+    const NOTE: &str =
+        "Output exceeded the transport limit; full event retained in the Runner journal.";
+    match event.kind.as_str() {
+        "state" => {
+            let reason = event.data["reason"]
+                .as_str()
+                .filter(|text| !text.is_empty())
+                .map(|text| format!("{}; {NOTE}", text.chars().take(256).collect::<String>()))
+                .unwrap_or_else(|| NOTE.into());
+            let mut data = json!({"state":event.data["state"],"reason":reason});
+            for field in ["retryable", "job_id"] {
+                if let Some(value) = event.data.get(field) {
+                    data[field] = value.clone();
+                }
+            }
+            if let Some(result) = event.data.get_mut("result") {
+                data["result"] = crate::output_capture::bounded_value_with_preview(
+                    result.take(),
+                    capacity / 3,
+                    (capacity / 16).min(64 * 1024),
+                );
+            }
+            event.data = data;
+        }
+        "session" => {
+            // Session ID, runner, Agent and cwd must survive. An oversized native
+            // continuation command is optional; do not advertise it as ready.
+            event
+                .data
+                .as_object_mut()
+                .context("session object")?
+                .remove("command");
+            event.data.as_object_mut().unwrap().remove("title");
+            event.data["ready"] = json!(false);
+            event.data["reason"] = json!(NOTE);
+        }
+        "snapshot" => {
+            let original = event.data;
+            event.data = json!({"transport_issue":"event_too_large"});
+            for field in [
+                "cwd",
+                "agent_digest",
+                "trace_supported",
+                "session_supported",
+                "model",
+            ] {
+                if let Some(value) = original.get(field) {
+                    event.data[field] = value.clone();
+                }
+            }
+        }
+        _ => {
+            event.kind = "trace_status".into();
+            event.data = json!({"status":"incomplete","reason":"event_too_large"});
+        }
+    }
+    let mut encoded = serde_json::to_string(&event)?;
+    if encoded.len() > capacity && event.kind == "state" {
+        event.data.as_object_mut().unwrap().remove("result");
+        encoded = serde_json::to_string(&event)?;
+    }
+    Ok((encoded.len() <= capacity).then_some(encoded))
+}
+
+#[cfg(test)]
+mod delivery_tests {
+    use super::*;
+
+    fn event(kind: &str, data: Value) -> RunEvent {
+        RunEvent {
+            version: 1,
+            runner_id: Uuid::new_v4(),
+            run_id: Uuid::new_v4(),
+            claim_id: Uuid::new_v4(),
+            seq: 7,
+            kind: kind.into(),
+            data,
+            timestamp: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn bounded_repairs_preserve_lifecycle_identity_at_both_payload_sizes() {
+        for capacity in [1024 * 1024 - 200, 2 * 1024 * 1024 - 200] {
+            let original = event(
+                "state",
+                json!({"state":"succeeded","retryable":false,"result":"\0".repeat(500_000)}),
+            );
+            let bytes = serde_json::to_string(&original).unwrap();
+            let repaired = repair_event(&bytes, capacity).unwrap().unwrap();
+            assert!(repaired.len() <= capacity);
+            let repaired: RunEvent = serde_json::from_str(&repaired).unwrap();
+            assert_eq!(
+                (repaired.seq, repaired.run_id, repaired.claim_id),
+                (original.seq, original.run_id, original.claim_id)
+            );
+            assert_eq!(repaired.data["state"], "succeeded");
+            assert_eq!(repaired.data["retryable"], false);
+            assert_eq!(repaired.data["result"]["truncated"], true);
+            let original = event(
+                "session",
+                json!({"id":"session-7","runner_id":original.runner_id,
+                "agent":"pi","cwd":"/work","ready":true,"command":"x".repeat(3*1024*1024)}),
+            );
+            let repaired = repair_event(&serde_json::to_string(&original).unwrap(), capacity)
+                .unwrap()
+                .unwrap();
+            let repaired: RunEvent = serde_json::from_str(&repaired).unwrap();
+            for key in ["id", "runner_id", "agent", "cwd"] {
+                assert_eq!(repaired.data[key], original.data[key]);
+            }
+            assert_eq!(repaired.kind, "session");
+            assert_eq!(repaired.data["ready"], false);
+            assert!(repaired.data["reason"].is_string());
+        }
+    }
+
+    #[tokio::test]
+    async fn repaired_events_keep_original_sequence_and_unrepairable_identities_stay_pending() {
+        let directory = tempfile::tempdir().unwrap();
+        let journal = Journal::open(directory.path(), Uuid::new_v4())
+            .await
+            .unwrap();
+        let original = event("log", json!({"stream":"stdout","text":"\0".repeat(1000)}));
+        let payload = serde_json::to_string(&original).unwrap();
+        sqlx::query("INSERT INTO pending_events(run_id,seq,payload) VALUES(?,?,?)")
+            .bind(original.run_id.to_string())
+            .bind(original.seq)
+            .bind(&payload)
+            .execute(&journal.pool)
+            .await
+            .unwrap();
+        let replacement = journal
+            .quarantine_payload(
+                &original.run_id.to_string(),
+                original.seq,
+                &payload,
+                1024,
+                "too large",
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        let repaired: RunEvent = serde_json::from_str(&replacement).unwrap();
+        assert_eq!((repaired.seq, repaired.kind.as_str()), (7, "trace_status"));
+        let saved: String =
+            sqlx::query_scalar("SELECT payload FROM event_quarantine WHERE run_id=?")
+                .bind(original.run_id.to_string())
+                .fetch_one(&journal.pool)
+                .await
+                .unwrap();
+        assert_eq!(saved, payload);
+        let original = event(
+            "session",
+            json!({"id":"x".repeat(2000),"cwd":"/work","agent":"pi","runner_id":journal.runner}),
+        );
+        let payload = serde_json::to_string(&original).unwrap();
+        sqlx::query("INSERT INTO pending_events(run_id,seq,payload) VALUES(?,?,?)")
+            .bind(original.run_id.to_string())
+            .bind(original.seq)
+            .bind(&payload)
+            .execute(&journal.pool)
+            .await
+            .unwrap();
+        assert!(
+            journal
+                .quarantine_payload(
+                    &original.run_id.to_string(),
+                    original.seq,
+                    &payload,
+                    512,
+                    "too large"
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(journal.pending(original.run_id).await.unwrap());
+        let row =
+            sqlx::query("SELECT rejected,published,payload FROM pending_events WHERE run_id=?")
+                .bind(original.run_id.to_string())
+                .fetch_one(&journal.pool)
+                .await
+                .unwrap();
+        assert_eq!(row.get::<i64, _>("rejected"), 1);
+        assert_eq!(row.get::<i64, _>("published"), 0);
+        assert_eq!(row.get::<String, _>("payload"), payload);
     }
 }

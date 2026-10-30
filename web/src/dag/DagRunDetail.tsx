@@ -330,7 +330,7 @@ function NodeExecution({
   const [logError, setLogError] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const cursor = useRef(0)
-  const [follow, setFollow] = useEditorValue(`follow:${executionId}`, true)
+  const [follow, setFollow] = useEditorValue(`follow:${executionId}`, false)
   const [logsOpen, setLogsOpen] = useEditorValue(`logsOpen:${executionId}`, true)
   const [infoOpen, setInfoOpen] = useEditorValue(`infoOpen:${executionId}`, false)
   const [resolve, setResolve] = useState(false)
@@ -538,6 +538,7 @@ function NodeExecution({
               run={run}
               text={logs}
               follow={follow}
+              onFollowChange={setFollow}
               visible={active}
               error={false}
               retry={() => setAttempt((v) => v + 1)}
@@ -566,6 +567,7 @@ function NodeExecution({
               run={run}
               text={logs}
               follow={follow}
+              onFollowChange={setFollow}
               visible={active && logsOpen}
               error={false}
               retry={() => setAttempt((v) => v + 1)}

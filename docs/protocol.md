@@ -108,8 +108,12 @@ Task.schedule 使用且只使用 `at`、`every`、`cron` 中的一种。Cron 为
 - Gateway：事务创建 Run 和 Outbox → JetStream 持久化确认 → 标记已发布。
 - Runner：本地持久化意图 → Gateway 原子领取 → 启动 Agent。
 - 输出：本地事件序号与队列 → JetStream 持久化确认 → 本地标记已发布。
-- 完成：所有事件成功发布后，确认任务消息。
+- 完成：Agent 结束且最终状态在本地持久化后，释放执行槽位并确认任务消息；事件由独立的持久化队列继续重试上传。unknown 执行仍保留容量预留。
 - 入库：Gateway 去重并写 PostgreSQL 后，确认事件消息。
+
+发布前按实际 JSON 消息及 NATS 消息头检查当前协商的 `max_payload`。永久超限的 Assignment 在 Outbox 中隔离并标记未领取的 Run 失败，不阻塞后续任务或控制消息；网络故障继续重试。隔离记录保留 7 天，数量见 `wakeit_outbox_quarantined`。
+
+Runner 对超限事件保留原始记录，并在原 `(run_id, seq)` 上持久化可发送的替代记录：日志/Trace 改为明确的截断诊断，最终状态保留状态和有界结果，会话保留身份、设备与目录，无法发送续聊命令时明确标记不可用。必需身份仍无法容纳的记录保留待处理，只暂停同一 Run 的后续上传；其他 Run 继续。已修复且上传的原件沿用本地日志的 7 天保留期。
 
 开始过的同步命令不会因重投重新启动。异步命令保存 job_id 后只恢复查询。RunEvent 使用 `(run_id, seq)` 去重，最终状态不会被迟到的进度覆盖。
 

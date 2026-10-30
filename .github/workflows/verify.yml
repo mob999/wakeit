@@ -157,6 +157,8 @@ jobs:
       - name: Service integration
         shell: bash
         run: python3 scripts/integration.py 2>&1 | tee .local-integration.log
+      - name: Payload isolation and offline delivery
+        run: python3 scripts/integration.py --transport-only
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
