@@ -16,25 +16,102 @@ pub async fn enqueue(
 }
 
 pub async fn dispatch(pool: &PgPool, js: &async_nats::jetstream::Context) -> Result<()> {
-    let mut tx = pool.begin().await?;
-    let rows=sqlx::query("SELECT id,subject,payload,message_id FROM outbox WHERE published_at IS NULL ORDER BY id LIMIT 20 FOR UPDATE SKIP LOCKED").fetch_all(&mut *tx).await?;
-    for row in rows {
-        let ack = bus::publish(
+    let ids: Vec<i64> = sqlx::query_scalar("SELECT id FROM outbox WHERE published_at IS NULL AND quarantined_at IS NULL ORDER BY id LIMIT 20")
+        .fetch_all(pool).await?;
+    for id in ids {
+        // Commit each acknowledgement independently. A later failed publish must
+        // not roll back markers for messages the broker already accepted.
+        let mut tx = pool.begin().await?;
+        let row = sqlx::query("SELECT subject,payload,message_id,workspace_id FROM outbox WHERE id=$1 AND published_at IS NULL AND quarantined_at IS NULL FOR UPDATE SKIP LOCKED")
+            .bind(id).fetch_optional(&mut *tx).await?;
+        let Some(row) = row else { continue };
+        let payload: Value = row.get("payload");
+        let result = bus::publish(
             js,
             row.get("subject"),
             row.get("message_id"),
-            serde_json::to_vec(&row.get::<Value, _>("payload"))?,
+            serde_json::to_vec(&payload)?,
+        )
+        .await;
+        match result {
+            Ok(ack) => {
+                sqlx::query(
+                    "UPDATE outbox SET published_at=now(),stream=$2,stream_seq=$3 WHERE id=$1",
+                )
+                .bind(id)
+                .bind(ack.stream)
+                .bind(i64::try_from(ack.sequence)?)
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
+            }
+            Err(error) if bus::is_payload_too_large(&error) => {
+                tx.rollback().await?;
+                quarantine(
+                    pool,
+                    id,
+                    row.get("workspace_id"),
+                    &payload,
+                    &error.to_string(),
+                )
+                .await?;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    clear_completed_messages(pool, js).await?;
+    Ok(())
+}
+
+async fn quarantine(
+    pool: &PgPool,
+    id: i64,
+    workspace: Uuid,
+    payload: &Value,
+    error: &str,
+) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    let run = payload
+        .get("run_id")
+        .and_then(Value::as_str)
+        .and_then(|id| id.parse::<Uuid>().ok());
+    let mut execution = None;
+    if let Some(run) = run {
+        // Match claim/cancel lock order: task -> parent graph -> execution -> outbox.
+        sqlx::query("SELECT t.id FROM tasks t JOIN runs r ON r.workspace_id=t.workspace_id AND r.task_id=t.id WHERE r.workspace_id=$1 AND r.id=$2 FOR UPDATE OF t")
+            .bind(workspace).bind(run).fetch_optional(&mut *tx).await?;
+        crate::store::dag::lock_parent(&mut tx, run).await?;
+        execution = sqlx::query(
+            "SELECT state,claim_id FROM runs WHERE workspace_id=$1 AND id=$2 FOR UPDATE",
+        )
+        .bind(workspace)
+        .bind(run)
+        .fetch_optional(&mut *tx)
+        .await?;
+    }
+    let reason = format!("Task could not be delivered: {error}");
+    let quarantined = sqlx::query("UPDATE outbox SET quarantined_at=now(),quarantine_reason=$2 WHERE id=$1 AND published_at IS NULL AND quarantined_at IS NULL")
+        .bind(id).bind(&reason).execute(&mut *tx).await?.rows_affected();
+    if quarantined > 0
+        && payload.get("task").is_some()
+        && let (Some(run), Some(execution)) = (run, execution)
+        && execution.get::<String, _>("state") == "queued"
+        && execution.get::<Option<Uuid>, _>("claim_id").is_none()
+    {
+        // An earlier accepted delivery may already own a claim. Never terminate
+        // that execution because a later redelivery was too large.
+        crate::store::dag::event(
+            &mut tx,
+            workspace,
+            run,
+            "state",
+            serde_json::json!({"state":"failed","reason":reason,"retryable":false}),
         )
         .await?;
-        sqlx::query("UPDATE outbox SET published_at=now(),stream=$2,stream_seq=$3 WHERE id=$1")
-            .bind(row.get::<i64, _>("id"))
-            .bind(ack.stream)
-            .bind(i64::try_from(ack.sequence)?)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query("UPDATE runs SET state='failed',reason=$2,finished_at=now(),last_state_seq=(SELECT MAX(seq) FROM events WHERE run_id=$1) WHERE id=$1")
+            .bind(run).bind(&reason).execute(&mut *tx).await?;
     }
     tx.commit().await?;
-    clear_completed_messages(pool, js).await?;
     Ok(())
 }
 

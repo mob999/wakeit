@@ -143,7 +143,7 @@ async fn cleanup(s: &App) -> Result<()> {
         .execute(&s.pool)
         .await?;
     }
-    sqlx::query("DELETE FROM outbox WHERE cleared_at<now()-interval '7 days'")
+    sqlx::query("DELETE FROM outbox WHERE cleared_at<now()-interval '7 days' OR quarantined_at<now()-interval '7 days'")
         .execute(&s.pool)
         .await?;
     sqlx::query("DELETE FROM login_attempts WHERE created_at<now()-interval '1 day'")

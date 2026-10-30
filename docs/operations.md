@@ -123,7 +123,7 @@ Compose 部署可在服务干净停止后备份对应命名卷。身份目录包
 
 Gateway 使用部署脚本、源码构建或新镜像更新；CLI/Runner 单独更新，不比较二者的产品版本号。服务数据保留在原目录，数据库更新使用 `wakeit-gateway migrate`。Runner 重启时保留 data_dir。收到 SIGTERM 时服务停止接收新工作；Runner 记录未完成异步任务，后续恢复查询。
 
-监控 `/health/ready` 和带 Admin Token 的 `/metrics`。重点关注调度延迟、Outbox 积压、Runner 离线、unknown 与 failed 的增长。NATS 存储达到配额时拒绝新消息，Runner 保留未上传结果，恢复容量后补传。
+监控 `/health/ready` 和带 Admin Token 的 `/metrics`。重点关注调度延迟、Outbox 积压、`wakeit_outbox_quarantined` 超限隔离数量、Runner 离线、unknown 与 failed 的增长。NATS 存储达到配额时拒绝新消息，Runner 保留未上传结果，恢复容量后补传。
 
 默认运行记录 90 天、日志 7 天，可在 Settings 调整。Gateway 持久化数据都在 PostgreSQL，多个实例无需共享日志文件或依赖会话粘性。
 

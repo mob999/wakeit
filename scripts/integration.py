@@ -8,6 +8,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pg-bin', default=os.environ.get('PG_BIN'))
     parser.add_argument('--keep-running', action='store_true')
+    parser.add_argument('--transport-only', action='store_true', help='Run focused payload isolation and offline delivery acceptance')
     parser.add_argument('--device-auth-only', action='store_true', help='Run the device-flow subset against a fresh disposable service')
     parser.add_argument('--gateway-port', type=int, help='Optional fixed port for the local preview')
     parser.add_argument('--state-file', default='.local/integration-stack.json')
@@ -137,7 +138,7 @@ def main():
         (runner_dir/'agents/mock-events.yaml').write_text(json.dumps(trace_agent))
         from integration_sessions import configure as configure_sessions
         session_agent=configure_sessions(runner_dir,remote,MOCK)
-        runner_config={'version':1,'gateway':base,'id':runner_id,'name':'test-device','token_file':str(runner_dir/'device.token'),'nats_url':config['nats_public_url'],'credentials_file':str(runner_dir/'runner.creds'),'data_dir':str(runner_dir/'data'),'concurrency':2,'agents':[str(runner_dir/'agents/mock-sync.yaml'),str(runner_dir/'agents/mock-async.yaml'),str(runner_dir/'agents/mock-sync-json.yaml'),str(runner_dir/'agents/mock-events.yaml'),str(session_agent)],'allowed_roots':[str(cwd)]}
+        runner_config={'version':1,'gateway':base,'id':runner_id,'name':'test-device','token_file':str(runner_dir/'device.token'),'nats_url':config['nats_public_url'],'credentials_file':str(runner_dir/'runner.creds'),'data_dir':str(runner_dir/'data'),'concurrency':1 if args.transport_only else 2,'agents':[str(runner_dir/'agents/mock-sync.yaml'),str(runner_dir/'agents/mock-async.yaml'),str(runner_dir/'agents/mock-sync-json.yaml'),str(runner_dir/'agents/mock-events.yaml'),str(session_agent)],'allowed_roots':[str(cwd)]}
         runner_file=runner_dir/'runner.yaml'; runner_file.write_text(json.dumps(runner_config))
         runner_process=spawn('runner',[BIN,'runner','start','--config',runner_file])
         wait(lambda:any(r['online'] and len(r['agents'])==5 for r in api('/runners')),'Runner registration and agent detection')
@@ -147,6 +148,11 @@ def main():
         def apply(c,revision=None):return api('/tasks/'+c['id'],'PUT',{'config':c,'expected_revision':revision})
         def trigger(id,key=None):return api('/tasks/'+id+'/runs','POST',{},key)['id']
         def final(id,state='succeeded',timeout=25):return wait(lambda:(r if (r:=api('/runs/'+id))['state']==state else None), f'run {state}',timeout)
+        if args.transport_only:
+            from transport_checks import verify as verify_transport
+            verify_transport(locals())
+            success=True
+            return
         from moments_checks import verify as verify_moments
         verify_moments(api,base,other,sql,task,apply,role_tokens,runner_id,check,ws)
         from admin_archive_checks import verify as verify_admin_archive
