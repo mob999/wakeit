@@ -54,7 +54,9 @@ main() {
   step 1 'Detecting platform'
   case "$(uname -m)" in x86_64|amd64) arch=x86_64 ;; arm64|aarch64) arch=aarch64 ;; *) fail 'Unsupported architecture' ;; esac
   case "$(uname -s)" in
-    Darwin) target=$arch-apple-darwin ;;
+    Darwin)
+      [ "$arch" = aarch64 ] || fail "Unsupported macOS architecture: $arch"
+      target=aarch64-apple-darwin ;;
     Linux)
       if command -v ldd >/dev/null 2>&1 && ldd --version 2>&1 | grep -qi musl; then fail 'The binary requires GNU libc'; fi
       target=$arch-unknown-linux-gnu ;;

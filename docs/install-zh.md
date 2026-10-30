@@ -40,7 +40,6 @@ Windows 或需要手工安装时，进入[官方发布页](https://github.com/mo
 
 | 系统 | 产物 |
 | --- | --- |
-| macOS Intel | `wakeit-x86_64-apple-darwin` |
 | macOS Apple Silicon | `wakeit-aarch64-apple-darwin` |
 | Linux GNU x86-64 | `wakeit-x86_64-unknown-linux-gnu` |
 | Linux GNU ARM64 | `wakeit-aarch64-unknown-linux-gnu` |
