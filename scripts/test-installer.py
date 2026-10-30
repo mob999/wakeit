@@ -44,7 +44,7 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
         assets = {}
         lines = []
         for target in ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
-                       'x86_64-apple-darwin', 'aarch64-apple-darwin'):
+                       'aarch64-apple-darwin'):
             name = f'wakeit-{target}'
             binary = self.fixture / name
             binary.write_text('#!/bin/sh\nprintf "wakeit 0.1.1\\n"\n')
@@ -96,13 +96,27 @@ if os.environ.get('CORRUPT_BINARY') and out.name.startswith('wakeit-') and out.s
     def test_platforms_version_and_custom_directory_without_shell_changes(self):
         for system, arch, target in [('Linux', 'x86_64', 'x86_64-unknown-linux-gnu'),
                                      ('Linux', 'aarch64', 'aarch64-unknown-linux-gnu'),
-                                     ('Darwin', 'x86_64', 'x86_64-apple-darwin')]:
+                                     ('Darwin', 'arm64', 'aarch64-apple-darwin')]:
             with self.subTest(system=system, arch=arch):
                 result = self.install('--version', 'v0.1.1', '--bin-dir', str(self.root / target),
                                       '--no-modify-path', FIXTURE_OS=system, FIXTURE_ARCH=arch)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertTrue((self.root / target / 'wakeit').exists())
         self.assertFalse((self.home / '.zshrc').exists())
+
+    def test_intel_macos_stops_before_download_or_replacement(self):
+        self.bin.mkdir(parents=True)
+        for script, binary in [('install.sh', 'wakeit'), ('deploy-gateway.sh', 'wakeit-gateway')]:
+            with self.subTest(script=script):
+                existing = self.bin / binary
+                existing.write_bytes(b'existing installation')
+                result = subprocess.run(['sh', str(ROOT / script)],
+                                        env={**self.env, 'FIXTURE_OS': 'Darwin', 'FIXTURE_ARCH': 'x86_64'},
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Unsupported macOS architecture: x86_64', result.stderr)
+                self.assertFalse((self.root / 'requests').exists())
+                self.assertEqual(existing.read_bytes(), b'existing installation')
 
     def test_failures_keep_existing_executable(self):
         self.bin.mkdir(parents=True)

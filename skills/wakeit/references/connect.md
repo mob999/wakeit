@@ -8,7 +8,7 @@
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-需要固定 CLI 版本时添加 `--version 0.1.1`；安装或更新完整 Wakeit Skill 使用 `wakeit skill install`，默认目录为 `~/.agents/skills/wakeit`，自定义位置加 `--dir /actual/agent/skills/wakeit`。Windows 使用[官方安装指南](https://github.com/mob999/wakeit/blob/main/docs/install.md)的原生二进制入口。若官方安装包缺少 `--workspace`，停止并报告与当前 Gateway 不兼容，不能改用无工作区命令或自行编译替代。支持 x86_64/aarch64 Linux GNU、x86_64/aarch64 macOS、x86_64 Windows。
+需要固定 CLI 版本时添加 `--version 0.1.1`；安装或更新完整 Wakeit Skill 使用 `wakeit skill install`，默认目录为 `~/.agents/skills/wakeit`，自定义位置加 `--dir /actual/agent/skills/wakeit`。Windows 使用[官方安装指南](https://github.com/mob999/wakeit/blob/main/docs/install.md)的原生二进制入口。若官方安装包缺少 `--workspace`，停止并报告与当前 Gateway 不兼容，不能改用无工作区命令或自行编译替代。支持 x86_64/aarch64 Linux GNU、aarch64 macOS、x86_64 Windows。
 
 ```sh
 wakeit setup --gateway https://wakeit.example.com --workspace WORKSPACE_ID
