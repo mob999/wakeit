@@ -2,7 +2,7 @@
 
 Gateway/NATS 使用 /Library/LaunchDaemons，不用登录后才加载的 LaunchAgents。运行账号为真实非 root 用户（示例当前用户名），数据库也不能以 root 运行。首次安装系统服务需要管理员操作。
 
-可通过 Homebrew 安装 PostgreSQL 17、NATS Server；检测 brew --prefix 以确定 Intel/Apple Silicon 实际路径。Gateway 放 /usr/local/bin/wakeit-gateway，配置和身份放 `/Library/Application Support/Wakeit`，避免受隐私保护的 Documents/Desktop 路径。
+可通过 Homebrew 安装 PostgreSQL 17、NATS Server；检测 brew --prefix 以确定实际路径。Gateway 放 /usr/local/bin/wakeit-gateway，配置和身份放 `/Library/Application Support/Wakeit`，避免受隐私保护的 Documents/Desktop 路径。
 
 ```sh
 brew install postgresql@17 nats-server

@@ -40,7 +40,6 @@ For Windows or a manual installation, choose a `cli-v*` release from the [offici
 
 | System | Asset |
 | --- | --- |
-| macOS Intel | `wakeit-x86_64-apple-darwin` |
 | macOS Apple Silicon | `wakeit-aarch64-apple-darwin` |
 | Linux GNU x86-64 | `wakeit-x86_64-unknown-linux-gnu` |
 | Linux GNU ARM64 | `wakeit-aarch64-unknown-linux-gnu` |
