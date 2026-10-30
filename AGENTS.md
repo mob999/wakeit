@@ -1,27 +1,42 @@
-# wakeit development conventions
+# Repository instructions for coding agents
 
-Gateway/WebUI and CLI/Runner are independently versioned products: Gateway 0.4.2 and CLI 0.1.1. Keep config/message version at 1. Preserve published migration baselines and add new migrations for future schema changes. Release changes align versions and metadata within the affected product only. Gateway uses gateway-vX.Y.Z tags and CHANGELOG.md / CHANGELOG.zh-CN.md; CLI uses cli-vX.Y.Z tags and CHANGELOG.cli.md / CHANGELOG.cli.zh-CN.md. Runner and the Wakeit Skill ship with the CLI. Local runtime data and credentials must remain ignored. Before replacing local data, back it up and confirm no active Runs; never affect Agent credentials. Track each change with a GitHub Issue, work on a scope-prefixed feature branch using <type>(<scope>)/<description>, for example feat(gateway)/device-auth or fix(runner)/reconnect (do not use a codex/ prefix), and submit a pull request referencing the Issue. After a pull request is merged, delete its remote branch; keep main as the only long-lived remote branch. Never force push, rewrite pushed commits or tags, or push changes directly to main. Preserve the ghdiff visual baseline in docs/design.md.
+Implement the user's requested outcome directly. Read the relevant code and docs first, keep the change small, and avoid unrelated refactors, speculative defenses and new abstractions. Contributor setup and commands are in [CONTRIBUTING.md](CONTRIBUTING.md); product usage is in [README.md](README.md) and `docs/`.
 
-Keep product copy focused on user data, controls, and necessary operational errors or consequences. Do not add implementation notes, development history, or automatic-ID explanations to titles, forms, or footers.
+## Protect data
 
-Changelogs describe only final, user-visible changes since the preceding version: what users can do, how their actions change, and which concrete problems are fixed. Omit implementation details such as CSS spacing, internal refactors, database migration steps, CI and test work. Link to upgrade documentation for procedures; retain compatibility or permission changes that users need to act on. Compare release tags, not intermediate commits: fixes and improvements made while developing a newly introduced feature belong in its final Added description, not separate Fixed/Improved entries. A Fixed entry must correct behavior present in an earlier published release. The first release may summarize its core capabilities. Never include implementation progress, work logs, discussion history, test transcripts, or development diaries. Keep one entry per version and keep English and Chinese entries aligned. Curate release notes from these entries rather than generating them from commit titles.
+- Keep runtime data, local configuration, tokens, credentials, private prompts and user reports out of Git, logs and chat output. Use synthetic data for screenshots and UI checks.
+- Preserve Gateway databases, NATS data, Runner identities, Agent credentials and existing connections. Do not reset or re-enroll them for a check.
+- Do not restart or replace user services for frontend-only work. Before replacing real runtime data, confirm that no relevant Run is active and make a backup. Routine source edits and disposable test stacks need no backup.
+- Keep fixtures, screenshots, comparison scripts and validation output under ignored `.local/` paths. Never upload them to GitHub.
 
-Keep README.md in English and README-zh.md in Chinese with reciprocal language links and aligned content. Do not capture, commit or publish screenshots containing personal information, credentials, local account details or real runtime data. Use synthetic examples for any future documentation images.
+## Git and delivery
 
-## Development workflow
+- Create or link an Issue for delivered changes. Branch from the latest `main` with a type/scope prefix such as `feat(gateway)/device-auth`, `fix(runner)/reconnect` or `docs(agents)/rules`.
+- Open a PR linked to the Issue. Never push directly to `main`, force-push, rewrite pushed commits or rewrite published tags.
+- Keep review fixes as additional commits. After merge, delete the remote branch; `main` is the only long-lived branch.
+- Keep private validation records, development diaries and implementation notes out of product docs, changelogs and PR descriptions.
 
-- Prioritize the requested behavior and visible result. Implement a direct solution; add abstractions, compatibility paths and fallbacks only for current consumers or concrete failure modes.
-- For UI work, use one Vite dev server serving the active worktree directly. Keep the user on that preview and inspect the affected interactions through hot reload. Avoid copied source trees, repeated builds and backend restarts for frontend-only changes.
-- Let CI own full suites, cross-platform builds, service integration and release packaging. Run local checks only to answer a concrete question about the change; do not repeat passing checks or install dependencies without a relevant change or failure.
-- Ordinary UI and copy edits need focused observation, not a screenshot matrix or new tests. Use disposable local screenshot comparisons only for explicit visual-preservation work, broad styling migrations or a specific visual regression; never upload those artifacts to GitHub.
-- Keep meaningful behavior tests and protections for data, credentials, permissions, migrations and execution identity. Tie backups to actual data replacement; do not add process steps or defensive code for hypothetical risks.
-- Push development work and let CI run asynchronously while continuing useful work. Wait for required CI on the current commit when merging or releasing; do not reproduce the CI suite locally while waiting.
-- Keep updates concise and about outcomes, concrete blockers or decisions. Avoid step-by-step CI narration and repeated requests for already-authorized work.
+## Implementation and verification
 
-## Source organization
+- CI owns full suites, platform matrices, service integration and release packaging. Run local checks only for a concrete question; do not repeat passing checks or reproduce unrelated CI jobs.
+- CI selects jobs from changed paths through `scripts/ci_scope.py`. Keep frontend-only, documentation-only and product-specific changes scoped so unrelated jobs stay skipped.
+- For WebUI work, use one Vite server serving the active worktree and inspect the affected page through hot reload. Do not copy source or rebuild/restart the backend for frontend-only edits.
+- Do not maintain browser tests, CSS-position assertions, markup snapshots or tests that only repeat layout constants. Test business behavior, data boundaries, permissions, migrations, execution identity and real integrations; use focused unit tests for pure logic.
+- Use local screenshot comparisons only for broad visual migrations or a specific visual regression, always with synthetic data.
+- Update both English and Chinese UI resources. Do not translate task instructions, reports, logs, paths, model IDs or third-party responses. Preserve the ghdiff visual baseline in `docs/design.md`.
 
-- Gateway: `api/` owns HTTP handlers, `auth/` owns identity and permissions, `store/` owns persistence and background state changes, and `transport/` owns NATS communication. Shared application state lives in `state.rs`; background work must not depend on HTTP handlers.
-- CLI: `commands/` owns command parsing and dispatch, `runner/` owns device execution, and `adapters/` owns native Agent integration. Keep `main.rs` as the entry point.
-- Core: share task/Agent configuration and protocol types. Gateway and Runner startup configuration belongs to its product; native executable resolution belongs to CLI adapters.
-- WebUI: `app/` owns application/router setup, `api/` owns HTTP and DTOs, `components/` owns shared UI, and business pages stay in their existing feature directories. Keep page modules independent of the router singleton.
-- Group by responsibility with shallow directories. Do not introduce forwarding modules, blanket re-exports, or service wrappers solely to organize files.
+## Data and source boundaries
+
+- Keep configuration and message protocol version `1` unless a protocol migration is explicitly required. Never edit a published database migration; add a new migration and checks.
+- When a public API changes, update the handler, types, OpenAPI/schema description and user-facing docs together.
+- Gateway owns HTTP in `api/`, identity in `auth/`, persistence/background state in `store/`, NATS in `transport/`, and shared state in `state.rs`.
+- CLI owns parsing in `commands/`, device execution in `runner/`, and native Agent integration in `adapters/`; keep `main.rs` as the entry point. Shared task, Agent, DAG and protocol types belong in `wakeit-core`.
+- WebUI owns router setup in `app/`, HTTP/DTOs in `api/`, shared UI in `components/`, and feature behavior in its feature directory.
+- Keep these directories shallow and responsibility-based. Do not add forwarding modules, blanket re-exports or wrappers solely to reorganize files.
+
+## Product docs and releases
+
+- User-facing copy describes data, controls and necessary consequences. Do not expose internal IDs, migration details, CSS/layout terms, automatic-ID explanations or developer history.
+- Changelogs describe final user-visible changes since the previous release. Keep English and Chinese entries aligned; omit refactors, CI, tests, migrations and development progress. A Fix entry must correct behavior from an earlier release.
+- Gateway/WebUI and CLI/Runner are independent products; Runner and the Wakeit Skill ship with the CLI. Use `gateway-vX.Y.Z` and `cli-vX.Y.Z` tags, update only the affected product, and publish through `.github/workflows/release.yml`.
+- Wait for required CI before merging or releasing. Never rewrite a published release or tag; keep historical release assets available.
