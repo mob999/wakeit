@@ -413,22 +413,8 @@ pub async fn inspect(protocol: &str, id: &str, cwd: &Path) -> Result<Value> {
     .context("session inspection timed out")?
 }
 
-/// Keep inspection separate from submission; failed binding never falls back to a new session.
-pub async fn resume(protocol: &str, id: &str, command: Vec<String>) -> Result<i32> {
-    inspect(protocol, id, &std::env::current_dir()?).await?;
-    crate::stream::stream_checked(protocol, &command, Some(id)).await
-}
-
 /// Name a newly created native conversation through its official metadata API.
 pub async fn rename(protocol: &str, id: &str, title: &str, cwd: &Path) -> Result<()> {
-    if protocol == "kimi-code" {
-        validate_id(protocol, id)?;
-        ensure!(
-            !title.trim().is_empty() && title.len() <= 200 && !title.chars().any(char::is_control),
-            "invalid session title"
-        );
-        return crate::kimi_server::rename(id, title, cwd).await;
-    }
     ensure!(
         protocol == "codex",
         "native adapter has no session rename interface"

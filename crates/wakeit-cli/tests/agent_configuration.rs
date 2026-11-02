@@ -45,7 +45,7 @@ fn initialized_agent_survives_removing_the_installation_executable() {
     let kimi = dir.path().join("kimi");
     fs::write(
         &kimi,
-        "#!/bin/sh\ncase \"$1\" in --help) printf 'web --session\\n';; --version) printf '2.3.2\\n';; *) exit 1;; esac\n",
+        "#!/bin/sh\ncase \"$1\" in --help) printf 'acp --session\\n';; --version) printf '2.3.2\\n';; *) exit 1;; esac\n",
     )
     .unwrap();
     fs::set_permissions(&kimi, fs::Permissions::from_mode(0o755)).unwrap();

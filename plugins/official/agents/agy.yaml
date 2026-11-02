@@ -12,7 +12,7 @@ models:
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:
-    - stream
+    - run
     - agy
     - '--'
     - agy

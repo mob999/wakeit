@@ -74,3 +74,5 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect kimi-code
 Install the complete CLI 0.2 bundle using the [installer](install.md). The old `wakeit adapter` commands have been removed. If a Runner explicitly lists old official YAML files, regenerate them with `wakeit agent init ID --file NEW_FILE` and update its `agents` paths, or use `bundled_agents: true` with an empty `agents` list. Preserve any custom Agent options you need.
 
 New setup/enrollment uses plugin resources directly. Keep device credentials and Runner identity; no Gateway upgrade is required. New plugin-backed sessions retain the executable path from their package version.
+
+Official adapters use `run AGENT [--session ID] [--model MODEL] -- NATIVE_ARGV` for both new and resumed executions. Kimi runs its native ACP over stdio. Existing native session titles are preserved; when a verified session has none, Runner keeps a local display name used in session inspection and search. Later native titles take precedence. Third-party command and event interfaces are unchanged.

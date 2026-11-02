@@ -267,6 +267,7 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         client.clone(),
         runner.config.clone(),
         runner.agents.clone(),
+        runner.journal.clone(),
         runner.runtime,
         runner.shutdown.clone(),
     ));

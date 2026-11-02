@@ -815,7 +815,7 @@ fn content_text(content: &Value) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
-async fn write_records(
+pub(crate) async fn write_records(
     writer: &mut (impl AsyncWriteExt + Unpin),
     records: Vec<StreamRecord>,
 ) -> Result<()> {

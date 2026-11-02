@@ -313,7 +313,7 @@ async fn stream_helper_keeps_native_children_in_the_runner_process_tree() {
             "git:github.com/mob999/wakeit".into(),
             "adapter".into(),
             "--".into(),
-            "stream".into(),
+            "run".into(),
             "codex".into(),
             "--".into(),
             "node".into(),

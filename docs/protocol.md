@@ -59,7 +59,7 @@ Trace 的 id 在一次 Run 内稳定，parent_id 可选，仅使用来源实际�
 
 result 单独保存为最终报告，最后一个 result 记录覆盖前值；它不应包含完整事件流或工具输出。Run 的终态依据命令退出码、超时和终止确认，Trace 不设置 Run 状态。纯文本不猜测工具事件，异步适配继续使用 status/result，不接受 events 格式。
 
-内置 YAML 使用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- stream <codex|claude-code|pi|opencode|kimi-code|agy|gemini-cli> -- <可执行文件> <独立参数>`。辅助命令继承 Runner 的进程组/Windows Job Object，stdin 和 stderr 直接传递；内置或第三方适配使用同一事件解析器。辅助命令保留原生非零退出码；原生明确失败却返回 0（例如 Pi JSON 模式）时返回 1，保持失败的非交互执行语义。它忽略推理内容，只转换公开消息与工具结果。Pi 的消息增量先合并为完整快照，实时快照最多约每 100ms 一次，结束快照立即回传。协议依据：[Codex](https://developers.openai.com/codex/noninteractive/)、[Claude Code](https://code.claude.com/docs/en/headless)、[Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/json.md)、[OpenCode](https://opencode.ai/docs/cli/)。
+内置 YAML 使用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- run <codex|claude-code|pi|opencode|kimi-code|agy|gemini-cli> -- <可执行文件> <独立参数>`。辅助命令继承 Runner 的进程组/Windows Job Object，stdin 和 stderr 直接传递；内置或第三方适配使用同一事件解析器。辅助命令保留原生非零退出码；原生明确失败却返回 0（例如 Pi JSON 模式）时返回 1，保持失败的非交互执行语义。它忽略推理内容，只转换公开消息与工具结果。Pi 的消息增量先合并为完整快照，实时快照最多约每 100ms 一次，结束快照立即回传。协议依据：[Codex](https://developers.openai.com/codex/noninteractive/)、[Claude Code](https://code.claude.com/docs/en/headless)、[Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/json.md)、[OpenCode](https://opencode.ai/docs/cli/)。
 
 日志和 Trace 共用默认 20 MiB 容量及 7 天内容保留期限，结果单独受消息上限保护。Journal 与 Gateway 在超额时记录 trace_status: truncated；损坏/未知事件记录 incomplete 并继续读，既不重新执行，也不据此改变 Run 终态。过期清理删除内容，保留 trace_status: expired，直到 Run 的 90 天记录期限结束。原生事件没有结束记录时不会根据进程退出补造工具成功。
 
@@ -172,7 +172,7 @@ Gateway 领取执行时对 Runner + Agent + Session 加事务锁，starting/runn
 {"version":1,"sessions":[{"id":"完整原生ID","title":"会话标题","cwd":"/srv/project","updated_at":"2026-10-15T01:00:00Z"}],"next_cursor":null}
 ```
 
-`title`、`updated_at` 可省略或为null。不返回聊天正文、日志、凭据或会话文件路径。Runner要求目录真实路径与所选cwd一致、ID唯一且完整，再在本机按更新时间和ID倒序排序、搜索和每页20条分页。适配命令需返回完整目录，上限10000条；不完整目录明确报错，不把首段当全量。没有list接口、离线或失败时仍可手填完整ID，不使用静态或旧候选列表。
+`title`、`updated_at` 可省略或为null。不返回聊天正文、日志、凭据或会话文件路径。Runner要求目录真实路径与所选cwd一致、ID唯一且完整，先合并 Runner 本地无标题会话的显示名，再在本机按更新时间和ID倒序排序、搜索和每页20条分页。适配命令需返回完整目录，上限10000条；不完整目录明确报错，不把首段当全量。没有list接口、离线或失败时仍可手填完整ID，不使用静态或旧候选列表。
 
 内置目录查询使用Codex thread/list、OpenCode session.list、Pi项目会话header与Claude项目会话元数据。选择后仍可显式inspect，执行前始终再校验。列表可能过期，目录条目不是执行授权或持久化的最终证明。
 
@@ -186,3 +186,5 @@ Kimi Code、Antigravity CLI 和 Gemini CLI 的原生协议分别归一化，不�
 `trace_status.data` retains `status` and may include `reason`: `content_shortened`, `event_limit`, `event_unsupported`, `event_parse_failed`, `event_too_large`, `content_limit`, or `content_expired`. These describe recording quality, not execution outcomes. Ordinary adapter diagnostic logs do not imply incomplete activity. An adapter can explicitly attach optional `recording_issue` to a version-1 log record; the Runner emits the corresponding status once per cause. The Runner also recognizes explicit truncated input/output previews. Existing logs without that field remain valid. Old Runners can omit an unknown diagnostic record and retain their generic incomplete marker; execution and terminal-result messages are unchanged.
 
 The WebUI displays causes in a toolbar information tooltip for the actual execution. Historical statuses without a cause remain unspecified; the UI does not infer a cause from human log text. No activity warnings are inserted ahead of recorded messages. Empty, loading, unsupported and fully expired activity remain distinct empty states.
+
+官方辅助程序的执行入口统一为 `run <agent-id> [--session ID] [--model MODEL] -- <原生命令及参数>`，新建／恢复不再使用不同动词。第三方进程的 YAML 和 events version 1 协议保持不变。

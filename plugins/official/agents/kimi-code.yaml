@@ -7,11 +7,13 @@ parameters:
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:
-    - kimi
-    - --title
-    - '{{session.title}}'
+    - run
+    - kimi-code
     - when_set: model
       args: [--model, '{{parameters.model}}']
+    - '--'
+    - kimi
+    - acp
   stdin: '{{task.prompt}}'
 session:
   list:
@@ -25,11 +27,15 @@ session:
   resume:
     command: ./plugins/official/bin/wakeit-agent-runtime
     args:
-      - kimi
+      - run
+      - kimi-code
       - --session
       - '{{session.id}}'
       - when_set: model
         args: [--model, '{{parameters.model}}']
+      - '--'
+      - kimi
+      - acp
     stdin: '{{task.prompt}}'
   interactive:
     command: kimi
