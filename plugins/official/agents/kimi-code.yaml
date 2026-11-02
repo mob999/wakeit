@@ -4,6 +4,10 @@ logo: /agent-logos/kimi-code.svg
 mode: sync
 parameters:
   model: {type: string, label: 模型}
+models:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args: [ models, kimi-code]
+  timeout: 25s
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:

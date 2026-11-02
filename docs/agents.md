@@ -8,7 +8,7 @@ Runner 调用设备上已安装、已登录的原生 CLI，不安装 Agent、不
 | `claude-code` | `claude` | 支持 | 手填 | 支持 |
 | `pi` | `pi` | 支持 | 原生查询或手填 | 支持 |
 | `opencode` | `opencode` | 工具完成后更新 | 原生查询或手填 | 支持 |
-| `kimi-code` | `kimi`，Kimi Code 2.x | 支持 | 手填 | 只读查询原生会话、精确绑定及原生命令续聊 |
+| `kimi-code` | `kimi`，Kimi Code 2.x | 支持 | 原生查询或手填 | 只读查询原生会话、精确绑定及原生命令续聊 |
 | `agy` | Google Antigravity CLI 的 `agy` | 支持 | 原生 `models` 查询或手填 | 不支持 |
 | `gemini-cli` | `gemini` | 支持 | 手填 | 不支持 |
 | `cursor` | `cursor-agent` | 支持 | 手填 | 不支持 |
@@ -52,6 +52,8 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect gemini-cli
 官方执行入口统一为 `run <agent-id> [--session ID] [--model MODEL] -- <原生命令及参数>`。Kimi 使用 `run kimi-code -- kimi acp`，通过原生 [ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp.html) 的 stdin/stdout JSON-RPC 创建或恢复会话、选择模型、提交指令并接收实时消息和工具事件，不启动本地 HTTP 服务。
 
 模型使用本机配置的模型 ID；未覆盖时，新会话使用默认模型，恢复会话保留已有模型。消息、工具开始／完成及最终结果分别转换为 Wakeit 事件，隐藏思考不转发；取消、失败或断连不发布成功报告。执行沿用自动权限模式，不能处理的交互许可会被拒绝，不自动扩大工具授权。
+
+模型列表通过原生 `kimi provider list --json` 只读查询，展示已配置模型的名称，执行时传入对应别名；查询不创建会话或发起推理，不返回供应商凭据。
 
 Kimi ACP 未提供原生标题设置接口：保留已有原生标题，没有标题时由 Runner 保存本地显示名。支持原生命名的其他 Agent 继续为新会话保存原生名称，绑定或续聊时不改名。原生标题优先于本地名称，本地名称可用于会话列表搜索；两者都缺失时显示会话 ID。
 
