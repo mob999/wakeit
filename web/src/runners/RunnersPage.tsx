@@ -36,6 +36,11 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
     queryFn: () => api('/runners'),
     refetchInterval: 3000,
   })
+  const extensionSupport = useQuery<{ extensions?: { protocol: number } }>({
+    queryKey: ['meta'],
+    queryFn: () => api('/meta'),
+  })
+  const pluginsAvailable = extensionSupport.data?.extensions?.protocol === 1
   const settings = useQuery<WorkspaceSettings>({
     queryKey: ['settings'],
     queryFn: () => api('/settings'),
@@ -62,7 +67,10 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
       : Math.min(page, Math.max(1, Math.ceil(filtered.length / 20)))
   const items = filtered.slice((currentPage - 1) * 20, currentPage * 20)
   const runner = filtered.find((r) => r.id === search.runner) ?? items[0]
-  const section = search.section ?? (filteringAgents ? 'agents' : 'overview')
+  const section =
+    search.section === 'plugins' && !pluginsAvailable
+      ? 'overview'
+      : (search.section ?? (filteringAgents ? 'agents' : 'overview'))
   const admin = user.role === 'admin'
   const editable = user.role !== 'viewer'
   const choose = (id: string, nextSection: string = section, agent?: string) =>
@@ -196,7 +204,9 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               tabs={[
                 { key: 'overview', label: tr('概览') },
                 { key: 'agents', label: tr('Agents') },
-                { key: 'plugins', label: tr('plugins.title') },
+                ...(pluginsAvailable
+                  ? [{ key: 'plugins' as const, label: tr('plugins.title') }]
+                  : []),
               ]}
               value={section}
               onChange={(value) => choose(runner.id, value)}
@@ -209,7 +219,7 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               tabIndex={0}
             >
               {section === 'plugins' ? (
-                <RunnerPlugins runner={runner} admin={admin} toast={toast} />
+                <RunnerPlugins runner={runner} admin={admin} canAct={editable} toast={toast} />
               ) : section === 'agents' ? (
                 <RunnerAgents
                   runner={runner}

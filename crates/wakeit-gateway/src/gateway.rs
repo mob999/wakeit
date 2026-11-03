@@ -89,6 +89,13 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
             }
         }
     });
+    let operation_host = app.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        loop {
+            tokio::select! {_=operation_host.shutdown.cancelled()=>break,_=tick.tick()=>{if let Err(error)=crate::store::plugins::business_operations(&operation_host).await{tracing::warn!(error=%error,"plugin business operations deferred");}}}
+        }
+    });
     let listener = tokio::net::TcpListener::bind(&app.config.listen).await?;
     tracing::info!(address=%listener.local_addr()?,"wakeit gateway ready");
     let stop = cancel.clone();

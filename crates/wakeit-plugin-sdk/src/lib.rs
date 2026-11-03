@@ -139,6 +139,7 @@ impl Plugin {
             pending: Default::default(),
         };
         let plugin = Arc::new(self);
+        let initialized = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let controllers = Arc::new(Mutex::new(HashMap::<Uuid, watch::Sender<bool>>::new()));
         let mut input = BufReader::new(tokio::io::stdin()).lines();
         while let Some(line) = input.next_line().await? {
@@ -172,12 +173,14 @@ impl Plugin {
             }
             let client = client.clone();
             let plugin = plugin.clone();
+            let initialized = initialized.clone();
             let controllers = controllers.clone();
             tokio::spawn(async move {
                 let result:Result<Value>=async{
-                    if method=="initialize"{ensure!(params["protocol_version"]==1,"unsupported protocol");return Ok(json!({"protocol_version":1,"handlers":plugin.events.keys().collect::<Vec<_>>(),"hooks":plugin.hooks.keys().collect::<Vec<_>>(),"actions":plugin.actions.keys().collect::<Vec<_>>(),"providers":plugin.providers.keys().collect::<Vec<_>>()}));}
+                    if method=="initialize"{ensure!(params["protocol_version"]==1,"unsupported protocol");ensure!(!initialized.swap(true,std::sync::atomic::Ordering::SeqCst),"duplicate initialization");return Ok(json!({"protocol_version":1,"handlers":plugin.events.keys().collect::<Vec<_>>(),"hooks":plugin.hooks.keys().collect::<Vec<_>>(),"actions":plugin.actions.keys().collect::<Vec<_>>(),"providers":plugin.providers.keys().collect::<Vec<_>>()}));}
                     let (tx,rx)=watch::channel(false);
                     if method=="invoke"{
+                        ensure!(initialized.load(std::sync::atomic::Ordering::SeqCst),"initialize before invoking");
                         let invocation:Invocation=serde_json::from_value(params)?;
                         controllers.lock().await.insert(invocation.id,tx);
                         let table=match invocation.kind.as_str(){"event"=>&plugin.events,"hook"=>&plugin.hooks,"action"=>&plugin.actions,"provider"=>&plugin.providers,_=>anyhow::bail!("invalid invocation kind")};

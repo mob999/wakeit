@@ -357,6 +357,7 @@ pub const EVENT_TYPES: &[&str] = &[
     "plugin.installed",
     "plugin.updated",
     "plugin.removed",
+    "instance.created",
     "instance.activating",
     "instance.activated",
     "instance.deactivated",
@@ -372,6 +373,23 @@ pub const EVENT_TYPES: &[&str] = &[
     "operation.state_changed",
     "delivery.state_changed",
 ];
+pub fn event_matches(pattern: &str, event: &str) -> bool {
+    pattern == "*"
+        || pattern == event
+        || pattern
+            .strip_suffix('*')
+            .is_some_and(|p| p.ends_with('.') && event.starts_with(p))
+}
+pub fn valid_event_pattern(pattern: &str) -> bool {
+    pattern == "*"
+        || EVENT_TYPES.contains(&pattern)
+        || pattern.starts_with("plugin:")
+        || pattern.strip_suffix(".*").is_some_and(|prefix| {
+            EVENT_TYPES
+                .iter()
+                .any(|event| event.starts_with(&format!("{prefix}.")))
+        })
+}
 pub const HOOK_STAGES: &[(&str, &[&str])] = &[
     ("workspace.settings.prepare", &["settings"]),
     ("task.save.prepare", &["config"]),
@@ -406,6 +424,15 @@ pub fn apply_decision(stage: &str, proposal: &mut Value, decision: Decision) -> 
         Decision::Allow => Ok(()),
         Decision::Deny { code, message, .. } => bail!("hook_rejected:{code}: {message}"),
         Decision::Patch { value } => {
+            if stage == "result.publish.prepare"
+                && proposal["result"]["truncated"] == true
+                && value.get("result").is_some()
+            {
+                ensure!(
+                    value["result"]["truncated"] == true,
+                    "result Hook cannot remove the incomplete marker"
+                );
+            }
             let patch = value.as_object().context("hook patch must be an object")?;
             ensure!(
                 patch.keys().all(|k| allowed.contains(&k.as_str())),
@@ -446,10 +473,7 @@ impl Extension {
         for (id, h) in &self.handlers {
             ensure!(!id.is_empty() && !h.events.is_empty(), "invalid handler");
             for e in &h.events {
-                ensure!(
-                    EVENT_TYPES.contains(&e.as_str()) || e.starts_with("plugin:"),
-                    "unsupported event: {e}"
-                );
+                ensure!(valid_event_pattern(e), "unsupported event: {e}");
             }
         }
         for h in self.hooks.values() {
@@ -495,6 +519,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(value["prompt"], "effective");
+        let mut result = json!({"result":{"truncated":true,"preview":"partial"}});
+        assert!(
+            apply_decision(
+                "result.publish.prepare",
+                &mut result,
+                Decision::Patch {
+                    value: json!({"result":"pretend complete"})
+                }
+            )
+            .is_err()
+        );
+        assert!(result["result"]["truncated"] == true);
         assert!(
             apply_decision(
                 "execution.prepare",
@@ -537,6 +573,7 @@ pub struct Contract {
     pub decision: Decision,
     pub receipt: Receipt,
     pub interaction: Interaction,
+    pub outcome: DeliveryOutcome,
 }
 pub fn schema() -> Value {
     let mut schema =

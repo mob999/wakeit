@@ -62,7 +62,7 @@ export function PluginFields({
   const description = schema.description && (
     <TooltipTarget label={schema.description}>
       <span className="quiet" tabIndex={0}>
-        ⓘ
+        <ActionIcon name="info" />
       </span>
     </TooltipTarget>
   )

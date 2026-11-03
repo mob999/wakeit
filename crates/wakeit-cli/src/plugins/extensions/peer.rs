@@ -11,6 +11,19 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+#[derive(Debug)]
+pub(super) struct RemoteError {
+    pub code: String,
+    pub message: String,
+    pub retryable: bool,
+    pub paths: Vec<String>,
+}
+impl std::fmt::Display for RemoteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+impl std::error::Error for RemoteError {}
 pub trait Host: Send + Sync + 'static {
     fn request(&self, method: String, params: Value) -> BoxFuture<'static, Result<Value>>;
 }
@@ -104,7 +117,7 @@ impl Peer {
                                     if !value["id"].is_null(){let response=match result {Ok(result)=>json!({"jsonrpc":"2.0","id":value["id"],"result":result}),Err(e)=>json!({"jsonrpc":"2.0","id":value["id"],"error":{"code":-32000,"message":e.to_string()}})};let _=tx.send(response).await;}
                                 });
                             } else if let Some(id)=value["id"].as_str().and_then(|s|s.parse().ok()) && let Some(reply)=pending.remove(&id) {
-                                let result=if value.get("error").is_some(){Err(anyhow::anyhow!("extension request failed: {}",value["error"]))}else{Ok(value["result"].clone())};
+                                let result=if value.get("error").is_some(){Err(RemoteError{code:value["error"]["code"].as_str().map(str::to_owned).unwrap_or_else(||value["error"]["code"].to_string()),message:value["error"]["message"].as_str().unwrap_or("extension request failed").into(),retryable:value["error"]["data"]["retryable"]==true,paths:serde_json::from_value(value["error"]["data"]["paths"].clone()).unwrap_or_default()}.into())}else{Ok(value["result"].clone())};
                                 let _=reply.send(result);
                             }
                         }
@@ -157,9 +170,10 @@ impl Peer {
             })
             .await
             .context("extension stopped")?;
+        let mut result = result;
         tokio::select! {
-            result=tokio::time::timeout(timeout,result)=>match result {Ok(result)=>result.context("extension disconnected")?,Err(_)=>{self.cancel(cancel_id).await;self.stop();bail!("extension call timed out")}},
-            _=cancel.cancelled()=>{self.cancel(cancel_id).await;bail!("extension call cancelled")}
+            result=tokio::time::timeout(timeout,&mut result)=>match result {Ok(result)=>result.context("extension disconnected")?,Err(_)=>{self.cancel(cancel_id).await;self.stop();bail!("extension call timed out")}},
+            _=cancel.cancelled()=>{self.cancel(cancel_id).await;if tokio::time::timeout(Duration::from_secs(2),&mut result).await.is_err(){self.stop();}bail!("extension call cancelled")}
         }
     }
     async fn cancel(&self, id: Uuid) {

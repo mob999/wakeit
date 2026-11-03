@@ -25,6 +25,7 @@ pub struct Runtime {
     pub config: Arc<RunnerConfig>,
     pub journal: Journal,
     peers: Arc<Mutex<HashMap<Uuid, Peer>>>,
+    invocation_slots: Arc<tokio::sync::Semaphore>,
     calls: Arc<Mutex<HashMap<Uuid, CancellationToken>>>,
     responses: Arc<Mutex<HashMap<String, Value>>>,
     watches: Arc<Mutex<HashMap<Uuid, watch::Watch>>>,
@@ -57,6 +58,7 @@ impl Runtime {
             config,
             journal,
             peers: Default::default(),
+            invocation_slots: Arc::new(tokio::sync::Semaphore::new(32)),
             calls: Default::default(),
             stop,
         })
@@ -292,6 +294,7 @@ impl Runtime {
         invocation: Invocation,
         cancel: CancellationToken,
     ) -> Result<Value> {
+        let _permit = tokio::select! {_=cancel.cancelled()=>bail!("invocation cancelled"),permit=self.invocation_slots.clone().acquire_owned()=>permit.context("extension host stopped")?};
         let mut instance = self.instance(invocation.instance_id).await?;
         ensure!(instance.enabled, "extension is disabled");
         let mut retired_root = None;
@@ -376,6 +379,10 @@ impl Runtime {
                     .actions
                     .get(&invocation.handler)
                     .context("action is not declared")?;
+                ensure!(
+                    action.permission.is_empty() || instance.grants.contains(&action.permission),
+                    "action capability is not granted"
+                );
                 wakeit_core::extensions::validate_schema(&action.input, &invocation.input)?;
             }
             "provider" => {
@@ -420,6 +427,7 @@ impl Runtime {
             peer.stop();
         }
         self.calls.lock().await.remove(&invocation.id);
+        let remote_error=result.as_ref().err().and_then(|error|error.downcast_ref::<peer::RemoteError>()).map(|error|json!({"error":{"code":error.code,"retryable":error.retryable,"paths":error.paths}}));
         let (state, value, error) = match &result {
             Ok(value) if value["outcome"] == "uncertain" => (
                 "uncertain",
@@ -438,7 +446,7 @@ impl Runtime {
             Ok(value) => ("succeeded", Some(value.to_string()), None),
             Err(error) => (
                 "failed",
-                None,
+                remote_error.as_ref().map(Value::to_string),
                 Some(self.redact(instance.id, &error.to_string()).await),
             ),
         };
@@ -665,6 +673,53 @@ impl Runtime {
                 }
             }
             let mut catalog = self.catalog().await?;
+            let packages = catalog["packages"].as_array().cloned().unwrap_or_default();
+            let previous = sqlx::query("SELECT source,version FROM extension_package_versions")
+                .fetch_all(&self.journal.pool)
+                .await?;
+            for package in &packages {
+                let source = package["source"]
+                    .as_str()
+                    .context("package source missing")?;
+                let version = package["version"].as_str().unwrap_or("unavailable");
+                let old = previous
+                    .iter()
+                    .find(|row| row.get::<String, _>("source") == source);
+                let event = if old.is_none() {
+                    Some("plugin.installed")
+                } else if old.is_some_and(|row| row.get::<String, _>("version") != version) {
+                    Some("plugin.updated")
+                } else {
+                    None
+                };
+                if let Some(event) = event {
+                    self.journal
+                        .extension_event(
+                            event,
+                            json!({"source":source,"version":version,"runner_id":self.config.id}),
+                        )
+                        .await?;
+                    sqlx::query("INSERT INTO extension_package_versions(source,version) VALUES(?,?) ON CONFLICT(source) DO UPDATE SET version=excluded.version").bind(source).bind(version).execute(&self.journal.pool).await?;
+                }
+            }
+            for removed in previous.iter().filter(|row| {
+                !packages
+                    .iter()
+                    .any(|p| p["source"] == row.get::<String, _>("source"))
+            }) {
+                let source: String = removed.get("source");
+                self.journal
+                    .extension_event(
+                        "plugin.removed",
+                        json!({"source":source,"runner_id":self.config.id}),
+                    )
+                    .await?;
+                sqlx::query("DELETE FROM extension_package_versions WHERE source=?")
+                    .bind(source)
+                    .execute(&self.journal.pool)
+                    .await?;
+            }
+
             catalog["runtime_id"] = json!(runtime);
             catalog["active_invocations"] = json!(
                 self.calls
@@ -691,6 +746,17 @@ impl Runtime {
             let Ok(commands) = response.json::<Value>().await else {
                 continue;
             };
+            for id in commands["cancellations"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .filter_map(|s| s.parse::<Uuid>().ok())
+            {
+                if let Some(signal) = self.calls.lock().await.get(&id) {
+                    signal.cancel();
+                }
+            }
             if let Some(bindings) = commands["bindings"].as_array() {
                 let mut tx = self.journal.pool.begin().await?;
                 sqlx::query("DELETE FROM extension_bindings")
@@ -734,7 +800,20 @@ impl Runtime {
                             let uncertain = message.contains("invocation uncertain")
                                 || message.contains("extension disconnected")
                                 || message.contains("extension call timed out");
-                            json!({"id":command["id"],"state":if uncertain{"uncertain"}else{"failed"},"error":message,"retryable":false})
+                            let invocation =
+                                command["params"]["invocation"]["id"].as_str().unwrap_or("");
+                            let stored = sqlx::query_scalar::<_, Option<String>>(
+                                "SELECT result FROM extension_invocations WHERE id=?",
+                            )
+                            .bind(invocation)
+                            .fetch_optional(&this.journal.pool)
+                            .await
+                            .ok()
+                            .flatten()
+                            .flatten()
+                            .and_then(|s| serde_json::from_str::<Value>(&s).ok());
+                            let retryable = stored.is_some_and(|v| v["error"]["retryable"] == true);
+                            json!({"id":command["id"],"state":if uncertain{"uncertain"}else if message.contains("extension call cancelled"){"cancelled"}else{"failed"},"error":message,"retryable":retryable})
                         }
                     };
                     body["runtime_id"] = json!(runtime);

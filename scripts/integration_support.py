@@ -34,7 +34,19 @@ def call(base, path, method='GET', body=None, token=None, key=None, headers=None
     if data: headers['Content-Type'] = 'application/json'
     req = urllib.request.Request(base + path, data=data, method=method, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=20) as response: return json.load(response)
+        with urllib.request.urlopen(req, timeout=20) as response:
+            value=json.load(response)
+            if response.status==202 and isinstance(value,dict) and value.get('operation_url','').startswith('/plugins/operations/'):
+                workspace_prefix=path.split('/plugins/')[0] if '/plugins/' in path else '/api/v1/workspaces/'+path.split('/api/v1/workspaces/')[1].split('/')[0]
+                deadline=time.monotonic()+60
+                while time.monotonic()<deadline:
+                    receipt=call(base,workspace_prefix+value['operation_url'],token=token,headers=headers)
+                    if receipt['state'] in ['committed','succeeded']:return receipt['result']
+                    if receipt['state'] in ['rejected','conflict','failed','cancelled','expired']:
+                        raise APIError(409 if receipt['state']=='conflict' else 400,{'error':receipt.get('error') or receipt['state']})
+                    time.sleep(.1)
+                raise AssertionError('business operation did not settle')
+            return value
     except urllib.error.HTTPError as error:
         raise APIError(error.code, json.load(error)) from None
 

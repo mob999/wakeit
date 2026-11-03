@@ -35,6 +35,26 @@ async fn save_token(pool: &SqlitePool, instance: Uuid, slot: &str, token: Value)
     tx.commit().await?;
     Ok(())
 }
+async fn client_fields(
+    pool: &SqlitePool,
+    instance: Uuid,
+    params: &Value,
+    mut fields: Vec<(String, String)>,
+) -> Result<Vec<(String, String)>> {
+    if let Some(slot) = params["client_secret_slot"].as_str() {
+        let secrets: String =
+            sqlx::query_scalar("SELECT secrets FROM extension_instances WHERE id=?")
+                .bind(instance.to_string())
+                .fetch_one(pool)
+                .await?;
+        let secrets: Value = serde_json::from_str(&secrets)?;
+        let value = secrets[slot]
+            .as_str()
+            .context("OAuth client secret is not configured")?;
+        fields.push(("client_secret".into(), value.into()));
+    }
+    Ok(fields)
+}
 async fn token_request(
     client: &reqwest::Client,
     url: &str,
@@ -166,7 +186,11 @@ pub async fn begin(
                         data["device_code"].as_str().unwrap_or("").into(),
                     ),
                 ];
-                let Ok(token) = token_request(&client, &token_url, &fields).await else {
+                let fields = match client_fields(&pool, instance, &data, fields).await {
+                    Ok(f) => f,
+                    Err(_) => break,
+                };
+                let Ok(mut token) = token_request(&client, &token_url, &fields).await else {
                     continue;
                 };
                 match token["error"].as_str() {
@@ -186,6 +210,9 @@ pub async fn begin(
                         break;
                     }
                     None => {
+                        token["client_id"] = json!(client_id);
+                        token["token_url"] = json!(token_url);
+                        token["client_secret_slot"] = data["client_secret_slot"].clone();
                         if save_token(&pool, instance, &slot, token).await.is_ok() {
                             let _ = sqlx::query(
                                 "UPDATE extension_auth_flows SET status='authorized' WHERE id=?",
@@ -241,7 +268,14 @@ pub async fn callback(
                 .into(),
         ),
     ];
-    let token = token_request(
+    let fields = client_fields(
+        pool,
+        row.get::<String, _>("instance").parse()?,
+        &data,
+        fields.to_vec(),
+    )
+    .await?;
+    let mut token = token_request(
         client,
         data["token_url"]
             .as_str()
@@ -250,6 +284,9 @@ pub async fn callback(
     )
     .await?;
     ensure!(token["error"].is_null(), "OAuth code exchange failed");
+    token["client_id"] = data["client_id"].clone();
+    token["token_url"] = data["token_url"].clone();
+    token["client_secret_slot"] = data["client_secret_slot"].clone();
     save_token(
         pool,
         row.get::<String, _>("instance").parse()?,
@@ -314,19 +351,26 @@ pub async fn token(
             (
                 "client_id".into(),
                 client_id
+                    .or(token["client_id"].as_str())
                     .context("OAuth client ID required for refresh")?
                     .into(),
             ),
         ];
+        let fields = client_fields(pool, instance, &token, fields).await?;
         let mut updated = token_request(
             client,
-            token_url.context("OAuth token URL required for refresh")?,
+            token_url
+                .or(token["token_url"].as_str())
+                .context("OAuth token URL required for refresh")?,
             &fields,
         )
         .await?;
         ensure!(updated["error"].is_null(), "OAuth token refresh failed");
         if updated["refresh_token"].is_null() {
             updated["refresh_token"] = json!(refresh);
+        }
+        for field in ["client_id", "token_url", "client_secret_slot"] {
+            updated[field] = token[field].clone();
         }
         save_token(pool, instance, slot, updated.clone()).await?;
         token = updated;

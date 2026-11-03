@@ -91,6 +91,22 @@ impl Host for InstanceHost {
                             serde_json::from_value(result.clone())?;
                         ensure!(catalog.version == 1, "invalid model catalog version");
                     }
+                    if declaration.kind == "sessions" {
+                        let catalog: wakeit_core::session_catalog::Catalog =
+                            serde_json::from_value(result.clone())?;
+                        ensure!(catalog.version == 1, "invalid session catalog version");
+                        let expected = params["input"]["cwd"]
+                            .as_str()
+                            .context("session provider requires a working directory")?;
+                        let cwd = std::path::Path::new(expected).canonicalize()?;
+                        for session in catalog.sessions {
+                            wakeit_core::sessions::validate_id(&session.id)?;
+                            ensure!(
+                                std::path::Path::new(&session.cwd).canonicalize()? == cwd,
+                                "session provider returned another working directory"
+                            );
+                        }
+                    }
                     Ok(result)
                 }
                 "executions.get" => {

@@ -128,3 +128,14 @@
     @apply min-h-96 shrink-0;
   }
 }
+
+.plugin-list .pane-heading h2 {
+  @apply text-ui font-semibold m-0;
+}
+.plugin-title h2,
+.plugin-field-label {
+  @apply text-ui;
+}
+.plugin-title .text-muted {
+  @apply text-meta;
+}

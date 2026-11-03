@@ -26,7 +26,7 @@ pub async fn route(pool: &PgPool, workspace: Uuid) -> Result<()> {
         let id: Uuid = e.get("id");
         let event_type: String = e.get("event_type");
         let data: Value = e.get("data");
-        let bindings=sqlx::query("SELECT b.*,i.version,i.revision AS instance_revision,i.declaration FROM plugin_bindings b JOIN plugin_instances i ON i.id=b.instance_id WHERE b.workspace_id=$1 AND b.enabled AND i.enabled AND EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=i.workspace_id AND m.user_id=i.managed_by AND m.active AND u.active AND m.role='admin') AND b.kind='event' AND (b.event=$2 OR b.event='*') AND b.created_at<=$3 ORDER BY b.position,b.id")
+        let bindings=sqlx::query("SELECT b.*,i.version,i.revision AS instance_revision,i.declaration FROM plugin_bindings b JOIN plugin_instances i ON i.id=b.instance_id WHERE b.workspace_id=$1 AND b.enabled AND i.enabled AND EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=i.workspace_id AND m.user_id=i.managed_by AND m.active AND u.active AND m.role='admin') AND b.kind='event' AND (b.event=$2 OR b.event='*' OR (right(b.event,2)='.*' AND left($2,length(b.event)-1)=left(b.event,length(b.event)-1))) AND b.created_at<=$3 ORDER BY b.position,b.id")
             .bind(workspace).bind(event_type).bind(e.get::<DateTime<Utc>,_>("committed_at")).fetch_all(&mut *tx).await?;
         for b in bindings {
             if !matches(&b.get::<Value, _>("filter"), &data) {
@@ -92,7 +92,8 @@ pub async fn poll(pool: &PgPool, workspace: Uuid, runner: Uuid) -> Result<Value>
     }
     tx.commit().await?;
     let bindings:Vec<Value>=sqlx::query_scalar("SELECT to_jsonb(b.*)-'workspace_id'-'created_at' FROM plugin_bindings b WHERE runner_id=$1 AND workspace_id=$2 AND kind='hook' ORDER BY position,id").bind(runner).bind(workspace).fetch_all(pool).await?;
-    Ok(json!({"items":items,"bindings":bindings}))
+    let cancellations:Vec<String>=sqlx::query_scalar("SELECT request#>>'{params,invocation,id}' FROM plugin_operations WHERE runner_id=$1 AND workspace_id=$2 AND state='cancelled' AND request#>>'{params,invocation,id}' IS NOT NULL ORDER BY updated_at DESC LIMIT 100").bind(runner).bind(workspace).fetch_all(pool).await?;
+    Ok(json!({"items":items,"bindings":bindings,"cancellations":cancellations}))
 }
 pub async fn acknowledge(
     pool: &PgPool,
@@ -167,7 +168,7 @@ pub async fn acknowledge(
     }
     let n=sqlx::query("UPDATE plugin_operations SET state=$4,result=$5,error=$6,updated_at=now(),revision=revision+1,locked_until=NULL WHERE id=$1 AND runner_id=$2 AND workspace_id=$3 AND state IN ('running','pending','retry_wait')").bind(id).bind(runner).bind(workspace).bind(state).bind(value.get("result")).bind(value["error"].as_str()).execute(&mut *tx).await?.rows_affected();
     if n == 0 {
-        sqlx::query("UPDATE plugin_deliveries d SET state=CASE WHEN $4='failed' AND $7 AND d.attempt<b.max_attempts THEN 'retry_wait' ELSE $4 END,available_at=now()+make_interval(secs=>LEAST(300,power(2,d.attempt))::double precision),result=$5,error=$6,locked_until=NULL,updated_at=now() FROM plugin_bindings b WHERE d.binding_id=b.id AND d.id=$1 AND d.runner_id=$2 AND d.workspace_id=$3 AND d.state='running'").bind(id).bind(runner).bind(workspace).bind(state).bind(value.get("result")).bind(value["error"].as_str()).bind(value["retryable"]==true).execute(&mut *tx).await?;
+        sqlx::query("UPDATE plugin_deliveries d SET state=CASE WHEN $4='failed' AND $7 AND d.attempt<b.max_attempts THEN 'retry_wait' ELSE $4 END,available_at=now()+make_interval(secs=>LEAST(3600,GREATEST(1,COALESCE($8,LEAST(300,power(2,d.attempt))::double precision)))),result=$5,error=$6,locked_until=NULL,updated_at=now() FROM plugin_bindings b WHERE d.binding_id=b.id AND d.id=$1 AND d.runner_id=$2 AND d.workspace_id=$3 AND d.state='running'").bind(id).bind(runner).bind(workspace).bind(state).bind(value.get("result")).bind(value["error"].as_str()).bind(value["retryable"]==true).bind(value["retry_after"].as_f64()).execute(&mut *tx).await?;
     }
     tx.commit().await?;
     Ok(())
@@ -187,7 +188,15 @@ pub async fn enqueue(
     request: Value,
     expires: DateTime<Utc>,
 ) -> Result<Uuid> {
-    let id:Uuid=sqlx::query_scalar("INSERT INTO plugin_operations(id,workspace_id,runner_id,instance_id,kind,request_key,actor_id,request,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(workspace_id,request_key) DO UPDATE SET request_key=excluded.request_key RETURNING id").bind(Uuid::new_v4()).bind(workspace).bind(runner).bind(instance).bind(kind).bind(key).bind(actor).bind(request).bind(expires).fetch_one(pool).await?;
+    let proposed_id = if kind == "action" {
+        request["params"]["invocation"]["id"]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(Uuid::new_v4)
+    } else {
+        Uuid::new_v4()
+    };
+    let id:Uuid=sqlx::query_scalar("INSERT INTO plugin_operations(id,workspace_id,runner_id,instance_id,kind,request_key,actor_id,request,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(workspace_id,request_key) DO UPDATE SET request_key=excluded.request_key RETURNING id").bind(proposed_id).bind(workspace).bind(runner).bind(instance).bind(kind).bind(key).bind(actor).bind(request).bind(expires).fetch_one(pool).await?;
     Ok(id)
 }
 #[derive(Debug)]
@@ -231,9 +240,10 @@ async fn gate_inner(
         );
         let deadline =
             Utc::now() + chrono::Duration::seconds(b.get::<i32, _>("timeout_seconds") as i64);
+        let root:Option<Uuid>=sqlx::query_scalar("SELECT id FROM plugin_operations WHERE workspace_id=$1 AND request_key=$2 AND kind='business'").bind(workspace).bind(format!("business:{actor}:{key}")).fetch_optional(pool).await?;
         let invocation = Invocation {
             id: Uuid::new_v4(),
-            operation_id: Uuid::new_v4(),
+            operation_id: root.unwrap_or_else(Uuid::new_v4),
             instance_id: b.get("instance_id"),
             kind: "hook".into(),
             handler: b.get("handler"),
@@ -259,6 +269,23 @@ async fn gate_inner(
             deadline,
         )
         .await?;
+        if let Some(root) = root {
+            sqlx::query("INSERT INTO plugin_hook_calls(id,workspace_id,operation_id,binding_id,input_digest,binding_revision,instance_revision,proposal) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING").bind(id).bind(workspace).bind(root).bind(b.get::<Uuid,_>("id")).bind(&digest).bind(b.get::<i64,_>("revision")).bind(b.get::<i64,_>("instance_revision")).bind(&proposal).execute(pool).await?;
+        }
+        let online:bool=sqlx::query_scalar("SELECT (NOT revoked AND last_seen>now()-interval '60 seconds') IS TRUE FROM runners WHERE id=$1 AND workspace_id=$2").bind(b.get::<Uuid,_>("runner_id")).bind(workspace).fetch_one(pool).await?;
+        if !online {
+            match b.get::<String, _>("failure_policy").as_str() {
+                "continue" => {
+                    sqlx::query("UPDATE plugin_operations SET state='skipped',error='Hook device unavailable; configured to skip',updated_at=now() WHERE id=$1 AND state='pending'").bind(id).execute(pool).await?;
+                    continue;
+                }
+                "reject" => {
+                    sqlx::query("UPDATE plugin_operations SET state='rejected',error='Hook device unavailable',updated_at=now() WHERE id=$1 AND state='pending'").bind(id).execute(pool).await?;
+                    anyhow::bail!("Hook device is offline");
+                }
+                _ => {}
+            }
+        }
         loop {
             let row = sqlx::query(
                 "SELECT state,result,error,expires_at FROM plugin_operations WHERE id=$1 AND workspace_id=$2",
@@ -268,12 +295,15 @@ async fn gate_inner(
             .fetch_one(pool)
             .await?;
             let state: String = row.get("state");
+            if state == "skipped" && b.get::<String, _>("failure_policy") == "continue" {
+                break;
+            }
             if state == "succeeded" {
                 let decision: Decision = serde_json::from_value(row.get("result"))?;
                 wakeit_core::extensions::apply_decision(stage, &mut proposal, decision)?;
                 break;
             }
-            if ["failed", "cancelled", "uncertain"].contains(&state.as_str())
+            if ["failed", "cancelled", "uncertain", "rejected"].contains(&state.as_str())
                 || Utc::now() >= row.get::<DateTime<Utc>, _>("expires_at")
             {
                 if b.get::<String, _>("failure_policy") == "continue" {
@@ -409,5 +439,52 @@ pub async fn maintain(pool: &PgPool) -> Result<()> {
     .execute(pool)
     .await?;
     sqlx::query("DELETE FROM plugin_events e WHERE expires_at<now() AND NOT EXISTS(SELECT 1 FROM plugin_deliveries d WHERE d.event_id=e.id AND d.state IN ('pending','running','retry_wait'))").execute(pool).await?;
+    Ok(())
+}
+
+pub async fn business_operations(s: &crate::state::App) -> Result<()> {
+    let mut tx = s.pool.begin().await?;
+    let rows=sqlx::query("SELECT * FROM plugin_operations WHERE kind='business' AND state IN ('pending','running') AND expires_at>now() AND (locked_until IS NULL OR locked_until<now()) ORDER BY created_at,id LIMIT 4 FOR UPDATE SKIP LOCKED").fetch_all(&mut *tx).await?;
+    for row in &rows {
+        sqlx::query("UPDATE plugin_operations SET state='running',locked_until=LEAST(expires_at,now()+interval '30 seconds'),updated_at=now() WHERE id=$1").bind(row.get::<Uuid,_>("id")).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    for row in rows {
+        let s = s.clone();
+        tokio::spawn(async move {
+            let id: Uuid = row.get("id");
+            let workspace: Uuid = row.get("workspace_id");
+            let actor: Uuid = row.get("actor_id");
+            let request: Value = row.get("request");
+            let result:Result<(u16,Value)>=async{
+                let secret=crate::auth::credentials::secret();let hash=crate::auth::credentials::hash(&secret);
+                sqlx::query("INSERT INTO plugin_operation_tokens(hash,operation_id,actor_id,workspace_id,expires_at) VALUES($1,$2,$3,$4,$5)").bind(&hash).bind(id).bind(actor).bind(workspace).bind(row.get::<DateTime<Utc>,_>("expires_at")).execute(&s.pool).await?;
+                let listen=s.config.listen.replace("0.0.0.0","127.0.0.1").replace("[::]","[::1]");
+                let path=request["path"].as_str().context("operation path missing")?;
+                let client=reqwest::Client::new();
+                let response=client.request(request["method"].as_str().context("operation method missing")?.parse()?,format!("http://{listen}/api/v1/workspaces/{workspace}{path}")).bearer_auth(secret).header("Idempotency-Key",request["idempotency_key"].as_str().context("request key missing")?).json(&request["body"]).timeout(std::time::Duration::from_secs(900)).send();
+                tokio::pin!(response);
+                let mut renewal=tokio::time::interval(std::time::Duration::from_secs(10));
+                let response=loop{tokio::select!{response=&mut response=>break response,_=renewal.tick()=>{sqlx::query("UPDATE plugin_operations SET locked_until=LEAST(expires_at,now()+interval '30 seconds') WHERE id=$1 AND state='running'").bind(id).execute(&s.pool).await?;}}};
+                sqlx::query("DELETE FROM plugin_operation_tokens WHERE hash=$1").bind(hash).execute(&s.pool).await?;
+                let response=response?;let status=response.status().as_u16();Ok((status,response.json().await?))
+            }.await;
+            match result {
+                Ok((status, result)) => {
+                    let state = if (200..300).contains(&status) {
+                        "committed"
+                    } else if status == 409 {
+                        "conflict"
+                    } else {
+                        "rejected"
+                    };
+                    let _=sqlx::query("UPDATE plugin_operations SET state=$2,result=$3,error=$4,revision=revision+1,updated_at=now(),locked_until=NULL WHERE id=$1 AND state='running'").bind(id).bind(state).bind(&result).bind(result["error"].as_str()).execute(&s.pool).await;
+                }
+                Err(error) => {
+                    let _=sqlx::query("UPDATE plugin_operations SET state='failed',error=$2,updated_at=now(),locked_until=NULL WHERE id=$1 AND state='running'").bind(id).bind(error.to_string()).execute(&s.pool).await;
+                }
+            }
+        });
+    }
     Ok(())
 }

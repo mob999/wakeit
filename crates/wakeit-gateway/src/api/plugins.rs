@@ -160,7 +160,9 @@ pub(crate) async fn control(
             Utc::now() + chrono::Duration::hours(1),
         )
         .await?;
-        return Ok(Json(json!({"id":id,"state":"pending"})));
+        return Ok(Json(
+            json!({"id":id,"state":"pending","revision":1,"result":null,"error":null}),
+        ));
     }
     let params = body.params.clone();
     let mut value = rpc(&s, workspace, runner, &body.action, body.params).await?;
@@ -248,9 +250,12 @@ pub(crate) async fn bind(
         return Err(Error::bad("hook stage mismatch"));
     }
     if body.kind == "event"
-        && !resource["events"]
-            .as_array()
-            .is_some_and(|events| events.contains(&json!(body.event)))
+        && !resource["events"].as_array().is_some_and(|events| {
+            events
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|pattern| wakeit_core::extensions::event_matches(pattern, &body.event))
+        })
     {
         return Err(Error::bad("event not declared by handler"));
     }
@@ -425,6 +430,11 @@ fn business_route(
         "members.invite" => ("POST", "/invites".into(), body),
         "templates.from_task" => ("GET", format!("/tasks/{}/template", resource()?), None),
         "templates.validate" => ("POST", "/task-template-preview".into(), body),
+        "runtime.cancel" => (
+            "POST",
+            format!("/plugins/operations/{}", resource()?),
+            Some(json!({"action":"cancel"})),
+        ),
         "runtime.operation" => ("GET", format!("/plugins/operations/{}", resource()?), None),
         "agents.capabilities" => ("GET", "/agents".into(), None),
         "executions.events" => ("GET", format!("/runs/{}/events", resource()?), None),
@@ -740,6 +750,20 @@ pub(crate) async fn host_api(
             value["error"].as_str().unwrap_or("host API failed").into(),
         ));
     }
+    if verb != "GET"
+        && !["validate", "preview", "list", "inspect", "get"]
+            .contains(&method.rsplit('.').next().unwrap_or(""))
+    {
+        if status == StatusCode::ACCEPTED {
+            return Ok(Json(value));
+        }
+        if value.get("state").is_some() && value.get("revision").is_some() {
+            return Ok(Json(value));
+        }
+        return Ok(Json(
+            json!({"id":Uuid::new_v4(),"state":"committed","revision":value["revision"].as_i64().unwrap_or(1),"result":value,"error":null}),
+        ));
+    }
     Ok(Json(value))
 }
 
@@ -775,9 +799,20 @@ pub(crate) async fn device_events(
             if !kind.starts_with(&format!("plugin:{source}#{extension}/")) {
                 return Err(Error::bad("plugin cannot emit core events"));
             }
-        } else if !["execution.", "result.", "session.", "artifact.", "file."]
-            .iter()
-            .any(|prefix| kind.starts_with(prefix))
+        } else if ![
+            "execution.",
+            "result.",
+            "session.",
+            "artifact.",
+            "file.",
+            "instance.",
+            "plugin.",
+            "credential.",
+            "auth.",
+            "action.",
+        ]
+        .iter()
+        .any(|prefix| kind.starts_with(prefix))
         {
             return Err(Error::bad("device cannot emit this event type"));
         }
@@ -914,5 +949,37 @@ pub(crate) async fn reprocess_result(
         Utc::now() + chrono::Duration::hours(1),
     )
     .await?;
-    Ok(Json(json!({"id":id,"state":"pending"})))
+    Ok(Json(
+        json!({"id":id,"state":"pending","revision":1,"result":null,"error":null}),
+    ))
+}
+
+pub(crate) async fn operation_action(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path(id): Path<Uuid>,
+    ApiJson(body): ApiJson<Control>,
+) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
+    let actor = user(&s, &h, "operator", true).await?;
+    let mut tx = s.pool.begin().await?;
+    let row=sqlx::query("SELECT actor_id,state,kind FROM plugin_operations WHERE id=$1 AND workspace_id=$2 FOR UPDATE").bind(id).bind(workspace).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
+    if actor.role != "admin" && row.get::<Option<Uuid>, _>("actor_id") != Some(actor.id) {
+        return Err(Error(
+            StatusCode::FORBIDDEN,
+            "operation belongs to another actor".into(),
+        ));
+    }
+    match body.action.as_str() {
+        "cancel" => {
+            if ["committed", "succeeded"].contains(&row.get::<String, _>("state").as_str()) {
+                return Err(Error::conflict("operation already committed"));
+            }
+            sqlx::query("UPDATE plugin_operations SET state='cancelled',revision=revision+1,updated_at=now(),locked_until=NULL WHERE id=$1").bind(id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE plugin_operations SET state='cancelled',revision=revision+1,updated_at=now(),locked_until=NULL WHERE id IN (SELECT id FROM plugin_hook_calls WHERE operation_id=$1) AND state IN ('pending','running','retry_wait')").bind(id).execute(&mut *tx).await?;
+        }
+        _ => return Err(Error::bad("unsupported operation action")),
+    }
+    tx.commit().await?;
+    Ok(Json(json!({"id":id,"state":"cancelled"})))
 }

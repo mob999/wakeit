@@ -156,6 +156,14 @@ def main():
             from plugin_sdk_checks import verify as verify_plugins
             verify_plugins(locals())
             success=True
+            if args.keep_running:
+                state={'base_url':base,'workspace':workspace,'runner_id':runner_id,'username':'admin','password':env['WAKEIT_PASSWORD'],'pids':[p.pid for p in processes if p.poll() is None],'artifact_dir':str(root)}
+                state_file=ROOT/args.state_file;state_file.parent.mkdir(parents=True,exist_ok=True);state_file.write_text(json.dumps(state));state_file.chmod(0o600)
+                def interrupt_plugins(signum,frame):raise KeyboardInterrupt
+                signal.signal(signal.SIGTERM,interrupt_plugins)
+                try:
+                    while True:time.sleep(1)
+                except KeyboardInterrupt:pass
             return
         if args.transport_only:
             from transport_checks import verify as verify_transport

@@ -11,6 +11,7 @@ pub(crate) mod http;
 pub(crate) mod moments;
 pub(crate) mod nodes;
 pub mod openapi;
+mod plugin_operations;
 pub(crate) mod plugins;
 pub(crate) mod runners;
 pub(crate) mod runs;
@@ -146,7 +147,10 @@ pub fn router(app: App) -> Router {
         .route("/plugins/events", get(plugins::events))
         .route("/plugins/events/{id}", get(plugins::event))
         .route("/plugins/operations", get(plugins::operations))
-        .route("/plugins/operations/{id}", get(plugins::operation))
+        .route(
+            "/plugins/operations/{id}",
+            get(plugins::operation).post(plugins::operation_action),
+        )
         .route("/plugins/deliveries", get(plugins::deliveries))
         .route("/plugins/deliveries/{id}", post(plugins::delivery_action))
         .route("/runners", get(runners::runners))
@@ -159,6 +163,10 @@ pub fn router(app: App) -> Router {
         )
         .route("/timezones", get(settings::timezones))
         .route("/audit", get(settings::audits))
+        .route_layer(axum::middleware::from_fn_with_state(
+            app.clone(),
+            plugin_operations::boundary,
+        ))
         .route_layer(axum::middleware::from_fn(workspace_scope));
     Router::new()
         .route(

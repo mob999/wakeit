@@ -226,3 +226,20 @@ CREATE TABLE plugin_auth_flows (
 CREATE UNIQUE INDEX plugin_delivery_replay_identity ON plugin_deliveries(replay_id,binding_id,event_id) WHERE replay_id IS NOT NULL;
 
 CREATE TABLE plugin_device_presence(runner_id uuid PRIMARY KEY REFERENCES runners(id) ON DELETE CASCADE,online boolean NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE plugin_operation_tokens (
+ hash text PRIMARY KEY, operation_id uuid NOT NULL REFERENCES plugin_operations(id),
+ actor_id uuid NOT NULL REFERENCES users(id),workspace_id uuid NOT NULL REFERENCES workspaces(id),expires_at timestamptz NOT NULL
+);
+CREATE FUNCTION plugin_complete_business_operation() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE op uuid; payload jsonb;
+BEGIN
+ op:=NULLIF(current_setting('wakeit.operation_id',true),'')::uuid;
+ IF op IS NULL THEN RETURN NEW; END IF;
+ IF EXISTS(SELECT 1 FROM plugin_operations WHERE id=op AND request->>'path' LIKE '%/instantiate') THEN RETURN NEW; END IF;
+ payload:=CASE WHEN TG_TABLE_NAME='settings' THEN to_jsonb(NEW)->'data' ELSE to_jsonb(NEW) END;
+ UPDATE plugin_operations SET state='committed',result=payload,revision=revision+1,updated_at=now(),locked_until=NULL WHERE id=op AND kind='business' AND state='running';
+ RETURN NEW;
+END $$;
+CREATE TRIGGER plugin_complete_task_operation AFTER INSERT OR UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION plugin_complete_business_operation();
+CREATE TRIGGER plugin_complete_template_operation AFTER INSERT OR UPDATE ON task_templates FOR EACH ROW EXECUTE FUNCTION plugin_complete_business_operation();
+CREATE TRIGGER plugin_complete_settings_operation AFTER UPDATE ON settings FOR EACH ROW EXECUTE FUNCTION plugin_complete_business_operation();

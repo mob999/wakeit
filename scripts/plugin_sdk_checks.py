@@ -9,6 +9,24 @@ from integration_support import ROOT, BIN, command, wait, expect_status
 
 def verify(c):
     api,runner,check=c['api'],c['runner_id'],c['check']
+    import subprocess,os
+    binary=ROOT/'target/debug/examples'/('generic.exe' if os.name=='nt' else 'generic')
+    assert binary.is_file(),'build the Rust SDK generic example before service acceptance'
+    native=subprocess.Popen([str(binary)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,cwd=c['cwd'])
+    try:
+        def send(value):native.stdin.write(json.dumps({'jsonrpc':'2.0',**value})+'\n');native.stdin.flush()
+        send({'id':'initialize','method':'initialize','params':{'protocol_version':1}})
+        initialized=json.loads(native.stdout.readline());assert initialized['result']['protocol_version']==1
+        send({'id':'invoke','method':'invoke','params':{'id':str(uuid.uuid4()),'operation_id':str(uuid.uuid4()),'instance_id':str(uuid.uuid4()),'kind':'action','handler':'echo','input':{'text':'native'},'deadline':(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=20)).isoformat(),'actor':{'kind':'test','id':None,'roles':[]},'expected_revision':None,'causation_id':None}})
+        while True:
+            message=json.loads(native.stdout.readline())
+            if message.get('method')=='config.get':send({'id':message['id'],'result':{'value':{'prefix':'native-contract'},'revision':1}})
+            elif message.get('id')=='invoke':assert message['result']['settings']['prefix']=='native-contract';break
+        native.stdin.close();assert native.wait(timeout=5)==0
+    finally:
+        if native.poll() is None:native.kill();native.wait()
+    check('native Rust SDK uses the same bidirectional process contract as the TypeScript SDK')
+
     prefix=f'/runners/{runner}/plugins'
     def control(action,**params):return api(prefix+'/control','POST',dict(action=action,params=params))
     catalog=wait(lambda:r if (r:=control('catalog'))['packages'] else None,'extension package discovery')
@@ -26,6 +44,14 @@ def verify(c):
     control('enable',instance_id=identity)
     wait(lambda:next((i for i in api(prefix)['instances'] if i['id']==identity and i['enabled']),None),'extension activation advertised')
     check('generic extension instance, revisioned settings and write-only credentials')
+    second=control('create',source=package['source'],extension='generic',name='Isolated instance',config={'prefix':'separate'},grants=[])
+    assert second['config']=={'prefix':'separate'} and not second['credential_status']['fixture']
+    viewer_catalog=c['ws'].call(c['base'],prefix+'/control','POST',{'action':'catalog','params':{}},c['role_tokens']['viewer'])
+    assert all('config' not in i for i in viewer_catalog['instances'])
+    expect_status(lambda:c['ws'].call(c['base'],prefix+'/control','POST',{'action':'enable','params':{'instance_id':identity}},c['role_tokens']['operator']),403)
+    expect_status(lambda:control('configure',instance_id=identity,update={**update,'operation_id':str(uuid.uuid4()),'expected_revision':current['revision'],'secrets':{'fixture':{'operation':'replace','value':''}}}),400)
+    check('multiple instances isolate settings and credentials; member roles constrain device management')
+
     def binding(kind,event,handler,position=0):
         return api('/plugins/bindings','POST',dict(id=str(uuid.uuid4()),instance_id=identity,runner_id=runner,kind=kind,event=event,handler=handler,enabled=True,filter={},position=position,failure_policy='reject',timeout_seconds=10,max_attempts=3,expires_seconds=3600,revision=0))
     observer=binding('event','run.finished','completed')
@@ -36,6 +62,20 @@ def verify(c):
     invalid=c['task']('sdk-rejected');invalid['name']='reject'
     expect_status(lambda:c['apply'](invalid),400)
     check('Gateway Hook allow and rejection before Task commit')
+    import urllib.request
+    pending=c['task']('sdk-pending-save');pending['name']='wait-for-gate'
+    url=c['base']+c['ws'].path('/tasks/sdk-pending-save')
+    request=urllib.request.Request(url,data=json.dumps({'config':pending,'expected_revision':None}).encode(),method='PUT',headers={'Authorization':'Bearer '+c['token'],'Content-Type':'application/json','Idempotency-Key':str(uuid.uuid4())})
+    with urllib.request.urlopen(request,timeout=10) as response:
+        assert response.status==202
+        operation=json.load(response)['id']
+    wait(lambda:any(i['kind']=='hook' and i['handler']=='save' and i['state']=='running' for i in control('activity',instance_id=identity)['items']),'durable Gateway Hook started')
+    cancelled=api('/plugins/operations/'+operation,'POST',{'action':'cancel'})
+    assert cancelled['state']=='cancelled'
+    wait(lambda:not any(i['kind']=='hook' and i['handler']=='save' and i['state']=='running' for i in control('activity',instance_id=identity)['items']),'Gateway Hook cancellation propagated')
+    expect_status(lambda:api('/tasks/sdk-pending-save'),404)
+    check('accepted business operations expose receipts and cancellation prevents a later commit')
+
     # Polling distributes local hook bindings. Observe it explicitly before execution.
     time.sleep(2.5)
     run=c['trigger']('sdk-generic');result=c['final'](run)
@@ -105,6 +145,25 @@ def verify(c):
     assert instance_now()['credential_status']['oauth']
     assert 'synthetic-access-token' not in json.dumps(api('/plugins/operations?instance='+identity))
     check('generic OAuth device-code and authorization-code/PKCE with device-only token storage')
+    publish=binding('hook','result.publish.prepare','publish')
+    operation,_=invoke('postprocess-mode',{'reject':True})
+    wait(lambda:api('/plugins/operations/'+operation)['state']=='succeeded','synthetic postprocess policy')
+    time.sleep(2.5)
+    rejected=c['trigger']('sdk-generic')
+    failed=c['final'](rejected,'failed')
+    assert failed['execution_snapshot']['failure_phase']=='postprocess'
+    original_calls=(c['remote']/'calls.log').read_text().count('sync '+rejected)
+    assert original_calls==1
+    operation,_=invoke('postprocess-mode',{'reject':False})
+    wait(lambda:api('/plugins/operations/'+operation)['state']=='succeeded','updated postprocess policy')
+    recovery=api('/runs/'+rejected+'/result/retry','POST',{})
+    receipt=wait(lambda:r if (r:=api('/plugins/operations/'+recovery['id']))['state'] in ['succeeded','failed'] else None,'result-only processing retry')
+    assert receipt['state']=='succeeded',receipt.get('error')
+    assert c['final'](rejected)['result'].endswith('prepared:original\n')
+    assert (c['remote']/'calls.log').read_text().count('sync '+rejected)==1
+    check('result processing preserves native output and can recover without rerunning the Agent')
+    api('/plugins/bindings','POST',{**publish,'enabled':False})
+
 
     for b in (observer,save_hook,prepared_hook):api('/plugins/bindings','POST',{**b,'enabled':False})
     control('disable',instance_id=identity)

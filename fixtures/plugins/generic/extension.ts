@@ -7,7 +7,11 @@ plugin.on('completed', async (input, ctx) => {
   return { event: event.id, handled: true }
 })
 plugin.hook('prepare', (input) => input.prompt === 'reject' ? deny('synthetic_rejection', 'Synthetic input rejected') : patch({ prompt: `prepared:${input.prompt}` }))
-plugin.hook('save', (input) => (input.config as { name?: string })?.name === 'reject' ? deny('synthetic_rejection', 'Synthetic definition rejected') : allow())
+plugin.hook('save', async (input,ctx) => {
+  const name=(input.config as {name?:string})?.name
+  if(name==='wait-for-gate')await new Promise<void>((resolve,reject)=>{const timer=setTimeout(resolve,30000);ctx.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new Error('cancelled'))},{once:true})})
+  return name==='reject'?deny('synthetic_rejection','Synthetic definition rejected'):allow()
+})
 plugin.action('echo', async (input, ctx) => {
   const settings = await ctx.config.get()
   return { input, settings: settings.value }

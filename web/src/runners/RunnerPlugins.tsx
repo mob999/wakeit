@@ -71,10 +71,12 @@ type Binding = {
 export function RunnerPlugins({
   runner,
   admin,
+  canAct,
   toast,
 }: {
   runner: Runner
   admin: boolean
+  canAct: boolean
   toast: (message: string) => void
 }) {
   const { i18n } = useTranslation()
@@ -228,6 +230,7 @@ export function RunnerPlugins({
                 />
               ) : (
                 <PluginActivity
+                  canAct={canAct}
                   instance={instance}
                   control={control}
                   mutate={mutate}
@@ -376,9 +379,11 @@ function PluginConfig({
         )}
         <div className="plugin-config-footer">
           <span className="text-muted">
-            {instance.applied_revision === instance.revision
-              ? tr('plugins.applied')
-              : tr('plugins.pending')}
+            {!instance.enabled
+              ? tr('plugins.state.disabled')
+              : instance.applied_revision === instance.revision
+                ? tr('plugins.applied')
+                : tr('plugins.pending')}
           </span>
           <Button
             variant="solid"
@@ -469,18 +474,23 @@ function PluginCapabilities({
               <span className="text-muted">{d.description}</span>
             </div>
             <div className="plugin-capability-controls">
-              <ChoicePicker
-                label={tr('plugins.scope')}
-                value={candidate.filter.runner_id ? 'device' : 'workspace'}
-                disabled={!admin}
-                options={[
-                  { value: 'workspace', label: tr('plugins.workspace') },
-                  { value: 'device', label: tr('plugins.device') },
-                ]}
-                onChange={(v) =>
-                  save({ ...candidate, filter: v === 'device' ? { runner_id: runner.id } : {} })
-                }
-              />
+              {d.kind === 'hook' &&
+              /^(execution|session|result|artifact|action)\./.test(d.event) ? (
+                <span className="text-muted">{tr('plugins.device')}</span>
+              ) : (
+                <ChoicePicker
+                  label={tr('plugins.scope')}
+                  value={candidate.filter.runner_id ? 'device' : 'workspace'}
+                  disabled={!admin}
+                  options={[
+                    { value: 'workspace', label: tr('plugins.workspace') },
+                    { value: 'device', label: tr('plugins.device') },
+                  ]}
+                  onChange={(v) =>
+                    save({ ...candidate, filter: v === 'device' ? { runner_id: runner.id } : {} })
+                  }
+                />
+              )}
               {d.kind === 'hook' && (
                 <>
                   <input
@@ -488,9 +498,13 @@ function PluginCapabilities({
                     className="plugin-order"
                     aria-label={tr('plugins.order')}
                     title={tr('plugins.order')}
-                    value={candidate.position}
+                    key={`${candidate.id}:${candidate.revision}`}
+                    defaultValue={candidate.position}
                     disabled={!admin}
-                    onChange={(e) => save({ ...candidate, position: Number(e.target.value) })}
+                    onBlur={(e) =>
+                      Number(e.target.value) !== candidate.position &&
+                      save({ ...candidate, position: Number(e.target.value) })
+                    }
                   />
                   <ChoicePicker
                     label={tr('plugins.failurePolicy')}
@@ -528,6 +542,7 @@ function PluginActivity({
   control,
   mutate,
   admin,
+  canAct,
   online,
   toast,
 }: {
@@ -535,6 +550,7 @@ function PluginActivity({
   control: (action: string, params?: Record<string, unknown>) => Promise<any>
   mutate: (action: string, params: Record<string, unknown>) => Promise<any>
   admin: boolean
+  canAct: boolean
   online: boolean
   toast: (s: string) => void
 }) {
@@ -584,7 +600,7 @@ function PluginActivity({
       <div className="plugin-actions">
         {Object.entries(instance.declaration.actions).map(([id, a]) => (
           <Button
-            disabled={!admin || !online}
+            disabled={!canAct || !online}
             key={id}
             onClick={() => {
               setAction(id)

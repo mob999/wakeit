@@ -27,6 +27,17 @@ pub async fn identity(pool: &PgPool, credential: &str) -> Result<Option<Identity
     if row.is_none() {
         let plugin=sqlx::query("SELECT u.id,u.username,p.workspace_id FROM plugin_api_tokens p JOIN plugin_instances i ON i.id=p.instance_id JOIN users u ON u.id=p.actor_id WHERE p.hash=$1 AND p.expires_at>now() AND i.enabled AND u.active")
             .bind(credential).fetch_optional(pool).await?;
+        if plugin.is_none() {
+            let operation=sqlx::query("SELECT u.id,u.username,o.workspace_id FROM plugin_operation_tokens o JOIN users u ON u.id=o.actor_id JOIN plugin_operations p ON p.id=o.operation_id WHERE o.hash=$1 AND o.expires_at>now() AND u.active AND p.state IN ('running','committed')").bind(credential).fetch_optional(pool).await?;
+            return Ok(operation.map(|r| Identity {
+                id: r.get("id"),
+                username: r.get("username"),
+                instance_admin: false,
+                kind: "operation".into(),
+                workspace_id: Some(r.get("workspace_id")),
+                credential: credential.into(),
+            }));
+        }
         return Ok(plugin.map(|r| Identity {
             id: r.get("id"),
             username: r.get("username"),
@@ -51,7 +62,7 @@ pub async fn authorize(
     identity: &Identity,
     workspace: Uuid,
 ) -> Result<Option<WorkspaceContext>> {
-    if matches!(identity.kind.as_str(), "api" | "extension")
+    if matches!(identity.kind.as_str(), "api" | "extension" | "operation")
         && identity.workspace_id != Some(workspace)
     {
         return Ok(None);
@@ -99,7 +110,7 @@ pub async fn check_member(
     workspace: Uuid,
     needed: &str,
 ) -> Result<Uuid> {
-    let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2) UNION ALL SELECT u.id,m.role,w.is_demo FROM plugin_api_tokens p JOIN plugin_instances i ON i.id=p.instance_id JOIN users u ON u.id=p.actor_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=p.workspace_id JOIN workspaces w ON w.id=p.workspace_id WHERE p.hash=$1 AND p.workspace_id=$2 AND p.expires_at>now() AND i.enabled AND u.active AND m.active")
+    let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2) UNION ALL SELECT u.id,m.role,w.is_demo FROM plugin_api_tokens p JOIN plugin_instances i ON i.id=p.instance_id JOIN users u ON u.id=p.actor_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=p.workspace_id JOIN workspaces w ON w.id=p.workspace_id WHERE p.hash=$1 AND p.workspace_id=$2 AND p.expires_at>now() AND i.enabled AND u.active AND m.active UNION ALL SELECT u.id,m.role,w.is_demo FROM plugin_operation_tokens p JOIN plugin_operations o ON o.id=p.operation_id JOIN users u ON u.id=p.actor_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=p.workspace_id JOIN workspaces w ON w.id=p.workspace_id WHERE p.hash=$1 AND p.workspace_id=$2 AND p.expires_at>now() AND o.state IN ('running','committed') AND u.active AND m.active")
         .bind(credential).bind(workspace).fetch_optional(&mut **tx).await?.ok_or(PermissionDenied("workspace access denied"))?;
     if row.get::<bool, _>("is_demo") {
         return Err(PermissionDenied("demo workspace is read only").into());
@@ -108,6 +119,31 @@ pub async fn check_member(
         < crate::auth::credentials::role(needed)
     {
         return Err(PermissionDenied("insufficient permissions").into());
+    }
+    let operation: Option<Uuid> = sqlx::query_scalar(
+        "SELECT operation_id FROM plugin_operation_tokens WHERE hash=$1 AND expires_at>now()",
+    )
+    .bind(credential)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if let Some(operation) = operation {
+        let active: bool = sqlx::query_scalar(
+            "SELECT state IN ('running','committed') FROM plugin_operations WHERE id=$1 FOR UPDATE",
+        )
+        .bind(operation)
+        .fetch_one(&mut **tx)
+        .await?;
+        if !active {
+            return Err(PermissionDenied("operation cancelled or expired").into());
+        }
+        let changed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_hook_calls c JOIN plugin_bindings b ON b.id=c.binding_id JOIN plugin_instances i ON i.id=b.instance_id WHERE c.operation_id=$1 AND (b.revision<>c.binding_revision OR i.revision<>c.instance_revision OR NOT b.enabled OR NOT i.enabled))").bind(operation).fetch_one(&mut **tx).await?;
+        if changed {
+            return Err(PermissionDenied("Hook configuration changed before commit").into());
+        }
+        sqlx::query("SELECT set_config('wakeit.operation_id',$1,true)")
+            .bind(operation.to_string())
+            .execute(&mut **tx)
+            .await?;
     }
     let plugin: Option<Uuid> = sqlx::query_scalar(
         "SELECT instance_id FROM plugin_api_tokens WHERE hash=$1 AND expires_at>now()",
