@@ -91,6 +91,7 @@ impl Journal {
                 .execute(&pool)
                 .await?;
         }
+        sqlx::query("CREATE TABLE IF NOT EXISTS session_titles(agent TEXT NOT NULL,session_id TEXT NOT NULL,cwd TEXT NOT NULL,title TEXT NOT NULL,PRIMARY KEY(agent,session_id))").execute(&pool).await?;
         Ok(Self {
             pool,
             dir: dir.into(),
@@ -192,6 +193,9 @@ impl Journal {
         } else if let Some(old) = run.session {
             value = old;
         }
+        if value.reason.is_none() && info.title.as_ref().is_some_and(|t| !t.trim().is_empty()) {
+            value.title = info.title;
+        }
         // Bound execution already holds the same guard in Runner. A fresh session
         // becomes addressable only now, so acquire its guard before publishing it.
         if run.assignment.task.session.is_none()
@@ -213,11 +217,103 @@ impl Journal {
         }
         self.save_session(id, value).await
     }
+    /// A read-only display join; listing and inspection never manufacture names.
+    pub async fn session_title(
+        &self,
+        agent: &str,
+        id: &str,
+        cwd: &str,
+        native: Option<&str>,
+    ) -> Result<Option<String>> {
+        if let Some(title) = native.filter(|t| !t.trim().is_empty()) {
+            return Ok(Some(title.to_owned()));
+        }
+        let row =
+            sqlx::query("SELECT cwd,title FROM session_titles WHERE agent=? AND session_id=?")
+                .bind(agent)
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+        let Some(row) = row else { return Ok(None) };
+        let expected = Path::new(cwd).canonicalize()?;
+        anyhow::ensure!(
+            Path::new(&row.get::<String, _>("cwd")).canonicalize()? == expected,
+            "session display name belongs to a different working directory"
+        );
+        Ok(Some(row.get("title")))
+    }
+    pub(super) async fn session_titles(
+        &self,
+        agent: &str,
+        cwd: &Path,
+    ) -> Result<HashMap<String, String>> {
+        let cwd = cwd.canonicalize()?;
+        let rows =
+            sqlx::query("SELECT session_id,title FROM session_titles WHERE agent=? AND cwd=?")
+                .bind(agent)
+                .bind(cwd.to_string_lossy().as_ref())
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.get("session_id"), row.get("title")))
+            .collect())
+    }
+    async fn name_session(
+        &self,
+        run: Uuid,
+        session: &mut crate::runner::sessions::RunSession,
+    ) -> Result<()> {
+        if session.reason.is_some() {
+            return Ok(());
+        }
+        let title = self
+            .session_title(
+                &session.agent,
+                &session.id,
+                &session.cwd,
+                session.title.as_deref(),
+            )
+            .await?;
+        if title.is_some() {
+            session.title = title;
+            return Ok(());
+        }
+        if !session.ready {
+            return Ok(());
+        }
+        let local = self.get(run).await?.context("run is missing")?;
+        let candidate = local
+            .session_title
+            .as_deref()
+            .filter(|t| !t.trim().is_empty())
+            .unwrap_or(&local.assignment.task.name);
+        let mut end = candidate.len().min(200);
+        while !candidate.is_char_boundary(end) {
+            end -= 1;
+        }
+        let candidate = &candidate[..end];
+        let cwd = Path::new(&session.cwd).canonicalize()?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO session_titles(agent,session_id,cwd,title) VALUES(?,?,?,?)",
+        )
+        .bind(&session.agent)
+        .bind(&session.id)
+        .bind(cwd.to_string_lossy().as_ref())
+        .bind(candidate)
+        .execute(&self.pool)
+        .await?;
+        session.title = self
+            .session_title(&session.agent, &session.id, &session.cwd, None)
+            .await?;
+        Ok(())
+    }
     pub async fn save_session(
         &self,
         id: Uuid,
-        session: crate::runner::sessions::RunSession,
+        mut session: crate::runner::sessions::RunSession,
     ) -> Result<()> {
+        self.name_session(id, &mut session).await?;
         let mut tx = self.pool.begin().await?;
         let row =
             sqlx::query("UPDATE local_runs SET session=?,seq=seq+1 WHERE id=? RETURNING seq,claim")

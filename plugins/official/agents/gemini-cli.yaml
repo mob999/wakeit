@@ -7,7 +7,7 @@ parameters:
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:
-    - stream
+    - run
     - gemini-cli
     - '--'
     - gemini

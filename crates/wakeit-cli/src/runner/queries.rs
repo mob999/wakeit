@@ -155,6 +155,7 @@ pub async fn serve(
     client: async_nats::Client,
     config: Arc<RunnerConfig>,
     agents: Arc<HashMap<String, AgentConfig>>,
+    journal: super::journal::Journal,
     runtime: Uuid,
     stop: CancellationToken,
 ) -> Result<()> {
@@ -176,6 +177,7 @@ pub async fn serve(
         let client = client.clone();
         let config = config.clone();
         let agents = agents.clone();
+        let journal = journal.clone();
         let stop = stop.clone();
         let permit = permits.clone().try_acquire_owned();
         let image_permits = image_permits.clone();
@@ -218,7 +220,7 @@ pub async fn serve(
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
                         process::validate_cwd(cwd,&config.allowed_roots)?;
                         let agent=agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
-                        super::catalog::query(agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
+                        super::catalog::query(&journal,agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
                     }
                     "inspect_session" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
@@ -226,7 +228,9 @@ pub async fn serve(
                         let agent = agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
                         let id=request.payload["id"].as_str().context("session ID is required")?;
                         let task:TaskConfig=serde_json::from_value(json!({"version":1,"id":"session-query","name":"session query","runner":config.name,"agent":agent.id,"cwd":cwd,"prompt":"","schedule":null}))?;
-                        Ok(serde_json::to_value(crate::runner::sessions::inspect(agent,&task,Uuid::new_v4(),id).await?)?)
+                        let mut info=crate::runner::sessions::inspect(agent,&task,Uuid::new_v4(),id).await?;
+                        info.title=journal.session_title(&agent.id,&info.id,&info.cwd,info.title.as_deref()).await?;
+                        Ok(serde_json::to_value(info)?)
                     }
                     "list_models" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;

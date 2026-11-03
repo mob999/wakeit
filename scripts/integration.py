@@ -205,7 +205,7 @@ def main():
         assert next(a for a in api('/agents') if a['id']=='mock-events')['trace_supported']
         assert not next(a for a in api('/agents') if a['id']=='mock-sync')['trace_supported']
         for native in ['codex','claude-code','pi','opencode']:
-            native_args=[BIN,'plugin','exec','git:github.com/mob999/wakeit','adapter','--','stream',native,'--',MOCK,'native',ROOT/'crates/wakeit-agent-runtime/tests/fixtures/trace'/f'{native}.jsonl']
+            native_args=[BIN,'plugin','exec','git:github.com/mob999/wakeit','adapter','--','run',native,'--',MOCK,'native',ROOT/'crates/wakeit-agent-runtime/tests/fixtures/trace'/f'{native}.jsonl']
             records=[json.loads(line) for line in command(native_args).splitlines()]
             assert any(r['type']=='result' and r['data']=='# 完成\n\n报告' for r in records)
             failure=subprocess.run([str(a) for a in native_args]+['fail'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -215,7 +215,11 @@ def main():
         trace_id=trigger('trace-live')
         wait(lambda:any(e['kind']=='trace' for e in api('/runs/'+trace_id+'/events?kind=trace')), 'live trace before exit')
         assert api('/runs/'+trace_id)['state']=='running'
-        trace_run=final(trace_id,timeout=90)
+        try:
+            trace_run=final(trace_id,timeout=90)
+        except AssertionError as error:
+            row=api('/runs/'+trace_id)
+            raise AssertionError(f"trace execution did not finish: state={row['state']}, reason={row.get('reason')}") from error
         assert trace_run['result']=='# 执行报告\n\n**完成**' and trace_run['execution_snapshot']['trace_supported'] is True
         wait(lambda:len(api('/runs/'+trace_id+'/events?kind=trace'))>=5,'all trace snapshots persisted',timeout=90)
         trace_rows=api('/runs/'+trace_id+'/events?kind=trace')

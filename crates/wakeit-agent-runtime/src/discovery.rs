@@ -12,7 +12,7 @@ use tokio::{
 /// Help/version terminate before an Agent engine or model session is started.
 pub async fn detect(id: &str) -> Result<String> {
     let (command, help_args, required): (&str, &[&str], &[&str]) = match id {
-        "kimi-code" => ("kimi", &["--help"], &["web", "--session"]),
+        "kimi-code" => ("kimi", &["--help"], &["acp", "--session"]),
         "agy" => (
             "agy",
             &["--help"],
@@ -152,6 +152,29 @@ fn entry(id: &str, name: &str, provider: Option<&str>, model: &str) -> ModelEntr
         parameter_options: Default::default(),
     }
 }
+fn kimi_models(value: &Value) -> Result<ModelCatalog> {
+    let models = value["models"]
+        .as_object()
+        .context("Kimi model catalog is missing the models object")?
+        .iter()
+        .map(|(alias, model)| {
+            ensure!(
+                !alias.trim().is_empty(),
+                "Kimi returned an empty model alias"
+            );
+            let model = model.as_object().context("invalid Kimi model entry")?;
+            let name = model
+                .get("displayName")
+                .and_then(Value::as_str)
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or(alias);
+            // ACP selects the configured alias, not the upstream provider's model ID.
+            Ok(entry(alias, name, None, alias))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(ModelCatalog { version: 1, models })
+}
+
 fn spawn(executable: &str, args: &[&str]) -> Result<Child> {
     let mut spec = crate::config::AgentConfig {
         version: 1,
@@ -223,6 +246,16 @@ pub async fn discover(id: &str) -> Result<ModelCatalog> {
 }
 async fn discover_inner(id: &str) -> Result<ModelCatalog> {
     match id {
+        "kimi-code" => {
+            // This read-only command includes provider credentials; return only model metadata.
+            let output = spawn("kimi", &["provider", "list", "--json"])?
+                .wait_with_output()
+                .await?;
+            ensure!(output.status.success(), "Kimi model discovery failed");
+            let value = serde_json::from_slice(&output.stdout)
+                .context("invalid Kimi model catalog JSON")?;
+            kimi_models(&value)
+        }
         "agy" => crate::agy::discover_models().await,
         "codex" => {
             let mut child = spawn("codex", &["app-server"])?;
@@ -328,5 +361,46 @@ async fn discover_inner(id: &str) -> Result<ModelCatalog> {
             Ok(ModelCatalog { version: 1, models })
         }
         _ => bail!("no builtin models interface for {id}"),
+    }
+}
+
+#[cfg(test)]
+mod kimi_model_tests {
+    use super::kimi_models;
+    use serde_json::json;
+
+    #[test]
+    fn catalog_uses_configured_aliases_and_never_returns_provider_credentials() {
+        let catalog = kimi_models(&json!({
+            "providers": {"custom": {"apiKey": "private-provider-key", "baseUrl": "private-endpoint"}},
+            "models": {
+                "fast": {"provider": "custom", "model": "upstream-model-id", "displayName": "Fast model"},
+                "plain": {"provider": "custom", "model": "another-upstream-id"}
+            }
+        })).unwrap();
+        assert_eq!(catalog.models.len(), 2);
+        let fast = catalog.models.iter().find(|m| m.id == "fast").unwrap();
+        assert_eq!(fast.name, "Fast model");
+        assert_eq!(fast.parameters, [("model".into(), "fast".into())].into());
+        assert_eq!(
+            catalog
+                .models
+                .iter()
+                .find(|m| m.id == "plain")
+                .unwrap()
+                .name,
+            "plain"
+        );
+        let serialized = serde_json::to_string(&catalog).unwrap();
+        assert!(!serialized.contains("private-"));
+        assert!(!serialized.contains("upstream-"));
+        assert!(
+            kimi_models(&json!({"models": {}}))
+                .unwrap()
+                .models
+                .is_empty()
+        );
+        assert!(kimi_models(&json!({"models": []})).is_err());
+        assert!(kimi_models(&json!({"models": {"broken": null}})).is_err());
     }
 }

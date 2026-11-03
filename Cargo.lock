@@ -3901,14 +3901,11 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
- "futures",
- "http",
  "reqwest",
  "serde",
  "serde_json",
  "tempfile",
  "tokio",
- "tokio-websockets",
  "uuid",
  "wakeit-core",
  "which",
@@ -3917,7 +3914,7 @@ dependencies = [
 
 [[package]]
 name = "wakeit-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-nats",

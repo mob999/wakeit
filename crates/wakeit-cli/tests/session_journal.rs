@@ -149,6 +149,7 @@ async fn session_metadata_survives_content_budget_restart_and_uploaded_log_pruni
     let mut session = journal.session(run).await.unwrap().unwrap();
     assert!(!session.ready);
     session.ready = true;
+    session.title = Some("Preserved native title".into());
     journal.save_session(run, session.clone()).await.unwrap();
     journal.record_session(run, info(ID, &cwd)).await.unwrap();
     assert_eq!(journal.session(run).await.unwrap(), Some(session.clone()));
@@ -324,5 +325,180 @@ async fn fresh_session_lock_conflicts_are_durable_and_bound_runs_reuse_the_runne
             .unwrap()
             .reason
             .is_none()
+    );
+}
+
+#[tokio::test]
+async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native_titles() {
+    let (directory, journal, run) = fixture(false).await;
+    let cwd = directory.path().to_string_lossy().into_owned();
+    let name = "First task-wakeit-20261102-090000000";
+    journal.title(run, Some(name)).await.unwrap();
+    let session = RunSession {
+        id: ID.into(),
+        runner_id: journal.runner,
+        agent: "pi".into(),
+        cwd: cwd.clone(),
+        ready: true,
+        reason: None,
+        command: None,
+        title: None,
+    };
+    journal.save_session(run, session.clone()).await.unwrap();
+    assert_eq!(
+        journal
+            .session(run)
+            .await
+            .unwrap()
+            .unwrap()
+            .title
+            .as_deref(),
+        Some(name)
+    );
+    let mut second = journal.get(run).await.unwrap().unwrap().assignment;
+    second.run_id = Uuid::new_v4();
+    second.task.name = "Different task".into();
+    second.task.session = Some(wakeit::config::SessionBinding { id: ID.into() });
+    let agent = support::official_agent("pi");
+    journal.insert(&second, &agent).await.unwrap();
+    journal
+        .save_session(second.run_id, session.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        journal
+            .session(second.run_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .title
+            .as_deref(),
+        Some(name)
+    );
+    let renamed = RunSession {
+        title: Some("User native title".into()),
+        ..session.clone()
+    };
+    journal.save_session(second.run_id, renamed).await.unwrap();
+    assert_eq!(
+        journal
+            .session(second.run_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .title
+            .as_deref(),
+        Some("User native title")
+    );
+    // Native titles take precedence, while the fallback remains unchanged for later absence.
+    assert_eq!(
+        journal
+            .session_title("pi", ID, &cwd, Some("Native changed again"))
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("Native changed again")
+    );
+    assert_eq!(
+        journal
+            .session_title("pi", ID, &cwd, None)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(name)
+    );
+    let before: i64 = sqlx::query_scalar("SELECT count(*) FROM session_titles")
+        .fetch_one(&journal.pool)
+        .await
+        .unwrap();
+    assert!(
+        journal
+            .session_title("pi", "unmanaged", &cwd, None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        journal
+            .session_title("other-agent", ID, &cwd, None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let other = tempfile::tempdir().unwrap();
+    assert!(
+        journal
+            .session_title("pi", ID, &other.path().to_string_lossy(), None)
+            .await
+            .is_err()
+    );
+    let after: i64 = sqlx::query_scalar("SELECT count(*) FROM session_titles")
+        .fetch_one(&journal.pool)
+        .await
+        .unwrap();
+    assert_eq!(before, after);
+    sqlx::query("DELETE FROM local_runs")
+        .execute(&journal.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        journal
+            .session_title("pi", ID, &cwd, None)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(name)
+    );
+}
+#[tokio::test]
+async fn native_titles_and_unverified_sessions_do_not_create_local_aliases() {
+    let (directory, journal, run) = fixture(false).await;
+    let cwd = directory.path().to_string_lossy().into_owned();
+    let mut session = RunSession {
+        id: ID.into(),
+        runner_id: journal.runner,
+        agent: "pi".into(),
+        cwd,
+        ready: true,
+        reason: None,
+        command: None,
+        title: Some("Original".into()),
+    };
+    journal.save_session(run, session.clone()).await.unwrap();
+    session.title = None;
+    session.ready = false;
+    journal.save_session(run, session).await.unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM session_titles")
+        .fetch_one(&journal.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 0);
+    let (_directory, journal, run) = fixture(true).await;
+    let cwd = journal.get(run).await.unwrap().unwrap().assignment.task.cwd;
+    journal
+        .save_session(
+            run,
+            RunSession {
+                id: ID.into(),
+                runner_id: journal.runner,
+                agent: "pi".into(),
+                cwd,
+                ready: true,
+                reason: None,
+                command: None,
+                title: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        journal
+            .session(run)
+            .await
+            .unwrap()
+            .unwrap()
+            .title
+            .as_deref(),
+        Some("Session")
     );
 }

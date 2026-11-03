@@ -313,7 +313,7 @@ async fn stream_helper_keeps_native_children_in_the_runner_process_tree() {
             "git:github.com/mob999/wakeit".into(),
             "adapter".into(),
             "--".into(),
-            "stream".into(),
+            "run".into(),
             "codex".into(),
             "--".into(),
             "node".into(),
@@ -504,4 +504,77 @@ fn version_one_diagnostics_remain_valid_without_optional_recording_metadata() {
     )
     .unwrap();
     assert!(matches!(record.record, RecordData::Log(log) if log.recording_issue.is_none()));
+}
+
+#[tokio::test]
+async fn completed_process_waits_for_slow_journal_writes_without_becoming_unknown() {
+    let dir = tempfile::tempdir().unwrap();
+    let t = task(dir.path().to_str().unwrap());
+    let id = Uuid::new_v4();
+    let runner = Uuid::new_v4();
+    let journal = Journal::open(&dir.path().join("journal"), runner)
+        .await
+        .unwrap();
+    journal
+        .insert(
+            &Assignment {
+                version: 1,
+                run_id: id,
+                runner_id: runner,
+                task: t.clone(),
+                deadline: Utc::now() + chrono::Duration::hours(1),
+            },
+            &support::official_agent("codex"),
+        )
+        .await
+        .unwrap();
+    let spec = CommandSpec {
+        command: "node".into(),
+        args: vec![
+            "-e".into(),
+            r#"
+console.log(JSON.stringify({version:1,type:'log',data:{text:'record before result'}}));
+console.log(JSON.stringify({version:1,type:'result',data:'complete report'}));
+"#
+            .into(),
+        ],
+        ..Default::default()
+    };
+    // Delay persistence beyond the pipe-close grace period while the native process exits normally.
+    let connection = journal.pool.acquire().await.unwrap();
+    let (output, ()) = tokio::join!(
+        process::execute_output_named_format(
+            &spec,
+            &t,
+            id,
+            None,
+            Duration::from_secs(20),
+            tokio_util::sync::CancellationToken::new(),
+            Some(LogSink {
+                journal: journal.clone(),
+                id,
+                stdout: true
+            }),
+            OutputFormat::Events,
+            None,
+        ),
+        async move {
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            drop(connection);
+        }
+    );
+    let output = output.unwrap();
+    assert_eq!(output.code, Some(0));
+    assert!(
+        output.confirmed,
+        "slow persistence is not an unclosed process tree"
+    );
+    assert_eq!(output.result, Some(json!("complete report")));
+    let logged: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pending_events WHERE json_extract(payload,'$.kind')='log'",
+    )
+    .fetch_one(&journal.pool)
+    .await
+    .unwrap();
+    assert_eq!(logged, 1);
 }

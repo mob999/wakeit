@@ -8,12 +8,12 @@ macOS 或使用 GNU libc 的 Linux 运行：
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-CLI 包含 Runner 和官方 Agent 插件，与 Gateway 独立发布。脚本自动识别系统与架构，默认下载 CLI 0.2.0（或 `--version` 指定的版本），对照发布清单和校验列表验证 SHA-256，然后安装到 `~/.local/bin`。各阶段和下载过程均显示进度。脚本为当前用户的 Shell 配置 PATH；完成后打开新终端，运行 `wakeit --version`。无需 sudo。已有配置、服务进程、设备身份和 Agent 凭据均保留。
+CLI 包含 Runner 和官方 Agent 插件，与 Gateway 独立发布。脚本自动识别系统与架构，默认下载 CLI 0.2.1（或 `--version` 指定的版本），对照发布清单和校验列表验证 SHA-256，然后安装到 `~/.local/bin`。各阶段和下载过程均显示进度。脚本为当前用户的 Shell 配置 PATH；完成后打开新终端，运行 `wakeit --version`。无需 sudo。已有配置、服务进程、设备身份和 Agent 凭据均保留。
 
 指定版本或安装目录：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.2.0 --bin-dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.2.1 --bin-dir "$HOME/.local/bin"
 ```
 
 自行管理 PATH 时添加 `--no-modify-path`。脚本支持 zsh、bash、fish 和 POSIX Shell 的启动文件；其它 Shell 会提示需要加入 PATH 的目录。安装脚本不安装或更新 Gateway，也不会重启运行中的 Runner；升级服务请继续参照[更新指南](../skills/wakeit/references/updates.md)。

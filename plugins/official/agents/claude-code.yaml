@@ -8,7 +8,7 @@ parameters:
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:
-    - stream
+    - run
     - claude-code
     - '--'
     - claude
@@ -35,9 +35,9 @@ session:
   resume:
     command: ./plugins/official/bin/wakeit-agent-runtime
     args:
-      - session
-      - resume
+      - run
       - claude-code
+      - --session
       - '{{session.id}}'
       - '--'
       - claude

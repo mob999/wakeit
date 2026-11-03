@@ -11,6 +11,7 @@ use uuid::Uuid;
 use wakeit_core::session_catalog::Entry;
 use wakeit_core::session_catalog::{Catalog, paginate};
 pub async fn query(
+    journal: &super::journal::Journal,
     agent: &AgentConfig,
     cwd: &str,
     q: Option<&str>,
@@ -39,11 +40,18 @@ pub async fn query(
         out.code == Some(0) && out.stopped.is_none() && out.confirmed,
         "session list command failed or timed out"
     );
-    let catalog: Catalog = serde_json::from_str(&out.stdout).context("invalid session catalog")?;
+    let mut catalog: Catalog =
+        serde_json::from_str(&out.stdout).context("invalid session catalog")?;
     ensure!(
         catalog.version == 1 && catalog.sessions.len() <= 10000 && catalog.next_cursor.is_none(),
         "session catalog exceeded its limit or is incomplete"
     );
+    let titles = journal.session_titles(&agent.id, &cwd).await?;
+    for entry in &mut catalog.sessions {
+        if entry.title.as_ref().is_none_or(|t| t.trim().is_empty()) {
+            entry.title = titles.get(&entry.id).cloned();
+        }
+    }
     page(catalog, &cwd, q, cursor)
 }
 fn page(catalog: Catalog, cwd: &Path, q: Option<&str>, cursor: Option<&str>) -> Result<Value> {
@@ -115,5 +123,65 @@ mod tests {
         dup.sessions.push(entries[0].clone());
         assert!(page(dup, d.path(), None, None).is_err());
         assert!(page(c(), d.path(), None, Some("bad-cursor")).is_err());
+    }
+    #[tokio::test]
+    async fn local_display_names_are_joined_before_search_and_cursor_pagination() {
+        let directory = tempfile::tempdir().unwrap();
+        let journal = super::super::journal::Journal::open(directory.path(), Uuid::new_v4())
+            .await
+            .unwrap();
+        let cwd = directory.path().canonicalize().unwrap();
+        let sessions=(0..26).map(|i|serde_json::json!({"id":format!("s{i:02}"),"cwd":cwd,"title":if i==0{Some("Native title")}else{None},"updated_at":null})).collect::<Vec<_>>();
+        for i in 0..26 {
+            sqlx::query(
+                "INSERT INTO session_titles(agent,session_id,cwd,title) VALUES('fixture',?,?,?)",
+            )
+            .bind(format!("s{i:02}"))
+            .bind(cwd.to_string_lossy().as_ref())
+            .bind(format!("Mapped {i:02}"))
+            .execute(&journal.pool)
+            .await
+            .unwrap();
+        }
+        let result = serde_json::json!({"version":1,"sessions":sessions,"next_cursor":null});
+        let agent:AgentConfig=serde_json::from_value(serde_json::json!({"version":1,"id":"fixture","name":"fixture","mode":"sync","submit":{"command":"unused"},"output":{"format":"events"},"session":{"list":{"command":"node","args":["-e","console.log(process.argv[1])",result.to_string()]},"inspect":{"command":"unused"},"resume":{"command":"unused"},"interactive":{"command":"unused"}}})).unwrap();
+        let first = query(
+            &journal,
+            &agent,
+            &cwd.to_string_lossy(),
+            Some("Mapped"),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(first["sessions"].as_array().unwrap().len(), 20);
+        assert!(
+            !first["sessions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|s| s["id"] == "s00")
+        );
+        let second = query(
+            &journal,
+            &agent,
+            &cwd.to_string_lossy(),
+            Some("Mapped"),
+            first["next_cursor"].as_str(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(second["sessions"].as_array().unwrap().len(), 5);
+        assert!(second["next_cursor"].is_null());
+        let original = query(
+            &journal,
+            &agent,
+            &cwd.to_string_lossy(),
+            Some("Native"),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(original["sessions"][0]["id"], "s00");
     }
 }
