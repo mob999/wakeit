@@ -100,9 +100,11 @@ def verify(context):
         wait(lambda: local('SELECT count(*) FROM pending_events WHERE run_id=? AND published=0', (run_id,))[0][0] == 0,
              'oversized events repaired and uploaded', timeout=30)
         assert local('SELECT count(*) FROM event_quarantine WHERE run_id=?', (run_id,))[0][0] == 3
-        recorded = api('/runs/' + run_id + '/events')
-        repaired = {event['seq']: event for event in recorded if event['seq'] > sequence}
-        assert len(repaired) == 4
+        def repaired_events():
+            return {event['seq']: event for event in api('/runs/' + run_id + '/events') if event['seq'] > sequence}
+        # Broker acknowledgement precedes the Gateway consumer's database commit.
+        repaired = wait(lambda: events if len(events := repaired_events()) == 4 else None,
+                        'repaired events persisted by Gateway')
         assert repaired[sequence + 1]['kind'] == 'trace_status'
         assert repaired[sequence + 1]['data']['reason'] == 'event_too_large'
         assert repaired[sequence + 2]['kind'] == 'session'
