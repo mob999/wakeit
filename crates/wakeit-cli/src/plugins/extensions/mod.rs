@@ -298,7 +298,10 @@ impl Runtime {
         invocation: Invocation,
         cancel: CancellationToken,
     ) -> Result<Value> {
-        let _permit = tokio::select! {_=cancel.cancelled()=>bail!("invocation cancelled"),permit=self.invocation_slots.clone().acquire_owned()=>permit.context("extension host stopped")?};
+        let permit_wait = (invocation.deadline - Utc::now())
+            .to_std()
+            .context("invocation expired")?;
+        let _permit = tokio::select! {_=cancel.cancelled()=>bail!("invocation cancelled"),_=tokio::time::sleep(permit_wait)=>bail!("invocation deadline exceeded"),permit=self.invocation_slots.clone().acquire_owned()=>permit.context("extension host stopped")?};
         let mut instance = self.instance(invocation.instance_id).await?;
         ensure!(instance.enabled, "extension is disabled");
         let mut retired_root = None;

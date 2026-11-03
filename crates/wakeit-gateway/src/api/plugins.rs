@@ -131,6 +131,17 @@ pub(crate) async fn control(
         !read,
     )
     .await?;
+    if actor.role != "admin" && body.action == "cancel" {
+        let call: Uuid = serde_json::from_value(body.params["invocation_id"].clone())
+            .map_err(|_| Error::bad("invocation ID required"))?;
+        let owned:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_operations WHERE id=$1 AND workspace_id=$2 AND runner_id=$3 AND actor_id=$4 AND kind='action')").bind(call).bind(workspace).bind(runner).bind(actor.id).fetch_one(&s.pool).await?;
+        if !owned {
+            return Err(Error(
+                StatusCode::FORBIDDEN,
+                "invocation belongs to another actor".into(),
+            ));
+        }
+    }
     if !read && body.action == "invoke" {
         let mut invocation: Invocation = serde_json::from_value(body.params["invocation"].clone())
             .map_err(|e| Error::bad(e.to_string()))?;

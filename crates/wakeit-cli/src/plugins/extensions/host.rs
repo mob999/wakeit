@@ -80,6 +80,10 @@ impl Host for InstanceHost {
                     json!({"runner_id":runtime.config.id,"instance_id":id,"sdk_protocol":1,"version":env!("CARGO_PKG_VERSION"),"platform":std::env::consts::OS,"arch":std::env::consts::ARCH,"invocation_id":invocation}),
                 ),
                 "providers.query" => {
+                    ensure!(
+                        current.state == "running",
+                        "extension providers are unavailable during activation"
+                    );
                     let provider = params["provider"]
                         .as_str()
                         .context("provider ID required")?;

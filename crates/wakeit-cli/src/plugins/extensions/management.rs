@@ -285,6 +285,16 @@ impl Runtime {
                     .as_str()
                     .context("invocation required")?
                     .parse()?;
+                let owner = id.context("instance required")?;
+                let belongs: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM extension_invocations WHERE id=? AND instance=?)",
+                )
+                .bind(call.to_string())
+                .bind(owner.to_string())
+                .fetch_one(&self.journal.pool)
+                .await?;
+                ensure!(belongs, "invocation belongs to another instance");
+                sqlx::query("UPDATE extension_auth_flows SET status='cancelled',data='{}' WHERE instance=? AND status='pending' AND json_extract(data,'$.invocation_id')=?").bind(owner.to_string()).bind(call.to_string()).execute(&self.journal.pool).await?;
                 if let Some(token) = self.calls.lock().await.get(&call) {
                     token.cancel();
                 }
