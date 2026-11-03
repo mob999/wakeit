@@ -11,6 +11,7 @@ pub(crate) mod http;
 pub(crate) mod moments;
 pub(crate) mod nodes;
 pub mod openapi;
+pub(crate) mod plugins;
 pub(crate) mod runners;
 pub(crate) mod runs;
 pub(crate) mod sessions;
@@ -134,6 +135,19 @@ pub fn router(app: App) -> Router {
         .route("/runs/{id}/resolve", post(runs::resolve))
         .route("/runs/{id}/events", get(events::events))
         .route("/runs/{id}/stream", get(events::stream))
+        .route("/runners/{id}/plugins", get(plugins::catalog))
+        .route("/runners/{id}/plugins/control", post(plugins::control))
+        .route(
+            "/plugins/bindings",
+            get(plugins::bindings).post(plugins::bind),
+        )
+        .route("/plugins/replay", post(plugins::replay))
+        .route("/plugins/events", get(plugins::events))
+        .route("/plugins/events/{id}", get(plugins::event))
+        .route("/plugins/operations", get(plugins::operations))
+        .route("/plugins/operations/{id}", get(plugins::operation))
+        .route("/plugins/deliveries", get(plugins::deliveries))
+        .route("/plugins/deliveries/{id}", post(plugins::delivery_action))
         .route("/runners", get(runners::runners))
         .route("/runners/enrollment", post(runners::enrollment))
         .route("/runners/{id}/revoke", post(runners::revoke))
@@ -165,6 +179,12 @@ pub fn router(app: App) -> Router {
         .route("/api/v1/device/hello", post(device::hello))
         .route("/api/v1/device/heartbeat", post(device::heartbeat))
         .route("/api/v1/device/claim", post(device::claim))
+        .route("/api/v1/device/plugins/poll", post(plugins::poll))
+        .route("/api/v1/device/plugins/ack", post(plugins::ack))
+        .route("/api/v1/device/plugins/api", post(plugins::host_api))
+        .route("/api/v1/device/plugins/events", post(plugins::device_events))
+        .route("/api/v1/device/plugins/auth/register", post(plugins::auth_register))
+        .route("/api/v1/plugins/auth/callback", get(plugins::auth_callback))
         .route("/api/v1/schema/{kind}", get(system::schema))
         .route("/api/v1/openapi.json", get(system::openapi))
         .nest("/api/v1/workspaces/{workspace}", business)

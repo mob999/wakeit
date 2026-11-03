@@ -76,3 +76,7 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect kimi-code
 新 setup／enroll 直接使用插件资源。保留原设备凭据和 Runner 身份，Gateway 无需升级。新的插件会话保留其使用版本的可执行文件路径。
 
 官方适配器新建与恢复统一使用 `run AGENT [--session ID] [--model MODEL] -- 原生命令及参数`，Kimi 通过原生 ACP stdio 执行。已有原生会话标题保留；已验证会话无标题时，Runner 保存本地显示名并用于检查和搜索，之后出现原生标题时优先显示。第三方命令和事件接口不变。
+
+## 通用扩展
+
+插件包也可以提供事件监听、生命周期 Hook 和设备配置的动作。参见[插件 SDK](plugin-sdk-zh.md)。

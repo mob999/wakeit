@@ -63,9 +63,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: {components: 'rustfmt, clippy'}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt -p wakeit-cli -p wakeit-agent-runtime --check
+      - run: cargo fmt -p wakeit-cli -p wakeit-agent-runtime -p wakeit-plugin-sdk --check
         if: runner.os == 'Linux'
-      - run: cargo clippy --locked -p wakeit-cli -p wakeit-agent-runtime --all-targets -- -D warnings
+      - run: cargo clippy --locked -p wakeit-cli -p wakeit-agent-runtime -p wakeit-plugin-sdk --all-targets -- -D warnings
       - run: cargo build --locked -p wakeit-agent-runtime
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
@@ -76,7 +76,7 @@ jobs:
           if [[ "$RUNNER_OS" == Windows ]]; then suffix='.exe'; fi
           version="$(python -c 'import tomllib; print(tomllib.load(open("crates/wakeit-cli/Cargo.toml","rb"))["package"]["version"])')"
           python scripts/package-release.py stage --input "target/debug/wakeit$suffix" --output "target/debug/wakeit-plugins/$version"
-      - run: cargo test --locked -p wakeit-cli -p wakeit-agent-runtime --all-targets
+      - run: cargo test --locked -p wakeit-cli -p wakeit-agent-runtime -p wakeit-plugin-sdk --all-targets
       - run: cargo build --locked -p wakeit-cli --bin wakeit --example update_probe
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
@@ -157,6 +157,8 @@ jobs:
       - name: Service integration
         shell: bash
         run: python3 scripts/integration.py 2>&1 | tee .local-integration.log
+      - name: Generic plugin SDK acceptance
+        run: python3 scripts/integration.py --plugins-only
       - name: Payload isolation and offline delivery
         run: python3 scripts/integration.py --transport-only
       - uses: actions/upload-artifact@v4

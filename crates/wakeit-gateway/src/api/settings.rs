@@ -56,10 +56,21 @@ pub(crate) async fn settings(State(s): State<App>, h: HeaderMap) -> Result<Json<
 pub(crate) async fn update_settings(
     State(s): State<App>,
     h: HeaderMap,
-    ApiJson(b): ApiJson<Value>,
+    ApiJson(mut b): ApiJson<Value>,
 ) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "admin", true).await?;
+    b = crate::store::plugins::gate(
+        &s.pool,
+        workspace,
+        u.id,
+        &crate::api::plugins::hook_key(&h),
+        "workspace.settings.prepare",
+        json!({"settings":b}),
+    )
+    .await
+    .map_err(|e| Error::bad(e.to_string()))?["settings"]
+        .clone();
     let _: chrono_tz::Tz = b["timezone"]
         .as_str()
         .unwrap_or("")

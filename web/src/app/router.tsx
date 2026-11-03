@@ -66,9 +66,12 @@ const runnersRoute = createRoute({
   path: '/runners',
   validateSearch: (
     s: Record<string, unknown>,
-  ): { runner?: string; section?: 'overview' | 'agents'; agent?: string } => ({
+  ): { runner?: string; section?: 'overview' | 'agents' | 'plugins'; agent?: string } => ({
     runner: typeof s.runner === 'string' ? s.runner : undefined,
-    section: s.section === 'agents' || s.section === 'overview' ? s.section : undefined,
+    section:
+      s.section === 'agents' || s.section === 'overview' || s.section === 'plugins'
+        ? s.section
+        : undefined,
     agent: typeof s.agent === 'string' ? s.agent : undefined,
   }),
   component: () => <RunnersPage user={useUser()} toast={useToast()} />,

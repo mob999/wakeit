@@ -18,6 +18,7 @@ import { Pagination } from '../components/Pagination'
 import { Button, IconButton, Modal } from '../components/ui'
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog'
 import { RunnerOverview } from './RunnerOverview'
+import { RunnerPlugins } from './RunnerPlugins'
 import { RunnerAgents } from './RunnerAgents'
 import { EnrollDialog } from './EnrollDialog'
 import { DetailTabs } from '../components/DetailTabs'
@@ -67,7 +68,7 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
   const choose = (id: string, nextSection: string = section, agent?: string) =>
     navigate({
       to: '/runners',
-      search: { runner: id, section: nextSection as 'overview' | 'agents', agent },
+      search: { runner: id, section: nextSection as 'overview' | 'agents' | 'plugins', agent },
     })
   const revoke = useMutation({
     mutationFn: (id: string) => api(`/runners/${id}/revoke`, 'POST', {}),
@@ -195,6 +196,7 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               tabs={[
                 { key: 'overview', label: tr('概览') },
                 { key: 'agents', label: tr('Agents') },
+                { key: 'plugins', label: tr('plugins.title') },
               ]}
               value={section}
               onChange={(value) => choose(runner.id, value)}
@@ -206,7 +208,9 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               aria-labelledby={`runner-${runner.id}-${section}-tab`}
               tabIndex={0}
             >
-              {section === 'agents' ? (
+              {section === 'plugins' ? (
+                <RunnerPlugins runner={runner} admin={admin} toast={toast} />
+              ) : section === 'agents' ? (
                 <RunnerAgents
                   runner={runner}
                   filters={filteringAgents ? agentFilters : {}}

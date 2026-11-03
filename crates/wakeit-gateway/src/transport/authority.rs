@@ -66,7 +66,7 @@ impl Authority {
             &key,
             public,
             &format!("runner-{id}"),
-            json!({"type":"user","version":2,"pub":{"allow":publish},"sub":{"allow":[format!("_INBOX.r_{}.>",id.simple()),protocol::query_subject(id)]},"subs":64,"data":-1,"payload":2097152,"bearer_token":false}),
+            json!({"type":"user","version":2,"pub":{"allow":publish},"sub":{"allow":[format!("_INBOX.r_{}.>",id.simple()),protocol::query_subject(id),format!("wakeit.v1.runner.{id}.plugins")]},"subs":64,"data":-1,"payload":2097152,"bearer_token":false}),
         )
     }
     pub async fn sync_revocations(&self, url: &str, pool: &sqlx::PgPool) -> Result<()> {

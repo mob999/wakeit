@@ -1,0 +1,27 @@
+{
+  "manifest_version": 1,
+  "name": "Generic SDK acceptance fixture",
+  "version": "1.0.0",
+  "wakeit": {
+    "protocol": 1,
+    "runtimes": ["node"],
+    "extensions": {
+      "generic": {
+        "name": "Generic extension",
+        "command": "node",
+        "args": ["{{plugin.root}}/extension.ts"],
+        "config": {"type":"object","properties":{"prefix":{"type":"string","default":"fixture"}},"required":["prefix"],"additionalProperties":false},
+        "credentials": {"fixture":{"label":"Synthetic credential","required":false}},
+        "permissions": ["events:read", "tasks:read", "hooks:execution.prepare", "hooks:task.save.prepare"],
+        "handlers": {"completed":{"events":["run.finished"]}},
+        "hooks": {"prepare":{"stage":"execution.prepare"},"save":{"stage":"task.save.prepare"}},
+        "actions": {
+          "echo":{"label":"Echo synthetic input","input":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}},
+          "interact":{"label":"Request synthetic input","input":{"type":"object"}},
+          "wait":{"label":"Wait for cancellation","input":{"type":"object"}}
+        },
+        "providers": {"fixture-models":{"kind":"models"}}
+      }
+    }
+  }
+}

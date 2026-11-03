@@ -83,6 +83,7 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
                 tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{
                     if let Err(e)=s.authority.sync_revocations(&s.config.nats_url,&s.pool).await{tracing::warn!(error=%e,"NATS revocation sync deferred")}
                     if let Err(e)=crate::store::terminals::maintain(&s).await{tracing::warn!(error=%e,"terminal lifecycle reconciliation deferred")}
+                    if let Err(e)=crate::store::plugins::maintain(&s.pool).await{tracing::warn!(error=%e,"plugin lifecycle maintenance deferred")}
                     if let Err(e)=cleanup(&s).await{tracing::warn!(error=%e,"retention cleanup failed")}
                 }}
             }

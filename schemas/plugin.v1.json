@@ -1,5 +1,44 @@
 {
   "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "input": {
+          "default": {
+            "properties": {},
+            "type": "object"
+          }
+        },
+        "label": {
+          "type": "string"
+        },
+        "output": {
+          "default": null
+        },
+        "permission": {
+          "default": "",
+          "type": "string"
+        },
+        "side_effects": {
+          "default": false,
+          "type": "boolean"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
     "Artifact": {
       "additionalProperties": false,
       "properties": {
@@ -26,6 +65,187 @@
       ],
       "type": "object"
     },
+    "CredentialSlot": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "Extension": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Action"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "args": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "type": "string"
+        },
+        "config": {
+          "default": {
+            "properties": {},
+            "type": "object"
+          }
+        },
+        "credentials": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CredentialSlot"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "events": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "handlers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Handler"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "hooks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Hook"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "permissions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "providers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Provider"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "sdk_protocol": {
+          "default": 1,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "translations": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "required": [
+        "command",
+        "name"
+      ],
+      "type": "object"
+    },
+    "Handler": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "events": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "events"
+      ],
+      "type": "object"
+    },
+    "Hook": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "stage": {
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stage"
+      ],
+      "type": "object"
+    },
+    "Provider": {
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "default": null
+        },
+        "kind": {
+          "type": "string"
+        },
+        "output": {
+          "default": null
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
     "Resources": {
       "additionalProperties": false,
       "properties": {
@@ -33,6 +253,7 @@
           "additionalProperties": {
             "type": "string"
           },
+          "default": {},
           "description": "Agent IDs are declared here; package YAML need not repeat them.",
           "type": "object"
         },
@@ -58,6 +279,12 @@
           },
           "type": "object"
         },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Extension"
+          },
+          "type": "object"
+        },
         "protocol": {
           "format": "uint32",
           "minimum": 0,
@@ -71,8 +298,7 @@
         }
       },
       "required": [
-        "protocol",
-        "agents"
+        "protocol"
       ],
       "type": "object"
     }

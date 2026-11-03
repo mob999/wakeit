@@ -40,6 +40,7 @@ struct Active {
 struct Runner {
     config: Arc<RunnerConfig>,
     journal: Journal,
+    extensions: crate::plugins::extensions::Runtime,
     agents: Arc<HashMap<String, AgentConfig>>,
     runtime: Uuid,
     client: reqwest::Client,
@@ -239,6 +240,11 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
     }
     let journal = Journal::open(&config.data_dir, config.id).await?;
     let slots = Arc::new(Semaphore::new(config.concurrency));
+    let config = Arc::new(config);
+    let shutdown = CancellationToken::new();
+    let extensions =
+        crate::plugins::extensions::Runtime::new(config.clone(), journal.clone(), shutdown.clone())
+            .await?;
     let runner = Runner {
         slots: slots.clone(),
         runtime: Uuid::new_v4(),
@@ -246,11 +252,12 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
             .timeout(Duration::from_secs(15))
             .build()?,
         token: Arc::new(std::fs::read_to_string(&config.token_file)?),
-        config: Arc::new(config),
+        config,
+        extensions,
         journal,
         agents: Arc::new(agents),
         active: Arc::new(Mutex::new(HashMap::new())),
-        shutdown: CancellationToken::new(),
+        shutdown,
         run_locks: Arc::new(Mutex::new(HashMap::new())),
     };
     loop {
@@ -263,6 +270,12 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         Some(format!("_INBOX.r_{}", runner.config.id.simple())),
     )
     .await?;
+    let extensions = tokio::spawn(
+        runner
+            .extensions
+            .clone()
+            .serve(client.clone(), runner.runtime),
+    );
     let queries = tokio::spawn(crate::runner::queries::serve(
         client.clone(),
         runner.config.clone(),
@@ -352,6 +365,7 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         work,
         maintenance,
         queries,
+        extensions,
         terminals
     );
     drop(lock);

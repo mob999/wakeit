@@ -5,6 +5,7 @@ pub(crate) mod demo;
 pub(crate) mod events;
 pub(crate) mod moments;
 pub(crate) mod outbox;
+pub(crate) mod plugins;
 pub(crate) mod runners;
 pub(crate) mod runs;
 pub(crate) mod scheduler;

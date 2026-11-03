@@ -22,6 +22,7 @@ pub(crate) async fn ready(State(s): State<App>) -> Result<Json<Value>> {
 
 pub(crate) async fn schema(Path(kind): Path<String>) -> Result<Json<Value>> {
     Ok(Json(match kind.as_str() {
+        "plugin-sdk" => wakeit_core::extensions::schema(),
         "agent" => serde_json::to_value(schemars::schema_for!(wakeit_core::config::AgentConfig))?,
         "task" => serde_json::to_value(schemars::schema_for!(TaskConfig))?,
         "template" => {

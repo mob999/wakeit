@@ -6,6 +6,7 @@ pub mod dag;
 pub mod dag_prompt;
 pub mod device_auth;
 pub mod editor_layout;
+pub mod extensions;
 pub mod image_preview;
 pub mod native_command;
 pub mod protocol;

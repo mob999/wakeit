@@ -1,0 +1,9 @@
+{
+  "name": "@wakeit/plugin-sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": { ".": "./src/index.ts" },
+  "engines": { "node": ">=22.18" },
+  "scripts": { "check": "tsc --noEmit" }
+}

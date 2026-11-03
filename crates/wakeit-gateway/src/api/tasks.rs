@@ -95,12 +95,27 @@ pub(crate) async fn apply(
     State(s): State<App>,
     h: HeaderMap,
     Path(id): Path<String>,
-    ApiJson(b): ApiJson<Apply>,
+    ApiJson(mut b): ApiJson<Apply>,
 ) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
     if b.config.id != id {
         return Err(Error::bad("task id does not match URL"));
+    }
+    let proposed = crate::store::plugins::gate(
+        &s.pool,
+        workspace,
+        u.id,
+        &crate::api::plugins::hook_key(&h),
+        "task.save.prepare",
+        json!({"config":b.config}),
+    )
+    .await
+    .map_err(|e| Error::bad(e.to_string()))?;
+    b.config = serde_json::from_value(proposed["config"].clone())
+        .map_err(|e| Error::bad(e.to_string()))?;
+    if b.config.id != id {
+        return Err(Error::bad("Hook changed Task identity"));
     }
     b.config.validate().map_err(|e| Error::bad(e.to_string()))?;
     Ok(Json(

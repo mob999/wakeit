@@ -24,6 +24,18 @@ pub struct WorkspaceContext {
 pub async fn identity(pool: &PgPool, credential: &str) -> Result<Option<Identity>> {
     let row = sqlx::query("SELECT u.id,u.username,u.instance_admin,c.kind,c.workspace_id FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND u.active AND (c.expires_at IS NULL OR c.expires_at>now())")
         .bind(credential).fetch_optional(pool).await?;
+    if row.is_none() {
+        let plugin=sqlx::query("SELECT u.id,u.username,p.workspace_id FROM plugin_api_tokens p JOIN plugin_instances i ON i.id=p.instance_id JOIN users u ON u.id=p.actor_id WHERE p.hash=$1 AND p.expires_at>now() AND i.enabled AND u.active")
+            .bind(credential).fetch_optional(pool).await?;
+        return Ok(plugin.map(|r| Identity {
+            id: r.get("id"),
+            username: r.get("username"),
+            instance_admin: false,
+            kind: "extension".into(),
+            workspace_id: Some(r.get("workspace_id")),
+            credential: credential.into(),
+        }));
+    }
     Ok(row.map(|r| Identity {
         id: r.get("id"),
         username: r.get("username"),
@@ -39,7 +51,9 @@ pub async fn authorize(
     identity: &Identity,
     workspace: Uuid,
 ) -> Result<Option<WorkspaceContext>> {
-    if identity.kind == "api" && identity.workspace_id != Some(workspace) {
+    if matches!(identity.kind.as_str(), "api" | "extension")
+        && identity.workspace_id != Some(workspace)
+    {
         return Ok(None);
     }
     let row=sqlx::query("SELECT w.is_demo,m.role,m.active,u.active AS user_active,EXISTS(SELECT 1 FROM user_identities i WHERE i.user_id=u.id AND i.provider='github') AS github FROM workspaces w JOIN users u ON u.id=$2 LEFT JOIN workspace_members m ON m.workspace_id=w.id AND m.user_id=u.id WHERE w.id=$1")
@@ -85,7 +99,7 @@ pub async fn check_member(
     workspace: Uuid,
     needed: &str,
 ) -> Result<Uuid> {
-    let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2)")
+    let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2) UNION ALL SELECT u.id,m.role,w.is_demo FROM plugin_api_tokens p JOIN plugin_instances i ON i.id=p.instance_id JOIN users u ON u.id=p.actor_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=p.workspace_id JOIN workspaces w ON w.id=p.workspace_id WHERE p.hash=$1 AND p.workspace_id=$2 AND p.expires_at>now() AND i.enabled AND u.active AND m.active")
         .bind(credential).bind(workspace).fetch_optional(&mut **tx).await?.ok_or(PermissionDenied("workspace access denied"))?;
     if row.get::<bool, _>("is_demo") {
         return Err(PermissionDenied("demo workspace is read only").into());

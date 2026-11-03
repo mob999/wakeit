@@ -75,3 +75,5 @@ WebUI 的续聊复制来自 interactive 命令的原生 argv 与 cwd，不包含
 插件管理：`wakeit plugin install <Git URL或本地目录>`，用 `list` 查看、`update [来源]` 更新、`remove <来源>` 移除；Runner 下次启动生效。包根清单 `wakeit-plugin.json` 声明 version 1 协议和 Agent YAML；命令相对包根目录解析，参数中的包内文件可用 `{{plugin.root}}`。官方适配器预装，第三方也可只写脚本并输出现有 events 协议。
 
 官方插件的新建与恢复统一调用 `run <agent-id> [--session ID] [--model MODEL] -- <原生命令及参数>`。Kimi 使用原生 ACP（`kimi acp`），不启动 HTTP／WebSocket 服务；普通第三方脚本继续沿用 command/stdin/events 契约。
+
+通用插件可在 manifest 的 extensions 中声明事件、Hook、配置和动作；不要求包含 Agent。使用 `wakeit schema plugin-sdk` 读取契约，`wakeit --json plugin instance --runner ID catalog` 查看实例，`plugin instance --runner ID configure --file FILE` 与 WebUI 共用配置契约。凭证留在 Runner，保存使用 expected_revision 和 operation_id，秘密更新区分 keep/replace/clear，不把真实凭证放进任务或仓库。完整协议见[插件 SDK](https://github.com/mob999/wakeit/blob/main/docs/plugin-sdk-zh.md)。

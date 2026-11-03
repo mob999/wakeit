@@ -235,6 +235,79 @@ impl Runner {
             active.cancel.cancel();
         }
         self.active.lock().await.insert(id, active.clone());
+        let prepare_started = tokio::time::Instant::now();
+        let budget = duration(
+            run.assignment
+                .task
+                .execution
+                .timeout
+                .as_deref()
+                .unwrap_or("1h"),
+        )?;
+        let mut proposal = json!({"prompt":run.assignment.task.prompt,"parameters":run.assignment.task.parameters,"run_id":id,"task_id":run.assignment.task.id,"runner_id":self.config.id});
+        if let Some(binding) = &run.assignment.task.session {
+            let stages = ["session.bind.prepare", "session.continue.prepare"];
+            for stage in stages {
+                proposal["session_id"] = json!(binding.id);
+                match self
+                    .extensions
+                    .hooks(stage, proposal.clone(), active.cancel.clone())
+                    .await
+                {
+                    Ok(value) => proposal = value,
+                    Err(error) => {
+                        self.state(
+                            id,
+                            "failed",
+                            Some(&format!("{stage}: {error}")),
+                            None,
+                            Some("done"),
+                        )
+                        .await?;
+                        self.active.lock().await.remove(&id);
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        let prepared = tokio::time::timeout(
+            budget,
+            self.extensions
+                .hooks("execution.prepare", proposal, active.cancel.clone()),
+        )
+        .await;
+        let prepared = match prepared {
+            Ok(Ok(value)) => value,
+            other => {
+                let reason = match other {
+                    Ok(Err(e)) => e.to_string(),
+                    _ => "execution preparation timed out".into(),
+                };
+                self.state(
+                    id,
+                    if active.cancel.is_cancelled() {
+                        "cancelled"
+                    } else {
+                        "failed"
+                    },
+                    Some(&format!("execution.prepare: {reason}")),
+                    None,
+                    Some("done"),
+                )
+                .await?;
+                self.active.lock().await.remove(&id);
+                return Ok(());
+            }
+        };
+        run.assignment.task.prompt = serde_json::from_value(prepared["prompt"].clone())?;
+        run.assignment.task.parameters = crate::config::resolve_parameters(
+            &run.agent.parameters,
+            &serde_json::from_value(prepared["parameters"].clone())?,
+        )?;
+        let remaining = budget.saturating_sub(prepare_started.elapsed());
+        run.assignment.task.execution.timeout = Some(format!("{}ms", remaining.as_millis().max(1)));
+        self.journal.resolved(&run.assignment).await?;
+        self.journal.emit(id,"snapshot",json!({"effective_prompt":run.assignment.task.prompt,"parameters":run.assignment.task.parameters,"plugin_prepared":true}),None).await?;
         let result = if run.agent.mode == AgentMode::Sync {
             self.sync(&run, &active).await
         } else {
@@ -396,6 +469,16 @@ impl Runner {
                     "failed"
                 };
                 let value = out.result_value(&run.agent.output);
+                let value = match value {
+                    Ok(value) if state == "succeeded" => {
+                        self.journal.extension_result(id, "native", &value).await?;
+                        match self.extensions.hooks("result.publish.prepare",json!({"result":value,"run_id":id,"task_id":run.assignment.task.id}),active.cancel.clone()).await {
+                            Ok(processed)=>{let effective=processed["result"].clone();self.journal.extension_result(id,"effective",&effective).await?;Ok(effective)},
+                            Err(error)=>Err(anyhow::anyhow!("result.publish.prepare: {error}"))
+                        }
+                    }
+                    other => other,
+                };
                 match value {
                     Ok(value) => {
                         self.journal.emit(id, "state", json!({
