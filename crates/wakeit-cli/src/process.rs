@@ -238,8 +238,9 @@ pub async fn execute_output_named_format(
     let stderr = child.stderr.take().context("stderr")?;
     let out_sink = sink.clone().filter(|s| s.stdout);
     let err_sink = sink;
-    let mut stdout = tokio::spawn(read_output(stdout, out_sink, "stdout", format));
-    let mut stderr = tokio::spawn(read_output(stderr, err_sink, "stderr", OutputFormat::Text));
+    let exited = CancellationToken::new();
+    let stdout = tokio::spawn(read_output(stdout, out_sink, "stdout", format, exited.clone()));
+    let stderr = tokio::spawn(read_output(stderr, err_sink, "stderr", OutputFormat::Text, exited.clone()));
     let input = spec
         .stdin
         .as_ref()
@@ -268,19 +269,11 @@ pub async fn execute_output_named_format(
         _=tokio::time::sleep(limit)=>{stopped=Some("timed_out");group.terminate();match tokio::time::timeout(Duration::from_secs(5),child.wait()).await{Ok(v)=>v?,Err(_)=>{group.kill();child.kill().await.ok();child.wait().await?}}}
     };
     // Commands belong to a run; terminate any descendants holding the output pipes.
-    let mut confirmed = group.finish().await;
-    let out = match tokio::time::timeout(Duration::from_secs(5), &mut stdout).await {
-        Ok(r) => r??,
-        Err(_) => {
-            stdout.abort();
-            confirmed = false;
-            ReadOutput::default()
-        }
-    };
-    let err = match tokio::time::timeout(Duration::from_secs(5), &mut stderr).await {
-        Ok(r)=>r??,
-        Err(_)=>{stderr.abort();confirmed=false;ReadOutput::default()},
-    };
+    let terminated = group.finish().await;
+    exited.cancel();
+    let out = stdout.await??;
+    let err = stderr.await??;
+    let confirmed = terminated && out.eof && err.eof;
     Ok(Output {
         code: status.code(),
         stdout: String::from_utf8_lossy(&out.bytes).into_owned(),
@@ -296,6 +289,7 @@ pub async fn execute_output_named_format(
 }
 #[derive(Default)]
 struct ReadOutput {
+    eof: bool,
     bytes: Vec<u8>,
     result: Option<serde_json::Value>,
     truncated: bool,
@@ -401,6 +395,7 @@ async fn read_output(
     sink: Option<LogSink>,
     stream: &str,
     format: OutputFormat,
+    exited: CancellationToken,
 ) -> Result<ReadOutput> {
     let events = matches!(format, OutputFormat::Events);
     let mut validation = crate::output_capture::Validation::new(&format);
@@ -411,10 +406,20 @@ async fn read_output(
     let mut lines = crate::trace::Lines::default();
     let mut result = None;
     let mut diagnosed = std::collections::BTreeSet::new();
-    loop {
-        let n = reader.read(&mut buffer).await?;
+    let eof = loop {
+        // Bound an unclosed native pipe after exit, not time spent persisting received records.
+        let next = {
+            let read = reader.read(&mut buffer);
+            tokio::pin!(read);
+            tokio::select! {
+                result = &mut read => Some(result),
+                _ = exited.cancelled() => tokio::time::timeout(Duration::from_secs(5), &mut read).await.ok(),
+            }
+        };
+        let Some(n) = next else { break false };
+        let n = n?;
         if n == 0 {
-            break;
+            break true;
         }
         if events {
             for record in lines.push(&buffer[..n]) {
@@ -442,7 +447,7 @@ async fn read_output(
                 carry.drain(..ready);
             }
         }
-    }
+    };
     if let Some(s) = &sink
         && !carry.is_empty()
     {
@@ -460,6 +465,7 @@ async fn read_output(
         None => None,
     };
     Ok(ReadOutput {
+        eof,
         bytes: all,
         result,
         truncated,

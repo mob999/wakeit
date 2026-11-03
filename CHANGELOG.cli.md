@@ -3,6 +3,7 @@
 - Kimi Code runs stream messages and tool progress without starting a local web server, and support model selection, continuation and cancellation.
 - Choose Kimi models from the models configured on the device.
 - Sessions without native titles receive a persistent local name, making them easier to find and reuse. Existing native titles are preserved.
+- Fixed completed runs appearing as unknown when saving a large amount of logs.
 
 ## 0.2.0
 
