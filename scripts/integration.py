@@ -215,7 +215,11 @@ def main():
         trace_id=trigger('trace-live')
         wait(lambda:any(e['kind']=='trace' for e in api('/runs/'+trace_id+'/events?kind=trace')), 'live trace before exit')
         assert api('/runs/'+trace_id)['state']=='running'
-        trace_run=final(trace_id,timeout=90)
+        try:
+            trace_run=final(trace_id,timeout=90)
+        except AssertionError as error:
+            row=api('/runs/'+trace_id)
+            raise AssertionError(f"trace execution did not finish: state={row['state']}, reason={row.get('reason')}") from error
         assert trace_run['result']=='# 执行报告\n\n**完成**' and trace_run['execution_snapshot']['trace_supported'] is True
         wait(lambda:len(api('/runs/'+trace_id+'/events?kind=trace'))>=5,'all trace snapshots persisted',timeout=90)
         trace_rows=api('/runs/'+trace_id+'/events?kind=trace')
