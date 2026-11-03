@@ -249,6 +249,30 @@ impl Runtime {
                 let owner = id.context("instance required")?;
                 let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM extension_interactions WHERE id=? AND instance=? AND state='waiting')").bind(interaction).bind(owner.to_string()).fetch_one(&self.journal.pool).await?;
                 ensure!(exists, "interaction expired or already answered");
+                let raw: String = sqlx::query_scalar(
+                    "SELECT request FROM extension_interactions WHERE id=? AND instance=?",
+                )
+                .bind(interaction)
+                .bind(owner.to_string())
+                .fetch_one(&self.journal.pool)
+                .await?;
+                let request: wakeit_core::extensions::Interaction = serde_json::from_str(&raw)?;
+                match &request {
+                    wakeit_core::extensions::Interaction::Form { schema, .. } => {
+                        wakeit_core::extensions::validate_schema(schema, &params["response"])?
+                    }
+                    wakeit_core::extensions::Interaction::Choice { options, .. } => ensure!(
+                        params["response"]
+                            .as_str()
+                            .is_some_and(|v| options.iter().any(|o| o.value == v)),
+                        "invalid interaction choice"
+                    ),
+                    wakeit_core::extensions::Interaction::Confirm { .. } => ensure!(
+                        params["response"].is_boolean(),
+                        "confirmation response must be a boolean"
+                    ),
+                    _ => {}
+                }
                 self.responses
                     .lock()
                     .await
@@ -265,8 +289,9 @@ impl Runtime {
             "activity" => {
                 let rows=sqlx::query("SELECT id,kind,handler,state,error,created_at,finished_at FROM extension_invocations WHERE instance=? ORDER BY created_at DESC LIMIT 100").bind(id.context("instance required")?.to_string()).fetch_all(&self.journal.pool).await?;
                 let interactions=sqlx::query("SELECT id,invocation,request,state FROM extension_interactions WHERE instance=? AND state='waiting'").bind(id.unwrap().to_string()).fetch_all(&self.journal.pool).await?;
+                let notifications=sqlx::query("SELECT id,invocation,request FROM extension_interactions WHERE instance=? AND state='notification' ORDER BY rowid DESC LIMIT 30").bind(id.unwrap().to_string()).fetch_all(&self.journal.pool).await?;
                 Ok(
-                    json!({"items":rows.iter().map(|r|json!({"id":r.get::<String,_>("id"),"kind":r.get::<String,_>("kind"),"handler":r.get::<String,_>("handler"),"state":r.get::<String,_>("state"),"error":r.get::<Option<String>,_>("error"),"created_at":r.get::<String,_>("created_at"),"finished_at":r.get::<Option<String>,_>("finished_at")})).collect::<Vec<_>>(),"interactions":interactions.iter().map(|r|json!({"id":r.get::<String,_>("id"),"invocation_id":r.get::<String,_>("invocation"),"request":serde_json::from_str::<Value>(r.get("request")).unwrap_or(Value::Null)})).collect::<Vec<_>>()}),
+                    json!({"items":rows.iter().map(|r|json!({"id":r.get::<String,_>("id"),"kind":r.get::<String,_>("kind"),"handler":r.get::<String,_>("handler"),"state":r.get::<String,_>("state"),"error":r.get::<Option<String>,_>("error"),"created_at":r.get::<String,_>("created_at"),"finished_at":r.get::<Option<String>,_>("finished_at")})).collect::<Vec<_>>(),"notifications":notifications.iter().map(|r|json!({"id":r.get::<String,_>("id"),"invocation_id":r.get::<String,_>("invocation"),"request":serde_json::from_str::<Value>(r.get("request")).unwrap_or(Value::Null)})).collect::<Vec<_>>(),"interactions":interactions.iter().map(|r|json!({"id":r.get::<String,_>("id"),"invocation_id":r.get::<String,_>("invocation"),"request":serde_json::from_str::<Value>(r.get("request")).unwrap_or(Value::Null)})).collect::<Vec<_>>()}),
                 )
             }
             "reload" => {

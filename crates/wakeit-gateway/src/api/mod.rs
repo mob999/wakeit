@@ -144,6 +144,10 @@ pub fn router(app: App) -> Router {
             get(plugins::bindings).post(plugins::bind),
         )
         .route("/plugins/replay", post(plugins::replay))
+        .route(
+            "/plugins/artifacts/{id}/download",
+            get(plugins::artifact_download),
+        )
         .route("/plugins/events", get(plugins::events))
         .route("/plugins/events/{id}", get(plugins::event))
         .route("/plugins/operations", get(plugins::operations))

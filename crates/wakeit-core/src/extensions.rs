@@ -232,6 +232,12 @@ pub struct ExtensionError {
     pub paths: Vec<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct UiChoice {
+    pub value: String,
+    pub label: String,
+    pub description: Option<String>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Interaction {
     Progress {
@@ -254,7 +260,7 @@ pub enum Interaction {
     },
     Choice {
         title: String,
-        options: Vec<Value>,
+        options: Vec<UiChoice>,
     },
     OpenUrl {
         url: String,
@@ -414,6 +420,38 @@ pub const HOOK_STAGES: &[(&str, &[&str])] = &[
     ("action.prepare", &["input"]),
 ];
 
+impl Binding {
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            ["event", "hook"].contains(&self.kind.as_str()),
+            "unsupported binding kind"
+        );
+        ensure!(
+            (1..=3600).contains(&self.timeout_seconds),
+            "binding timeout must be 1–3600 seconds"
+        );
+        ensure!(
+            (1..=100).contains(&self.max_attempts),
+            "delivery attempts must be 1–100"
+        );
+        ensure!(
+            (1..=7776000).contains(&self.expires_seconds),
+            "delivery retention must be 1–7776000 seconds"
+        );
+        if self.kind == "hook" {
+            ensure!(
+                HOOK_STAGES.iter().any(|(stage, _)| *stage == self.event),
+                "unsupported Hook stage"
+            );
+        } else {
+            ensure!(
+                valid_event_pattern(&self.event),
+                "unsupported event pattern"
+            );
+        }
+        Ok(())
+    }
+}
 pub fn apply_decision(stage: &str, proposal: &mut Value, decision: Decision) -> Result<()> {
     let allowed = HOOK_STAGES
         .iter()
@@ -462,6 +500,28 @@ pub fn validate_schema(schema: &Value, value: &Value) -> Result<()> {
 }
 impl Extension {
     pub fn validate(&self) -> Result<()> {
+        for (id, handler) in &self.handlers {
+            crate::config::validate_id(id)?;
+            ensure!(
+                (1..=3600).contains(&handler.timeout_seconds),
+                "handler timeout must be 1–3600 seconds"
+            );
+        }
+        for (id, hook) in &self.hooks {
+            crate::config::validate_id(id)?;
+            ensure!(
+                (1..=3600).contains(&hook.timeout_seconds),
+                "Hook timeout must be 1–3600 seconds"
+            );
+        }
+        for (id, action) in &self.actions {
+            crate::config::validate_id(id)?;
+            ensure!(
+                (1..=3600).contains(&action.timeout_seconds),
+                "action timeout must be 1–3600 seconds"
+            );
+        }
+
         ensure!(
             self.sdk_protocol == SDK_PROTOCOL,
             "unsupported extension SDK protocol"

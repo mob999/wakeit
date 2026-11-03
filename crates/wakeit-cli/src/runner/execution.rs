@@ -230,6 +230,15 @@ impl Runner {
         let active = Active {
             cancel: CancellationToken::new(),
             stop: CancellationToken::new(),
+            deadline: tokio::time::Instant::now()
+                + duration(
+                    run.assignment
+                        .task
+                        .execution
+                        .timeout
+                        .as_deref()
+                        .unwrap_or("1h"),
+                )?,
         };
         if self.journal.cancelled(id).await? {
             active.cancel.cancel();
@@ -288,7 +297,6 @@ impl Runner {
             }
         }
 
-        let prepare_started = tokio::time::Instant::now();
         let budget = duration(
             run.assignment
                 .task
@@ -380,10 +388,13 @@ impl Runner {
                 return Ok(());
             }
         }
-        let remaining = budget.saturating_sub(prepare_started.elapsed());
+        let remaining = active
+            .deadline
+            .saturating_duration_since(tokio::time::Instant::now());
         run.assignment.task.execution.timeout = Some(format!("{}ms", remaining.as_millis().max(1)));
         self.journal.resolved(&run.assignment).await?;
         self.journal.emit(id,"snapshot",json!({"effective_prompt":run.assignment.task.prompt,"parameters":run.assignment.task.parameters,"plugin_prepared":true}),None).await?;
+        run.started = chrono::Utc::now();
         let result = if run.agent.mode == AgentMode::Sync {
             self.sync(&run, &active).await
         } else {
@@ -547,12 +558,7 @@ impl Runner {
                 let value = out.result_value(&run.agent.output);
                 let value = match value {
                     Ok(value) if state == "succeeded" => {
-                        let native_ref =
-                            self.journal.extension_result(id, "native", &value).await?;
-                        match self.extensions.hooks("result.publish.prepare",json!({"result":value,"run_id":id,"task_id":run.assignment.task.id}),active.cancel.clone()).await {
-                            Ok(processed)=>{let effective=processed["result"].clone();self.journal.extension_result(id,"effective",&effective).await?;Ok(effective)},
-                            Err(error)=>{self.journal.emit(id,"snapshot",json!({"failure_phase":"postprocess","native_result_ref":native_ref}),None).await?;Err(anyhow::anyhow!("result.publish.prepare: {error}"))}
-                        }
+                        self.publish_result(run, active, value).await
                     }
                     other => other,
                 };
@@ -587,6 +593,43 @@ impl Runner {
             }
         }
         Ok(())
+    }
+    async fn publish_result(&self, run: &LocalRun, active: &Active, value: Value) -> Result<Value> {
+        let id = run.assignment.run_id;
+        let native_ref = self.journal.extension_result(id, "native", &value).await?;
+        let result = tokio::time::timeout_at(
+            active.deadline,
+            self.extensions.hooks(
+                "result.publish.prepare",
+                json!({"result":value,"run_id":id,"task_id":run.assignment.task.id}),
+                active.cancel.clone(),
+            ),
+        )
+        .await;
+        match result {
+            Ok(Ok(processed)) => {
+                let effective = processed["result"].clone();
+                self.journal
+                    .extension_result(id, "effective", &effective)
+                    .await?;
+                Ok(effective)
+            }
+            other => {
+                self.journal
+                    .emit(
+                        id,
+                        "snapshot",
+                        json!({"failure_phase":"postprocess","native_result_ref":native_ref}),
+                        None,
+                    )
+                    .await?;
+                let error = match other {
+                    Ok(Err(e)) => e.to_string(),
+                    _ => "result processing deadline exceeded".into(),
+                };
+                anyhow::bail!("result.publish.prepare: {error}")
+            }
+        }
     }
     async fn asynchronous(&self, run: &LocalRun, active: &Active) -> Result<()> {
         let id = run.assignment.run_id;
@@ -725,14 +768,38 @@ impl Runner {
                             } else {
                                 state
                             };
-                            self.state(
-                                id,
-                                state,
-                                v["message"].as_str(),
-                                v.get("result").cloned(),
-                                Some("done"),
-                            )
-                            .await?;
+                            let result = if state == "succeeded" {
+                                self.publish_result(
+                                    run,
+                                    active,
+                                    v.get("result").cloned().unwrap_or(Value::Null),
+                                )
+                                .await
+                            } else {
+                                Ok(v.get("result").cloned().unwrap_or(Value::Null))
+                            };
+                            match result {
+                                Ok(value) => {
+                                    self.state(
+                                        id,
+                                        state,
+                                        v["message"].as_str(),
+                                        Some(value),
+                                        Some("done"),
+                                    )
+                                    .await?
+                                }
+                                Err(error) => {
+                                    self.state(
+                                        id,
+                                        "failed",
+                                        Some(&error.to_string()),
+                                        None,
+                                        Some("done"),
+                                    )
+                                    .await?
+                                }
+                            }
                             return Ok(());
                         }
                         if matches!(state, "running" | "queued") {

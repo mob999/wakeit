@@ -43,6 +43,8 @@ jobs:
       - run: npm run test:unit
         if: needs.scope.outputs.frontend == 'true'
         working-directory: web
+      - name: Plugin TypeScript SDK contract types
+        run: web/node_modules/.bin/tsc --noEmit --project sdk/typescript/tsconfig.json --typeRoots web/node_modules/@types
       - uses: actions/upload-artifact@v4
         if: needs.scope.outputs.gateway == 'true' || needs.scope.outputs.integration == 'true'
         with:

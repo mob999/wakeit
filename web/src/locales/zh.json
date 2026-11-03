@@ -1028,5 +1028,12 @@
   "plugins.upgradeDescription": "检查新版本的配置和权限后切换，正在执行的调用需先结束。",
   "plugins.removeDescription": "移除已停用的实例，保留配置、凭证和私有数据。",
   "plugins.offlineSettings": "设备离线，无法读取或保存设备配置。",
-  "plugins.adminSettings": "仅管理员可以读取或修改插件配置。"
+  "plugins.adminSettings": "仅管理员可以读取或修改插件配置。",
+  "plugins.variant": "参数结构",
+  "plugins.variantNumber": "选项 {{n}}",
+  "plugins.hasValue": "填写参数值",
+  "plugins.nullValue": "空值（null）",
+  "plugins.continueInteraction": "继续处理交互",
+  "plugins.open": "打开",
+  "plugins.grantedPermissions": "已授予权限"
 }

@@ -354,7 +354,7 @@ impl Runtime {
                 "instance configuration changed"
             );
         }
-        let timeout = (invocation.deadline - Utc::now())
+        let mut timeout = (invocation.deadline - Utc::now())
             .to_std()
             .context("invocation expired")?;
         match invocation.kind.as_str() {
@@ -396,6 +396,13 @@ impl Runtime {
             }
             _ => bail!("unsupported invocation kind"),
         }
+        let maximum = match invocation.kind.as_str() {
+            "event" => instance.declaration.handlers[&invocation.handler].timeout_seconds,
+            "hook" => instance.declaration.hooks[&invocation.handler].timeout_seconds,
+            "action" => instance.declaration.actions[&invocation.handler].timeout_seconds,
+            _ => 25,
+        };
+        timeout = timeout.min(Duration::from_secs(maximum));
         if retired_root.is_none() && instance.state == "pending" {
             let root: String =
                 sqlx::query_scalar("SELECT root FROM extension_instances WHERE id=?")

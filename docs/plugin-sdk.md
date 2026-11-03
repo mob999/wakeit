@@ -132,3 +132,11 @@ OAuth supports authorization code with PKCE and device authorization. Verifiers 
 [`fixtures/plugins/generic`](../fixtures/plugins/generic) is a synthetic extension using the TypeScript SDK. It validates generic settings, write-only credentials, allow/deny/patch, host callbacks, durable event delivery/replay, actions, structured interaction and cancellation. It does not send messages or use real external credentials.
 
 The complete coverage and semantics are tracked in [RFC 4](rfc-4-plugin-sdk.md).
+
+## Pending operations and public streams
+
+When a workspace operation has remote hooks, Gateway accepts it with HTTP 202 and an operation receipt. The CLI and WebUI follow that receipt to its committed result; SDK callers can query `runtime.operation` or cancel with `runtime.cancel`. A cancelled proposal cannot later commit. Authority and Hook configuration revisions are checked again in the committing transaction.
+
+Use `ctx.streams.events(runId, {after, kind, signal})` in TypeScript, or `api::EventCursor` in Rust, for cursor-based public progress. These read the existing bounded execution recording rather than enqueueing a normal durable callback for every token. Truncation/expiry markers remain visible. Completion handlers continue to use durable event delivery.
+
+`files.stat/read` provide revision-checked chunks. `files.watch/unwatch` subscribe to an explicitly permitted directory and report gaps if the watcher falls behind. `artifacts.register/export` creates an authorized reference; download interactions refer to that artifact ID. They cannot turn another device's path into a local file.

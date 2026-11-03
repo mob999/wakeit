@@ -724,6 +724,7 @@ pub fn document() -> Value {
         ("/runners/{id}/plugins/control", vec!["post"]),
         ("/plugins/bindings", vec!["get", "post"]),
         ("/plugins/replay", vec!["post"]),
+        ("/plugins/artifacts/{id}/download", vec!["get"]),
         ("/plugins/events", vec!["get"]),
         ("/plugins/events/{id}", vec!["get"]),
         ("/plugins/operations", vec!["get"]),

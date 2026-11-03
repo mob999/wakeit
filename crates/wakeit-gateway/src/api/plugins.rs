@@ -222,6 +222,8 @@ pub(crate) async fn bind(
 ) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
     user(&s, &h, "admin", true).await?;
+    body.validate()
+        .map_err(|error| Error::bad(error.to_string()))?;
     let instance=sqlx::query("SELECT declaration,grants FROM plugin_instances WHERE workspace_id=$1 AND runner_id=$2 AND id=$3").bind(workspace).bind(body.runner_id).bind(body.instance_id).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)?;
     let declaration: Value = instance.get("declaration");
     let grants: Vec<String> = serde_json::from_value(instance.get("grants"))?;
@@ -829,6 +831,20 @@ pub(crate) async fn device_events(
             .as_str()
             .map(str::to_owned)
             .unwrap_or_else(|| instance.unwrap_or(runner).to_string());
+        if kind == "artifact.registered" {
+            let data = &event["data"];
+            let artifact: Uuid = serde_json::from_value(data["artifact_id"].clone())
+                .map_err(|_| Error::bad("artifact ID required"))?;
+            let owner: Uuid = serde_json::from_value(data["instance_id"].clone())
+                .map_err(|_| Error::bad("artifact instance required"))?;
+            let owned:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_instances WHERE id=$1 AND runner_id=$2 AND workspace_id=$3)").bind(owner).bind(runner).bind(workspace).fetch_one(&mut *tx).await?;
+            if !owned {
+                return Err(Error::bad("artifact belongs to another device"));
+            }
+            let expiry: Option<DateTime<Utc>> = serde_json::from_value(data["expires_at"].clone())
+                .map_err(|_| Error::bad("invalid artifact expiry"))?;
+            sqlx::query("INSERT INTO plugin_artifacts(id,workspace_id,instance_id,runner_id,name,format,reference,metadata,expires_at) VALUES($1,$2,$3,$4,$5,'file',$6,$7,$8) ON CONFLICT(id) DO NOTHING").bind(artifact).bind(workspace).bind(owner).bind(runner).bind(data["name"].as_str().unwrap_or("Artifact")).bind(&data["reference"]).bind(&data["metadata"]).bind(expiry).execute(&mut *tx).await?;
+        }
         let exists: bool =
             sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_events WHERE id=$1)")
                 .bind(id)
@@ -982,4 +998,64 @@ pub(crate) async fn operation_action(
     }
     tx.commit().await?;
     Ok(Json(json!({"id":id,"state":"cancelled"})))
+}
+
+pub(crate) async fn artifact_download(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<axum::response::Response> {
+    use axum::response::IntoResponse;
+    use base64::Engine;
+    let workspace = workspace_header(&h)?;
+    user(&s, &h, "operator", false).await?;
+    let artifact=sqlx::query("SELECT * FROM plugin_artifacts WHERE id=$1 AND workspace_id=$2 AND (expires_at IS NULL OR expires_at>now())").bind(id).bind(workspace).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)?;
+    let runner: Uuid = artifact.get("runner_id");
+    let reference: Value = artifact.get("reference");
+    let first=rpc(&s,workspace,runner,"file_read",json!({"path":reference["path"],"revision":reference["revision"],"offset":0,"operation":"read","limit":262144})).await?;
+    let first_bytes = base64::engine::general_purpose::STANDARD
+        .decode(
+            first["data"]
+                .as_str()
+                .ok_or_else(|| Error::bad("file chunk missing"))?,
+        )
+        .map_err(|_| Error::bad("invalid file chunk"))?;
+    let stream: std::pin::Pin<
+        Box<
+            dyn futures::Stream<Item = std::result::Result<axum::body::Bytes, std::io::Error>>
+                + Send,
+        >,
+    > = Box::pin(async_stream::try_stream! {
+        yield axum::body::Bytes::from(first_bytes);
+        let mut next=first["next_offset"].as_u64().unwrap_or(0);let mut eof=first["eof"]==true;
+        while !eof{
+            let chunk=rpc(&s,workspace,runner,"file_read",json!({"path":reference["path"],"revision":reference["revision"],"offset":next,"operation":"read","limit":262144})).await.map_err(|_|std::io::Error::other("artifact source unavailable or changed"))?;
+            let bytes=base64::engine::general_purpose::STANDARD.decode(chunk["data"].as_str().ok_or_else(||std::io::Error::other("file chunk missing"))?).map_err(|_|std::io::Error::other("invalid file chunk"))?;
+            next=chunk["next_offset"].as_u64().ok_or_else(||std::io::Error::other("file cursor missing"))?;eof=chunk["eof"]==true;
+            yield axum::body::Bytes::from(bytes);
+        }
+    });
+    let name: String = artifact.get("name");
+    let encoded: String = name
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"._-".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect();
+    let mut response = axum::body::Body::from_stream::<_>(stream).into_response();
+    response.headers_mut().insert(
+        "content-type",
+        axum::http::HeaderValue::from_static("application/octet-stream"),
+    );
+    response.headers_mut().insert(
+        "content-disposition",
+        format!("attachment; filename*=UTF-8''{encoded}")
+            .parse()
+            .map_err(|_| Error::bad("invalid artifact name"))?,
+    );
+    Ok(response)
 }

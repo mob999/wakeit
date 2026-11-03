@@ -33,7 +33,8 @@ plugin.action('host-queries', async (input, ctx) => {
   const stat = await ctx.files.call('stat', {path: input && typeof input==='object' && !Array.isArray(input) ? input.path : null})
   const chunk = await ctx.files.call('read', {path: input && typeof input==='object' && !Array.isArray(input) ? input.path : null, offset:0, limit:4})
   const models = await ctx.providers.call('query', {provider:'fixture-models',input:{}})
-  return {tasks,stat,chunk,models}
+  const artifact=await ctx.artifacts.call<{id:string}>('register',{path:input&&typeof input==='object'&&!Array.isArray(input)?input.path:null,name:'sdk-sample.txt',metadata:{synthetic:true}})
+  return {tasks,stat,chunk,models,artifact}
 })
 plugin.action('oauth', async (input, ctx) => {
   const flow=await ctx.auth.call<{id:string;url:string;code?:string}>('begin',input as Record<string,any>)

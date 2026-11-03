@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { t as tr } from '../i18n'
 import { useTranslation } from 'react-i18next'
-import { api } from '../api/client'
+import { api, apiUrl, workspaceBase } from '../api/client'
 import type { Runner } from '../api/types'
 import { ActionIcon } from '../actions/ActionIcon'
 import { Button, IconButton, Modal } from '../components/ui'
@@ -107,6 +107,7 @@ export function RunnerPlugins({
     try {
       const result = await control(action, params)
       await refresh()
+      if (action === 'configure' || action === 'authorize') toast(tr('已保存'))
       return result
     } catch (e) {
       toast((e as Error).message)
@@ -528,7 +529,7 @@ function PluginCapabilities({
           </div>
         )
       })}
-      <div className="plugin-section-title">{tr('plugins.permissions')}</div>
+      <div className="plugin-section-title">{tr('plugins.grantedPermissions')}</div>
       {instance.grants.map((grant) => (
         <div className="plugin-permission" key={grant}>
           {grant}
@@ -557,6 +558,8 @@ function PluginActivity({
   const [action, setAction] = useState('')
   const [input, setInput] = useState<unknown>({})
   const [interaction, setInteraction] = useState<any>(null)
+  const [dismissed, setDismissed] = useState<string[]>([])
+  const seenNotifications = useRef<Set<string> | null>(null)
   const [answer, setAnswer] = useState<unknown>({})
   const activity = useQuery<any>({
     queryKey: ['plugin-activity', instance.id],
@@ -570,12 +573,24 @@ function PluginActivity({
     refetchInterval: 5000,
   })
   useEffect(() => {
-    const pending = activity.data?.interactions?.[0]
+    const pending = activity.data?.interactions?.find((item: any) => !dismissed.includes(item.id))
     if (pending && pending.id !== interaction?.id) {
       setInteraction(pending)
       setAnswer({})
     }
-  }, [activity.data, interaction?.id])
+  }, [activity.data, interaction?.id, dismissed])
+  useEffect(() => {
+    const notifications = activity.data?.notifications ?? []
+    if (!seenNotifications.current) {
+      seenNotifications.current = new Set(notifications.map((n: any) => n.id))
+      return
+    }
+    for (const notification of notifications) {
+      if (!seenNotifications.current.has(notification.id) && notification.request.kind === 'toast')
+        toast(notification.request.message)
+      seenNotifications.current.add(notification.id)
+    }
+  }, [activity.data?.notifications, toast])
   const execute = async () => {
     const id = crypto.randomUUID()
     await mutate('invoke', {
@@ -596,6 +611,41 @@ function PluginActivity({
   }
   return (
     <div className="plugin-activity">
+      {(activity.data?.interactions ?? [])
+        .filter((item: any) => dismissed.includes(item.id))
+        .map((item: any) => (
+          <Button
+            key={item.id}
+            onClick={() => {
+              setDismissed(dismissed.filter((id) => id !== item.id))
+              setInteraction(item)
+            }}
+          >
+            {tr('plugins.continueInteraction')}
+          </Button>
+        ))}
+      {(activity.data?.notifications ?? []).map((item: any) => (
+        <div
+          className="plugin-activity-row"
+          key={item.id}
+          aria-live={item.request.kind === 'progress' ? 'polite' : undefined}
+        >
+          <span>{item.request.message}</span>
+          {item.request.kind === 'progress' && typeof item.request.fraction === 'number' && (
+            <progress max={1} value={item.request.fraction} />
+          )}
+          {item.request.kind === 'navigate' &&
+            /^\/(tasks|runs|runners|presets|settings)([/?]|$)/.test(item.request.path) && (
+              <a href={workspaceBase + item.request.path}>{tr('plugins.open')}</a>
+            )}
+          {item.request.kind === 'download' && /^[0-9a-f-]{36}$/i.test(item.request.reference) && (
+            <a href={apiUrl(`/plugins/artifacts/${item.request.reference}/download`)}>
+              {item.request.name}
+            </a>
+          )}
+        </div>
+      ))}
+
       <div className="plugin-section-title">{tr('plugins.actions')}</div>
       <div className="plugin-actions">
         {Object.entries(instance.declaration.actions).map(([id, a]) => (
@@ -680,7 +730,12 @@ function PluginActivity({
       </Modal>
       <Modal
         open={!!interaction}
-        onOpenChange={(v) => !v && setInteraction(null)}
+        onOpenChange={(v) => {
+          if (!v && interaction) {
+            setDismissed([...dismissed, interaction.id])
+            setInteraction(null)
+          }
+        }}
         title={
           interaction?.request.title ?? interaction?.request.label ?? tr('plugins.interaction')
         }
@@ -693,7 +748,7 @@ function PluginActivity({
                 await mutate('interaction', {
                   instance_id: instance.id,
                   id: interaction.id,
-                  response: answer,
+                  response: interaction.request.kind === 'confirm' ? true : answer,
                 })
                 setInteraction(null)
                 await activity.refetch()
@@ -744,6 +799,7 @@ function localized(declaration: Declaration, language: string): Declaration {
     declaration.translations?.[language.split('-')[0]] ?? {},
   )) {
     const parts = path.split('.')
+    if (parts.some((part) => ['__proto__', 'constructor', 'prototype'].includes(part))) continue
     let target: any = copy
     for (const key of parts.slice(0, -1)) {
       if (!target || typeof target !== 'object') break

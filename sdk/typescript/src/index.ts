@@ -25,7 +25,7 @@ export type Interaction =
   | { kind: 'form'; title: string; schema: Json; value?: Json }
   | { kind: 'secret'; slot: string; label: string }
   | { kind: 'confirm'; title: string; description: string }
-  | { kind: 'choice'; title: string; options: Json[] }
+  | { kind: 'choice'; title: string; options: {value:string;label:string;description?:string}[] }
   | { kind: 'open_url'; url: string; label: string }
   | { kind: 'device_code'; url: string; code: string; expires_at: string }
   | { kind: 'download'; reference: string; name: string }

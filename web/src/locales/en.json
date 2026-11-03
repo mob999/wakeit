@@ -1028,5 +1028,12 @@
   "plugins.upgradeDescription": "Validate configuration and permissions before switching. Active calls must finish first.",
   "plugins.removeDescription": "Remove the disabled instance while retaining configuration, credentials and private data.",
   "plugins.offlineSettings": "Device offline. Device settings cannot be read or saved.",
-  "plugins.adminSettings": "Only administrators can read or change plugin settings."
+  "plugins.adminSettings": "Only administrators can read or change plugin settings.",
+  "plugins.variant": "Value type",
+  "plugins.variantNumber": "Option {{n}}",
+  "plugins.hasValue": "Set a value",
+  "plugins.nullValue": "No value (null)",
+  "plugins.continueInteraction": "Continue interaction",
+  "plugins.open": "Open",
+  "plugins.grantedPermissions": "Granted permissions"
 }

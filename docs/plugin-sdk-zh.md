@@ -83,3 +83,11 @@ OAuth 支持授权码＋PKCE 和设备授权，verifier 和 Token 保存在 Runn
 [`fixtures/plugins/generic`](../fixtures/plugins/generic) 是使用 TypeScript SDK 的合成插件，验证配置、凭证不回显、allow/deny/patch、宿主回调、耐久投递与重放、结构化动作和取消。不发送外部消息，不使用真实业务凭证。
 
 完整覆盖和语义见 [RFC 4](rfc-4-plugin-sdk.md)。
+
+## 待完成操作与公开过程流
+
+存在远程 Hook 的工作区操作会返回 HTTP 202 和操作回执。CLI 和 WebUI 跟踪回执直到取得已提交结果；SDK 可通过 runtime.operation 查询、runtime.cancel 取消。已取消的提案不能在稍后提交，权限和 Hook 配置修订会在提交事务中再次检查。
+
+TypeScript 使用 `ctx.streams.events(runId, {after, kind, signal})`，Rust 使用 api::EventCursor，按游标读取公开过程。这沿用有保留期的执行记录，不为每个 token 建立普通耐久回调；截断与到期标记仍然可见。完成事件继续采用耐久投递。
+
+files.stat/read 提供修订校验的分块读取；files.watch/unwatch 仅监听明确授权的目录，消费落后时报告缺口。artifacts.register/export 建立授权引用，下载交互使用该产物 ID，不会把另一台设备的路径当作本地文件。

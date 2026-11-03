@@ -243,6 +243,78 @@
         }
       ]
     },
+    "DeliveryOutcome": {
+      "oneOf": [
+        {
+          "properties": {
+            "outcome": {
+              "const": "success",
+              "type": "string"
+            },
+            "result": true
+          },
+          "required": [
+            "outcome",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "outcome": {
+              "const": "retry_after",
+              "type": "string"
+            },
+            "seconds": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "outcome",
+            "seconds",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "outcome": {
+              "const": "permanent_failure",
+              "type": "string"
+            }
+          },
+          "required": [
+            "outcome",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "outcome": {
+              "const": "uncertain",
+              "type": "string"
+            }
+          },
+          "required": [
+            "outcome",
+            "message"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "Event": {
       "properties": {
         "aggregate_id": {
@@ -676,7 +748,9 @@
               "type": "string"
             },
             "options": {
-              "items": true,
+              "items": {
+                "$ref": "#/$defs/UiChoice"
+              },
               "type": "array"
             },
             "title": {
@@ -937,6 +1011,27 @@
           "type": "object"
         }
       ]
+    },
+    "UiChoice": {
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -965,6 +1060,9 @@
     "invocation": {
       "$ref": "#/$defs/Invocation"
     },
+    "outcome": {
+      "$ref": "#/$defs/DeliveryOutcome"
+    },
     "receipt": {
       "$ref": "#/$defs/Receipt"
     }
@@ -978,7 +1076,8 @@
     "invocation",
     "decision",
     "receipt",
-    "interaction"
+    "interaction",
+    "outcome"
   ],
   "title": "Contract",
   "type": "object",
@@ -1062,6 +1161,7 @@
     "plugin.installed",
     "plugin.updated",
     "plugin.removed",
+    "instance.created",
     "instance.activating",
     "instance.activated",
     "instance.deactivated",

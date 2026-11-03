@@ -1,4 +1,5 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
+import Ajv2020 from 'ajv/dist/2020.js'
 import { t as tr } from '../i18n'
 import { ChoicePicker } from '../components/ChoicePicker'
 import { ActionIcon } from '../actions/ActionIcon'
@@ -22,6 +23,9 @@ export type Schema = {
   then?: Schema
   else?: Schema
   const?: unknown
+  allOf?: Schema[]
+  $defs?: Record<string, Schema>
+  $ref?: string
   minLength?: number
   maxLength?: number
   format?: string
@@ -40,17 +44,118 @@ export function PluginFields({
   label?: string
 }) {
   const id = useId()
+  const [alternative, setAlternative] = useState<number | null>(null)
+  if (Array.isArray(schema.type) && schema.type.includes('null')) {
+    const variants = schema.type.filter((t) => t !== 'null')
+    const child = { ...schema, type: variants.length === 1 ? variants[0] : variants }
+    return (
+      <div className="plugin-field-group">
+        <ChoicePicker
+          label={label ?? schema.title ?? tr('plugins.variant')}
+          value={value === null ? 'null' : 'value'}
+          disabled={disabled}
+          options={[
+            { value: 'value', label: tr('plugins.hasValue') },
+            { value: 'null', label: tr('plugins.nullValue') },
+          ]}
+          onChange={(option) =>
+            onChange(
+              option === 'null'
+                ? null
+                : (schemaDefaults(child) ??
+                    (child.type === 'object'
+                      ? {}
+                      : child.type === 'array'
+                        ? []
+                        : child.type === 'boolean'
+                          ? false
+                          : '')),
+            )
+          }
+        />
+        {value !== null && (
+          <PluginFields
+            schema={child}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            label={label}
+          />
+        )}
+      </div>
+    )
+  }
+  if (schema.$ref?.startsWith('#/$defs/')) {
+    const reference = schema.$defs?.[schema.$ref.slice('#/$defs/'.length)]
+    if (reference)
+      return (
+        <PluginFields
+          schema={{ ...reference, $defs: schema.$defs }}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          label={label}
+        />
+      )
+  }
+  const alternatives = schema.oneOf ?? schema.anyOf
+  if (alternatives?.length) {
+    const match = alternatives.findIndex((option) =>
+      matches({ ...option, $defs: schema.$defs }, value),
+    )
+    const selected = Math.min(alternative ?? Math.max(0, match), alternatives.length - 1)
+    const base = { ...schema, oneOf: undefined, anyOf: undefined }
+    return (
+      <div className="plugin-field-group">
+        <ChoicePicker
+          label={label ?? schema.title ?? tr('plugins.variant')}
+          value={String(selected)}
+          disabled={disabled}
+          options={alternatives.map((option, index) => ({
+            value: String(index),
+            label: option.title ?? tr('plugins.variantNumber', { n: index + 1 }),
+          }))}
+          onChange={(index) => {
+            const next = Number(index)
+            setAlternative(next)
+            onChange(
+              schemaDefaults(alternatives[next]) ??
+                (alternatives[next].type === 'object' ? {} : ''),
+            )
+          }}
+        />
+        <PluginFields
+          schema={mergeSchema(base, alternatives[selected])}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          label={label}
+        />
+      </div>
+    )
+  }
+  if (schema.if) {
+    const branch = matches({ ...schema.if, $defs: schema.$defs }, value) ? schema.then : schema.else
+    schema = mergeSchema(
+      { ...schema, if: undefined, then: undefined, else: undefined },
+      branch ?? {},
+    )
+  }
+  if (schema.allOf) {
+    schema = schema.allOf.reduce(mergeSchema, { ...schema, allOf: undefined })
+  }
   const type = Array.isArray(schema.type) ? schema.type.find((s) => s !== 'null') : schema.type
   const title = label ?? schema.title ?? ''
   if (type === 'object' || schema.properties) {
     const object = (value ?? {}) as Record<string, unknown>
     return (
       <div className="plugin-field-group">
+        {title && <div className="plugin-field-label font-semibold">{title}</div>}
         {Object.entries(schema.properties ?? {}).map(([key, field]) => (
           <PluginFields
             key={key}
             label={`${field.title ?? key}${schema.required?.includes(key) ? ' *' : ''}`}
-            schema={field}
+            schema={{ ...field, $defs: schema.$defs }}
             value={object[key] ?? field.default}
             disabled={disabled}
             onChange={(next) => onChange({ ...object, [key]: next })}
@@ -175,4 +280,29 @@ export function schemaDefaults(schema: Schema): unknown {
       }),
     )
   return undefined
+}
+
+const formValidator = new Ajv2020({ strict: false, validateFormats: false })
+const validationCache = new Map<string, ReturnType<typeof formValidator.compile>>()
+function matches(schema: Schema, value: unknown): boolean {
+  try {
+    const key = JSON.stringify(schema)
+    let validate = validationCache.get(key)
+    if (!validate) {
+      validate = formValidator.compile(schema)
+      validationCache.set(key, validate)
+    }
+    return validate(value) === true
+  } catch {
+    return false
+  }
+}
+function mergeSchema(base: Schema, next: Schema): Schema {
+  return {
+    ...base,
+    ...next,
+    properties:
+      base.properties || next.properties ? { ...base.properties, ...next.properties } : undefined,
+    required: [...new Set([...(base.required ?? []), ...(next.required ?? [])])],
+  }
 }

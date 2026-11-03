@@ -35,6 +35,7 @@ use uuid::Uuid;
 struct Active {
     cancel: CancellationToken,
     stop: CancellationToken,
+    deadline: tokio::time::Instant,
 }
 #[derive(Clone)]
 struct Runner {

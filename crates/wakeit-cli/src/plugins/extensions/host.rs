@@ -429,6 +429,29 @@ impl Host for InstanceHost {
                     );
                     let interaction: wakeit_core::extensions::Interaction =
                         serde_json::from_value(params["request"].clone())?;
+                    if matches!(
+                        &interaction,
+                        wakeit_core::extensions::Interaction::Progress { .. }
+                            | wakeit_core::extensions::Interaction::Toast { .. }
+                            | wakeit_core::extensions::Interaction::Navigate { .. }
+                            | wakeit_core::extensions::Interaction::Download { .. }
+                    ) {
+                        sqlx::query("INSERT INTO extension_interactions(id,invocation,instance,request,state) VALUES(?,?,?,?,'notification')").bind(Uuid::new_v4().to_string()).bind(call).bind(id.to_string()).bind(serde_json::to_string(&interaction)?).execute(&runtime.journal.pool).await?;
+                        return Ok(Value::Null);
+                    }
+                    match &interaction {
+                        wakeit_core::extensions::Interaction::OpenUrl { url, .. }
+                        | wakeit_core::extensions::Interaction::DeviceCode { url, .. } => {
+                            let url = reqwest::Url::parse(url)?;
+                            ensure!(
+                                ["http", "https"].contains(&url.scheme())
+                                    && url.username().is_empty()
+                                    && url.password().is_none(),
+                                "unsupported authorization URL"
+                            );
+                        }
+                        _ => {}
+                    }
                     let identity = Uuid::new_v4().to_string();
                     sqlx::query("INSERT INTO extension_interactions(id,invocation,instance,request) VALUES(?,?,?,?)").bind(&identity).bind(call).bind(id.to_string()).bind(serde_json::to_string(&interaction)?).execute(&runtime.journal.pool).await?;
                     let signal = runtime

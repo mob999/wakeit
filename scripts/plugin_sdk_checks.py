@@ -111,6 +111,12 @@ def verify(c):
     assert receipt['state']=='succeeded',receipt.get('error')
     assert receipt['result']['chunk']['data']=='c3ludA=='
     assert receipt['result']['models']['models'][0]['id']=='synthetic'
+    artifact=receipt['result']['artifact']['id']
+    def artifact_content():
+        request=urllib.request.Request(c['base']+c['ws'].path('/plugins/artifacts/'+artifact+'/download'),headers={'Authorization':'Bearer '+c['token']})
+        with urllib.request.urlopen(request,timeout=10) as response:return response.read()
+    assert wait(artifact_content,'registered artifact download')==b'synthetic-file-data'
+
     check('typed business queries, query Provider and bounded authorized file reads')
     # Local HTTP provider only; no real mail, identity, or third-party service is involved.
     from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
