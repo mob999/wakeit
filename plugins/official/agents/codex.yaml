@@ -12,7 +12,7 @@ models:
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:
-    - stream
+    - run
     - codex
     - '--'
     - codex
@@ -40,9 +40,9 @@ session:
   resume:
     command: ./plugins/official/bin/wakeit-agent-runtime
     args:
-      - session
-      - resume
+      - run
       - codex
+      - --session
       - '{{session.id}}'
       - '--'
       - codex

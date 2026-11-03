@@ -8,7 +8,7 @@ pub mod discovery;
 pub mod gemini;
 pub mod goose;
 pub mod kimi;
-pub mod kimi_server;
+pub mod kimi_acp;
 pub mod qwen_cursor;
 pub mod sessions;
 pub mod stream;

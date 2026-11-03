@@ -183,7 +183,7 @@ async fn native(protocol: &str, code: &str) -> std::process::Output {
             "git:github.com/mob999/wakeit",
             "adapter",
             "--",
-            "stream",
+            "run",
             protocol,
             "--",
             "node",

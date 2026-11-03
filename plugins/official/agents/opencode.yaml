@@ -11,7 +11,7 @@ models:
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:
-    - stream
+    - run
     - opencode
     - '--'
     - opencode
@@ -35,13 +35,14 @@ session:
   resume:
     command: ./plugins/official/bin/wakeit-agent-runtime
     args:
-      - session
-      - resume
+      - run
       - opencode
+      - --session
       - '{{session.id}}'
       - '--'
       - opencode
       - run
+      - --session
       - --session
       - '{{session.id}}'
       - --format

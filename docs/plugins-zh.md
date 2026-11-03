@@ -74,3 +74,5 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect kimi-code
 通过[安装脚本](install-zh.md)安装完整的 CLI 0.2 包。旧 `wakeit adapter` 命令已移除。若 Runner 显式列出了旧官方 YAML，用 `wakeit agent init ID --file NEW_FILE` 重新生成并更新其 `agents` 路径，或者设置 `bundled_agents: true` 并将 `agents` 设为空列表。需要的自定义 Agent 选项请保留。
 
 新 setup／enroll 直接使用插件资源。保留原设备凭据和 Runner 身份，Gateway 无需升级。新的插件会话保留其使用版本的可执行文件路径。
+
+官方适配器新建与恢复统一使用 `run AGENT [--session ID] [--model MODEL] -- 原生命令及参数`，Kimi 通过原生 ACP stdio 执行。已有原生会话标题保留；已验证会话无标题时，Runner 保存本地显示名并用于检查和搜索，之后出现原生标题时优先显示。第三方命令和事件接口不变。

@@ -4,14 +4,20 @@ logo: /agent-logos/kimi-code.svg
 mode: sync
 parameters:
   model: {type: string, label: 模型}
+models:
+  command: ./plugins/official/bin/wakeit-agent-runtime
+  args: [ models, kimi-code]
+  timeout: 25s
 submit:
   command: ./plugins/official/bin/wakeit-agent-runtime
   args:
-    - kimi
-    - --title
-    - '{{session.title}}'
+    - run
+    - kimi-code
     - when_set: model
       args: [--model, '{{parameters.model}}']
+    - '--'
+    - kimi
+    - acp
   stdin: '{{task.prompt}}'
 session:
   list:
@@ -25,11 +31,15 @@ session:
   resume:
     command: ./plugins/official/bin/wakeit-agent-runtime
     args:
-      - kimi
+      - run
+      - kimi-code
       - --session
       - '{{session.id}}'
       - when_set: model
         args: [--model, '{{parameters.model}}']
+      - '--'
+      - kimi
+      - acp
     stdin: '{{task.prompt}}'
   interactive:
     command: kimi

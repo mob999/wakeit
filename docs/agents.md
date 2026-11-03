@@ -8,7 +8,7 @@ Runner 调用设备上已安装、已登录的原生 CLI，不安装 Agent、不
 | `claude-code` | `claude` | 支持 | 手填 | 支持 |
 | `pi` | `pi` | 支持 | 原生查询或手填 | 支持 |
 | `opencode` | `opencode` | 工具完成后更新 | 原生查询或手填 | 支持 |
-| `kimi-code` | `kimi`，Kimi Code 2.x | 支持 | 手填 | 只读查询原生会话、精确绑定及原生命令续聊 |
+| `kimi-code` | `kimi`，Kimi Code 2.x | 支持 | 原生查询或手填 | 只读查询原生会话、精确绑定及原生命令续聊 |
 | `agy` | Google Antigravity CLI 的 `agy` | 支持 | 原生 `models` 查询或手填 | 不支持 |
 | `gemini-cli` | `gemini` | 支持 | 手填 | 不支持 |
 | `cursor` | `cursor-agent` | 支持 | 手填 | 不支持 |
@@ -49,15 +49,15 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect gemini-cli
 
 ## Kimi Code
 
-使用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- kimi` 驱动已安装的 Kimi Code 2.x。
+官方执行入口统一为 `run <agent-id> [--session ID] [--model MODEL] -- <原生命令及参数>`。Kimi 使用 `run kimi-code -- kimi acp`，通过原生 [ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp.html) 的 stdin/stdout JSON-RPC 创建或恢复会话、选择模型、提交指令并接收实时消息和工具事件，不启动本地 HTTP 服务。
 
-辅助命令为每次执行启动一个仅监听 `127.0.0.1` 的 `kimi web --no-open` 子进程，通过[官方本地 Server API](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/server-api.html)订阅真实 `assistant.delta`、`tool.call.started`、`tool.result` 和 `turn.ended`。先确认订阅成功再提交一次指令，并处理原生心跳；绑定已有会话先通过空的会话级配置调用加载原生上下文，不覆盖已有配置。消息以完整快照更新，工具输出不混入最终报告；只有原生 `completed` 及正常进程退出才发布报告。子进程与 Runner 共用进程树，取消或失败时结束本次执行及其本地服务，不连接用户自行启动的 Kimi 服务，也不打开浏览器。
+模型使用本机配置的模型 ID；未覆盖时，新会话使用默认模型，恢复会话保留已有模型。消息、工具开始／完成及最终结果分别转换为 Wakeit 事件，隐藏思考不转发；取消、失败或断连不发布成功报告。执行沿用自动权限模式，不能处理的交互许可会被拒绝，不自动扩大工具授权。
 
-大型工具参数、工具输出及消息只截断 Wakeit 保留的过程预览，不中止原生执行；工具状态和原生结束状态保持真实。最终报告超出保留容量时使用 `truncated: true` 标记，下游 DAG 不会将不完整报告当作完整输入。Trace 缓存和重复事件记录保持有界；超过明细保留容量后仍读取原生完成事件。
+模型列表通过原生 `kimi provider list --json` 只读查询，展示已配置模型的名称，执行时传入对应别名；查询不创建会话或发起推理，不返回供应商凭据。
 
-新建会话使用原生 API 的 `title` 字段保存“任务名-wakeit-时间戳”；绑定已有会话保持原标题。标题与上下文由 Kimi 自己持久化，不直接改写其状态文件。服务地址来自与子进程 PID 匹配的本地登记，认证使用其私密 `server.token`，不会写入 Wakeit 事件、日志、命令行或 URL。API 密钥和 Agent 登录凭据不读取、不复制、不修改。
+Kimi ACP 未提供原生标题设置接口：保留已有原生标题，没有标题时由 Runner 保存本地显示名。支持原生命名的其他 Agent 继续为新会话保存原生名称，绑定或续聊时不改名。原生标题优先于本地名称，本地名称可用于会话列表搜索；两者都缺失时显示会话 ID。
 
-会话发现仍只读 `KIMI_CODE_HOME`（默认 `.kimi-code`）中的原生索引及匹配工作目录的 `state.json`，精确校验完整 ID、真实目录和持久化状态。模型沿用本地默认值或任务显式参数；绑定时未覆盖模型则保留原生绑定，不增加静态模型目录。协议来源与真实验收范围见 [Kimi 验证记录](../crates/wakeit-agent-runtime/tests/fixtures/kimi-code/README.md)。
+会话目录和 ID 仍通过只读原生索引及持久化元数据核对，不编辑原生会话文件。交互续聊使用 `kimi --session ID`。插件协议和合成输入见 [Kimi ACP fixtures](../crates/wakeit-agent-runtime/tests/fixtures/kimi-code/README.md)。
 
 ## Antigravity CLI（agy）
 

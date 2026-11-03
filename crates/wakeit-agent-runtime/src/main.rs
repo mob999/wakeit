@@ -8,15 +8,14 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Adapter {
-    /// Stream Kimi's native local Server API with durable session metadata.
-    Kimi {
+    /// Execute an official Agent adapter. Native arguments remain separate argv values.
+    Run {
+        id: String,
         #[arg(long)]
         model: Option<String>,
         #[arg(long)]
         session: Option<String>,
-        #[arg(long)]
-        title: Option<String>,
-        #[arg(last = true)]
+        #[arg(last = true, required = true)]
         command: Vec<String>,
     },
     Detect {
@@ -28,11 +27,6 @@ enum Adapter {
     Session {
         #[command(subcommand)]
         command: AdapterSession,
-    },
-    Stream {
-        protocol: String,
-        #[arg(last = true, required = true)]
-        command: Vec<String>,
     },
 }
 #[derive(Subcommand)]
@@ -62,12 +56,6 @@ enum AdapterSession {
         #[arg(long, default_value = ".")]
         cwd: PathBuf,
     },
-    Resume {
-        protocol: String,
-        id: String,
-        #[arg(last = true, required = true)]
-        command: Vec<String>,
-    },
 }
 #[tokio::main]
 async fn main() {
@@ -78,20 +66,34 @@ async fn main() {
 }
 async fn run(command: &Adapter) -> anyhow::Result<()> {
     match command {
-        Adapter::Kimi {
+        Adapter::Run {
+            id,
             model,
             session,
-            title,
             command,
         } => {
-            let code = wakeit_agent_runtime::kimi_server::run(
-                command,
-                model.as_deref(),
-                session.as_deref(),
-                title.as_deref(),
-            )
-            .await?;
-            std::process::exit(code);
+            let mut command = command.clone();
+            let code = if id == "kimi-code" {
+                wakeit_agent_runtime::kimi_acp::run(&command, model.as_deref(), session.as_deref())
+                    .await?
+            } else {
+                if let Some(session) = session {
+                    wakeit_agent_runtime::sessions::inspect(id, session, &std::env::current_dir()?)
+                        .await?;
+                }
+                if let Some(model) = model {
+                    let index = command
+                        .iter()
+                        .position(|arg| arg == "--")
+                        .unwrap_or(command.len());
+                    command.splice(index..index, ["--model".to_owned(), model.clone()]);
+                }
+                wakeit_agent_runtime::stream::stream_checked(id, &command, session.as_deref())
+                    .await?
+            };
+            if code != 0 {
+                std::process::exit(code);
+            }
         }
         Adapter::Detect { id } => {
             println!("{}", wakeit_agent_runtime::discovery::detect(id).await?);
@@ -132,24 +134,7 @@ async fn run(command: &Adapter) -> anyhow::Result<()> {
                 let info = wakeit_agent_runtime::sessions::inspect(protocol, id, cwd).await?;
                 println!("{}", serde_json::to_string(&info)?);
             }
-            AdapterSession::Resume {
-                protocol,
-                id,
-                command,
-            } => {
-                let code =
-                    wakeit_agent_runtime::sessions::resume(protocol, id, command.clone()).await?;
-                if code != 0 {
-                    std::process::exit(code);
-                }
-            }
         },
-        Adapter::Stream { protocol, command } => {
-            let code = wakeit_agent_runtime::stream::stream(protocol, command).await?;
-            if code != 0 {
-                std::process::exit(code);
-            }
-        }
     }
     Ok(())
 }

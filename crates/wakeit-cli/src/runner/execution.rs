@@ -338,6 +338,11 @@ impl Runner {
                     session.ready = true;
                     session.reason = None;
                     if run.assignment.task.session.is_none()
+                        && run
+                            .agent
+                            .session
+                            .as_ref()
+                            .is_some_and(|s| s.rename.is_some())
                         && let Some(title) = run.session_title.as_deref()
                     {
                         match crate::runner::sessions::rename(
