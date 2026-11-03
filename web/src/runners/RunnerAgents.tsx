@@ -87,7 +87,7 @@ export function RunnerAgents({
                         <tr>
                           <td>{agent.mode === 'sync' ? tr('同步') : tr('异步')}</td>
                           <td>{agent.cancellable ? tr('支持') : tr('不支持')}</td>
-                          <td>{agent.models_supported ? tr('支持查询') : tr('不支持查询')}</td>
+                          <td>{agent.models_supported ? tr('支持查询') : tr('手填')}</td>
                         </tr>
                       </tbody>
                     </table>
