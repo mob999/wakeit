@@ -178,11 +178,11 @@ export function ModelPicker({
         )}
       </div>
       {catalog.error ? (
-        <ErrorToast error={[catalog.error.message, tr('，可手填或重试。')].join(' ')} />
+        <ErrorToast error={catalog.error.message} />
       ) : agent?.models_supported && catalog.data && !catalog.isFetching && !models.length ? (
-        <small>{tr('未返回可选模型，可手填。')}</small>
+        <small>{tr('未查询到模型列表。')}</small>
       ) : !runner?.online && agent?.models_supported ? (
-        <small>{tr('设备离线，可手填模型。')}</small>
+        <small>{tr('设备离线，无法查询模型列表。')}</small>
       ) : null}
     </div>
   )
