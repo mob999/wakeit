@@ -8,12 +8,12 @@ On macOS or Linux with GNU libc, run:
 curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh
 ```
 
-The CLI includes the Runner and official Agent plugins and is released independently of Gateway. The script detects the system and architecture, downloads CLI 0.2.0 by default (or the version selected with `--version`), verifies SHA-256 against its release manifest and checksum list, and installs into `~/.local/bin`. Progress is shown for each stage and the download. It configures PATH for the current user's shell; open a new terminal and run `wakeit --version` after installation. No sudo is needed. Existing configuration, service processes, device identity and Agent credentials are retained.
+The CLI includes the Runner and official Agent plugins and is released independently of Gateway. The script detects the system and architecture, downloads CLI 0.2.1 by default (or the version selected with `--version`), verifies SHA-256 against its release manifest and checksum list, and installs into `~/.local/bin`. Progress is shown for each stage and the download. It configures PATH for the current user's shell; open a new terminal and run `wakeit --version` after installation. No sudo is needed. Existing configuration, service processes, device identity and Agent credentials are retained.
 
 To install a specific release or choose a different directory:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.2.0 --bin-dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/mob999/wakeit/main/install.sh | sh -s -- --version 0.2.1 --bin-dir "$HOME/.local/bin"
 ```
 
 Use `--no-modify-path` to manage PATH yourself. The installer supports zsh, bash, fish and POSIX shell startup files. For another shell, it prints the directory to add. The installer does not install or update Gateway and does not restart a running Runner; follow the [update guide](../skills/wakeit/references/updates.md) when upgrading services.
