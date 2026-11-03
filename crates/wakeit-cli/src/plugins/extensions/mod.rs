@@ -773,8 +773,16 @@ impl Runtime {
                 .filter_map(Value::as_str)
                 .filter_map(|s| s.parse::<Uuid>().ok())
             {
-                if let Some(signal) = self.calls.lock().await.get(&id) {
-                    signal.cancel();
+                let owner: Option<String> = sqlx::query_scalar(
+                    "SELECT instance FROM extension_invocations WHERE id=? AND state='running'",
+                )
+                .bind(id.to_string())
+                .fetch_optional(&self.journal.pool)
+                .await?;
+                if let Some(owner) = owner {
+                    let _ = self
+                        .control("cancel", json!({"instance_id":owner,"invocation_id":id}))
+                        .await;
                 }
             }
             if let Some(bindings) = commands["bindings"].as_array() {
