@@ -420,7 +420,7 @@ impl Runtime {
         } else {
             self.peer(instance.id).await?
         };
-        sqlx::query("INSERT INTO extension_invocations(id,instance,kind,handler,input,state) VALUES(?,?,?,?,?,'running')").bind(invocation.id.to_string()).bind(instance.id.to_string()).bind(&invocation.kind).bind(&invocation.handler).bind(invocation.input.to_string()).execute(&self.journal.pool).await?;
+        sqlx::query("INSERT INTO extension_invocations(id,instance,kind,handler,input,actor,operation_id,state) VALUES(?,?,?,?,?,?,?,'running')").bind(invocation.id.to_string()).bind(instance.id.to_string()).bind(&invocation.kind).bind(&invocation.handler).bind(invocation.input.to_string()).bind(serde_json::to_string(&invocation.actor)?).bind(invocation.operation_id.to_string()).execute(&self.journal.pool).await?;
         self.calls
             .lock()
             .await

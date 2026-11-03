@@ -61,7 +61,7 @@
 2. `run.created` 总是产生。创建即 skipped／cancelled 时直接产生相应 state_changed 和 finished，不虚构 queued／started。
 3. unknown 非终态，不能产生 finished。核对后先记录 reconciled，真实结算再产生 finished。
 4. cancel_requested 是意图；cancel_confirmed／最终 cancelled 才表示执行已确认终止。
-5. 普通任务的 run.started 对应首次确认开始执行；DAG 为首次节点确认开始。排队和 claim 不等于原生命令已启动。
+5. run.started 对应核心运行计时窗口开始：普通运行首次领取、DAG 首个节点领取并进入执行准备。只有 execution.started 确认原生命令已启动，不能把排队或领取伪装成原生启动。
 6. 节点 attempt 失败但仍计划自动重试时，只结算 attempt，不提前结算节点或父 Run。
 7. 整轮重试产生新 Run；同轮节点恢复沿用父 Run ID，并增加恢复代次。每次确定结算产生一个新的 run.finished。
 8. 一次执行在准备阶段被拒绝时可直接结束，没有 started；事件明确 started=false。原生进程未确认结束时不发布 execution.finished。

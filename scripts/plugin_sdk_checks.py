@@ -38,6 +38,7 @@ def verify(c):
     update={'operation_id':str(uuid.uuid4()),'expected_revision':instance['revision'],'config':{'prefix':'configured'},'secrets':{'fixture':{'operation':'replace','value':'synthetic-credential"\\line'}}}
     saved=control('configure',instance_id=identity,update=update)
     assert control('configure',instance_id=identity,update=update)==saved
+    expect_status(lambda:control('configure',instance_id=identity,update={**update,'config':{'prefix':'different'}}),400)
     current=instance_now();assert current['config']['prefix']=='configured' and current['credential_status']['fixture']
     assert 'synthetic-credential' not in json.dumps(current)
     expect_status(lambda:control('configure',instance_id=identity,update={**update,'operation_id':str(uuid.uuid4())}),400)
@@ -109,6 +110,11 @@ def verify(c):
     control('cancel',instance_id=identity,invocation_id=call)
     wait(lambda:api('/plugins/operations/'+operation)['state'] in ['failed','cancelled'],'action cancelled')
     check('generic actions, structured interaction, reverse host API and cancellation')
+    call=str(uuid.uuid4());current=instance_now()
+    denied=c['ws'].call(c['base'],prefix+'/control','POST',{'action':'invoke','params':{'invocation':dict(id=call,operation_id=call,instance_id=identity,kind='action',handler='oauth',input={},deadline=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=20)).isoformat(),expected_revision=current['revision'],actor={'kind':'user','id':None,'roles':[]},causation_id=None)}},c['role_tokens']['operator'])
+    receipt=wait(lambda:r if (r:=api('/plugins/operations/'+denied['id']))['state']=='failed' else None,'operator account authorization denied')
+    assert 'administrator' in str(receipt['error'])
+
     sample=c['cwd']/'sdk-sample.txt';sample.write_text('synthetic-file-data')
     operation,_=invoke('host-queries',{'path':str(sample)})
     receipt=wait(lambda:r if (r:=api('/plugins/operations/'+operation))['state'] in ['succeeded','failed'] else None,'host API domain queries')

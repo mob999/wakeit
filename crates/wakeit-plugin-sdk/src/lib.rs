@@ -62,6 +62,9 @@ impl Context {
     pub async fn config<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
         self.call("config.get", json!({})).await
     }
+    pub async fn save_config(&self, update: ConfigUpdate) -> Result<Receipt> {
+        self.call("config.save", json!({"update":update})).await
+    }
     pub async fn credential(&self, slot: &str) -> Result<Value> {
         self.call("credentials.get", json!({"slot":slot})).await
     }

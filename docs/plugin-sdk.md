@@ -78,7 +78,7 @@ Other languages can implement newline-delimited JSON-RPC 2.0 over stdin/stdout. 
 
 ## Events and hooks
 
-Events describe committed facts. Gateway owns Task/Run/DAG events; Runner owns local execution events. `run.finished` includes ordinary runs and complete DAG rounds, not each child attempt. A queued run can finish without starting. `unknown` is not finished. Reopening a DAG and completing it again produces a new completion event.
+Events describe committed facts. Gateway owns Task/Run/DAG events; Runner owns local execution events. `run.finished` includes ordinary runs and complete DAG rounds, not each child attempt. A queued run can finish without starting. `run.started` marks the core execution/preparation window; `execution.started` confirms the native process has actually launched. `unknown` is not finished. Reopening a DAG and completing it again produces a new completion event.
 
 A delivery preserves its event ID across retries. Explicit replay creates a new delivery and idempotency key. An external side effect may have completed before a process disconnects: handlers must use an external idempotency key where supported and report uncertain outcomes accurately.
 

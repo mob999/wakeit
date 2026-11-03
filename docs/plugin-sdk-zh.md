@@ -40,7 +40,7 @@ Rust 使用 [`wakeit-plugin-sdk`](../crates/wakeit-plugin-sdk)。`Plugin` 注册
 
 ## 事件和 Hook
 
-事件表示已提交事实。Gateway 负责 Task、Run、DAG，Runner 负责本机执行。`run.finished` 对应普通运行或 DAG 整轮结算，不是每个子节点 attempt。排队运行也可能直接结束；unknown 不表示完成。DAG 恢复后再次完成会产生新事件。
+事件表示已提交事实。Gateway 负责 Task、Run、DAG，Runner 负责本机执行。`run.finished` 对应普通运行或 DAG 整轮结算，不是每个子节点 attempt。排队运行也可能直接结束；run.started 表示核心运行进入执行准备窗口，execution.started 才确认原生命令已启动。unknown 不表示完成。DAG 恢复后再次完成会产生新事件。
 
 重试保留事件 ID；显式重放建立新的 delivery 和幂等键。外部副作用可能在进程断连前已经完成，处理器应使用服务提供的幂等能力，并准确报告不确定结果。
 

@@ -88,7 +88,7 @@ export class Context {
   http = new Domain('http'); process = new Domain('process'); providers = new Domain('providers')
   config = {
     get: <T = ObjectValue>() => host<{ value: T; revision: number }>('config.get'),
-    save: (update: ObjectValue) => host<Receipt>('config.save', update),
+    save: (update: ObjectValue) => host<Receipt>('config.save', {update}),
   }
   storage = {
     get: <T = Json>(key: string) => host<{ value: T; revision: number } | null>('storage.get', { key }),

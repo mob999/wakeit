@@ -254,6 +254,7 @@ impl ExtensionError {
         let code = if message.contains("permission")
             || message.contains("not granted")
             || message.contains("not authorized")
+            || message.contains("administrator required")
         {
             "permission_denied"
         } else if message.contains("revision")
@@ -544,11 +545,21 @@ pub fn validate_schema(schema: &Value, value: &Value) -> Result<()> {
     if schema.is_null() {
         return Ok(());
     }
-    let validator = jsonschema::validator_for(schema)
-        .map_err(|error| anyhow::anyhow!("invalid configuration schema: {error}"))?;
-    validator
-        .validate(value)
-        .map_err(|error| anyhow::anyhow!("{}: {}", error.instance_path, error))
+    let validator = jsonschema::validator_for(schema).map_err(|error| {
+        ExtensionError::new(
+            "validation",
+            format!("invalid configuration schema: {error}"),
+        )
+    })?;
+    validator.validate(value).map_err(|error| {
+        ExtensionError {
+            code: "validation".into(),
+            message: format!("{}: {}", error.instance_path, error),
+            retryable: false,
+            paths: vec![error.instance_path.to_string()],
+        }
+        .into()
+    })
 }
 impl Extension {
     pub fn validate(&self) -> Result<()> {

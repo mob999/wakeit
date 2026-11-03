@@ -52,6 +52,22 @@ impl Host for InstanceHost {
             } else {
                 false
             };
+            let actor = if let Some(invocation) = invocation {
+                sqlx::query_scalar::<_, String>(
+                    "SELECT actor FROM extension_invocations WHERE id=? AND instance=?",
+                )
+                .bind(invocation)
+                .bind(id.to_string())
+                .fetch_optional(&runtime.journal.pool)
+                .await?
+                .map(|s| serde_json::from_str::<wakeit_core::extensions::Actor>(&s))
+                .transpose()?
+            } else {
+                None
+            };
+            let user_admin = actor.as_ref().is_none_or(|actor| {
+                actor.kind != "user" || actor.roles.iter().any(|role| role == "admin")
+            });
             if method.starts_with("storage.") {
                 ensure!(
                     !in_hook || ["storage.get", "storage.list"].contains(&method.as_str()),
@@ -330,7 +346,10 @@ impl Host for InstanceHost {
                         )
                         .await
                     } else {
-                        ensure!(!in_hook, "Hook cannot revoke credentials");
+                        ensure!(
+                            user_admin && !in_hook,
+                            "administrator required to revoke credentials"
+                        );
                         super::auth::revoke(
                             &runtime.journal.pool,
                             &runtime.http,
@@ -342,6 +361,7 @@ impl Host for InstanceHost {
                     }
                 }
                 "auth.begin" => {
+                    ensure!(user_admin, "administrator required to authorize an account");
                     ensure!(
                         !in_hook && instance.grants.contains(&"auth:manage".into()),
                         "authorization flow not permitted"
@@ -376,11 +396,16 @@ impl Host for InstanceHost {
                 "config.get" => Ok(json!({"value":instance.config,"revision":instance.revision})),
                 "credentials.status" => Ok(json!(instance.credential_status)),
                 "config.save" => {
+                    ensure!(
+                        user_admin,
+                        "administrator required to change plugin settings"
+                    );
                     ensure!(!in_hook, "Hook context cannot modify configuration");
                     let update: ConfigUpdate = serde_json::from_value(params["update"].clone())?;
                     store::save(&runtime.journal.pool, id, update, &instance.declaration).await
                 }
                 "credentials.set" | "credentials.remove" => {
+                    ensure!(user_admin, "administrator required to change credentials");
                     ensure!(!in_hook, "Hook context cannot modify credentials");
                     let slot = params["slot"]
                         .as_str()

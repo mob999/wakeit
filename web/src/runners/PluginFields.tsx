@@ -272,10 +272,13 @@ export function PluginFields({
 
 export function schemaDefaults(schema: Schema): unknown {
   if (schema.default !== undefined) return schema.default
+  if (schema.const !== undefined) return schema.const
   if (schema.type === 'object' || schema.properties)
     return Object.fromEntries(
       Object.entries(schema.properties ?? {}).flatMap(([key, value]) => {
-        const initial = schemaDefaults(value)
+        const initial =
+          schemaDefaults(value) ??
+          (schema.required?.includes(key) && value.type === 'boolean' ? false : undefined)
         return initial === undefined ? [] : [[key, initial]]
       }),
     )
