@@ -86,10 +86,7 @@ impl Peer {
         let diagnostics = host.clone();
         tokio::spawn(async move {
             let mut bytes = [0u8; 8192];
-            loop {
-                let Ok(count) = stderr.read(&mut bytes).await else {
-                    break;
-                };
+            while let Ok(count) = stderr.read(&mut bytes).await {
                 if count == 0 {
                     break;
                 }
