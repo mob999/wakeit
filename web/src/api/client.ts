@@ -78,7 +78,11 @@ export async function api<T = any>(
       if (['rejected', 'conflict', 'failed', 'cancelled', 'expired'].includes(receipt.state))
         throw new ApiError(
           receipt.state === 'conflict' ? 409 : 400,
-          apiErrorText(receipt.error ?? receipt.state, tr, (state) => stateNames[state] ?? state),
+          apiErrorText(
+            receipt.error?.message ?? receipt.error ?? receipt.state,
+            tr,
+            (state) => stateNames[state] ?? state,
+          ),
           receipt,
         )
     }
