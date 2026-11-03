@@ -1,4 +1,5 @@
 //! Language-neutral extension protocol client and host API for native plugins.
+pub mod api;
 use anyhow::{Context as _, Result, ensure};
 use serde_json::{Value, json};
 use std::{

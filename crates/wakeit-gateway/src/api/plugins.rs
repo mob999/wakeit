@@ -174,6 +174,12 @@ pub(crate) async fn control(
             }
         }
     }
+    if body.action == "remove" {
+        let id: Uuid = serde_json::from_value(params["instance_id"].clone())
+            .map_err(|_| Error::bad("instance required"))?;
+        sqlx::query("UPDATE plugin_bindings SET enabled=false,revision=revision+1 WHERE instance_id=$1 AND workspace_id=$2").bind(id).bind(workspace).execute(&s.pool).await?;
+        sqlx::query("UPDATE plugin_instances SET state='removed',enabled=false WHERE id=$1 AND workspace_id=$2").bind(id).bind(workspace).execute(&s.pool).await?;
+    }
     if body.action == "authorize" {
         let id: Uuid = params["instance_id"]
             .as_str()
@@ -181,6 +187,7 @@ pub(crate) async fn control(
             .parse()
             .map_err(|_| Error::bad("invalid instance"))?;
         sqlx::query("UPDATE plugin_instances SET grants=$4 WHERE id=$1 AND runner_id=$2 AND workspace_id=$3").bind(id).bind(runner).bind(workspace).bind(&params["grants"]).execute(&s.pool).await?;
+        sqlx::query("UPDATE plugin_bindings SET enabled=false,revision=revision+1 WHERE instance_id=$1 AND workspace_id=$2 AND NOT ($3::jsonb ? CASE WHEN kind='hook' THEN 'hooks:'||event ELSE 'events:read' END)").bind(id).bind(workspace).bind(&params["grants"]).execute(&s.pool).await?;
     }
     if body.action == "create" {
         let instance: wakeit_core::extensions::Instance = serde_json::from_value(value.clone())?;
@@ -213,15 +220,20 @@ pub(crate) async fn bind(
 ) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
     user(&s, &h, "admin", true).await?;
-    let declaration: Value = sqlx::query_scalar(
-        "SELECT declaration FROM plugin_instances WHERE workspace_id=$1 AND runner_id=$2 AND id=$3",
-    )
-    .bind(workspace)
-    .bind(body.runner_id)
-    .bind(body.instance_id)
-    .fetch_optional(&s.pool)
-    .await?
-    .ok_or_else(Error::missing)?;
+    let instance=sqlx::query("SELECT declaration,grants FROM plugin_instances WHERE workspace_id=$1 AND runner_id=$2 AND id=$3").bind(workspace).bind(body.runner_id).bind(body.instance_id).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)?;
+    let declaration: Value = instance.get("declaration");
+    let grants: Vec<String> = serde_json::from_value(instance.get("grants"))?;
+    let permission = if body.kind == "hook" {
+        format!("hooks:{}", body.event)
+    } else {
+        "events:read".into()
+    };
+    if !grants.contains(&permission) {
+        return Err(Error(
+            StatusCode::FORBIDDEN,
+            "handler capability is not granted".into(),
+        ));
+    }
     let section = if body.kind == "hook" {
         "hooks"
     } else if body.kind == "event" {
@@ -342,6 +354,23 @@ pub(crate) async fn poll(
     ApiJson(mut body): ApiJson<Value>,
 ) -> Result<Json<Value>> {
     let (runner, workspace) = device_workspace(&s, &h).await?;
+    let runtime: Uuid = serde_json::from_value(body["runtime_id"].clone())
+        .map_err(|_| Error::bad("Runner runtime required"))?;
+    let current: bool =
+        sqlx::query_scalar("SELECT runtime_id=$2 FROM runners WHERE id=$1 AND NOT revoked")
+            .bind(runner)
+            .bind(runtime)
+            .fetch_one(&s.pool)
+            .await?;
+    if !current {
+        return Err(Error::conflict("Runner lease changed"));
+    }
+    let active: Vec<String> =
+        serde_json::from_value(body["active_invocations"].clone()).unwrap_or_default();
+    if !active.is_empty() {
+        sqlx::query("UPDATE plugin_operations SET locked_until=LEAST(expires_at,now()+interval '60 seconds') WHERE runner_id=$1 AND state='running' AND request#>>'{params,invocation,id}'=ANY($2)").bind(runner).bind(&active).execute(&s.pool).await?;
+        sqlx::query("UPDATE plugin_deliveries SET locked_until=LEAST(expires_at,now()+interval '60 seconds') WHERE runner_id=$1 AND state='running' AND invocation_id::text=ANY($2)").bind(runner).bind(&active).execute(&s.pool).await?;
+    }
     if let Some(instances) = body["instances"].as_array_mut() {
         for instance in instances {
             let Some(id) = instance["id"].as_str().and_then(|v| v.parse::<Uuid>().ok()) else {
@@ -360,6 +389,17 @@ pub(crate) async fn ack(
     ApiJson(body): ApiJson<Value>,
 ) -> Result<Json<Value>> {
     let (runner, workspace) = device_workspace(&s, &h).await?;
+    let runtime: Uuid = serde_json::from_value(body["runtime_id"].clone())
+        .map_err(|_| Error::bad("Runner runtime required"))?;
+    let current: bool =
+        sqlx::query_scalar("SELECT runtime_id=$2 FROM runners WHERE id=$1 AND NOT revoked")
+            .bind(runner)
+            .bind(runtime)
+            .fetch_one(&s.pool)
+            .await?;
+    if !current {
+        return Err(Error::conflict("Runner lease changed"));
+    }
     store::acknowledge(&s.pool, workspace, runner, &body).await?;
     Ok(Json(json!({"ok":true})))
 }
@@ -380,9 +420,18 @@ fn business_route(
     let node = || segment(p, "node");
     let body = p.get("body").cloned();
     Ok(match method {
+        "members.update" => ("PUT", format!("/members/{}", resource()?), body),
+        "members.remove" => ("DELETE", format!("/members/{}", resource()?), None),
+        "members.invite" => ("POST", "/invites".into(), body),
+        "templates.from_task" => ("GET", format!("/tasks/{}/template", resource()?), None),
+        "templates.validate" => ("POST", "/task-template-preview".into(), body),
+        "runtime.operation" => ("GET", format!("/plugins/operations/{}", resource()?), None),
+        "agents.capabilities" => ("GET", "/agents".into(), None),
+        "executions.events" => ("GET", format!("/runs/{}/events", resource()?), None),
         "workspace.get" => ("GET", "/settings".into(), None),
         "workspace.update" => ("PUT", "/settings".into(), body),
         "members.list" => ("GET", "/members".into(), None),
+        "tasks.enable" | "tasks.disable" => ("PUT", format!("/tasks/{}", resource()?), None),
         "tasks.list" => ("GET", "/tasks".into(), None),
         "tasks.get" => ("GET", format!("/tasks/{}", resource()?), None),
         "tasks.validate" => ("POST", "/tasks/validate".into(), body),
@@ -489,6 +538,11 @@ fn business_route(
             ),
             body,
         ),
+        "results.reprocess" => (
+            "POST",
+            format!("/runs/{}/result/retry", resource()?),
+            Some(json!({})),
+        ),
         "files.preview" => ("POST", format!("/runs/{}/files/preview", resource()?), body),
         "events.list" => ("GET", "/plugins/events".into(), None),
         "events.get" | "results.snapshot" => {
@@ -532,7 +586,24 @@ pub(crate) async fn host_api(
         .as_str()
         .ok_or_else(|| Error::bad("method required"))?;
     let grants: Vec<String> = serde_json::from_value(row.get("grants"))?;
-    let (verb, mut path, payload) =
+    if method == "files.device_read" {
+        if !grants.contains(&"files:read".into()) {
+            return Err(Error(
+                StatusCode::FORBIDDEN,
+                "file access not granted".into(),
+            ));
+        }
+        let target: Uuid = serde_json::from_value(body["params"]["runner"].clone())
+            .map_err(|_| Error::bad("source Runner required"))?;
+        let mut request = body["params"].clone();
+        if let Some(params) = request.as_object_mut() {
+            params.remove("invocation_id");
+        }
+        return Ok(Json(
+            rpc(&s, workspace, target, "file_read", request).await?,
+        ));
+    }
+    let (verb, mut path, mut payload) =
         business_route(method, &body["params"]).map_err(|e| Error::bad(e.to_string()))?;
     let namespace = method.split('.').next().unwrap_or("");
     let required = format!(
@@ -578,9 +649,60 @@ pub(crate) async fn host_api(
             }
         }
     }
+    if ["tasks.enable", "tasks.disable"].contains(&method) {
+        let id = segment(&body["params"], "id").map_err(|e| Error::bad(e.to_string()))?;
+        let row = sqlx::query("SELECT config,revision FROM tasks WHERE workspace_id=$1 AND id=$2")
+            .bind(workspace)
+            .bind(id)
+            .fetch_optional(&s.pool)
+            .await?
+            .ok_or_else(Error::missing)?;
+        let revision: i64 = row.get("revision");
+        if body["params"]["expected_revision"]
+            .as_i64()
+            .is_some_and(|r| r != revision)
+        {
+            return Err(Error::conflict("task revision conflict"));
+        }
+        let mut config: Value = row.get("config");
+        config["enabled"] = json!(method == "tasks.enable");
+        payload = Some(json!({"config":config,"expected_revision":revision}));
+    }
+    let key = body["params"]["request_key"]
+        .as_str()
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            use sha2::{Digest, Sha256};
+            format!(
+                "plugin:{}:{method}:{}",
+                body["params"]["invocation_id"]
+                    .as_str()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| Uuid::new_v4().to_string()),
+                hex::encode(Sha256::digest(body["params"].to_string()))
+            )
+        });
+    let invocation = body["params"]["invocation_id"]
+        .as_str()
+        .and_then(|s| s.parse::<Uuid>().ok());
+    let context = if let Some(invocation) = invocation {
+        sqlx::query("SELECT e.id,COALESCE((e.data->>'_causation_depth')::integer,0) AS depth FROM plugin_deliveries d JOIN plugin_events e ON e.id=d.event_id WHERE d.invocation_id=$1 AND d.instance_id=$2 AND d.state='running'").bind(invocation).bind(instance).fetch_optional(&s.pool).await?
+    } else {
+        None
+    };
+    let cause = context.as_ref().map(|r| r.get::<Uuid, _>("id"));
+    let depth = context
+        .as_ref()
+        .map(|r| r.get::<i32, _>("depth") + 1)
+        .unwrap_or(0);
+    if depth > 32 {
+        return Err(Error::conflict(
+            "plugin causal chain exceeded 32 operations",
+        ));
+    }
     let token = crate::auth::credentials::secret();
     let hash = crate::auth::credentials::hash(&token);
-    sqlx::query("INSERT INTO plugin_api_tokens(hash,instance_id,actor_id,workspace_id,expires_at) VALUES($1,$2,$3,$4,now()+interval '60 seconds')").bind(&hash).bind(instance).bind(principal).bind(workspace).execute(&s.pool).await?;
+    sqlx::query("INSERT INTO plugin_api_tokens(hash,instance_id,actor_id,workspace_id,invocation_id,causation_id,causation_depth,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,now()+interval '60 seconds')").bind(&hash).bind(instance).bind(principal).bind(workspace).bind(invocation).bind(cause).bind(depth).execute(&s.pool).await?;
     let listen = s
         .config
         .listen
@@ -590,12 +712,7 @@ pub(crate) async fn host_api(
     let mut request = reqwest::Client::new()
         .request(verb.parse()?, url)
         .bearer_auth(token)
-        .header(
-            "Idempotency-Key",
-            body["params"]["request_key"]
-                .as_str()
-                .unwrap_or(&instance.to_string()),
-        )
+        .header("Idempotency-Key", key)
         .header("X-Wakeit-Plugin", instance.to_string());
     if let Some(payload) = payload {
         request = request.json(&payload);
@@ -775,4 +892,27 @@ pub(crate) async fn replay(
     Ok(Json(
         json!({"id":body.id,"state":"committed","deliveries":ids}),
     ))
+}
+
+pub(crate) async fn reprocess_result(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path(run): Path<Uuid>,
+) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
+    let actor = user(&s, &h, "operator", true).await?;
+    let runner:Uuid=sqlx::query_scalar("SELECT runner_id FROM runs WHERE workspace_id=$1 AND id=$2 AND state='failed' AND execution_snapshot->>'failure_phase'='postprocess'").bind(workspace).bind(run).fetch_optional(&s.pool).await?.ok_or_else(||Error::conflict("Run has no failed result processing"))?;
+    let id = store::enqueue(
+        &s.pool,
+        workspace,
+        runner,
+        None,
+        actor.id,
+        &request_key(&h)?,
+        "reprocess_result",
+        json!({"action":"reprocess_result","params":{"run_id":run}}),
+        Utc::now() + chrono::Duration::hours(1),
+    )
+    .await?;
+    Ok(Json(json!({"id":id,"state":"pending"})))
 }

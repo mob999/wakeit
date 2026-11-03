@@ -1020,5 +1020,13 @@
   "plugins.state.starting": "Starting",
   "plugins.state.pending": "Pending",
   "plugins.state.unavailable": "Unavailable",
-  "plugins.state.failed": "Failed"
+  "plugins.state.failed": "Failed",
+  "plugins.install": "Install plugin",
+  "plugins.source": "Repository URL or local path",
+  "plugins.upgrade": "Activate installed update",
+  "plugins.remove": "Remove instance",
+  "plugins.upgradeDescription": "Validate configuration and permissions before switching. Active calls must finish first.",
+  "plugins.removeDescription": "Remove the disabled instance while retaining configuration, credentials and private data.",
+  "plugins.offlineSettings": "Device offline. Device settings cannot be read or saved.",
+  "plugins.adminSettings": "Only administrators can read or change plugin settings."
 }

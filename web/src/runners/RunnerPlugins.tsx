@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { t as tr } from '../i18n'
+import { useTranslation } from 'react-i18next'
 import { api } from '../api/client'
 import type { Runner } from '../api/types'
 import { ActionIcon } from '../actions/ActionIcon'
@@ -8,11 +9,13 @@ import { Button, IconButton, Modal } from '../components/ui'
 import { ChoicePicker } from '../components/ChoicePicker'
 import { DetailTabs } from '../components/DetailTabs'
 import { ErrorToast } from '../components/Toast'
-import { PluginFields, type Schema } from './PluginFields'
+import { PluginFields, schemaDefaults, type Schema } from './PluginFields'
+import { PluginPackageActions } from './PluginPackageActions'
 import './plugins.css'
 type Declaration = {
   name: string
   description: string
+  translations?: Record<string, Record<string, string>>
   config: Schema
   permissions: string[]
   credentials: Record<string, { label: string; description: string; required: boolean }>
@@ -46,6 +49,7 @@ type Catalog = {
     version: string
     extensions: Record<string, Declaration>
   }[]
+  remote_management?: boolean
   updated_at?: string
 }
 type Binding = {
@@ -73,6 +77,7 @@ export function RunnerPlugins({
   admin: boolean
   toast: (message: string) => void
 }) {
+  const { i18n } = useTranslation()
   const client = useQueryClient()
   const [selected, setSelected] = useState('')
   const [tab, setTab] = useState('config')
@@ -86,8 +91,14 @@ export function RunnerPlugins({
     queryFn: () => (runner.online ? control('catalog') : api(`/runners/${runner.id}/plugins`)),
     refetchInterval: 10000,
   })
-  const instance =
+  const rawInstance =
     catalog.data?.instances.find((i) => i.id === selected) ?? catalog.data?.instances[0]
+  const instance = rawInstance
+    ? {
+        ...rawInstance,
+        declaration: localized(rawInstance.declaration, i18n.resolvedLanguage ?? i18n.language),
+      }
+    : undefined
   const refresh = () => client.invalidateQueries({ queryKey: ['plugins', runner.id] })
   const mutate = async (action: string, params: Record<string, unknown>) => {
     setBusy(true)
@@ -125,6 +136,9 @@ export function RunnerPlugins({
             </IconButton>
           )}
         </div>
+        {admin && catalog.data?.remote_management && !instance && (
+          <PluginPackageActions allowInstall disabled={!runner.online || busy} mutate={mutate} />
+        )}
         {catalog.error && <ErrorToast error={catalog.error.message} />}
         {catalog.isPending && <p className="p-4 text-muted">{tr('正在加载…')}</p>}
         {catalog.data?.instances.map((i) => (
@@ -154,6 +168,19 @@ export function RunnerPlugins({
                 <span className="text-muted">{instance.version}</span>
               </div>
               <div className="plugin-title-actions">
+                {admin && (
+                  <PluginPackageActions
+                    instance={instance}
+                    upgradeGrants={
+                      catalog.data?.packages.find((p) => p.source === instance.source)?.extensions[
+                        instance.extension
+                      ]?.permissions
+                    }
+                    allowInstall={catalog.data?.remote_management}
+                    disabled={!runner.online || busy}
+                    mutate={mutate}
+                  />
+                )}
                 <span className="text-muted">
                   {!runner.online ? tr('设备离线') : tr(`plugins.state.${instance.state}`)}
                 </span>
@@ -181,7 +208,11 @@ export function RunnerPlugins({
               onChange={setTab}
             />
             <div className="plugin-detail-body">
-              {tab === 'config' ? (
+              {tab === 'config' && (!runner.online || !admin) ? (
+                <p className="p-4 text-muted">
+                  {tr(!runner.online ? 'plugins.offlineSettings' : 'plugins.adminSettings')}
+                </p>
+              ) : tab === 'config' ? (
                 <PluginConfig
                   key={`${instance.id}:${instance.revision}`}
                   instance={instance}
@@ -229,7 +260,7 @@ export function RunnerPlugins({
                 const result = await mutate('create', {
                   source,
                   extension,
-                  config: {},
+                  config: schemaDefaults(resource.declaration.config) ?? {},
                   grants: resource.declaration.permissions,
                   name: resource.label,
                 })
@@ -689,4 +720,20 @@ function PluginActivity({
       </Modal>
     </div>
   )
+}
+
+function localized(declaration: Declaration, language: string): Declaration {
+  const copy = structuredClone(declaration)
+  for (const [path, value] of Object.entries(
+    declaration.translations?.[language.split('-')[0]] ?? {},
+  )) {
+    const parts = path.split('.')
+    let target: any = copy
+    for (const key of parts.slice(0, -1)) {
+      if (!target || typeof target !== 'object') break
+      target = target[key]
+    }
+    if (target && typeof target === 'object') target[parts.at(-1)!] = value
+  }
+  return copy
 }

@@ -63,6 +63,17 @@ export class Domain {
   create<T = Receipt>(id: string, body: Json, requestKey = randomUUID()) { return this.call<T>('create', { id, body, request_key: requestKey }) }
   update<T = Receipt>(id: string, body: Json, requestKey = randomUUID()) { return this.call<T>('update', { id, body, request_key: requestKey }) }
   invoke<T = Receipt>(operation: string, id: string, body: Json = {}, requestKey = randomUUID()) { return this.call<T>(operation, { id, body, request_key: requestKey }) }
+  async *watch<T = Json>(id: string, options: { signal?: AbortSignal; interval?: number } = {}): AsyncGenerator<T> {
+    const signal=options.signal ?? invocationContext.getStore()?.signal
+    let previous: string | undefined
+    while(!signal?.aborted){
+      const value=await this.get<T>(id);const serialized=JSON.stringify(value)
+      if(serialized!==previous){previous=serialized;yield value}
+      if(value && typeof value==='object' && 'state' in value && ['succeeded','failed','warning','cancelled','skipped','timed_out','interrupted'].includes(String(value.state)))return
+      await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve()},options.interval??1000);const abort=()=>{clearTimeout(timer);reject(signal?.reason??new Error('cancelled'))};signal?.addEventListener('abort',abort,{once:true})})
+    }
+  }
+
 }
 export class Context {
   readonly invocation?: Invocation
@@ -92,6 +103,21 @@ export class Context {
     remove: (slot: string) => host('credentials.remove', { slot }),
   }
   ui = { request: <T = Json>(request: Interaction) => host<T>('ui.request', { request: request as unknown as Json }) }
+  streams = {
+    events: async function* (runId: string, options: { after?:number; kind?:string; signal?:AbortSignal; interval?:number } = {}): AsyncGenerator<Json> {
+      const signal=options.signal??invocationContext.getStore()?.signal
+      let cursor=options.after??0
+      while(!signal?.aborted){
+        const rows=await host<(ObjectValue&{id:number})[]>('runs.events',{id:runId,query:{after:cursor,...(options.kind?{kind:options.kind}:{})}})
+        for(const row of rows){if(typeof row.id==='number')cursor=Math.max(cursor,row.id);yield row}
+        if(rows.length<500){
+          const run=await host<{state:string}>('runs.get',{id:runId})
+          if(['succeeded','failed','warning','cancelled','skipped','timed_out','interrupted'].includes(run.state))return
+          await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve()},options.interval??500);const abort=()=>{clearTimeout(timer);reject(signal?.reason??new Error('cancelled'))};signal?.addEventListener('abort',abort,{once:true})})
+        }
+      }
+    }
+  }
   log = (level: 'debug' | 'info' | 'warn' | 'error', message: string, data: ObjectValue = {}) => host('log.write', { level, message, data })
   health = (state: string, message?: string) => host('health.report', { state, ...(message ? { message } : {}) })
 }
@@ -163,3 +189,12 @@ export class Plugin {
 export const allow = (): Decision => ({ decision: 'allow' })
 export const deny = (code: string, message: string, paths: string[] = []): Decision => ({ decision: 'deny', code, message, paths })
 export const patch = (value: ObjectValue): Decision => ({ decision: 'patch', value })
+
+export const retryAfter = (seconds: number, message: string): Json => ({ outcome: 'retry_after', seconds, message })
+export const permanentFailure = (message: string): Json => ({ outcome: 'permanent_failure', message })
+export const uncertain = (message: string): Json => ({ outcome: 'uncertain', message })
+
+export interface TaskRecord { id: string; revision: number; enabled: boolean; config: ObjectValue }
+export interface RunRecord { id: string; state: string; config: ObjectValue; result: Json; reason: string | null }
+export interface ModelCatalog { version: 1; models: { id: string; name: string; parameters: Record<string,string>; parameter_options: Record<string,string[]> }[] }
+export interface Page<T> { items:T[]; total?:number; page?:number; page_size?:number }

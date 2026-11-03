@@ -27,7 +27,7 @@ async fn save_token(pool: &SqlitePool, instance: Uuid, slot: &str, token: Value)
         .await?;
     let mut value: Value = serde_json::from_str(&value)?;
     value[slot] = Value::String(token.to_string());
-    sqlx::query("UPDATE extension_instances SET secrets=?,revision=revision+1 WHERE id=?")
+    sqlx::query("UPDATE extension_instances SET secrets=?,revision=revision+1,state=CASE WHEN enabled=1 THEN 'pending' ELSE 'disabled' END WHERE id=?")
         .bind(value.to_string())
         .bind(instance.to_string())
         .execute(&mut *tx)
@@ -368,7 +368,7 @@ pub async fn revoke(
         .as_object_mut()
         .context("invalid credential store")?
         .remove(slot);
-    sqlx::query("UPDATE extension_instances SET secrets=?,revision=revision+1 WHERE id=?")
+    sqlx::query("UPDATE extension_instances SET secrets=?,revision=revision+1,state=CASE WHEN enabled=1 THEN 'pending' ELSE 'disabled' END WHERE id=?")
         .bind(secrets.to_string())
         .bind(instance.to_string())
         .execute(pool)

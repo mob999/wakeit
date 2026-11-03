@@ -75,6 +75,7 @@ CREATE TABLE plugin_hook_calls (
 CREATE TABLE plugin_api_tokens (
  hash text PRIMARY KEY, instance_id uuid NOT NULL REFERENCES plugin_instances(id),
  actor_id uuid NOT NULL REFERENCES users(id), workspace_id uuid NOT NULL REFERENCES workspaces(id),
+ invocation_id uuid,causation_id uuid,causation_depth integer NOT NULL DEFAULT 0,
  expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE plugin_artifacts (
@@ -91,16 +92,31 @@ BEGIN
  INSERT INTO plugin_aggregate_revisions(workspace_id,aggregate_type,aggregate_id,revision)
  VALUES(ws,aggregate_kind,aggregate_key,1)
  ON CONFLICT(workspace_id,aggregate_type,aggregate_id) DO UPDATE SET revision=plugin_aggregate_revisions.revision+1 RETURNING revision INTO rev;
- INSERT INTO plugin_events(workspace_id,event_type,aggregate_type,aggregate_id,aggregate_revision,data,source_runner_id)
- VALUES(ws,typ,aggregate_kind,aggregate_key,rev,payload,device) RETURNING id INTO eid;
+ INSERT INTO plugin_events(workspace_id,event_type,aggregate_type,aggregate_id,aggregate_revision,data,source_runner_id,origin,causation_id)
+ VALUES(ws,typ,aggregate_kind,aggregate_key,rev,payload||jsonb_build_object('_causation_depth',COALESCE(NULLIF(current_setting('wakeit.causation_depth',true),'')::integer,0)),device,COALESCE(NULLIF(current_setting('wakeit.actor',true),'')::jsonb,'{"kind":"system","id":null,"roles":[]}'::jsonb),NULLIF(current_setting('wakeit.causation_id',true),'')::uuid) RETURNING id INTO eid;
  RETURN eid;
 END $$;
+
+ALTER TABLE runs ADD COLUMN plugin_origin jsonb,ADD COLUMN plugin_causation_id uuid,ADD COLUMN plugin_causation_depth integer NOT NULL DEFAULT 0;
+CREATE FUNCTION plugin_run_context() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ NEW.plugin_origin:=NULLIF(current_setting('wakeit.actor',true),'')::jsonb;
+ NEW.plugin_causation_id:=NULLIF(current_setting('wakeit.causation_id',true),'')::uuid;
+ NEW.plugin_causation_depth:=COALESCE(NULLIF(current_setting('wakeit.causation_depth',true),'')::integer,0);
+ RETURN NEW;
+END $$;
+CREATE TRIGGER plugin_run_context BEFORE INSERT ON runs FOR EACH ROW EXECUTE FUNCTION plugin_run_context();
 
 -- Every state writer participates, including scheduler skips, quarantine, cancellation and recovery.
 CREATE FUNCTION plugin_run_changes() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE typ text; child boolean; payload jsonb;
 BEGIN
  child:=NEW.parent_run_id IS NOT NULL;
+ IF NEW.plugin_causation_id IS NOT NULL THEN
+  PERFORM set_config('wakeit.causation_id',NEW.plugin_causation_id::text,true);
+  PERFORM set_config('wakeit.causation_depth',NEW.plugin_causation_depth::text,true);
+ END IF;
+
  payload:=jsonb_build_object('run_id',NEW.id,'task_id',NEW.task_id,'task_revision',NEW.task_revision,
  'parent_run_id',NEW.parent_run_id,'node_id',NEW.node_id,'state',NEW.state,'reason',NEW.reason,
  'source',NEW.source,'runner_id',NEW.runner_id,'name',NEW.config->>'name',
@@ -109,6 +125,8 @@ BEGIN
  IF TG_OP='INSERT' THEN
   PERFORM plugin_append_event(NEW.workspace_id,CASE WHEN child THEN 'dag.node.attempt_created' ELSE 'run.created' END,'run',NEW.id::text,payload,NEW.runner_id);
   IF NEW.source='schedule' THEN PERFORM plugin_append_event(NEW.workspace_id,'schedule.occurrence_created','run',NEW.id::text,payload,NEW.runner_id); END IF;
+  IF NEW.source='schedule' THEN PERFORM plugin_append_event(NEW.workspace_id,'schedule.evaluated','run',NEW.id::text,payload,NEW.runner_id); END IF;
+  IF NEW.retry_of IS NOT NULL THEN PERFORM plugin_append_event(NEW.workspace_id,CASE WHEN child THEN 'dag.node.retry_scheduled' ELSE 'run.retry_requested' END,'run',NEW.id::text,payload,NEW.runner_id); END IF;
   IF NEW.state='queued' AND NOT child THEN PERFORM plugin_append_event(NEW.workspace_id,'run.queued','run',NEW.id::text,payload,NEW.runner_id); END IF;
  ELSE
   IF OLD.state IS DISTINCT FROM NEW.state THEN
@@ -119,6 +137,7 @@ BEGIN
   IF OLD.started_at IS NULL AND NEW.started_at IS NOT NULL AND NOT child THEN PERFORM plugin_append_event(NEW.workspace_id,'run.started','run',NEW.id::text,payload,NEW.runner_id); END IF;
   IF NOT OLD.cancel_requested AND NEW.cancel_requested THEN PERFORM plugin_append_event(NEW.workspace_id,'run.cancel_requested','run',NEW.id::text,payload,NEW.runner_id); END IF;
   IF OLD.finished_at IS NOT NULL AND NEW.finished_at IS NULL AND NOT child THEN PERFORM plugin_append_event(NEW.workspace_id,'run.reopened','run',NEW.id::text,payload,NEW.runner_id); END IF;
+  IF NEW.recovery_generation IS DISTINCT FROM OLD.recovery_generation AND NOT child THEN PERFORM plugin_append_event(NEW.workspace_id,'dag.recovered','run',NEW.id::text,payload,NEW.runner_id); END IF;
  END IF;
  IF NEW.finished_at IS NOT NULL AND (TG_OP='INSERT' OR OLD.finished_at IS NULL) THEN
   payload:=payload||jsonb_build_object('result',NEW.result,'format',COALESCE(NEW.execution_snapshot->>'format','text'),'config',NEW.config);
@@ -140,6 +159,7 @@ BEGIN
   PERFORM plugin_append_event(ws,kind||CASE WHEN TG_OP='INSERT' THEN '.created' ELSE '.updated' END,kind,key,payload-ARRAY['created_by','updated_by']);
  END IF;
  IF TG_OP='UPDATE' AND payload->'archived_at' IS DISTINCT FROM old_payload->'archived_at' THEN PERFORM plugin_append_event(ws,kind||CASE WHEN NEW.archived_at IS NULL THEN '.restored' ELSE '.archived' END,kind,key,jsonb_build_object('id',key,'revision',NEW.revision)); END IF;
+ IF kind='task' AND TG_OP='INSERT' AND payload->'template_origin' IS NOT NULL AND payload->'template_origin'<>'null'::jsonb THEN PERFORM plugin_append_event(ws,'template.instantiated','task',key,jsonb_build_object('task_id',key,'template_origin',payload->'template_origin')); END IF;
  IF kind='task' AND TG_OP='UPDATE' THEN
   IF payload->'enabled' IS DISTINCT FROM old_payload->'enabled' THEN PERFORM plugin_append_event(ws,'task.enabled_changed',kind,key,jsonb_build_object('id',key,'enabled',payload->'enabled')); END IF;
   IF payload#>'{config,schedule}' IS DISTINCT FROM old_payload#>'{config,schedule}' THEN PERFORM plugin_append_event(ws,'task.schedule_changed',kind,key,jsonb_build_object('id',key,'schedule',payload#>'{config,schedule}')); END IF;
@@ -158,7 +178,7 @@ BEGIN
  ELSE
   IF NOT OLD.revoked AND NEW.revoked THEN PERFORM plugin_append_event(NEW.workspace_id,'device.revoked','device',NEW.id::text,payload,NEW.id); END IF;
   IF NEW.agents IS DISTINCT FROM OLD.agents THEN PERFORM plugin_append_event(NEW.workspace_id,'device.capabilities_changed','device',NEW.id::text,payload,NEW.id); END IF;
-  IF (OLD.last_seen IS NULL OR OLD.last_seen<now()-interval '60 seconds') AND NEW.last_seen>=now()-interval '60 seconds' THEN PERFORM plugin_append_event(NEW.workspace_id,'device.online','device',NEW.id::text,payload,NEW.id); END IF;
+
  END IF;
  RETURN NEW;
 END $$;
@@ -204,3 +224,5 @@ CREATE TABLE plugin_auth_flows (
  state_hash text NOT NULL UNIQUE,status text NOT NULL DEFAULT 'pending',expires_at timestamptz NOT NULL
 );
 CREATE UNIQUE INDEX plugin_delivery_replay_identity ON plugin_deliveries(replay_id,binding_id,event_id) WHERE replay_id IS NOT NULL;
+
+CREATE TABLE plugin_device_presence(runner_id uuid PRIMARY KEY REFERENCES runners(id) ON DELETE CASCADE,online boolean NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());

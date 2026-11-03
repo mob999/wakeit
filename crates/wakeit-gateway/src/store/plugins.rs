@@ -26,7 +26,7 @@ pub async fn route(pool: &PgPool, workspace: Uuid) -> Result<()> {
         let id: Uuid = e.get("id");
         let event_type: String = e.get("event_type");
         let data: Value = e.get("data");
-        let bindings=sqlx::query("SELECT b.*,i.version,i.revision AS instance_revision,i.declaration FROM plugin_bindings b JOIN plugin_instances i ON i.id=b.instance_id WHERE b.workspace_id=$1 AND b.enabled AND i.enabled AND b.kind='event' AND (b.event=$2 OR b.event='*') AND b.created_at<=$3 ORDER BY b.position,b.id")
+        let bindings=sqlx::query("SELECT b.*,i.version,i.revision AS instance_revision,i.declaration FROM plugin_bindings b JOIN plugin_instances i ON i.id=b.instance_id WHERE b.workspace_id=$1 AND b.enabled AND i.enabled AND EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=i.workspace_id AND m.user_id=i.managed_by AND m.active AND u.active AND m.role='admin') AND b.kind='event' AND (b.event=$2 OR b.event='*') AND b.created_at<=$3 ORDER BY b.position,b.id")
             .bind(workspace).bind(event_type).bind(e.get::<DateTime<Utc>,_>("committed_at")).fetch_all(&mut *tx).await?;
         for b in bindings {
             if !matches(&b.get::<Value, _>("filter"), &data) {
@@ -47,7 +47,7 @@ pub async fn poll(pool: &PgPool, workspace: Uuid, runner: Uuid) -> Result<Value>
     route(pool, workspace).await?;
     let mut tx = pool.begin().await?;
     sqlx::query("UPDATE plugin_deliveries SET state='expired',error='delivery expired' WHERE runner_id=$1 AND state IN ('pending','retry_wait','running') AND expires_at<=now()").bind(runner).execute(&mut *tx).await?;
-    let rows=sqlx::query("SELECT d.*,to_jsonb(e.*)-'routed'-'expires_at' AS event,b.timeout_seconds,b.max_attempts FROM plugin_deliveries d JOIN plugin_bindings b ON b.id=d.binding_id JOIN plugin_instances i ON i.id=d.instance_id JOIN plugin_events e ON e.id=d.event_id WHERE d.runner_id=$1 AND d.workspace_id=$2 AND d.state IN ('pending','retry_wait','running') AND d.available_at<=now() AND (d.locked_until IS NULL OR d.locked_until<now()) AND d.expires_at>now() AND b.enabled AND i.enabled AND NOT EXISTS(SELECT 1 FROM plugin_deliveries earlier JOIN plugin_events previous ON previous.id=earlier.event_id WHERE earlier.binding_id=d.binding_id AND previous.aggregate_id=e.aggregate_id AND previous.aggregate_type=e.aggregate_type AND previous.aggregate_revision<e.aggregate_revision AND earlier.state IN ('pending','retry_wait','running','uncertain')) ORDER BY e.committed_at,d.id LIMIT 8 FOR UPDATE OF d SKIP LOCKED").bind(runner).bind(workspace).fetch_all(&mut *tx).await?;
+    let rows=sqlx::query("SELECT d.*,to_jsonb(e.*)-'routed'-'expires_at' AS event,b.timeout_seconds,b.max_attempts FROM plugin_deliveries d JOIN plugin_bindings b ON b.id=d.binding_id JOIN plugin_instances i ON i.id=d.instance_id JOIN plugin_events e ON e.id=d.event_id WHERE d.runner_id=$1 AND d.workspace_id=$2 AND d.state IN ('pending','retry_wait','running') AND d.available_at<=now() AND (d.locked_until IS NULL OR d.locked_until<now()) AND d.expires_at>now() AND b.enabled AND i.enabled AND EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=i.workspace_id AND m.user_id=i.managed_by AND m.active AND u.active AND m.role='admin') AND NOT EXISTS(SELECT 1 FROM plugin_deliveries earlier JOIN plugin_events previous ON previous.id=earlier.event_id WHERE earlier.binding_id=d.binding_id AND previous.aggregate_id=e.aggregate_id AND previous.aggregate_type=e.aggregate_type AND previous.aggregate_revision<e.aggregate_revision AND earlier.state IN ('pending','retry_wait','running','uncertain')) ORDER BY e.committed_at,d.id LIMIT 8 FOR UPDATE OF d SKIP LOCKED").bind(runner).bind(workspace).fetch_all(&mut *tx).await?;
     let mut items = Vec::new();
     for row in rows {
         let id: Uuid = row.get("id");
@@ -110,9 +110,64 @@ pub async fn acknowledge(
         "invalid acknowledgement"
     );
     let mut tx = pool.begin().await?;
+    let operation=sqlx::query("SELECT kind,request FROM plugin_operations WHERE id=$1 AND runner_id=$2 AND workspace_id=$3 FOR UPDATE").bind(id).bind(runner).bind(workspace).fetch_optional(&mut *tx).await?;
+    if state == "succeeded"
+        && let Some(operation) = &operation
+        && operation.get::<String, _>("kind") == "reprocess_result"
+    {
+        let request: Value = operation.get("request");
+        let run: Uuid = serde_json::from_value(request["params"]["run_id"].clone())?;
+        let current=sqlx::query("SELECT state,execution_snapshot,parent_run_id,node_id FROM runs WHERE id=$1 AND workspace_id=$2 AND runner_id=$3 FOR UPDATE").bind(run).bind(workspace).bind(runner).fetch_one(&mut *tx).await?;
+        ensure!(
+            current.get::<String, _>("state") == "failed"
+                && current
+                    .get::<Option<Value>, _>("execution_snapshot")
+                    .is_some_and(|s| s["failure_phase"] == "postprocess"),
+            "result processing state changed"
+        );
+        let result = value["result"]["result"].clone();
+        sqlx::query("UPDATE runs SET state='succeeded',reason=NULL,result=$2,execution_snapshot=(execution_snapshot-'failure_phase')||$3 WHERE id=$1").bind(run).bind(&result).bind(json!({"effective_result_ref":value["result"]["result_ref"]})).execute(&mut *tx).await?;
+        sqlx::query("SELECT plugin_append_event($1,'result.published','run',$2,$3,$4)")
+            .bind(workspace)
+            .bind(run.to_string())
+            .bind(json!({"run_id":run,"result":result,"operation_id":id}))
+            .bind(runner)
+            .execute(&mut *tx)
+            .await?;
+        if let Some(parent) = current.get::<Option<Uuid>, _>("parent_run_id") {
+            let node: String = current.get("node_id");
+            let config: Value = sqlx::query_scalar(
+                "SELECT config FROM runs WHERE id=$1 AND workspace_id=$2 FOR UPDATE",
+            )
+            .bind(parent)
+            .bind(workspace)
+            .fetch_one(&mut *tx)
+            .await?;
+            let task: wakeit_core::config::TaskConfig = serde_json::from_value(config)?;
+            let mut affected = std::collections::HashSet::from([node.clone()]);
+            if let Some(dag) = task.dag {
+                loop {
+                    let before = affected.len();
+                    for n in &dag.nodes {
+                        if n.pre.iter().any(|p| affected.contains(p)) {
+                            affected.insert(n.id.clone());
+                        }
+                    }
+                    if affected.len() == before {
+                        break;
+                    }
+                }
+            }
+            sqlx::query("UPDATE dag_run_nodes SET state='succeeded',reason=NULL WHERE parent_run_id=$1 AND node_id=$2 AND execution_id=$3").bind(parent).bind(&node).bind(run).execute(&mut *tx).await?;
+            for descendant in affected.into_iter().filter(|n| n != &node) {
+                sqlx::query("UPDATE dag_run_nodes SET state='waiting',execution_id=NULL,reason=NULL,finished_at=NULL,stop_cause=NULL WHERE parent_run_id=$1 AND node_id=$2 AND state='skipped' AND stop_cause='dependency'").bind(parent).bind(descendant).execute(&mut *tx).await?;
+            }
+            sqlx::query("UPDATE runs SET state='queued',reason=NULL,result=NULL,finished_at=NULL,recovery_generation=recovery_generation+1,window_started_at=NULL WHERE id=$1").bind(parent).execute(&mut *tx).await?;
+        }
+    }
     let n=sqlx::query("UPDATE plugin_operations SET state=$4,result=$5,error=$6,updated_at=now(),revision=revision+1,locked_until=NULL WHERE id=$1 AND runner_id=$2 AND workspace_id=$3 AND state IN ('running','pending','retry_wait')").bind(id).bind(runner).bind(workspace).bind(state).bind(value.get("result")).bind(value["error"].as_str()).execute(&mut *tx).await?.rows_affected();
     if n == 0 {
-        sqlx::query("UPDATE plugin_deliveries d SET state=CASE WHEN $4='failed' AND d.attempt<b.max_attempts THEN 'retry_wait' ELSE $4 END,available_at=now()+make_interval(secs=>LEAST(300,power(2,d.attempt))::double precision),result=$5,error=$6,locked_until=NULL,updated_at=now() FROM plugin_bindings b WHERE d.binding_id=b.id AND d.id=$1 AND d.runner_id=$2 AND d.workspace_id=$3 AND d.state='running'").bind(id).bind(runner).bind(workspace).bind(state).bind(value.get("result")).bind(value["error"].as_str()).execute(&mut *tx).await?;
+        sqlx::query("UPDATE plugin_deliveries d SET state=CASE WHEN $4='failed' AND $7 AND d.attempt<b.max_attempts THEN 'retry_wait' ELSE $4 END,available_at=now()+make_interval(secs=>LEAST(300,power(2,d.attempt))::double precision),result=$5,error=$6,locked_until=NULL,updated_at=now() FROM plugin_bindings b WHERE d.binding_id=b.id AND d.id=$1 AND d.runner_id=$2 AND d.workspace_id=$3 AND d.state='running'").bind(id).bind(runner).bind(workspace).bind(state).bind(value.get("result")).bind(value["error"].as_str()).bind(value["retryable"]==true).execute(&mut *tx).await?;
     }
     tx.commit().await?;
     Ok(())
@@ -162,7 +217,7 @@ async fn gate_inner(
     mut proposal: Value,
     wait: bool,
 ) -> Result<Value> {
-    let bindings=sqlx::query("SELECT b.*,i.revision AS instance_revision FROM plugin_bindings b JOIN plugin_instances i ON i.id=b.instance_id WHERE b.workspace_id=$1 AND b.kind='hook' AND b.event=$2 AND b.enabled AND i.enabled ORDER BY b.position,b.id").bind(workspace).bind(stage).fetch_all(pool).await?;
+    let bindings=sqlx::query("SELECT b.*,i.revision AS instance_revision FROM plugin_bindings b JOIN plugin_instances i ON i.id=b.instance_id WHERE b.workspace_id=$1 AND b.kind='hook' AND b.event=$2 AND b.enabled AND i.enabled AND EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=i.workspace_id AND m.user_id=i.managed_by AND m.active AND u.active AND m.role='admin') ORDER BY b.position,b.id").bind(workspace).bind(stage).fetch_all(pool).await?;
     for b in bindings {
         if !matches(&b.get::<Value, _>("filter"), &proposal) {
             continue;
@@ -320,6 +375,29 @@ pub async fn prepare_assignment(
 }
 
 pub async fn maintain(pool: &PgPool) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    let devices=sqlx::query("SELECT r.id,r.workspace_id,r.name,(NOT r.revoked AND r.last_seen>now()-interval '60 seconds') IS TRUE AS online,p.online AS previous FROM runners r LEFT JOIN plugin_device_presence p ON p.runner_id=r.id WHERE p.runner_id IS NULL OR p.online IS DISTINCT FROM ((NOT r.revoked AND r.last_seen>now()-interval '60 seconds') IS TRUE) FOR UPDATE OF r SKIP LOCKED").fetch_all(&mut *tx).await?;
+    for device in devices {
+        let online: bool = device.get("online");
+        let runner: Uuid = device.get("id");
+        if device.get::<Option<bool>, _>("previous").is_some() {
+            sqlx::query("SELECT plugin_append_event($1,$2,'device',$3,$4,$5)")
+                .bind(device.get::<Uuid, _>("workspace_id"))
+                .bind(if online {
+                    "device.online"
+                } else {
+                    "device.offline"
+                })
+                .bind(runner.to_string())
+                .bind(json!({"id":runner,"name":device.get::<String,_>("name")}))
+                .bind(runner)
+                .execute(&mut *tx)
+                .await?;
+        }
+        sqlx::query("INSERT INTO plugin_device_presence(runner_id,online) VALUES($1,$2) ON CONFLICT(runner_id) DO UPDATE SET online=excluded.online,updated_at=now()").bind(runner).bind(online).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+
     sqlx::query("UPDATE plugin_operations SET state='expired',error='operation expired',revision=revision+1,updated_at=now() WHERE expires_at<=now() AND state IN ('pending','running','retry_wait')").execute(pool).await?;
     sqlx::query("UPDATE plugin_deliveries SET state='expired',error='delivery expired',updated_at=now() WHERE expires_at<=now() AND state IN ('pending','running','retry_wait','uncertain')").execute(pool).await?;
     sqlx::query("DELETE FROM plugin_api_tokens WHERE expires_at<now()")

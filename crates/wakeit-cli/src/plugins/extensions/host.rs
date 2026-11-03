@@ -15,7 +15,12 @@ impl Host for InstanceHost {
         Box::pin(async move {
             let mut instance = snapshot;
             let current = runtime.instance(id).await?;
-            ensure!(current.enabled, "extension was disabled");
+            ensure!(
+                current.enabled
+                    || ["config.get", "credentials.status", "runtime.info"]
+                        .contains(&method.as_str()),
+                "extension was disabled"
+            );
             instance.grants = current.grants.clone();
             if let Some(snapshot) = sqlx::query_scalar::<_, String>(
                 "SELECT snapshot FROM extension_versions WHERE instance=? AND revision=?",
@@ -119,40 +124,60 @@ impl Host for InstanceHost {
                         json!({"id":reference,"run_id":row.get::<String,_>("run_id"),"kind":row.get::<String,_>("kind"),"result":serde_json::from_str::<Value>(row.get("data"))?,"created_at":row.get::<String,_>("created_at")}),
                     )
                 }
+                "files.watch" | "files.unwatch" => {
+                    ensure!(
+                        !in_hook && instance.grants.contains(&"files:watch".into()),
+                        "file watching not granted"
+                    );
+                    if method == "files.watch" {
+                        super::watch::start(&runtime, id, &params).await
+                    } else {
+                        super::watch::stop(
+                            &runtime,
+                            id,
+                            params["id"]
+                                .as_str()
+                                .context("watch ID required")?
+                                .parse()?,
+                        )
+                        .await
+                    }
+                }
                 "files.stat" | "files.read" => {
                     ensure!(
                         instance.grants.contains(&"files:read".into()),
                         "file access not granted"
                     );
-                    let path = std::path::PathBuf::from(
-                        params["path"].as_str().context("file path required")?,
-                    );
-                    let canonical = path.canonicalize()?;
-                    let parent = canonical.parent().context("file parent missing")?;
-                    crate::process::validate_cwd(
-                        parent.to_str().context("invalid file path")?,
-                        &runtime.config.allowed_roots,
-                    )?;
-                    ensure!(canonical.is_file(), "not a regular file");
-                    let metadata = canonical.metadata()?;
-                    if method == "files.stat" {
-                        return Ok(
-                            json!({"path":canonical,"size":metadata.len(),"modified_at":metadata.modified().ok().and_then(|t|t.duration_since(std::time::UNIX_EPOCH).ok()).map(|t|t.as_millis())}),
-                        );
+                    let target = params["runner"]
+                        .as_str()
+                        .and_then(|s| s.parse::<Uuid>().ok());
+                    let mut request = params.clone();
+                    request["operation"] = json!(if method == "files.stat" {
+                        "stat"
+                    } else {
+                        "read"
+                    });
+                    if target.is_some_and(|r| r != runtime.config.id) {
+                        runtime.remote(id, "files.device_read", request).await
+                    } else {
+                        super::files::read(&runtime, &request).await
                     }
-                    let offset = params["offset"].as_u64().unwrap_or(0);
-                    let limit = params["limit"]
-                        .as_u64()
-                        .unwrap_or(64 * 1024)
-                        .min(256 * 1024);
-                    use base64::Engine;
-                    use tokio::io::{AsyncReadExt, AsyncSeekExt};
-                    let mut file = tokio::fs::File::open(&canonical).await?;
-                    file.seek(std::io::SeekFrom::Start(offset)).await?;
-                    let mut data = Vec::new();
-                    file.take(limit).read_to_end(&mut data).await?;
+                }
+                "artifacts.register" | "artifacts.export" => {
+                    ensure!(
+                        !in_hook && instance.grants.contains(&"artifacts:write".into()),
+                        "artifact creation not granted"
+                    );
+                    super::files::register(&runtime, id, &params).await
+                }
+                "artifacts.get" | "artifacts.list" => {
+                    ensure!(
+                        instance.grants.contains(&"artifacts:read".into()),
+                        "artifact reading not granted"
+                    );
+                    let rows=sqlx::query("SELECT id,name,reference,metadata,expires_at FROM extension_artifacts WHERE instance=? AND (? IS NULL OR id=?) AND (expires_at IS NULL OR expires_at>?) ORDER BY id LIMIT 200").bind(id.to_string()).bind(params["id"].as_str()).bind(params["id"].as_str()).bind(Utc::now().to_rfc3339()).fetch_all(&runtime.journal.pool).await?;
                     Ok(
-                        json!({"data":base64::engine::general_purpose::STANDARD.encode(&data),"encoding":"base64","offset":offset,"next_offset":offset+data.len() as u64,"eof":offset+data.len() as u64>=metadata.len()}),
+                        json!({"items":rows.iter().map(|r|json!({"id":r.get::<String,_>("id"),"name":r.get::<String,_>("name"),"reference":serde_json::from_str::<Value>(r.get("reference")).unwrap_or(Value::Null),"metadata":serde_json::from_str::<Value>(r.get("metadata")).unwrap_or(Value::Null),"expires_at":r.get::<Option<String>,_>("expires_at")})).collect::<Vec<_>>()}),
                     )
                 }
                 "http.request" => {

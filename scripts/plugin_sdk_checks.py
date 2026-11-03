@@ -65,6 +65,47 @@ def verify(c):
     control('cancel',instance_id=identity,invocation_id=call)
     wait(lambda:api('/plugins/operations/'+operation)['state'] in ['failed','cancelled'],'action cancelled')
     check('generic actions, structured interaction, reverse host API and cancellation')
+    sample=c['cwd']/'sdk-sample.txt';sample.write_text('synthetic-file-data')
+    operation,_=invoke('host-queries',{'path':str(sample)})
+    receipt=wait(lambda:r if (r:=api('/plugins/operations/'+operation))['state'] in ['succeeded','failed'] else None,'host API domain queries')
+    assert receipt['state']=='succeeded',receipt.get('error')
+    assert receipt['result']['chunk']['data']=='c3ludA=='
+    assert receipt['result']['models']['models'][0]['id']=='synthetic'
+    check('typed business queries, query Provider and bounded authorized file reads')
+    # Local HTTP provider only; no real mail, identity, or third-party service is involved.
+    from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+    import threading,urllib.parse,urllib.request
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self,*args):pass
+        def do_POST(self):
+            data=urllib.parse.parse_qs(self.rfile.read(int(self.headers.get('Content-Length','0'))).decode())
+            if self.path=='/device':result={'device_code':'synthetic-device','user_code':'ABC-123','verification_uri':provider_url+'/verify','interval':1,'expires_in':60}
+            else:result={'access_token':'synthetic-access-token','refresh_token':'synthetic-refresh-token','expires_in':3600,'token_type':'Bearer'}
+            payload=json.dumps(result).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(payload)
+        def do_GET(self):
+            if self.path.startswith('/authorize?'):
+                q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+                assert q['code_challenge_method']==['S256'] and len(q['code_challenge'][0])>=40
+                target=q['redirect_uri'][0]+'?'+urllib.parse.urlencode({'state':q['state'][0],'code':'synthetic-code'})
+                self.send_response(302);self.send_header('Location',target);self.end_headers()
+            else:self.send_response(200);self.end_headers();self.wfile.write(b'Authorized')
+    server=ThreadingHTTPServer(('127.0.0.1',0),Provider)
+    provider_url='http://127.0.0.1:'+str(server.server_address[1])
+    thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+    try:
+        for mode in ['device_code','authorization_code']:
+            operation,_=invoke('oauth',dict(mode=mode,slot='oauth',client_id='synthetic-client',token_url=provider_url+'/token',authorization_url=provider_url+'/authorize',device_authorization_url=provider_url+'/device',scope='synthetic'))
+            interaction=wait(lambda:next((i for i in control('activity',instance_id=identity).get('interactions',[]) if i['request']['kind'] in ['open_url','device_code']),None),'synthetic authorization UI')
+            with urllib.request.urlopen(interaction['request']['url'],timeout=10) as response:assert response.status==200
+            control('interaction',instance_id=identity,id=interaction['id'],response={'confirmed':True})
+            receipt=wait(lambda:r if (r:=api('/plugins/operations/'+operation))['state'] in ['succeeded','failed'] else None,'synthetic OAuth completed')
+            assert receipt['state']=='succeeded',receipt.get('error')
+            assert receipt['result']=={'authorized':True}
+    finally:server.shutdown();server.server_close()
+    assert instance_now()['credential_status']['oauth']
+    assert 'synthetic-access-token' not in json.dumps(api('/plugins/operations?instance='+identity))
+    check('generic OAuth device-code and authorization-code/PKCE with device-only token storage')
+
     for b in (observer,save_hook,prepared_hook):api('/plugins/bindings','POST',{**b,'enabled':False})
     control('disable',instance_id=identity)
     assert instance_now()['state']=='disabled'

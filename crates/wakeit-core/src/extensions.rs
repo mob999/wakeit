@@ -550,3 +550,12 @@ pub fn schema() -> Value {
     );
     schema
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum DeliveryOutcome {
+    Success { result: Value },
+    RetryAfter { seconds: u64, message: String },
+    PermanentFailure { message: String },
+    Uncertain { message: String },
+}

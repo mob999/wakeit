@@ -120,7 +120,14 @@ pub(crate) async fn hello(
         return Err(Error::conflict("another runner process is still active"));
     }
     bus::provision(&s.js, id, b.concurrency).await?;
-    Ok(Json(json!({"ok":true})))
+    let public: String = sqlx::query_scalar("SELECT public_key FROM runners WHERE id=$1")
+        .bind(id)
+        .fetch_one(&s.pool)
+        .await?;
+    let jwt = s.authority.runner_jwt(id, &public)?;
+    Ok(Json(
+        json!({"ok":true,"extension_protocol":1,"nats_jwt":jwt}),
+    ))
 }
 
 pub(crate) async fn heartbeat(

@@ -235,6 +235,59 @@ impl Runner {
             active.cancel.cancel();
         }
         self.active.lock().await.insert(id, active.clone());
+        if run.assignment.task.session.is_none()
+            && let Some(title) = &run.session_title
+        {
+            let proposal = self
+                .extensions
+                .hooks(
+                    "session.title.prepare",
+                    json!({"title":title,"run_id":id,"task_id":run.assignment.task.id}),
+                    active.cancel.clone(),
+                )
+                .await;
+            match proposal {
+                Ok(value) => {
+                    let title = value["title"]
+                        .as_str()
+                        .filter(|s| {
+                            !s.trim().is_empty()
+                                && s.len() <= 200
+                                && !s.chars().any(char::is_control)
+                        })
+                        .context("invalid plugin session title");
+                    match title {
+                        Ok(title) => {
+                            sqlx::query("UPDATE local_runs SET session_title=? WHERE id=?")
+                                .bind(title)
+                                .bind(id.to_string())
+                                .execute(&self.journal.pool)
+                                .await?;
+                            run.session_title = Some(title.to_owned());
+                        }
+                        Err(error) => {
+                            self.state(id, "failed", Some(&error.to_string()), None, Some("done"))
+                                .await?;
+                            self.active.lock().await.remove(&id);
+                            return Ok(());
+                        }
+                    }
+                }
+                Err(error) => {
+                    self.state(
+                        id,
+                        "failed",
+                        Some(&format!("session.title.prepare: {error}")),
+                        None,
+                        Some("done"),
+                    )
+                    .await?;
+                    self.active.lock().await.remove(&id);
+                    return Ok(());
+                }
+            }
+        }
+
         let prepare_started = tokio::time::Instant::now();
         let budget = duration(
             run.assignment
@@ -299,11 +352,34 @@ impl Runner {
                 return Ok(());
             }
         };
-        run.assignment.task.prompt = serde_json::from_value(prepared["prompt"].clone())?;
-        run.assignment.task.parameters = crate::config::resolve_parameters(
-            &run.agent.parameters,
-            &serde_json::from_value(prepared["parameters"].clone())?,
-        )?;
+        let resolved: Result<(String, std::collections::BTreeMap<String, String>)> = async {
+            let prompt: String = serde_json::from_value(prepared["prompt"].clone())?;
+            ensure!(prompt.len() <= 1024 * 1024, "Hook prompt exceeds 1 MiB");
+            let parameters = crate::config::resolve_parameters(
+                &run.agent.parameters,
+                &serde_json::from_value(prepared["parameters"].clone())?,
+            )?;
+            Ok((prompt, parameters))
+        }
+        .await;
+        match resolved {
+            Ok((prompt, parameters)) => {
+                run.assignment.task.prompt = prompt;
+                run.assignment.task.parameters = parameters;
+            }
+            Err(e) => {
+                self.state(
+                    id,
+                    "failed",
+                    Some(&format!("execution.prepare: {e}")),
+                    None,
+                    Some("done"),
+                )
+                .await?;
+                self.active.lock().await.remove(&id);
+                return Ok(());
+            }
+        }
         let remaining = budget.saturating_sub(prepare_started.elapsed());
         run.assignment.task.execution.timeout = Some(format!("{}ms", remaining.as_millis().max(1)));
         self.journal.resolved(&run.assignment).await?;
@@ -471,10 +547,11 @@ impl Runner {
                 let value = out.result_value(&run.agent.output);
                 let value = match value {
                     Ok(value) if state == "succeeded" => {
-                        self.journal.extension_result(id, "native", &value).await?;
+                        let native_ref =
+                            self.journal.extension_result(id, "native", &value).await?;
                         match self.extensions.hooks("result.publish.prepare",json!({"result":value,"run_id":id,"task_id":run.assignment.task.id}),active.cancel.clone()).await {
                             Ok(processed)=>{let effective=processed["result"].clone();self.journal.extension_result(id,"effective",&effective).await?;Ok(effective)},
-                            Err(error)=>Err(anyhow::anyhow!("result.publish.prepare: {error}"))
+                            Err(error)=>{self.journal.emit(id,"snapshot",json!({"failure_phase":"postprocess","native_result_ref":native_ref}),None).await?;Err(anyhow::anyhow!("result.publish.prepare: {error}"))}
                         }
                     }
                     other => other,

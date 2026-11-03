@@ -4,23 +4,127 @@
   "version": "1.0.0",
   "wakeit": {
     "protocol": 1,
-    "runtimes": ["node"],
+    "runtimes": [
+      "node"
+    ],
     "extensions": {
       "generic": {
         "name": "Generic extension",
         "command": "node",
-        "args": ["{{plugin.root}}/extension.ts"],
-        "config": {"type":"object","properties":{"prefix":{"type":"string","default":"fixture"}},"required":["prefix"],"additionalProperties":false},
-        "credentials": {"fixture":{"label":"Synthetic credential","required":false}},
-        "permissions": ["events:read", "tasks:read", "hooks:execution.prepare", "hooks:task.save.prepare"],
-        "handlers": {"completed":{"events":["run.finished"]}},
-        "hooks": {"prepare":{"stage":"execution.prepare"},"save":{"stage":"task.save.prepare"}},
-        "actions": {
-          "echo":{"label":"Echo synthetic input","input":{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}},
-          "interact":{"label":"Request synthetic input","input":{"type":"object"}},
-          "wait":{"label":"Wait for cancellation","input":{"type":"object"}}
+        "args": [
+          "{{plugin.root}}/extension.ts"
+        ],
+        "config": {
+          "type": "object",
+          "properties": {
+            "prefix": {
+              "type": "string",
+              "default": "fixture"
+            }
+          },
+          "required": [
+            "prefix"
+          ],
+          "additionalProperties": false
         },
-        "providers": {"fixture-models":{"kind":"models"}}
+        "credentials": {
+          "fixture": {
+            "label": "Synthetic credential",
+            "required": false
+          },
+          "oauth": {
+            "label": "Synthetic OAuth credential",
+            "required": false
+          }
+        },
+        "permissions": [
+          "events:read",
+          "tasks:read",
+          "hooks:execution.prepare",
+          "hooks:task.save.prepare",
+          "files:read",
+          "files:watch",
+          "artifacts:read",
+          "artifacts:write",
+          "results:read",
+          "auth:manage",
+          "process:execute",
+          "hooks:result.publish.prepare"
+        ],
+        "handlers": {
+          "completed": {
+            "events": [
+              "run.finished"
+            ]
+          }
+        },
+        "hooks": {
+          "prepare": {
+            "stage": "execution.prepare"
+          },
+          "save": {
+            "stage": "task.save.prepare"
+          },
+          "publish": {
+            "stage": "result.publish.prepare"
+          }
+        },
+        "actions": {
+          "echo": {
+            "label": "Echo synthetic input",
+            "input": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ]
+            }
+          },
+          "interact": {
+            "label": "Request synthetic input",
+            "input": {
+              "type": "object"
+            }
+          },
+          "wait": {
+            "label": "Wait for cancellation",
+            "input": {
+              "type": "object"
+            }
+          },
+          "host-queries": {
+            "label": "Inspect generic host APIs",
+            "input": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "oauth": {
+            "label": "Authorize against synthetic provider",
+            "input": {
+              "type": "object"
+            }
+          },
+          "postprocess-mode": {
+            "label": "Set synthetic processing mode",
+            "input": {
+              "type": "object"
+            }
+          }
+        },
+        "providers": {
+          "fixture-models": {
+            "kind": "models"
+          }
+        }
       }
     }
   }

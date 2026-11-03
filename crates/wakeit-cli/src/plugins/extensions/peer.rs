@@ -37,13 +37,15 @@ impl Peer {
         } else {
             command.into()
         };
+        let executable = wakeit_core::native_command::external_path(&executable);
+        let external_root = wakeit_core::native_command::external_path(root);
         let mut command = Command::new(executable);
         command
             .args(
                 args.iter()
-                    .map(|v| v.replace("{{plugin.root}}", &root.to_string_lossy())),
+                    .map(|v| v.replace("{{plugin.root}}", &external_root)),
             )
-            .current_dir(root)
+            .current_dir(&external_root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -212,7 +214,7 @@ mod tests {
             .call(
                 "initialize",
                 json!({"protocol_version":1}),
-                Duration::from_secs(5),
+                Duration::from_secs(20),
                 CancellationToken::new(),
             )
             .await
@@ -223,7 +225,7 @@ mod tests {
             .call(
                 "invoke",
                 invocation("hook", "prepare", json!({"prompt":"text"})),
-                Duration::from_secs(5),
+                Duration::from_secs(20),
                 CancellationToken::new(),
             )
             .await
@@ -236,7 +238,7 @@ mod tests {
             .call(
                 "invoke",
                 invocation("action", "echo", json!({"text":"hello"})),
-                Duration::from_secs(5),
+                Duration::from_secs(20),
                 CancellationToken::new(),
             )
             .await

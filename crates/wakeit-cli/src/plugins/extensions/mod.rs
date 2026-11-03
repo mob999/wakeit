@@ -4,10 +4,12 @@ use self::peer::Peer;
 use self::storage as store;
 use super::manifest;
 mod auth;
+mod files;
 mod host;
 mod management;
 mod peer;
 mod storage;
+mod watch;
 use crate::runner::{config::RunnerConfig, journal::Journal};
 use anyhow::{Context, Result, bail, ensure};
 use serde_json::{Value, json};
@@ -25,6 +27,7 @@ pub struct Runtime {
     peers: Arc<Mutex<HashMap<Uuid, Peer>>>,
     calls: Arc<Mutex<HashMap<Uuid, CancellationToken>>>,
     responses: Arc<Mutex<HashMap<String, Value>>>,
+    watches: Arc<Mutex<HashMap<Uuid, watch::Watch>>>,
     http: reqwest::Client,
     token: Arc<String>,
     stop: CancellationToken,
@@ -35,10 +38,20 @@ impl Runtime {
         journal: Journal,
         stop: CancellationToken,
     ) -> Result<Self> {
+        crate::runner::config::private_directory(&config.data_dir)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                config.data_dir.join("journal.sqlite"),
+                std::fs::Permissions::from_mode(0o600),
+            )?;
+        }
         store::initialize(&journal.pool).await?;
         self::auth::initialize(&journal.pool).await?;
         Ok(Self {
             responses: Default::default(),
+            watches: Default::default(),
             token: Arc::new(std::fs::read_to_string(&config.token_file)?),
             http: reqwest::Client::new(),
             config,
@@ -72,10 +85,11 @@ impl Runtime {
         for p in super::packages(&super::registry()?, self.config.bundled_agents)? {
             match manifest::read(&p.root){Ok(m)=>packages.push(json!({"source":p.source.identity(),"name":m.name,"version":m.version,"extensions":m.wakeit.extensions,"agents":m.wakeit.agents.keys().collect::<Vec<_>>(),"commands":m.wakeit.commands.keys().collect::<Vec<_>>() })),Err(e)=>packages.push(json!({"source":p.source.identity(),"error":e.to_string()}))}
         }
-        let rows =
-            sqlx::query("SELECT id,source,extension FROM extension_instances ORDER BY name,id")
-                .fetch_all(&self.journal.pool)
-                .await?;
+        let rows = sqlx::query(
+            "SELECT id,source,extension FROM extension_instances WHERE removed=0 ORDER BY name,id",
+        )
+        .fetch_all(&self.journal.pool)
+        .await?;
         let mut instances = Vec::new();
         for row in rows {
             let id: Uuid = row.get::<String, _>("id").parse()?;
@@ -279,6 +293,7 @@ impl Runtime {
         cancel: CancellationToken,
     ) -> Result<Value> {
         let mut instance = self.instance(invocation.instance_id).await?;
+        ensure!(instance.enabled, "extension is disabled");
         let mut retired_root = None;
         if let Some(revision) = invocation.expected_revision
             && revision != instance.revision
@@ -406,6 +421,20 @@ impl Runtime {
         }
         self.calls.lock().await.remove(&invocation.id);
         let (state, value, error) = match &result {
+            Ok(value) if value["outcome"] == "uncertain" => (
+                "uncertain",
+                Some(value.to_string()),
+                value["message"].as_str().map(str::to_owned),
+            ),
+            Ok(value)
+                if value["outcome"] == "retry_after" || value["outcome"] == "permanent_failure" =>
+            {
+                (
+                    "failed",
+                    Some(value.to_string()),
+                    value["message"].as_str().map(str::to_owned),
+                )
+            }
             Ok(value) => ("succeeded", Some(value.to_string()), None),
             Err(error) => (
                 "failed",
@@ -429,6 +458,18 @@ impl Runtime {
         for row in rows {
             let binding: wakeit_core::extensions::Binding = serde_json::from_str(&row)?;
             if !binding.enabled || binding.kind != "hook" || binding.event != stage {
+                continue;
+            }
+            let accepted = binding.filter.iter().all(|(key, value)| {
+                let actual = proposal
+                    .pointer(&format!("/{}", key.replace('.', "/")))
+                    .unwrap_or(&Value::Null);
+                value
+                    .as_array()
+                    .map(|a| a.contains(actual))
+                    .unwrap_or(value == actual)
+            });
+            if !accepted {
                 continue;
             }
             let instance = self.instance(binding.instance_id).await?;
@@ -496,7 +537,7 @@ impl Runtime {
         let mut sub = client.subscribe(subject).await?;
         let tick = self.clone();
         tokio::spawn(async move {
-            let _ = tick.worker().await;
+            let _ = tick.worker(runtime).await;
         });
         while let Some(msg) = tokio::select! {_=self.stop.cancelled()=>None,msg=sub.next()=>msg} {
             let Some(reply) = msg.reply else { continue };
@@ -545,8 +586,9 @@ impl Runtime {
         }
         Ok(())
     }
-    async fn worker(&self) -> Result<()> {
+    async fn worker(&self, runtime: Uuid) -> Result<()> {
         let mut tick = tokio::time::interval(Duration::from_secs(2));
+        let mut health_tick = 0u32;
         loop {
             tokio::select! {_=self.stop.cancelled()=>break,_=tick.tick()=>{}}
             let events=sqlx::query("SELECT id,event_type,instance,data,created_at FROM extension_events WHERE published=0 AND event_type NOT IN ('log.write','health.report') ORDER BY created_at,id LIMIT 50").fetch_all(&self.journal.pool).await?;
@@ -572,11 +614,19 @@ impl Runtime {
                     }
                 }
             }
-            let enabled: Vec<String> = sqlx::query_scalar(
-                "SELECT id FROM extension_instances WHERE enabled=1 AND state!='failed'",
-            )
-            .fetch_all(&self.journal.pool)
-            .await?;
+            let dead = self
+                .peers
+                .lock()
+                .await
+                .iter()
+                .filter(|(_, peer)| !peer.running())
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>();
+            for id in dead {
+                self.peers.lock().await.remove(&id);
+                sqlx::query("UPDATE extension_instances SET state='failed',error='Extension process disconnected',restart_attempts=restart_attempts+1,next_start=datetime('now','+'||min(60,2*restart_attempts+2)||' seconds') WHERE id=? AND enabled=1").bind(id.to_string()).execute(&self.journal.pool).await?;
+            }
+            let enabled:Vec<String>=sqlx::query_scalar("SELECT id FROM extension_instances WHERE enabled=1 AND removed=0 AND restart_attempts<5 AND (next_start IS NULL OR next_start<=datetime('now'))").fetch_all(&self.journal.pool).await?;
             for id in enabled {
                 let id: Uuid = id.parse()?;
                 let pending:bool=sqlx::query_scalar("SELECT state='pending' AND NOT EXISTS(SELECT 1 FROM extension_invocations c WHERE c.instance=extension_instances.id AND c.state='running') FROM extension_instances WHERE id=?").bind(id.to_string()).fetch_one(&self.journal.pool).await?;
@@ -586,14 +636,44 @@ impl Runtime {
                     self.peer(id).await.map(|_| ())
                 };
                 if let Err(error) = result {
-                    sqlx::query("UPDATE extension_instances SET state='failed',error=? WHERE id=?")
+                    sqlx::query("UPDATE extension_instances SET state='failed',error=?,restart_attempts=restart_attempts+1,next_start=datetime('now','+'||min(60,2*restart_attempts+2)||' seconds') WHERE id=?")
                         .bind(error.to_string())
                         .bind(id.to_string())
                         .execute(&self.journal.pool)
                         .await?;
                 }
             }
-            let catalog = self.catalog().await?;
+            health_tick += 1;
+            if health_tick >= 15 {
+                health_tick = 0;
+                let peers = self.peers.lock().await.clone();
+                for (id, peer) in peers {
+                    let health = peer
+                        .call(
+                            "health",
+                            json!({}),
+                            Duration::from_secs(5),
+                            self.stop.child_token(),
+                        )
+                        .await;
+                    match health {
+                        Ok(value) if value["state"] != "failed" => {
+                            sqlx::query("UPDATE extension_instances SET restart_attempts=0,next_start=NULL WHERE id=? AND state='running'").bind(id.to_string()).execute(&self.journal.pool).await?;
+                        }
+                        _ => peer.stop(),
+                    }
+                }
+            }
+            let mut catalog = self.catalog().await?;
+            catalog["runtime_id"] = json!(runtime);
+            catalog["active_invocations"] = json!(
+                self.calls
+                    .lock()
+                    .await
+                    .keys()
+                    .map(Uuid::to_string)
+                    .collect::<Vec<_>>()
+            );
             let response = self
                 .http
                 .post(format!(
@@ -638,12 +718,26 @@ impl Runtime {
                             command["params"].clone(),
                         )
                         .await;
-                    let body = match result {
+                    let mut body = match result {
+                        Ok(v) if v["outcome"] == "uncertain" => {
+                            json!({"id":command["id"],"state":"uncertain","error":v["message"]})
+                        }
+                        Ok(v) if v["outcome"] == "retry_after" => {
+                            json!({"id":command["id"],"state":"failed","retryable":true,"retry_after":v["seconds"],"error":v["message"]})
+                        }
+                        Ok(v) if v["outcome"] == "permanent_failure" => {
+                            json!({"id":command["id"],"state":"failed","retryable":false,"error":v["message"]})
+                        }
                         Ok(v) => json!({"id":command["id"],"state":"succeeded","result":v}),
                         Err(e) => {
-                            json!({"id":command["id"],"state":"failed","error":e.to_string()})
+                            let message = e.to_string();
+                            let uncertain = message.contains("invocation uncertain")
+                                || message.contains("extension disconnected")
+                                || message.contains("extension call timed out");
+                            json!({"id":command["id"],"state":if uncertain{"uncertain"}else{"failed"},"error":message,"retryable":false})
                         }
                     };
+                    body["runtime_id"] = json!(runtime);
                     let _ = this
                         .http
                         .post(format!(

@@ -76,6 +76,25 @@ pub async fn ingest(pool: &PgPool, e: &RunEvent, log_limit: usize) -> Result<()>
         .execute(&mut *tx)
         .await?;
     }
+    if kind == "snapshot" && data.get("agent_digest").is_none() {
+        let allowed = [
+            "effective_prompt",
+            "parameters",
+            "plugin_prepared",
+            "failure_phase",
+            "native_result_ref",
+        ];
+        let patch: serde_json::Map<String, Value> = data
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter(|(key, _)| allowed.contains(&key.as_str()))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        if !patch.is_empty() {
+            sqlx::query("UPDATE runs SET execution_snapshot=COALESCE(execution_snapshot,'{}'::jsonb)||$2 WHERE id=$1").bind(e.run_id).bind(Value::Object(patch)).execute(&mut *tx).await?;
+        }
+    }
     if kind == "session" && e.seq > row.get::<i64, _>("session_seq") {
         // Unknown or malformed metadata cannot poison the reliable event consumer.
         if let Ok(mut session) =

@@ -16,6 +16,12 @@ export type Schema = {
   maximum?: number
   minItems?: number
   maxItems?: number
+  oneOf?: Schema[]
+  anyOf?: Schema[]
+  if?: Schema
+  then?: Schema
+  else?: Schema
+  const?: unknown
   minLength?: number
   maxLength?: number
   format?: string
@@ -157,4 +163,16 @@ export function PluginFields({
       <div className="plugin-field-control">{field}</div>
     </div>
   )
+}
+
+export function schemaDefaults(schema: Schema): unknown {
+  if (schema.default !== undefined) return schema.default
+  if (schema.type === 'object' || schema.properties)
+    return Object.fromEntries(
+      Object.entries(schema.properties ?? {}).flatMap(([key, value]) => {
+        const initial = schemaDefaults(value)
+        return initial === undefined ? [] : [[key, initial]]
+      }),
+    )
+  return undefined
 }

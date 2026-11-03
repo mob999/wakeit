@@ -94,6 +94,34 @@ impl Runtime {
                 }
                 Ok(json!({"state":"running","version":version}))
             }
+            "reprocess_result" => {
+                let run: Uuid = params["run_id"]
+                    .as_str()
+                    .context("Run ID required")?
+                    .parse()?;
+                let row=sqlx::query("SELECT id,data FROM extension_results WHERE run_id=? AND kind='native' ORDER BY created_at DESC,id DESC LIMIT 1").bind(run.to_string()).fetch_one(&self.journal.pool).await?;
+                let local = self
+                    .journal
+                    .get(run)
+                    .await?
+                    .context("local execution missing")?;
+                let native: Value = serde_json::from_str(row.get("data"))?;
+                let processed = self
+                    .hooks(
+                        "result.publish.prepare",
+                        json!({"run_id":run,"task_id":local.assignment.task.id,"result":native}),
+                        self.stop.child_token(),
+                    )
+                    .await?;
+                let effective = self
+                    .journal
+                    .extension_result(run, "effective", &processed["result"])
+                    .await?;
+                Ok(
+                    json!({"run_id":run,"result":processed["result"],"result_ref":effective,"native_result_ref":row.get::<String,_>("id")}),
+                )
+            }
+            "file_read" => super::files::read(self, &params).await,
             "catalog" => self.catalog().await,
             "create" => {
                 let source = params["source"].as_str().context("source required")?;
@@ -115,14 +143,18 @@ impl Runtime {
                 let id = id.context("instance required")?;
                 let instance = self.instance(id).await?;
                 let update: ConfigUpdate = serde_json::from_value(params["update"].clone())?;
-                if let Some(peer) = self
+                wakeit_core::extensions::validate_schema(
+                    &instance.declaration.config,
+                    &update.config,
+                )?;
+                let existing = self
                     .peers
                     .lock()
                     .await
                     .get(&id)
                     .cloned()
-                    .filter(Peer::running)
-                {
+                    .filter(Peer::running);
+                if let Some(peer) = existing {
                     peer.call(
                         "validateConfig",
                         json!({"config":update.config}),
@@ -130,6 +162,25 @@ impl Runtime {
                         self.stop.child_token(),
                     )
                     .await?;
+                } else {
+                    let root: String =
+                        sqlx::query_scalar("SELECT root FROM extension_instances WHERE id=?")
+                            .bind(id.to_string())
+                            .fetch_one(&self.journal.pool)
+                            .await?;
+                    let candidate = self
+                        .spawn_instance(&instance, std::path::Path::new(&root), false)
+                        .await?;
+                    let result = candidate
+                        .call(
+                            "validateConfig",
+                            json!({"config":update.config}),
+                            Duration::from_secs(20),
+                            self.stop.child_token(),
+                        )
+                        .await;
+                    candidate.stop();
+                    result?;
                 }
                 let result =
                     store::save(&self.journal.pool, id, update, &instance.declaration).await?;
@@ -147,7 +198,16 @@ impl Runtime {
                         &instance.declaration.config,
                         &instance.config,
                     )?;
-                    sqlx::query("UPDATE extension_instances SET enabled=1,state='starting',revision=revision+1 WHERE id=?").bind(id.to_string()).execute(&self.journal.pool).await?;
+                    ensure!(
+                        instance
+                            .declaration
+                            .credentials
+                            .iter()
+                            .all(|(id, slot)| !slot.required
+                                || instance.credential_status.get(id) == Some(&true)),
+                        "required credentials are not configured"
+                    );
+                    sqlx::query("UPDATE extension_instances SET enabled=1,state='starting',revision=revision+1,restart_attempts=0,next_start=NULL WHERE id=?").bind(id.to_string()).execute(&self.journal.pool).await?;
                     self.peer(id).await?;
                 } else {
                     sqlx::query("UPDATE extension_instances SET enabled=0,state='disabled',revision=revision+1 WHERE id=?").bind(id.to_string()).execute(&self.journal.pool).await?;
@@ -166,8 +226,13 @@ impl Runtime {
                 Ok(serde_json::to_value(self.instance(id).await?)?)
             }
             "invoke" => {
-                self.invoke(serde_json::from_value(params["invocation"].clone())?)
-                    .await
+                let mut invocation: Invocation =
+                    serde_json::from_value(params["invocation"].clone())?;
+                if invocation.kind == "action" {
+                    let value=self.hooks("action.prepare",json!({"input":invocation.input,"instance_id":invocation.instance_id,"handler":invocation.handler}),self.stop.child_token()).await?;
+                    invocation.input = value["input"].clone();
+                }
+                self.invoke(invocation).await
             }
             "cancel" => {
                 let call: Uuid = params["invocation_id"]
@@ -205,6 +270,12 @@ impl Runtime {
                 )
             }
             "reload" => {
+                sqlx::query(
+                    "UPDATE extension_instances SET restart_attempts=0,next_start=NULL WHERE id=?",
+                )
+                .bind(id.context("instance required")?.to_string())
+                .execute(&self.journal.pool)
+                .await?;
                 self.reload(id.context("instance required")?).await?;
                 Ok(json!({"state":"running"}))
             }
@@ -212,6 +283,10 @@ impl Runtime {
                 let id = id.context("instance required")?;
                 let instance = self.instance(id).await?;
                 ensure!(!instance.enabled, "disable extension before removal");
+                sqlx::query("UPDATE extension_instances SET removed=1,state='removed' WHERE id=?")
+                    .bind(id.to_string())
+                    .execute(&self.journal.pool)
+                    .await?;
                 if params["clear_data"] == true {
                     let mut tx = self.journal.pool.begin().await?;
                     for table in [

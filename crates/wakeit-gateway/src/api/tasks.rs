@@ -118,6 +118,18 @@ pub(crate) async fn apply(
         return Err(Error::bad("Hook changed Task identity"));
     }
     b.config.validate().map_err(|e| Error::bad(e.to_string()))?;
+    if b.config.enabled {
+        crate::store::plugins::gate(
+            &s.pool,
+            workspace,
+            u.id,
+            &crate::api::plugins::hook_key(&h),
+            "task.activation.prepare",
+            json!({"task_id":id,"enabled":true}),
+        )
+        .await
+        .map_err(|e| Error::bad(e.to_string()))?;
+    }
     Ok(Json(
         store::tasks::apply_task(
             &s.pool,
@@ -166,6 +178,18 @@ pub(crate) async fn archive_change(
 ) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
     let u = user(&s, &h, "operator", true).await?;
+    if !archived {
+        crate::store::plugins::gate(
+            &s.pool,
+            workspace,
+            u.id,
+            &crate::api::plugins::hook_key(&h),
+            "task.activation.prepare",
+            json!({"task_id":id,"restoring":true}),
+        )
+        .await
+        .map_err(|e| Error::bad(e.to_string()))?;
+    }
     Ok(Json(
         store::tasks::set_archived(
             &s.pool,

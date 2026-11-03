@@ -109,6 +109,25 @@ pub async fn check_member(
     {
         return Err(PermissionDenied("insufficient permissions").into());
     }
+    let plugin: Option<Uuid> = sqlx::query_scalar(
+        "SELECT instance_id FROM plugin_api_tokens WHERE hash=$1 AND expires_at>now()",
+    )
+    .bind(credential)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if plugin.is_some() {
+        let context =
+            sqlx::query("SELECT causation_id,causation_depth FROM plugin_api_tokens WHERE hash=$1")
+                .bind(credential)
+                .fetch_one(&mut **tx)
+                .await?;
+        sqlx::query("SELECT set_config('wakeit.causation_id',$1,true),set_config('wakeit.causation_depth',$2,true)").bind(context.get::<Option<Uuid>,_>("causation_id").map(|id|id.to_string()).unwrap_or_default()).bind(context.get::<i32,_>("causation_depth").to_string()).execute(&mut **tx).await?;
+    }
+    let actor = serde_json::json!({"kind":if plugin.is_some(){"plugin"}else{"user"},"id":plugin.unwrap_or(row.get("id")),"user_id":row.get::<Uuid,_>("id"),"roles":[row.get::<String,_>("role")]});
+    sqlx::query("SELECT set_config('wakeit.actor',$1,true)")
+        .bind(actor.to_string())
+        .execute(&mut **tx)
+        .await?;
     Ok(row.get("id"))
 }
 

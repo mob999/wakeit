@@ -100,6 +100,16 @@ impl Journal {
             session_locks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         })
     }
+    pub async fn extension_event(&self, event_type: &str, data: Value) -> Result<Uuid> {
+        let id = Uuid::new_v4();
+        sqlx::query("INSERT INTO extension_events(id,event_type,data) VALUES(?,?,?)")
+            .bind(id.to_string())
+            .bind(event_type)
+            .bind(data.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(id)
+    }
     pub async fn extension_result(&self, run: Uuid, kind: &str, data: &Value) -> Result<Uuid> {
         let id = Uuid::new_v4();
         let mut tx = self.pool.begin().await?;
@@ -337,6 +347,7 @@ impl Journal {
         id: Uuid,
         mut session: crate::runner::sessions::RunSession,
     ) -> Result<()> {
+        let previous = self.session(id).await?;
         self.name_session(id, &mut session).await?;
         let mut tx = self.pool.begin().await?;
         let row =
@@ -352,7 +363,7 @@ impl Journal {
             claim_id: row.get::<String, _>("claim").parse()?,
             seq: row.get("seq"),
             kind: "session".into(),
-            data: serde_json::to_value(session)?,
+            data: serde_json::to_value(&session)?,
             timestamp: Utc::now(),
         };
         sqlx::query("INSERT INTO pending_events(run_id,seq,payload) VALUES(?,?,?)")
@@ -361,6 +372,18 @@ impl Journal {
             .bind(serde_json::to_string(&event)?)
             .execute(&mut *tx)
             .await?;
+        let event_type = if previous.is_none() {
+            Some("session.bound")
+        } else if previous.as_ref().is_some_and(|p| p.title != session.title) {
+            Some("session.title_changed")
+        } else if previous.as_ref().is_some_and(|p| p.ready != session.ready) {
+            Some("session.availability_changed")
+        } else {
+            None
+        };
+        if let Some(event_type) = event_type {
+            sqlx::query("INSERT INTO extension_events(id,event_type,data) VALUES(?,?,?)").bind(Uuid::new_v4().to_string()).bind(event_type).bind(json!({"run_id":id,"session_id":session.id,"title":session.title,"ready":session.ready}).to_string()).execute(&mut *tx).await?;
+        }
         tx.commit().await?;
         Ok(())
     }
@@ -379,6 +402,10 @@ impl Journal {
             .bind(Utc::now().to_rfc3339())
             .execute(&self.pool)
             .await?;
+        if phase == "claimed" {
+            self.extension_event("execution.claimed", json!({"run_id":id}))
+                .await?;
+        }
         if matches!(phase, "done" | "unknown") {
             locks.remove(&id);
         }
@@ -388,6 +415,8 @@ impl Journal {
         sqlx::query("INSERT OR IGNORE INTO cancellations(run_id) VALUES(?)")
             .bind(id.to_string())
             .execute(&self.pool)
+            .await?;
+        self.extension_event("execution.cancel_requested", json!({"run_id":id}))
             .await?;
         Ok(())
     }
