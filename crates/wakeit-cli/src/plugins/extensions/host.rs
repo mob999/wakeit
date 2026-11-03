@@ -17,8 +17,14 @@ impl Host for InstanceHost {
             let current = runtime.instance(id).await?;
             ensure!(
                 current.enabled
-                    || ["config.get", "credentials.status", "runtime.info"]
-                        .contains(&method.as_str()),
+                    || method.starts_with("storage.")
+                    || [
+                        "config.get",
+                        "credentials.status",
+                        "runtime.info",
+                        "log.write"
+                    ]
+                    .contains(&method.as_str()),
                 "extension was disabled"
             );
             instance.grants = current.grants.clone();
@@ -482,28 +488,15 @@ impl Host for InstanceHost {
                     if let Some(object) = data.as_object_mut() {
                         object.remove("invocation_id");
                     }
+                    let text = runtime.redact(id, &data.to_string()).await;
                     if method == "health.report" {
+                        let message = data["message"].as_str().unwrap_or("");
+                        let message = runtime.redact(id, message).await;
                         sqlx::query("UPDATE extension_instances SET error=? WHERE id=?")
-                            .bind(data["message"].as_str())
+                            .bind(message)
                             .bind(id.to_string())
                             .execute(&runtime.journal.pool)
                             .await?;
-                    }
-                    let mut text = data.to_string();
-                    let secrets: String =
-                        sqlx::query_scalar("SELECT secrets FROM extension_instances WHERE id=?")
-                            .bind(id.to_string())
-                            .fetch_one(&runtime.journal.pool)
-                            .await?;
-                    let secrets: Value = serde_json::from_str(&secrets)?;
-                    for secret in secrets
-                        .as_object()
-                        .into_iter()
-                        .flat_map(|o| o.values())
-                        .filter_map(Value::as_str)
-                        .filter(|s| !s.is_empty())
-                    {
-                        text = text.replace(secret, "[redacted]");
                     }
                     sqlx::query(
                         "INSERT INTO extension_events(id,event_type,instance,data) VALUES(?,?,?,?)",
@@ -514,6 +507,7 @@ impl Host for InstanceHost {
                     .bind(text)
                     .execute(&runtime.journal.pool)
                     .await?;
+                    sqlx::query("DELETE FROM extension_events WHERE instance=? AND event_type IN ('log.write','health.report') AND rowid NOT IN (SELECT rowid FROM extension_events WHERE instance=? AND event_type IN ('log.write','health.report') ORDER BY rowid DESC LIMIT 1000)").bind(id.to_string()).bind(id.to_string()).execute(&runtime.journal.pool).await?;
                     Ok(json!({"accepted":true}))
                 }
                 _ => {

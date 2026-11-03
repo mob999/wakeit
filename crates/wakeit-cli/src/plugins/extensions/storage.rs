@@ -6,7 +6,7 @@ use uuid::Uuid;
 use wakeit_core::extensions::{ConfigUpdate, Extension, Instance, SecretUpdate};
 
 pub async fn initialize(pool: &SqlitePool) -> Result<()> {
-    sqlx::raw_sql("CREATE TABLE IF NOT EXISTS extension_instances(id TEXT PRIMARY KEY,source TEXT NOT NULL,extension TEXT NOT NULL,name TEXT NOT NULL,root TEXT NOT NULL,declaration TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,enabled INTEGER NOT NULL DEFAULT 0,removed INTEGER NOT NULL DEFAULT 0,version TEXT NOT NULL,grants TEXT NOT NULL DEFAULT '[]',config TEXT NOT NULL DEFAULT '{}',secrets TEXT NOT NULL DEFAULT '{}',state TEXT NOT NULL DEFAULT 'disabled',applied_revision INTEGER,error TEXT,restart_attempts INTEGER NOT NULL DEFAULT 0,next_start TEXT);CREATE TABLE IF NOT EXISTS extension_versions(instance TEXT NOT NULL,revision INTEGER NOT NULL,snapshot TEXT NOT NULL,PRIMARY KEY(instance,revision));CREATE TABLE IF NOT EXISTS extension_bindings(id TEXT PRIMARY KEY,position INTEGER NOT NULL,binding TEXT NOT NULL);CREATE TABLE IF NOT EXISTS extension_storage(instance TEXT NOT NULL,key TEXT NOT NULL,value TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(instance,key));CREATE TABLE IF NOT EXISTS extension_invocations(id TEXT PRIMARY KEY,instance TEXT NOT NULL,kind TEXT NOT NULL,handler TEXT NOT NULL,input TEXT NOT NULL,state TEXT NOT NULL,result TEXT,error TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,finished_at TEXT);CREATE TABLE IF NOT EXISTS extension_package_versions(source TEXT PRIMARY KEY,version TEXT NOT NULL);CREATE TABLE IF NOT EXISTS extension_operations(id TEXT PRIMARY KEY,instance TEXT NOT NULL,result TEXT NOT NULL);CREATE TABLE IF NOT EXISTS extension_interactions(id TEXT PRIMARY KEY,invocation TEXT NOT NULL,instance TEXT NOT NULL,request TEXT NOT NULL,response TEXT,state TEXT NOT NULL DEFAULT 'waiting');CREATE TABLE IF NOT EXISTS extension_artifacts(id TEXT PRIMARY KEY,instance TEXT NOT NULL,name TEXT NOT NULL,reference TEXT NOT NULL,metadata TEXT NOT NULL,expires_at TEXT);CREATE TABLE IF NOT EXISTS extension_events(id TEXT PRIMARY KEY,event_type TEXT NOT NULL,instance TEXT,data TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,published INTEGER NOT NULL DEFAULT 0);")
+    sqlx::raw_sql("CREATE TABLE IF NOT EXISTS extension_instances(id TEXT PRIMARY KEY,source TEXT NOT NULL,extension TEXT NOT NULL,name TEXT NOT NULL,root TEXT NOT NULL,declaration TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,enabled INTEGER NOT NULL DEFAULT 0,removed INTEGER NOT NULL DEFAULT 0,version TEXT NOT NULL,grants TEXT NOT NULL DEFAULT '[]',config TEXT NOT NULL DEFAULT '{}',secrets TEXT NOT NULL DEFAULT '{}',state TEXT NOT NULL DEFAULT 'disabled',applied_revision INTEGER,error TEXT,restart_attempts INTEGER NOT NULL DEFAULT 0,next_start TEXT);CREATE TABLE IF NOT EXISTS extension_versions(instance TEXT NOT NULL,revision INTEGER NOT NULL,snapshot TEXT NOT NULL,PRIMARY KEY(instance,revision));CREATE TABLE IF NOT EXISTS extension_bindings(id TEXT PRIMARY KEY,position INTEGER NOT NULL,binding TEXT NOT NULL);CREATE TABLE IF NOT EXISTS extension_storage(instance TEXT NOT NULL,key TEXT NOT NULL,value TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(instance,key));CREATE TABLE IF NOT EXISTS extension_invocations(id TEXT PRIMARY KEY,instance TEXT NOT NULL,kind TEXT NOT NULL,handler TEXT NOT NULL,input TEXT NOT NULL,state TEXT NOT NULL,result TEXT,error TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,finished_at TEXT);CREATE TABLE IF NOT EXISTS extension_package_versions(source TEXT PRIMARY KEY,version TEXT NOT NULL);CREATE TABLE IF NOT EXISTS extension_operations(id TEXT PRIMARY KEY,instance TEXT NOT NULL,request_hash TEXT NOT NULL,result TEXT NOT NULL);CREATE TABLE IF NOT EXISTS extension_interactions(id TEXT PRIMARY KEY,invocation TEXT NOT NULL,instance TEXT NOT NULL,request TEXT NOT NULL,response TEXT,state TEXT NOT NULL DEFAULT 'waiting');CREATE TABLE IF NOT EXISTS extension_artifacts(id TEXT PRIMARY KEY,instance TEXT NOT NULL,name TEXT NOT NULL,reference TEXT NOT NULL,metadata TEXT NOT NULL,expires_at TEXT);CREATE TABLE IF NOT EXISTS extension_events(id TEXT PRIMARY KEY,event_type TEXT NOT NULL,instance TEXT,data TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,published INTEGER NOT NULL DEFAULT 0);")
         .execute(pool).await?;
     sqlx::raw_sql(r#"
 CREATE TRIGGER IF NOT EXISTS extension_instance_created AFTER INSERT ON extension_instances BEGIN
@@ -73,15 +73,21 @@ pub async fn save(
     update: ConfigUpdate,
     declaration: &Extension,
 ) -> Result<Value> {
-    if let Some(result) = sqlx::query_scalar::<_, String>(
-        "SELECT result FROM extension_operations WHERE id=? AND instance=?",
+    use sha2::{Digest, Sha256};
+    let fingerprint = hex::encode(Sha256::digest(serde_json::to_vec(&update)?));
+    if let Some(previous) = sqlx::query(
+        "SELECT request_hash,result FROM extension_operations WHERE id=? AND instance=?",
     )
     .bind(update.operation_id.to_string())
     .bind(id.to_string())
     .fetch_optional(pool)
     .await?
     {
-        return Ok(serde_json::from_str(&result)?);
+        ensure!(
+            previous.get::<String, _>("request_hash") == fingerprint,
+            "operation ID reused with different configuration"
+        );
+        return Ok(serde_json::from_str(previous.get("result"))?);
     }
     snapshot(pool, id).await?;
     wakeit_core::extensions::validate_schema(&declaration.config, &update.config)?;
@@ -121,12 +127,15 @@ pub async fn save(
     sqlx::query("UPDATE extension_instances SET config=?,secrets=?,revision=?,state=CASE WHEN enabled=1 THEN 'pending' ELSE 'disabled' END,error=NULL WHERE id=?")
         .bind(update.config.to_string()).bind(Value::Object(secrets).to_string()).bind(revision).bind(id.to_string()).execute(&mut *tx).await?;
     let result = json!({"id":update.operation_id,"state":"committed","revision":revision});
-    sqlx::query("INSERT INTO extension_operations(id,instance,result) VALUES(?,?,?)")
-        .bind(update.operation_id.to_string())
-        .bind(id.to_string())
-        .bind(result.to_string())
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "INSERT INTO extension_operations(id,instance,request_hash,result) VALUES(?,?,?,?)",
+    )
+    .bind(update.operation_id.to_string())
+    .bind(id.to_string())
+    .bind(fingerprint)
+    .bind(result.to_string())
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     snapshot(pool, id).await?;
     Ok(result)

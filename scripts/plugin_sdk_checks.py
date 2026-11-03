@@ -35,7 +35,7 @@ def verify(c):
     instance=control('create',source=package['source'],extension='generic',name='Generic acceptance',config={'prefix':'initial'},grants=declaration['permissions'])
     identity=instance['id']
     def instance_now():return next(i for i in control('catalog')['instances'] if i['id']==identity)
-    update={'operation_id':str(uuid.uuid4()),'expected_revision':instance['revision'],'config':{'prefix':'configured'},'secrets':{'fixture':{'operation':'replace','value':'synthetic-credential'}}}
+    update={'operation_id':str(uuid.uuid4()),'expected_revision':instance['revision'],'config':{'prefix':'configured'},'secrets':{'fixture':{'operation':'replace','value':'synthetic-credential"\\line'}}}
     saved=control('configure',instance_id=identity,update=update)
     assert control('configure',instance_id=identity,update=update)==saved
     current=instance_now();assert current['config']['prefix']=='configured' and current['credential_status']['fixture']
@@ -95,6 +95,10 @@ def verify(c):
     operation,_=invoke('echo',{'text':'test'})
     receipt=wait(lambda:r if (r:=api('/plugins/operations/'+operation))['state']=='succeeded' else None,'typed action host API')
     assert receipt['result']['settings']['prefix']=='configured'
+    logs=control('activity',instance_id=identity)['logs']
+    assert any('[redacted]' in entry.get('message','') for entry in logs)
+    assert 'synthetic-credential' not in json.dumps(logs)
+
     operation,call=invoke('interact',{})
     interaction=wait(lambda:(a['interactions'][0] if a.get('interactions') else None) if (a:=control('activity',instance_id=identity)) else None,'structured action form')
     control('interaction',instance_id=identity,id=interaction['id'],response={'answer':'synthetic'})

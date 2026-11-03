@@ -116,7 +116,7 @@ pub(crate) async fn control(
     ApiJson(body): ApiJson<Control>,
 ) -> Result<Json<Value>> {
     let workspace = workspace_header(&h)?;
-    let read = ["catalog", "activity"].contains(&body.action.as_str());
+    let read = ["catalog", "activity", "operation"].contains(&body.action.as_str());
     let action_call = ["invoke", "interaction", "cancel"].contains(&body.action.as_str());
     let actor = user(
         &s,
@@ -175,6 +175,13 @@ pub(crate) async fn control(
                 object.remove("config");
             }
         }
+    }
+    if actor.role == "viewer"
+        && body.action == "activity"
+        && let Some(object) = value.as_object_mut()
+    {
+        object.remove("logs");
+        object.remove("interactions");
     }
     if body.action == "remove" {
         let id: Uuid = serde_json::from_value(params["instance_id"].clone())
@@ -287,6 +294,21 @@ pub(crate) async fn event(
     let item:Value=sqlx::query_scalar("SELECT to_jsonb(e.*)-'routed' FROM plugin_events e WHERE id=$1 AND workspace_id=$2 AND expires_at>now()").bind(id).bind(workspace).fetch_optional(&s.pool).await?.ok_or_else(Error::missing)?;
     Ok(Json(item))
 }
+fn operation_receipt(mut value: Value) -> Value {
+    if let Some(message) = value["error"].as_str().map(str::to_owned) {
+        let code = value["result"]["code"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                value["state"]
+                    .as_str()
+                    .unwrap_or("operation_failed")
+                    .to_owned()
+            });
+        value["error"] = json!({"code":code,"message":message,"retryable":false,"paths":[]});
+    }
+    value
+}
 pub(crate) async fn operations(
     State(s): State<App>,
     h: HeaderMap,
@@ -295,7 +317,9 @@ pub(crate) async fn operations(
     let workspace = workspace_header(&h)?;
     user(&s, &h, "viewer", false).await?;
     let rows:Vec<Value>=sqlx::query_scalar("SELECT to_jsonb(o.*)-'request' FROM plugin_operations o WHERE workspace_id=$1 AND ($2::uuid IS NULL OR instance_id=$2) ORDER BY created_at DESC,id DESC LIMIT 100").bind(workspace).bind(q.instance).fetch_all(&s.pool).await?;
-    Ok(Json(json!({"items":rows})))
+    Ok(Json(
+        json!({"items":rows.into_iter().map(operation_receipt).collect::<Vec<_>>()}),
+    ))
 }
 pub(crate) async fn operation(
     State(s): State<App>,
@@ -312,7 +336,7 @@ pub(crate) async fn operation(
     .fetch_optional(&s.pool)
     .await?
     .ok_or_else(Error::missing)?;
-    Ok(Json(item))
+    Ok(Json(operation_receipt(item)))
 }
 pub(crate) async fn deliveries(
     State(s): State<App>,

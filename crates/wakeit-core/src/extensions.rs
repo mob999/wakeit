@@ -231,6 +231,58 @@ pub struct ExtensionError {
     #[serde(default)]
     pub paths: Vec<String>,
 }
+impl std::fmt::Display for ExtensionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+impl std::error::Error for ExtensionError {}
+impl ExtensionError {
+    pub fn new(code: &str, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            retryable: false,
+            paths: vec![],
+        }
+    }
+    pub fn from_error(error: &anyhow::Error) -> Self {
+        if let Some(error) = error.downcast_ref::<Self>() {
+            return error.clone();
+        }
+        let message = error.to_string();
+        let code = if message.contains("permission")
+            || message.contains("not granted")
+            || message.contains("not authorized")
+        {
+            "permission_denied"
+        } else if message.contains("revision")
+            || message.contains("changed during")
+            || message.contains("conflict")
+        {
+            "conflict"
+        } else if message.contains("unsupported") || message.contains("not declared") {
+            "unsupported"
+        } else if message.contains("cancelled") {
+            "cancelled"
+        } else if message.contains("timed out") || message.contains("deadline") {
+            "timeout"
+        } else if message.contains("offline")
+            || message.contains("disconnected")
+            || message.contains("not running")
+        {
+            "unavailable"
+        } else if message.contains("required")
+            || message.contains("invalid")
+            || message.contains("schema")
+        {
+            "validation"
+        } else {
+            "plugin_error"
+        };
+        Self::new(code, message)
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct UiChoice {
     pub value: String,

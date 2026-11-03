@@ -150,7 +150,22 @@ impl Plugin {
                     && let Some(reply) = client.pending.lock().await.remove(&id)
                 {
                     let result = if message.get("error").is_some() {
-                        Err(anyhow::anyhow!("host: {}", message["error"]))
+                        Err(ExtensionError {
+                            code: message["error"]["data"]["code"]
+                                .as_str()
+                                .unwrap_or("host_error")
+                                .into(),
+                            message: message["error"]["message"]
+                                .as_str()
+                                .unwrap_or("host call failed")
+                                .into(),
+                            retryable: message["error"]["data"]["retryable"] == true,
+                            paths: serde_json::from_value(
+                                message["error"]["data"]["paths"].clone(),
+                            )
+                            .unwrap_or_default(),
+                        }
+                        .into())
                     } else {
                         Ok(message["result"].clone())
                     };
@@ -194,7 +209,8 @@ impl Plugin {
                 let response = match result {
                     Ok(result) => json!({"jsonrpc":"2.0","id":message["id"],"result":result}),
                     Err(e) => {
-                        json!({"jsonrpc":"2.0","id":message["id"],"error":{"code":"plugin_error","message":e.to_string()}})
+                        let error = ExtensionError::from_error(&e);
+                        json!({"jsonrpc":"2.0","id":message["id"],"error":{"code":-32000,"message":error.message,"data":{"code":error.code,"retryable":error.retryable,"paths":error.paths}}})
                     }
                 };
                 let _ = client.writes.send(response).await;

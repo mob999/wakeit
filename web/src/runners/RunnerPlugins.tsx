@@ -84,6 +84,7 @@ export function RunnerPlugins({
   const [selected, setSelected] = useState('')
   const [tab, setTab] = useState('config')
   const [creating, setCreating] = useState(false)
+  const [createId, setCreateId] = useState(() => crypto.randomUUID())
   const [createResource, setCreateResource] = useState('')
   const [busy, setBusy] = useState(false)
   const control = (action: string, params: Record<string, unknown> = {}) =>
@@ -133,7 +134,10 @@ export function RunnerPlugins({
             <IconButton
               label={tr('plugins.create')}
               disabled={!runner.online}
-              onClick={() => setCreating(true)}
+              onClick={() => {
+                setCreateId(crypto.randomUUID())
+                setCreating(true)
+              }}
             >
               <ActionIcon name="add" />
             </IconButton>
@@ -262,6 +266,7 @@ export function RunnerPlugins({
                 const [source, extension] = JSON.parse(createResource)
                 const resource = resources.find((r) => r.value === createResource)!
                 const result = await mutate('create', {
+                  instance_id: createId,
                   source,
                   extension,
                   config: schemaDefaults(resource.declaration.config) ?? {},
@@ -313,9 +318,21 @@ function PluginConfig({
   onSave: (update: unknown) => Promise<unknown>
 }) {
   const [value, setValue] = useState<unknown>(instance.config ?? {})
+  const saveReceipt = useRef<{ fingerprint: string; id: string } | null>(null)
   const [secrets, setSecrets] = useState<
     Record<string, { operation: 'keep' | 'replace' | 'clear'; value?: string }>
   >({})
+  const save = () => {
+    const fingerprint = JSON.stringify({ revision: instance.revision, config: value, secrets })
+    if (saveReceipt.current?.fingerprint !== fingerprint)
+      saveReceipt.current = { fingerprint, id: crypto.randomUUID() }
+    return onSave({
+      operation_id: saveReceipt.current.id,
+      expected_revision: instance.revision,
+      config: value,
+      secrets,
+    })
+  }
   return (
     <div className="plugin-settings">
       <div className="plugin-config-card">
@@ -386,18 +403,7 @@ function PluginConfig({
                 ? tr('plugins.applied')
                 : tr('plugins.pending')}
           </span>
-          <Button
-            variant="solid"
-            disabled={disabled}
-            onClick={() =>
-              onSave({
-                operation_id: crypto.randomUUID(),
-                expected_revision: instance.revision,
-                config: value,
-                secrets,
-              })
-            }
-          >
+          <Button variant="solid" disabled={disabled} onClick={save}>
             {tr('保存')}
           </Button>
         </div>
@@ -417,6 +423,21 @@ function PluginCapabilities({
   toast: (s: string) => void
 }) {
   const client = useQueryClient()
+  const [grants, setGrants] = useState(instance.grants)
+  useEffect(() => setGrants(instance.grants), [instance.id, instance.revision])
+  const saveGrants = async () => {
+    try {
+      await api(`/runners/${runner.id}/plugins/control`, 'POST', {
+        action: 'authorize',
+        params: { instance_id: instance.id, grants },
+      })
+      await client.invalidateQueries({ queryKey: ['plugins', runner.id] })
+      toast(tr('已保存'))
+    } catch (error) {
+      toast((error as Error).message)
+    }
+  }
+
   const bindings = useQuery<{ items: Binding[] }>({
     queryKey: ['plugin-bindings', instance.id],
     queryFn: () => api(`/plugins/bindings?instance=${instance.id}`),
@@ -530,11 +551,35 @@ function PluginCapabilities({
         )
       })}
       <div className="plugin-section-title">{tr('plugins.grantedPermissions')}</div>
-      {instance.grants.map((grant) => (
-        <div className="plugin-permission" key={grant}>
+      {instance.declaration.permissions.map((grant) => (
+        <label className="plugin-permission flex gap-2" key={grant}>
+          <input
+            type="checkbox"
+            disabled={!admin || !runner.online}
+            checked={grants.includes(grant)}
+            onChange={(event) =>
+              setGrants(
+                event.target.checked
+                  ? [...grants, grant]
+                  : grants.filter((value) => value !== grant),
+              )
+            }
+          />
           {grant}
-        </div>
+        </label>
       ))}
+      {admin && (
+        <div className="plugin-config-footer">
+          <span />
+          <Button
+            variant="solid"
+            disabled={!runner.online || JSON.stringify(grants) === JSON.stringify(instance.grants)}
+            onClick={saveGrants}
+          >
+            {tr('保存')}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -676,6 +721,16 @@ function PluginActivity({
           )}
         </div>
       ))}
+      {!!activity.data?.logs?.length && (
+        <>
+          <div className="plugin-section-title">{tr('plugins.logs')}</div>
+          <div className="plugin-diagnostics">
+            {activity.data.logs.map((entry: any, index: number) => (
+              <pre key={index}>{entry.message ?? JSON.stringify(entry.data ?? entry)}</pre>
+            ))}
+          </div>
+        </>
+      )}
       <div className="plugin-section-title">{tr('plugins.deliveries')}</div>
       {deliveries.data?.items.map((d) => (
         <div className="plugin-activity-row" key={d.id}>

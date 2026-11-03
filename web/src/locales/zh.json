@@ -1035,5 +1035,6 @@
   "plugins.nullValue": "空值（null）",
   "plugins.continueInteraction": "继续处理交互",
   "plugins.open": "打开",
-  "plugins.grantedPermissions": "已授予权限"
+  "plugins.grantedPermissions": "已授予权限",
+  "plugins.logs": "插件日志"
 }

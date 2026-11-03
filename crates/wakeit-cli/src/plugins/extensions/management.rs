@@ -122,6 +122,22 @@ impl Runtime {
                 )
             }
             "file_read" => super::files::read(self, &params).await,
+            "operation" => {
+                let operation = params["operation_id"]
+                    .as_str()
+                    .context("operation ID required")?;
+                let result: Option<String> = sqlx::query_scalar(
+                    "SELECT result FROM extension_operations WHERE id=? AND instance=?",
+                )
+                .bind(operation)
+                .bind(id.context("instance required")?.to_string())
+                .fetch_optional(&self.journal.pool)
+                .await?;
+                Ok(result
+                    .map(|s| serde_json::from_str::<Value>(&s))
+                    .transpose()?
+                    .unwrap_or_else(|| json!({"id":operation,"state":"not_found"})))
+            }
             "catalog" => self.catalog().await,
             "create" => {
                 let source = params["source"].as_str().context("source required")?;
@@ -135,6 +151,15 @@ impl Runtime {
                     "undeclared permission grant"
                 );
                 let id = id.unwrap_or_else(Uuid::new_v4);
+                if let Ok(existing) = self.instance(id).await {
+                    ensure!(
+                        existing.source == source && existing.extension == extension,
+                        "instance ID reused for another plugin resource"
+                    );
+                    sqlx::query("UPDATE extension_instances SET removed=0,state='disabled',revision=revision+1 WHERE id=? AND removed=1").bind(id.to_string()).execute(&self.journal.pool).await?;
+                    return Ok(serde_json::to_value(self.instance(id).await?)?);
+                }
+
                 sqlx::query("INSERT INTO extension_instances(id,source,extension,name,version,grants,config,root,declaration) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING")
                     .bind(id.to_string()).bind(source).bind(extension).bind(params["name"].as_str().unwrap_or(&declaration.name)).bind(version).bind(json!(grants).to_string()).bind(params.get("config").cloned().unwrap_or_else(||json!({})).to_string()).bind(root.to_string_lossy().as_ref()).bind(serde_json::to_string(&declaration)?).execute(&self.journal.pool).await?;
                 Ok(serde_json::to_value(self.instance(id).await?)?)
@@ -194,6 +219,9 @@ impl Runtime {
                 let id = id.context("instance required")?;
                 if method == "enable" {
                     let instance = self.instance(id).await?;
+                    if instance.enabled && instance.state == "running" {
+                        return Ok(serde_json::to_value(instance)?);
+                    }
                     wakeit_core::extensions::validate_schema(
                         &instance.declaration.config,
                         &instance.config,
@@ -211,6 +239,24 @@ impl Runtime {
                     self.peer(id).await?;
                 } else {
                     sqlx::query("UPDATE extension_instances SET enabled=0,state='disabled',revision=revision+1 WHERE id=?").bind(id.to_string()).execute(&self.journal.pool).await?;
+                    let active: Vec<String> = sqlx::query_scalar(
+                        "SELECT id FROM extension_invocations WHERE instance=? AND state='running'",
+                    )
+                    .bind(id.to_string())
+                    .fetch_all(&self.journal.pool)
+                    .await?;
+                    for call in active {
+                        if let Ok(call) = call.parse::<Uuid>()
+                            && let Some(signal) = self.calls.lock().await.get(&call)
+                        {
+                            signal.cancel();
+                        }
+                    }
+                    self.watches
+                        .lock()
+                        .await
+                        .retain(|_, watch| watch.instance != id);
+
                     if let Some(peer) = self.peers.lock().await.remove(&id) {
                         let _ = peer
                             .call(
@@ -290,8 +336,9 @@ impl Runtime {
                 let rows=sqlx::query("SELECT id,kind,handler,state,error,created_at,finished_at FROM extension_invocations WHERE instance=? ORDER BY created_at DESC LIMIT 100").bind(id.context("instance required")?.to_string()).fetch_all(&self.journal.pool).await?;
                 let interactions=sqlx::query("SELECT id,invocation,request,state FROM extension_interactions WHERE instance=? AND state='waiting'").bind(id.unwrap().to_string()).fetch_all(&self.journal.pool).await?;
                 let notifications=sqlx::query("SELECT id,invocation,request FROM extension_interactions WHERE instance=? AND state='notification' ORDER BY rowid DESC LIMIT 30").bind(id.unwrap().to_string()).fetch_all(&self.journal.pool).await?;
+                let logs:Vec<String>=sqlx::query_scalar("SELECT data FROM extension_events WHERE instance=? AND event_type IN ('log.write','health.report') ORDER BY rowid DESC LIMIT 100").bind(id.unwrap().to_string()).fetch_all(&self.journal.pool).await?;
                 Ok(
-                    json!({"items":rows.iter().map(|r|json!({"id":r.get::<String,_>("id"),"kind":r.get::<String,_>("kind"),"handler":r.get::<String,_>("handler"),"state":r.get::<String,_>("state"),"error":r.get::<Option<String>,_>("error"),"created_at":r.get::<String,_>("created_at"),"finished_at":r.get::<Option<String>,_>("finished_at")})).collect::<Vec<_>>(),"notifications":notifications.iter().map(|r|json!({"id":r.get::<String,_>("id"),"invocation_id":r.get::<String,_>("invocation"),"request":serde_json::from_str::<Value>(r.get("request")).unwrap_or(Value::Null)})).collect::<Vec<_>>(),"interactions":interactions.iter().map(|r|json!({"id":r.get::<String,_>("id"),"invocation_id":r.get::<String,_>("invocation"),"request":serde_json::from_str::<Value>(r.get("request")).unwrap_or(Value::Null)})).collect::<Vec<_>>()}),
+                    json!({"items":rows.iter().map(|r|json!({"id":r.get::<String,_>("id"),"kind":r.get::<String,_>("kind"),"handler":r.get::<String,_>("handler"),"state":r.get::<String,_>("state"),"error":r.get::<Option<String>,_>("error"),"created_at":r.get::<String,_>("created_at"),"finished_at":r.get::<Option<String>,_>("finished_at")})).collect::<Vec<_>>(),"logs":logs.iter().filter_map(|s|serde_json::from_str::<Value>(s).ok()).collect::<Vec<_>>(),"notifications":notifications.iter().map(|r|json!({"id":r.get::<String,_>("id"),"invocation_id":r.get::<String,_>("invocation"),"request":serde_json::from_str::<Value>(r.get("request")).unwrap_or(Value::Null)})).collect::<Vec<_>>(),"interactions":interactions.iter().map(|r|json!({"id":r.get::<String,_>("id"),"invocation_id":r.get::<String,_>("invocation"),"request":serde_json::from_str::<Value>(r.get("request")).unwrap_or(Value::Null)})).collect::<Vec<_>>()}),
                 )
             }
             "reload" => {
@@ -319,6 +366,9 @@ impl Runtime {
                         "extension_invocations",
                         "extension_operations",
                         "extension_interactions",
+                        "extension_auth_flows",
+                        "extension_versions",
+                        "extension_artifacts",
                     ] {
                         sqlx::query(&format!("DELETE FROM {table} WHERE instance=?"))
                             .bind(id.to_string())

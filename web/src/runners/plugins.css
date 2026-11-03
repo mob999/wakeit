@@ -139,3 +139,10 @@
 .plugin-title .text-muted {
   @apply text-meta;
 }
+
+.plugin-diagnostics {
+  @apply max-h-64 overflow-auto px-3 py-2 text-meta;
+}
+.plugin-diagnostics pre {
+  @apply whitespace-pre-wrap break-all;
+}

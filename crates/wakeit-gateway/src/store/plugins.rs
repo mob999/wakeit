@@ -405,6 +405,9 @@ pub async fn prepare_assignment(
 }
 
 pub async fn maintain(pool: &PgPool) -> Result<()> {
+    sqlx::query("UPDATE plugin_events e SET expires_at=LEAST(e.expires_at,e.committed_at+make_interval(days=>(s.data->>'run_retention_days')::integer)) FROM settings s WHERE e.workspace_id=s.workspace_id AND e.expires_at>e.committed_at+make_interval(days=>(s.data->>'run_retention_days')::integer)").execute(pool).await?;
+    sqlx::query("DELETE FROM plugin_operations o WHERE updated_at<now()-interval '90 days' AND state NOT IN ('pending','running','retry_wait') AND NOT EXISTS(SELECT 1 FROM plugin_operation_tokens t WHERE t.operation_id=o.id AND t.expires_at>now())").execute(pool).await?;
+
     let mut tx = pool.begin().await?;
     let devices=sqlx::query("SELECT r.id,r.workspace_id,r.name,(NOT r.revoked AND r.last_seen>now()-interval '60 seconds') IS TRUE AS online,p.online AS previous FROM runners r LEFT JOIN plugin_device_presence p ON p.runner_id=r.id WHERE p.runner_id IS NULL OR p.online IS DISTINCT FROM ((NOT r.revoked AND r.last_seen>now()-interval '60 seconds') IS TRUE) FOR UPDATE OF r SKIP LOCKED").fetch_all(&mut *tx).await?;
     for device in devices {

@@ -56,7 +56,17 @@ impl<E: Into<anyhow::Error>> From<E> for Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        (self.0, Json(json!({"error":self.1}))).into_response()
+        let code = match self.0 {
+            StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => "validation",
+            StatusCode::UNAUTHORIZED => "unauthenticated",
+            StatusCode::FORBIDDEN => "permission_denied",
+            StatusCode::NOT_FOUND => "not_found",
+            StatusCode::CONFLICT => "conflict",
+            StatusCode::SERVICE_UNAVAILABLE => "unavailable",
+            StatusCode::GATEWAY_TIMEOUT => "timeout",
+            _ => "internal",
+        };
+        (self.0, Json(json!({"error":self.1,"code":code}))).into_response()
     }
 }
 

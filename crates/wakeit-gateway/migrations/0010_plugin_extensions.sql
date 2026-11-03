@@ -92,8 +92,8 @@ BEGIN
  INSERT INTO plugin_aggregate_revisions(workspace_id,aggregate_type,aggregate_id,revision)
  VALUES(ws,aggregate_kind,aggregate_key,1)
  ON CONFLICT(workspace_id,aggregate_type,aggregate_id) DO UPDATE SET revision=plugin_aggregate_revisions.revision+1 RETURNING revision INTO rev;
- INSERT INTO plugin_events(workspace_id,event_type,aggregate_type,aggregate_id,aggregate_revision,data,source_runner_id,origin,causation_id)
- VALUES(ws,typ,aggregate_kind,aggregate_key,rev,payload||jsonb_build_object('_causation_depth',COALESCE(NULLIF(current_setting('wakeit.causation_depth',true),'')::integer,0)),device,COALESCE(NULLIF(current_setting('wakeit.actor',true),'')::jsonb,'{"kind":"system","id":null,"roles":[]}'::jsonb),NULLIF(current_setting('wakeit.causation_id',true),'')::uuid) RETURNING id INTO eid;
+ INSERT INTO plugin_events(workspace_id,event_type,aggregate_type,aggregate_id,aggregate_revision,data,source_runner_id,origin,causation_id,expires_at)
+ VALUES(ws,typ,aggregate_kind,aggregate_key,rev,payload||jsonb_build_object('_causation_depth',COALESCE(NULLIF(current_setting('wakeit.causation_depth',true),'')::integer,0)),device,COALESCE(NULLIF(current_setting('wakeit.actor',true),'')::jsonb,'{"kind":"system","id":null,"roles":[]}'::jsonb),NULLIF(current_setting('wakeit.causation_id',true),'')::uuid,now()+make_interval(days=>COALESCE((SELECT (data->>'run_retention_days')::integer FROM settings WHERE workspace_id=ws),90))) RETURNING id INTO eid;
  RETURN eid;
 END $$;
 
@@ -227,7 +227,7 @@ CREATE UNIQUE INDEX plugin_delivery_replay_identity ON plugin_deliveries(replay_
 
 CREATE TABLE plugin_device_presence(runner_id uuid PRIMARY KEY REFERENCES runners(id) ON DELETE CASCADE,online boolean NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE plugin_operation_tokens (
- hash text PRIMARY KEY, operation_id uuid NOT NULL REFERENCES plugin_operations(id),
+ hash text PRIMARY KEY, operation_id uuid NOT NULL REFERENCES plugin_operations(id) ON DELETE CASCADE,
  actor_id uuid NOT NULL REFERENCES users(id),workspace_id uuid NOT NULL REFERENCES workspaces(id),expires_at timestamptz NOT NULL
 );
 CREATE FUNCTION plugin_complete_business_operation() RETURNS trigger LANGUAGE plpgsql AS $$

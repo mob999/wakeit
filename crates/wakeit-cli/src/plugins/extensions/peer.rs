@@ -83,10 +83,18 @@ impl Peer {
         let (calls, mut rx) = mpsc::channel::<Call>(64);
         let (writes, mut responses) = mpsc::channel::<Value>(64);
         let token = stop.clone();
-        // Drain diagnostics without writing untrusted messages or possible credentials to host logs.
+        let diagnostics = host.clone();
         tokio::spawn(async move {
             let mut bytes = [0u8; 8192];
-            while stderr.read(&mut bytes).await.is_ok_and(|n| n > 0) {}
+            loop {
+                let Ok(count) = stderr.read(&mut bytes).await else {
+                    break;
+                };
+                if count == 0 {
+                    break;
+                }
+                let _=diagnostics.request("log.write".into(),json!({"level":"error","stream":"stderr","message":String::from_utf8_lossy(&bytes[..count])})).await;
+            }
         });
         tokio::spawn(async move {
             let mut pending = HashMap::<Uuid, oneshot::Sender<Result<Value>>>::new();
@@ -114,10 +122,10 @@ impl Peer {
                                 let host=host.clone();let tx=writes.clone();let method=method.to_owned();
                                 tokio::spawn(async move {
                                     let result=host.request(method,value["params"].clone()).await;
-                                    if !value["id"].is_null(){let response=match result {Ok(result)=>json!({"jsonrpc":"2.0","id":value["id"],"result":result}),Err(e)=>json!({"jsonrpc":"2.0","id":value["id"],"error":{"code":-32000,"message":e.to_string()}})};let _=tx.send(response).await;}
+                                    if !value["id"].is_null(){let response=match result {Ok(result)=>json!({"jsonrpc":"2.0","id":value["id"],"result":result}),Err(e)=>{let error=wakeit_core::extensions::ExtensionError::from_error(&e);json!({"jsonrpc":"2.0","id":value["id"],"error":{"code":-32000,"message":error.message,"data":{"code":error.code,"retryable":error.retryable,"paths":error.paths}}})}};let _=tx.send(response).await;}
                                 });
                             } else if let Some(id)=value["id"].as_str().and_then(|s|s.parse().ok()) && let Some(reply)=pending.remove(&id) {
-                                let result=if value.get("error").is_some(){Err(RemoteError{code:value["error"]["code"].as_str().map(str::to_owned).unwrap_or_else(||value["error"]["code"].to_string()),message:value["error"]["message"].as_str().unwrap_or("extension request failed").into(),retryable:value["error"]["data"]["retryable"]==true,paths:serde_json::from_value(value["error"]["data"]["paths"].clone()).unwrap_or_default()}.into())}else{Ok(value["result"].clone())};
+                                let result=if value.get("error").is_some(){Err(RemoteError{code:value["error"]["data"]["code"].as_str().or(value["error"]["code"].as_str()).map(str::to_owned).unwrap_or_else(||value["error"]["code"].to_string()),message:value["error"]["message"].as_str().unwrap_or("extension request failed").into(),retryable:value["error"]["data"]["retryable"]==true,paths:serde_json::from_value(value["error"]["data"]["paths"].clone()).unwrap_or_default()}.into())}else{Ok(value["result"].clone())};
                                 let _=reply.send(result);
                             }
                         }
@@ -205,6 +213,8 @@ mod tests {
             Box::pin(async move {
                 match method.as_str() {
                     "config.get" => Ok(json!({"value":{"prefix":"test"},"revision":1})),
+                    "credentials.get" => Ok(json!("synthetic-test")),
+                    "log.write" => Ok(json!({"accepted":true})),
                     _ => anyhow::bail!("unexpected host method"),
                 }
             })

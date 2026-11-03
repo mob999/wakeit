@@ -140,12 +140,12 @@ export class Plugin {
     const reader = createInterface({ input: process.stdin, crlfDelay: Infinity })
     reader.on('line', (line) => {
       void (async () => {
-        let message: { id?: string; method?: string; params?: ObjectValue; result?: Json; error?: { code: string; message: string } }
-        try { message = JSON.parse(line) } catch { write({ id: null, error: { code: 'invalid_json', message: 'Invalid JSON' } }); return }
+        let message: { id?: string; method?: string; params?: ObjectValue; result?: Json; error?: { code: string|number; message: string; data?:{code?:string;retryable?:boolean;paths?:string[]} } }
+        try { message = JSON.parse(line) } catch { write({ id: null, error: { code: -32700, message: 'Invalid JSON', data:{code:'invalid_json'} } }); return }
         const id = message.id
         if (!message.method) {
           const waiting = id ? pending.get(id) : undefined
-          if (waiting && id) { pending.delete(id); message.error ? waiting.reject(new PluginError(String(message.error.code), message.error.message)) : waiting.resolve(message.result ?? null) }
+          if (waiting && id) { pending.delete(id); message.error ? waiting.reject(new PluginError(message.error.data?.code??String(message.error.code), message.error.message, {retryable:message.error.data?.retryable,paths:message.error.data?.paths})) : waiting.resolve(message.result ?? null) }
           return
         }
         try {
@@ -177,7 +177,7 @@ export class Plugin {
           if (id) write({ id, result: result ?? null })
         } catch (error) {
           const value = error instanceof PluginError ? error : new PluginError('plugin_error', error instanceof Error ? error.message : String(error))
-          if (id) write({ id, error: { code: value.code, message: value.message, data: { retryable: value.retryable, paths: value.paths } } })
+          if (id) write({ id, error: { code: -32000, message: value.message, data: { code:value.code,retryable: value.retryable, paths: value.paths } } })
         }
       })()
     })

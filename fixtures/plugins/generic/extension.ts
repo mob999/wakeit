@@ -14,6 +14,8 @@ plugin.hook('save', async (input,ctx) => {
 })
 plugin.action('echo', async (input, ctx) => {
   const settings = await ctx.config.get()
+  const credential=await ctx.credentials.get('fixture')
+  await ctx.log('info',String(credential),{synthetic:true})
   return { input, settings: settings.value }
 })
 plugin.action('interact', async (_, ctx) => {

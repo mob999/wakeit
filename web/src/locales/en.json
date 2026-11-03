@@ -1035,5 +1035,6 @@
   "plugins.nullValue": "No value (null)",
   "plugins.continueInteraction": "Continue interaction",
   "plugins.open": "Open",
-  "plugins.grantedPermissions": "Granted permissions"
+  "plugins.grantedPermissions": "Granted permissions",
+  "plugins.logs": "Plugin logs"
 }

@@ -249,6 +249,10 @@ impl Runtime {
             values(&secrets, &mut secret_values);
             secret_values.sort_by_key(|s| std::cmp::Reverse(s.len()));
             for value in secret_values {
+                if let Ok(encoded) = serde_json::to_string(&value) {
+                    let escaped = &encoded[1..encoded.len() - 1];
+                    text = text.replace(escaped, "[redacted]");
+                }
                 text = text.replace(&value, "[redacted]");
             }
         }
@@ -543,7 +547,13 @@ impl Runtime {
             .await?;
         let status = response.status();
         let result: Value = response.json().await?;
-        ensure!(status.is_success(), "host API failed: {}", result["error"]);
+        if !status.is_success() {
+            return Err(wakeit_core::extensions::ExtensionError::new(
+                result["code"].as_str().unwrap_or("host_error"),
+                result["error"].as_str().unwrap_or("host API failed"),
+            )
+            .into());
+        }
         Ok(result)
     }
     pub async fn serve(self, client: async_nats::Client, runtime: Uuid) -> Result<()> {
@@ -652,7 +662,7 @@ impl Runtime {
                 };
                 if let Err(error) = result {
                     sqlx::query("UPDATE extension_instances SET state='failed',error=?,restart_attempts=restart_attempts+1,next_start=datetime('now','+'||min(60,2*restart_attempts+2)||' seconds') WHERE id=?")
-                        .bind(error.to_string())
+                        .bind(self.redact(id,&error.to_string()).await)
                         .bind(id.to_string())
                         .execute(&self.journal.pool)
                         .await?;
