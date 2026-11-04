@@ -1835,7 +1835,8 @@ await new Plugin().agent('synthetic',agent).serve();
             &script,
             code.replace(
                 "__SDK__",
-                &serde_json::to_string(&sdk.to_string_lossy()).unwrap(),
+                &serde_json::to_string(reqwest::Url::from_file_path(&sdk).unwrap().as_str())
+                    .unwrap(),
             ),
         )
         .unwrap();
@@ -1845,7 +1846,7 @@ await new Plugin().agent('synthetic',agent).serve();
         backend.args = vec![
             "--experimental-strip-types".into(),
             "--no-warnings".into(),
-            script.to_string_lossy().into_owned(),
+            wakeit_core::native_command::external_path(&script),
             serde_json::to_string(&backend.descriptor).unwrap(),
             root.to_string_lossy().into_owned(),
         ];

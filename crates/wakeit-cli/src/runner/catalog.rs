@@ -299,7 +299,7 @@ await new Plugin().agent('synthetic-catalog',agent).serve();
         let args = vec![
             "--experimental-strip-types".into(),
             "--no-warnings".into(),
-            script.to_string_lossy().into_owned(),
+            wakeit_core::native_command::external_path(&script),
             serde_json::to_string(&descriptor).unwrap(),
             root.to_string_lossy().into_owned(),
         ];

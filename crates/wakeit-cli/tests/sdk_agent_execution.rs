@@ -70,7 +70,9 @@ await new Plugin().agent('synthetic', agent).serve();
             revision: None,
             root: path.clone(),
             command: node.clone(),
-            args: vec![path.join("adapter.ts").to_string_lossy().into()],
+            args: vec![wakeit_core::native_command::external_path(
+                &path.join("adapter.ts"),
+            )],
             instance_id: None,
             runtime_directory: None,
             configuration: None,
