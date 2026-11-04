@@ -259,6 +259,7 @@ pub fn document() -> Value {
         ("/runs/{id}/cancel", vec!["post"]),
         ("/runs/{id}/retry", vec!["post"]),
         ("/runs/{id}/resolve", vec!["post"]),
+        ("/runs/{id}/reconcile", vec!["post"]),
         ("/runners", vec!["get"]),
         ("/runners/enrollment", vec!["post"]),
         ("/runners/{id}/revoke", vec!["post"]),
@@ -329,6 +330,12 @@ pub fn document() -> Value {
             };
             if path == "/tasks/{id}" && matches!(method, "get" | "put") {
                 op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"$ref":"#/components/schemas/TaskRecord"}}});
+            }
+            if path == "/runs/{id}/reconcile" {
+                op["description"] = json!(
+                    "Operator only. Queue verification of an unknown execution by its saved Runner/Agent backend. Does not resubmit work or accept a caller-supplied state/result. A DAG uses its actual node execution ID. Offline delivery is durable; the Run remains unknown until evidence is received."
+                );
+                op["responses"]["200"]["content"] = json!({"application/json":{"schema":{"type":"object","required":["ok","run_id","requested"],"properties":{"ok":{"const":true},"run_id":{"type":"string","format":"uuid"},"requested":{"const":true}}}}});
             }
             if let Some(name) = body {
                 op["requestBody"] = json!({"required":true,"content":{"application/json":{"schema":{"$ref":format!("#/components/schemas/{name}")}}}});

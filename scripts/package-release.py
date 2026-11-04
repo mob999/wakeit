@@ -20,9 +20,11 @@ def official_resources(binary, suffix):
     manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text())
     if manifest['version'] != product_version('cli'):
         raise SystemExit('The bundled official package version must match the CLI release')
-    definitions = [(ROOT / path, path) for path in manifest['wakeit']['agents'].values()]
+    definitions = [(ROOT / path, path) for path in manifest['wakeit'].get('agents', {}).values()]
     programs = []
-    for path in manifest['wakeit']['commands'].values():
+    resources = list(manifest['wakeit'].get('commands', {}).values())
+    resources += [entry['command'][2:] for entry in manifest['wakeit'].get('plugins', {}).values() if entry['command'].startswith('./')]
+    for path in dict.fromkeys(resources):
         name = Path(path).name + suffix
         source = binary.parent / name
         if not source.is_file():

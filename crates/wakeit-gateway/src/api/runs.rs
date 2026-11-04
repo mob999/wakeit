@@ -159,6 +159,62 @@ pub(crate) async fn cancel(
     Ok(Json(json!({"ok":true})))
 }
 
+/// Ask the saved device backend to verify an unknown execution. This does not
+/// resolve its state, resubmit work or accept a caller-supplied result.
+pub(crate) async fn reconcile(
+    State(s): State<App>,
+    h: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Value>> {
+    let workspace = workspace_header(&h)?;
+    let actor = user(&s, &h, "operator", true).await?;
+    verify_run(&s, workspace, id).await?;
+    let mut tx = s.pool.begin().await?;
+    crate::store::workspaces::lock(&mut tx, workspace).await?;
+    reauthorize(&mut tx, &actor, "operator").await?;
+    crate::store::dag::lock_parent(&mut tx, id).await?;
+    let row =
+        sqlx::query("SELECT state,runner_id FROM runs WHERE workspace_id=$1 AND id=$2 FOR UPDATE")
+            .bind(workspace)
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if row.get::<String, _>("state") != "unknown" {
+        return Err(Error::conflict("only unknown executions can be reconciled"));
+    }
+    let runner = row
+        .get::<Option<Uuid>, _>("runner_id")
+        .ok_or_else(|| Error::bad("reconcile an individual DAG node execution"))?;
+    let active: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM runners WHERE id=$1 AND workspace_id=$2 AND NOT revoked)",
+    )
+    .bind(runner)
+    .bind(workspace)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !active {
+        return Err(Error::conflict("execution device is unavailable"));
+    }
+    store::outbox::enqueue(
+        &mut tx,
+        workspace,
+        protocol::control_subject(runner),
+        format!("reconcile:{workspace}:{id}:{}", request_key(&h)?),
+        json!({"version":1,"run_id":id,"action":"reconcile"}),
+    )
+    .await?;
+    store::audit(
+        &mut tx,
+        actor.id,
+        Some(workspace),
+        "run.reconcile",
+        &id.to_string(),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(json!({"ok":true,"run_id":id,"requested":true})))
+}
+
 #[derive(Deserialize, schemars::JsonSchema)]
 pub(crate) struct Resolution {
     state: String,

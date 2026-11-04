@@ -87,7 +87,11 @@ impl Runtime {
                     }
                 };
                 store::snapshot(&self.journal.pool, id).await?;
-                sqlx::query("UPDATE extension_instances SET root=?,declaration=?,version=?,config=?,revision=?,applied_revision=?,state='running',error=NULL WHERE id=? AND revision=?").bind(root.to_string_lossy().as_ref()).bind(json!(declaration).to_string()).bind(&version).bind(config.to_string()).bind(candidate.revision).bind(candidate.revision).bind(id.to_string()).bind(current.revision).execute(&self.journal.pool).await?;
+                let updated=sqlx::query("UPDATE extension_instances SET root=?,declaration=?,version=?,config=?,revision=?,applied_revision=?,state='running',error=NULL WHERE id=? AND revision=?").bind(root.to_string_lossy().as_ref()).bind(json!(declaration).to_string()).bind(&version).bind(config.to_string()).bind(candidate.revision).bind(candidate.revision).bind(id.to_string()).bind(current.revision).execute(&self.journal.pool).await?;
+                if updated.rows_affected() != 1 {
+                    peer.stop();
+                    bail!("instance revision changed during upgrade");
+                }
                 store::snapshot(&self.journal.pool, id).await?;
                 if let Some(old) = self.peers.lock().await.insert(id, peer) {
                     old.stop();

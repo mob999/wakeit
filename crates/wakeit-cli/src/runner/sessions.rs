@@ -1,8 +1,9 @@
 //! Native session references and local, user-owned continuation. Never execute commands from Gateway data.
+use super::agent_backend::{Agent, AgentOperation, AgentReply};
 use super::config::{private_directory, private_file, read_runner, registered_configs};
 use crate::runner::config::RunnerConfig;
 use crate::{
-    config::{self, AgentConfig, CommandSpec, TaskConfig},
+    config::{self, CommandSpec, TaskConfig},
     process,
 };
 use anyhow::{Context, Result, bail, ensure};
@@ -19,13 +20,17 @@ use uuid::Uuid;
 pub use wakeit_core::sessions::{RunSession, SessionInfo, validate_id};
 /// Export the local adapter's native interactive command, without reading environment values.
 pub fn continuation_command(
-    agent: &AgentConfig,
+    agent: impl Into<Agent>,
     task: &TaskConfig,
     run: Uuid,
     id: &str,
 ) -> Result<String> {
     validate_id(id)?;
-    let spec = &agent
+    let agent = agent.into();
+    let config = agent
+        .legacy()
+        .context("SDK continuation requires local plan resolution")?;
+    let spec = &config
         .session
         .as_ref()
         .context("adapter does not support sessions")?
@@ -55,6 +60,98 @@ pub fn continuation_command(
         .chain(args)
         .collect::<Vec<_>>();
     format_continuation(&cwd, &argv, cfg!(windows))
+}
+async fn interactive_spec(
+    agent: &Agent,
+    task: &TaskConfig,
+    run: Uuid,
+    id: &str,
+    export: bool,
+) -> Result<CommandSpec> {
+    validate_id(id)?;
+    if let Some(config) = agent.legacy() {
+        return Ok(config
+            .session
+            .as_ref()
+            .context("adapter has no interactive session command")?
+            .interactive
+            .clone());
+    }
+    let mut agent = agent.clone();
+    agent.pin_configuration().await?;
+    let mut task = task.clone();
+    task.prompt.clear();
+    task.cwd = Path::new(&task.cwd)
+        .canonicalize()?
+        .to_string_lossy()
+        .into_owned();
+    task.parameters = config::resolve_parameters(&agent.parameters, &task.parameters)?;
+    task.session = Some(config::SessionBinding { id: id.into() });
+    let request = agent.request(
+        AgentOperation::SessionInteractive,
+        &task,
+        None,
+        Duration::from_secs(25),
+    );
+    let response = agent
+        .invoke(request, tokio_util::sync::CancellationToken::new(), None)
+        .await?;
+    ensure!(
+        response.confirmed && response.stopped.is_none(),
+        "interactive plan did not stop cleanly"
+    );
+    let AgentReply::Interactive(plan) = response.reply else {
+        bail!("invalid interactive plan response")
+    };
+    plan.validate(&task.cwd)?;
+    ensure!(
+        !export || plan.env.is_empty(),
+        "native continuation requires adapter-specific environment; use the local CLI or web terminal instead"
+    );
+    let (env, env_from) = agent.interactive_environment(&plan.env).await?;
+    ensure!(
+        !plan.cwd.contains("{{") && plan.argv.iter().all(|arg| !arg.contains("{{")),
+        "interactive plans must contain literal arguments, not templates"
+    );
+    ensure!(
+        Path::new(&plan.cwd).canonicalize()? == Path::new(&task.cwd).canonicalize()?,
+        "interactive plan changes session working directory"
+    );
+    let mut spec = CommandSpec {
+        command: plan.argv[0].clone(),
+        args: plan.argv[1..].iter().cloned().map(Into::into).collect(),
+        cwd: Some(plan.cwd),
+        env,
+        env_from,
+        ..Default::default()
+    };
+    wakeit_core::native_command::normalize_native_command(&mut spec)?;
+    let _ = run;
+    Ok(spec)
+}
+pub async fn resolved_continuation_command(
+    agent: &Agent,
+    task: &TaskConfig,
+    run: Uuid,
+    id: &str,
+) -> Result<String> {
+    if agent.legacy().is_some() {
+        return continuation_command(agent, task, run, id);
+    }
+    let spec = interactive_spec(agent, task, run, id, true).await?;
+    let argv = std::iter::once(Ok(spec.command))
+        .chain(spec.args.into_iter().map(|arg| match arg {
+            config::CommandArg::Literal(value) => Ok(value),
+            _ => bail!("interactive plan contains templates"),
+        }))
+        .collect::<Result<Vec<_>>>()?;
+    format_continuation(
+        spec.cwd
+            .as_deref()
+            .context("interactive working directory missing")?,
+        &argv,
+        cfg!(windows),
+    )
 }
 fn quote_posix(value: &str) -> String {
     if !value.is_empty()
@@ -115,37 +212,59 @@ fn format_continuation(cwd: &str, argv: &[String], windows: bool) -> Result<Stri
     Ok(command)
 }
 pub async fn inspect(
-    agent: &AgentConfig,
+    agent: impl Into<Agent>,
     task: &TaskConfig,
     run_id: Uuid,
     id: &str,
 ) -> Result<SessionInfo> {
     validate_id(id)?;
-    let spec = &agent
-        .session
-        .as_ref()
-        .context("adapter does not support sessions")?
-        .inspect;
+    let agent = agent.into();
     let mut task = task.clone();
     task.prompt.clear();
     task.parameters = config::resolve_parameters(&agent.parameters, &task.parameters)?;
     task.session = Some(config::SessionBinding { id: id.into() });
-    let output = process::execute(
-        spec,
-        &task,
-        run_id,
-        None,
-        Duration::from_secs(25),
-        tokio_util::sync::CancellationToken::new(),
-        None,
-    )
-    .await?;
-    ensure!(
-        output.code == Some(0) && output.stopped.is_none() && output.confirmed,
-        "session inspection failed"
-    );
-    let info: SessionInfo =
-        serde_json::from_str(&output.stdout).context("invalid session inspection response")?;
+    let info: SessionInfo = if agent.legacy().is_none() {
+        let request = agent.request(
+            AgentOperation::SessionInspect,
+            &task,
+            None,
+            Duration::from_secs(25),
+        );
+        let response = agent
+            .invoke(request, tokio_util::sync::CancellationToken::new(), None)
+            .await?;
+        ensure!(
+            response.confirmed && response.stopped.is_none(),
+            "session inspection did not stop cleanly"
+        );
+        let AgentReply::Session(info) = response.reply else {
+            bail!("invalid session inspection response")
+        };
+        info
+    } else {
+        let spec = &agent
+            .legacy()
+            .expect("legacy branch")
+            .session
+            .as_ref()
+            .context("adapter does not support sessions")?
+            .inspect;
+        let output = process::execute(
+            spec,
+            &task,
+            run_id,
+            None,
+            Duration::from_secs(25),
+            tokio_util::sync::CancellationToken::new(),
+            None,
+        )
+        .await?;
+        ensure!(
+            output.code == Some(0) && output.stopped.is_none() && output.confirmed,
+            "session inspection failed"
+        );
+        serde_json::from_str(&output.stdout).context("invalid session inspection response")?
+    };
     validate_id(&info.id)?;
     ensure!(
         info.version == 1 && info.id == id && info.persisted,
@@ -168,7 +287,7 @@ pub async fn inspect(
 }
 /// Apply a fresh session title and verify native persistence. Binding existing sessions never calls this.
 pub async fn rename(
-    agent: &AgentConfig,
+    agent: impl Into<Agent>,
     task: &TaskConfig,
     run: Uuid,
     id: &str,
@@ -179,32 +298,53 @@ pub async fn rename(
         !title.trim().is_empty() && title.len() <= 200 && !title.chars().any(char::is_control),
         "invalid session title"
     );
-    let adapter = agent
-        .session
-        .as_ref()
-        .context("adapter does not support sessions")?;
+    let agent = agent.into();
     let mut task = task.clone();
     task.prompt.clear();
     task.parameters = config::resolve_parameters(&agent.parameters, &task.parameters)?;
     task.session = Some(config::SessionBinding { id: id.into() });
-    if let Some(spec) = &adapter.rename {
-        let output = process::execute_named(
-            spec,
+    if let Some(config) = agent.legacy() {
+        let adapter = config
+            .session
+            .as_ref()
+            .context("adapter does not support sessions")?;
+        if let Some(spec) = &adapter.rename {
+            let output = process::execute_named(
+                spec,
+                &task,
+                run,
+                None,
+                Duration::from_secs(25),
+                tokio_util::sync::CancellationToken::new(),
+                None,
+                Some(title),
+            )
+            .await?;
+            ensure!(
+                output.code == Some(0) && output.stopped.is_none() && output.confirmed,
+                "session rename command failed"
+            );
+        }
+    } else {
+        let mut request = agent.request(
+            AgentOperation::SessionRename,
             &task,
-            run,
             None,
             Duration::from_secs(25),
-            tokio_util::sync::CancellationToken::new(),
-            None,
-            Some(title),
-        )
-        .await?;
+        );
+        request.context.session_title = Some(title.into());
+        request.input = serde_json::json!({"title":title});
+        let response = agent
+            .invoke(request, tokio_util::sync::CancellationToken::new(), None)
+            .await?;
         ensure!(
-            output.code == Some(0) && output.stopped.is_none() && output.confirmed,
-            "session rename command failed"
+            response.confirmed
+                && response.stopped.is_none()
+                && matches!(response.reply, AgentReply::Renamed | AgentReply::Session(_)),
+            "session rename failed"
         );
     }
-    let info = inspect(agent, &task, run, id).await?;
+    let info = inspect(&agent, &task, run, id).await?;
     ensure!(
         info.title.as_deref() == Some(title),
         "Agent did not persist the requested session title"
@@ -325,6 +465,8 @@ pub(crate) fn mark_continuation(
 pub(crate) struct PreparedContinuation {
     pub task: TaskConfig,
     pub command: CommandSpec,
+    /// SDK plans contain literal values, not legacy template expressions.
+    pub literal_environment: bool,
     pub session: RunSession,
     pub _lock: File,
 }
@@ -358,8 +500,8 @@ pub(crate) async fn prepare_local(
     let guard = lock(config, &session.agent, &session.id)?;
     ensure_idle(config, &session, Some(run)).await?;
     let mut agent = saved.agent;
-    crate::launch::normalize_commands(&mut agent)?;
-    agent.validate()?;
+    agent.bind_saved_runner(&config.data_dir)?;
+    agent.normalize()?;
     let mut task = saved.assignment.task;
     task.cwd = session.cwd.clone();
     task.prompt.clear();
@@ -367,12 +509,11 @@ pub(crate) async fn prepare_local(
         id: session.id.clone(),
     });
     inspect(&agent, &task, run, &session.id).await?;
+    let command = interactive_spec(&agent, &task, run, &session.id, false).await?;
     Ok(PreparedContinuation {
         task,
-        command: agent
-            .session
-            .context("adapter has no interactive session command")?
-            .interactive,
+        command,
+        literal_environment: agent.legacy().is_none(),
         session,
         _lock: guard,
     })
@@ -409,7 +550,7 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
             );
             let assignment: crate::protocol::Assignment =
                 serde_json::from_str(&row.get::<String, _>("assignment"))?;
-            let agent: AgentConfig = serde_json::from_str(&row.get::<String, _>("agent"))?;
+            let agent: Agent = serde_json::from_str(&row.get::<String, _>("agent"))?;
             let session: RunSession = serde_json::from_str(
                 row.get::<Option<String>, _>("session")
                     .as_deref()
@@ -442,8 +583,8 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
     );
     let _guard = lock(&config, &session.agent, &session.id)?;
     ensure_idle(&config, &session, Some(run_id)).await?;
-    crate::launch::normalize_commands(&mut agent)?;
-    agent.validate()?;
+    agent.bind_saved_runner(&config.data_dir)?;
+    agent.normalize()?;
     let mut task = assignment.task;
     task.cwd = session.cwd.clone();
     task.prompt.clear();
@@ -451,14 +592,9 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
         id: session.id.clone(),
     });
     inspect(&agent, &task, run_id, &session.id).await?;
-    let spec = agent
-        .session
-        .as_ref()
-        .context("adapter does not support session continuation")?
-        .interactive
-        .clone();
+    let spec = interactive_spec(&agent, &task, run_id, &session.id, false).await?;
     let occupancy = mark_continuation(&config, run_id, &session)?;
-    let result = interactive(&spec, &task, run_id).await;
+    let result = interactive(&spec, &task, run_id, agent.legacy().is_none()).await;
     if result.as_ref().err().is_none_or(|error| {
         error
             .downcast_ref::<process::CommandStartedError>()
@@ -474,7 +610,36 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
     }
     result.with_context(|| format!("if continuation termination is uncertain, verify all Agent processes have exited before removing {}", occupancy.display()))
 }
-async fn interactive(spec: &CommandSpec, task: &TaskConfig, run_id: Uuid) -> Result<i32> {
+pub(crate) fn continuation_environment(
+    spec: &CommandSpec,
+    task: &TaskConfig,
+    run: Uuid,
+    literal: bool,
+) -> Result<std::collections::BTreeMap<String, String>> {
+    if !literal {
+        return process::render_environment(spec, task, run, None, None);
+    }
+    let mut environment = spec.env.clone();
+    for (name, source) in &spec.env_from {
+        environment.insert(
+            name.clone(),
+            std::env::var(source).with_context(|| {
+                format!("interactive environment variable {source} is unavailable")
+            })?,
+        );
+    }
+    ensure!(
+        environment.values().all(|value| !value.contains('\0')),
+        "interactive environment value contains a null byte"
+    );
+    Ok(environment)
+}
+async fn interactive(
+    spec: &CommandSpec,
+    task: &TaskConfig,
+    run_id: Uuid,
+    literal_environment: bool,
+) -> Result<i32> {
     let mut command = tokio::process::Command::new(&spec.command);
     let (args, cwd) = process::render_command(spec, task, run_id, None, None)?;
     ensure!(
@@ -484,7 +649,12 @@ async fn interactive(spec: &CommandSpec, task: &TaskConfig, run_id: Uuid) -> Res
     command
         .args(args)
         .current_dir(&cwd)
-        .envs(process::render_environment(spec, task, run_id, None, None)?);
+        .envs(continuation_environment(
+            spec,
+            task,
+            run_id,
+            literal_environment,
+        )?);
     command
         .env("PWD", &cwd)
         .stdin(Stdio::inherit())
@@ -498,6 +668,7 @@ async fn interactive(spec: &CommandSpec, task: &TaskConfig, run_id: Uuid) -> Res
 mod tests {
     use super::super::config::{register_at, registered_configs_at};
     use super::*;
+    use crate::config::AgentConfig;
     use crate::config::CommandArg;
     fn runner(dir: &Path) -> RunnerConfig {
         RunnerConfig {
@@ -511,6 +682,7 @@ mod tests {
             data_dir: dir.join("data"),
             concurrency: 2,
             agents: vec![],
+            agent_instances: Default::default(),
             bundled_agents: false,
             allowed_roots: vec![dir.to_owned()],
         }
@@ -686,7 +858,9 @@ mod tests {
         let task: TaskConfig = serde_json::from_value(serde_json::json!({"version":1,"id":"fixture","name":"fixture","runner":"fixture","agent":"codex","cwd":dir.path(),"prompt":"","session":{"id":"ses_1"},"schedule":null})).unwrap();
         let command: CommandSpec = serde_json::from_value(serde_json::json!({"command":"/bin/sh","args":["-c","test -z \"$1\" && exit 7", "fixture", "{{task.prompt}}"]})).unwrap();
         assert_eq!(
-            interactive(&command, &task, Uuid::new_v4()).await.unwrap(),
+            interactive(&command, &task, Uuid::new_v4(), false)
+                .await
+                .unwrap(),
             7
         );
     }

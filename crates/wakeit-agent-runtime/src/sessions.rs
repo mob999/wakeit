@@ -52,7 +52,7 @@ fn validate_id(protocol: &str, id: &str) -> Result<()> {
                 && id.len() > 4,
             "invalid OpenCode session ID"
         ),
-        "kimi-code" => wakeit_core::sessions::validate_id(id)?,
+        "kimi-code" => wakeit_plugin_sdk::sessions::validate_id(id)?,
         _ => bail!("unsupported session protocol"),
     }
     Ok(())
@@ -93,18 +93,11 @@ async fn pi_settings_session_dir(path: &Path) -> Result<Option<PathBuf>> {
 }
 
 fn normalized_command(command: &str, args: &[String]) -> Result<Command> {
-    let mut spec = crate::config::CommandSpec {
-        command: command.into(),
-        args: args.iter().cloned().map(Into::into).collect(),
-        ..Default::default()
-    };
-    crate::launch::normalize_native_command(&mut spec)?;
-    let mut command = Command::new(spec.command);
-    for arg in spec.args {
-        if let crate::config::CommandArg::Literal(value) = arg {
-            command.arg(value);
-        }
-    }
+    let mut executable = command.to_owned();
+    let mut args = args.to_vec();
+    wakeit_plugin_sdk::native::normalize_native_command(&mut executable, &mut args)?;
+    let mut command = Command::new(executable);
+    command.args(args);
     command.kill_on_drop(true);
     Ok(command)
 }

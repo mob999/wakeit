@@ -1,5 +1,8 @@
 //! Language-neutral extension protocol client and host API for native plugins.
+pub mod agent;
 pub mod api;
+pub mod capture;
+pub mod native;
 use anyhow::{Context as _, Result, ensure};
 use serde_json::{Value, json};
 use std::{
@@ -13,7 +16,15 @@ use tokio::{
     sync::{Mutex, mpsc, oneshot, watch},
 };
 use uuid::Uuid;
-pub use wakeit_core::extensions::*;
+pub use wakeit_plugin_protocol::adapter;
+pub use wakeit_plugin_protocol::agent::{AgentMode, ParameterSpec};
+pub use wakeit_plugin_protocol::extensions::{
+    Action, Actor, Binding, ConfigUpdate, Contract, CredentialSlot, Decision, DeliveryOutcome,
+    EVENT_TYPES, Event, Extension, ExtensionError, FailurePolicy, HOOK_STAGES, Hook, Instance,
+    Interaction, Invocation, Provider, Receipt, SDK_PROTOCOL, SecretUpdate, UiChoice,
+    apply_decision, event_matches, schema, valid_event_pattern, validate_schema,
+};
+pub use wakeit_plugin_protocol::{extensions, protocol, session_catalog, sessions, trace};
 pub type Handler = Arc<
     dyn Fn(Value, Context) -> Pin<Box<dyn Future<Output = Result<Value>> + Send>> + Send + Sync,
 >;
@@ -96,6 +107,8 @@ impl Context {
 }
 #[derive(Default)]
 pub struct Plugin {
+    agents: BTreeMap<String, agent::Agent>,
+    duplicate_agent: bool,
     events: BTreeMap<String, Handler>,
     hooks: BTreeMap<String, Handler>,
     actions: BTreeMap<String, Handler>,
@@ -105,6 +118,15 @@ pub struct Plugin {
 impl Plugin {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn agent(mut self, id: impl Into<String>, implementation: agent::Agent) -> Self {
+        let id = id.into();
+        if let std::collections::btree_map::Entry::Vacant(entry) = self.agents.entry(id) {
+            entry.insert(implementation);
+        } else {
+            self.duplicate_agent = true;
+        }
+        self
     }
     pub fn on(mut self, id: impl Into<String>, handler: Handler) -> Self {
         self.events.insert(id.into(), handler);
@@ -189,18 +211,39 @@ impl Plugin {
                 }
                 continue;
             }
+            // Register cancellation before dispatching the handler task. A cancel
+            // frame in the same stdin batch must not race controller creation.
+            let (tx, rx) = watch::channel(false);
+            let controller_id = if ["agent.invoke", "invoke"].contains(&method.as_str()) {
+                params["id"]
+                    .as_str()
+                    .and_then(|value| value.parse::<Uuid>().ok())
+            } else {
+                None
+            };
+            if let Some(id) = controller_id {
+                let mut active = controllers.lock().await;
+                if active.contains_key(&id) {
+                    let _ = client.writes.send(json!({"jsonrpc":"2.0","id":message["id"],"error":{"code":-32000,"message":"request is already active","data":{"code":"duplicate_request","retryable":false,"paths":[]}}})).await;
+                    continue;
+                }
+                active.insert(id, tx.clone());
+            }
             let client = client.clone();
             let plugin = plugin.clone();
             let initialized = initialized.clone();
             let controllers = controllers.clone();
             tokio::spawn(async move {
                 let result:Result<Value>=async{
-                    if method=="initialize"{ensure!(params["protocol_version"]==1,"unsupported protocol");ensure!(!initialized.swap(true,std::sync::atomic::Ordering::SeqCst),"duplicate initialization");return Ok(json!({"protocol_version":1,"handlers":plugin.events.keys().collect::<Vec<_>>(),"hooks":plugin.hooks.keys().collect::<Vec<_>>(),"actions":plugin.actions.keys().collect::<Vec<_>>(),"providers":plugin.providers.keys().collect::<Vec<_>>()}));}
-                    let (tx,rx)=watch::channel(false);
-                    if method=="invoke"{
+                    if method=="initialize"{ensure!(!plugin.duplicate_agent,"Agent registered more than once");ensure!(params["protocol_version"]==1,"unsupported protocol");for (id,implementation) in &plugin.agents{wakeit_plugin_protocol::validate_id(id)?;implementation.validate()?;}ensure!(!initialized.swap(true,std::sync::atomic::Ordering::SeqCst),"duplicate initialization");return Ok(json!({"protocol_version":1,"agents":plugin.agents.iter().map(|(id, implementation)|(id,&implementation.descriptor)).collect::<BTreeMap<_,_>>(),"handlers":plugin.events.keys().collect::<Vec<_>>(),"hooks":plugin.hooks.keys().collect::<Vec<_>>(),"actions":plugin.actions.keys().collect::<Vec<_>>(),"providers":plugin.providers.keys().collect::<Vec<_>>()}));}
+                    if method=="agent.invoke" {
+                        ensure!(initialized.load(std::sync::atomic::Ordering::SeqCst), "initialize before invoking");
+                        let request: adapter::AgentRequest = serde_json::from_value(params)?;
+                        let implementation = plugin.agents.get(&request.agent).context("Agent is not registered")?;
+                        Ok(serde_json::to_value(implementation.invoke(request, Context { invocation: None, cancelled: rx, host: client.clone() }, tx).await?)?)
+                    } else if method=="invoke"{
                         ensure!(initialized.load(std::sync::atomic::Ordering::SeqCst),"initialize before invoking");
                         let invocation:Invocation=serde_json::from_value(params)?;
-                        controllers.lock().await.insert(invocation.id,tx);
                         let table=match invocation.kind.as_str(){"event"=>&plugin.events,"hook"=>&plugin.hooks,"action"=>&plugin.actions,"provider"=>&plugin.providers,_=>anyhow::bail!("invalid invocation kind")};
                         let handler=table.get(&invocation.handler).context("handler is not registered")?;
                         let timeout=(invocation.deadline-chrono::Utc::now()).to_std().context("invocation expired")?;
@@ -209,6 +252,9 @@ impl Plugin {
                     }else if let Some(handler)=plugin.lifecycle.get(&method){handler(params,Context{invocation:None,cancelled:rx,host:client.clone()}).await}
                     else if ["activate","deactivate","dispose","health","validateConfig","applyConfig","migrateConfig"].contains(&method.as_str()){Ok(Value::Null)}else{anyhow::bail!("unknown method")}
                 }.await;
+                if let Some(id) = controller_id {
+                    controllers.lock().await.remove(&id);
+                }
                 let response = match result {
                     Ok(result) => json!({"jsonrpc":"2.0","id":message["id"],"result":result}),
                     Err(e) => {

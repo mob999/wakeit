@@ -1,6 +1,6 @@
+use super::agent_backend::Agent;
 use crate::{
     bus,
-    config::AgentConfig,
     protocol::{Assignment, RunEvent},
 };
 use anyhow::{Context, Result};
@@ -26,7 +26,7 @@ pub struct Journal {
 #[derive(Clone)]
 pub struct LocalRun {
     pub assignment: Assignment,
-    pub agent: AgentConfig,
+    pub agent: Agent,
     pub claim: Uuid,
     pub phase: String,
     pub job: Option<String>,
@@ -110,6 +110,29 @@ impl Journal {
             .await?;
         Ok(id)
     }
+    pub async fn agent_fact(
+        &self,
+        fact: &super::agent_backend::AgentFact,
+        stopped: Option<&str>,
+    ) -> Result<()> {
+        use super::agent_backend::NativeFact;
+        let (event, mut data) = match &fact.fact {
+            NativeFact::Started { pid } => ("execution.started", json!({"pid":pid})),
+            NativeFact::InputSubmitted => ("execution.input_submitted", json!({})),
+            NativeFact::NativeFinished { exit_code } => (
+                "execution.native_finished",
+                json!({"exit_code":exit_code,"stopped":stopped}),
+            ),
+            NativeFact::StartFailed { message } => {
+                ("execution.start_failed", json!({"message":message}))
+            }
+        };
+        data["run_id"] = json!(fact.run_id);
+        data["request_id"] = json!(fact.request_id);
+        data["seq"] = json!(fact.seq);
+        self.extension_event(event, data).await?;
+        Ok(())
+    }
     pub async fn extension_result(&self, run: Uuid, kind: &str, data: &Value) -> Result<Uuid> {
         let id = Uuid::new_v4();
         let mut tx = self.pool.begin().await?;
@@ -133,8 +156,9 @@ impl Journal {
         tx.commit().await?;
         Ok(id)
     }
-    pub async fn insert(&self, a: &Assignment, agent: &AgentConfig) -> Result<()> {
-        sqlx::query("INSERT OR IGNORE INTO local_runs(id,assignment,agent,claim,phase,started) VALUES(?,?,?,?, 'intent',?)").bind(a.run_id.to_string()).bind(serde_json::to_string(a)?).bind(serde_json::to_string(agent)?).bind(Uuid::new_v4().to_string()).bind(Utc::now().to_rfc3339()).execute(&self.pool).await?;
+    pub async fn insert(&self, a: &Assignment, agent: impl Into<Agent>) -> Result<()> {
+        let agent = agent.into();
+        sqlx::query("INSERT OR IGNORE INTO local_runs(id,assignment,agent,claim,phase,started) VALUES(?,?,?,?, 'intent',?)").bind(a.run_id.to_string()).bind(serde_json::to_string(a)?).bind(serde_json::to_string(&agent)?).bind(Uuid::new_v4().to_string()).bind(Utc::now().to_rfc3339()).execute(&self.pool).await?;
         Ok(())
     }
     pub async fn title(&self, id: Uuid, title: Option<&str>) -> Result<()> {
@@ -149,6 +173,14 @@ impl Journal {
         sqlx::query("UPDATE local_runs SET assignment=? WHERE id=?")
             .bind(serde_json::to_string(a)?)
             .bind(a.run_id.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+    pub async fn save_agent(&self, id: Uuid, agent: &Agent) -> Result<()> {
+        sqlx::query("UPDATE local_runs SET agent=? WHERE id=?")
+            .bind(serde_json::to_string(agent)?)
+            .bind(id.to_string())
             .execute(&self.pool)
             .await?;
         Ok(())

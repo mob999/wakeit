@@ -1,8 +1,9 @@
 use super::{args::*, client::Client, display};
+use crate::runner::agent_backend::{Agent as ResolvedAgent, AgentOperation};
 use crate::runner::config::read_runner;
 use crate::{
-    config::{self, AgentConfig, TaskConfig},
-    process, runner,
+    config::{self, TaskConfig},
+    runner,
 };
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
@@ -16,12 +17,16 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
                 .clone()
                 .unwrap_or_else(|| PathBuf::from(format!("{id}.yaml")));
             ensure!(!file.exists(), "file already exists");
-            std::fs::write(&file, yaml_serde::to_string(&crate::plugins::agent(id)?)?)?;
+            let agent = crate::plugins::agent(id)?;
+            let legacy = agent
+                .legacy()
+                .context("this Agent is configured by its SDK plugin; no Agent YAML is required")?;
+            std::fs::write(&file, yaml_serde::to_string(legacy)?)?;
             println!("{}", file.display());
         }
         Agent::Validate { file } => {
-            let agent: AgentConfig = config::read(file)?;
-            agent.validate()?;
+            let mut agent: ResolvedAgent = config::read(file)?;
+            agent.normalize()?;
             display(
                 json!({"valid":true,"id":agent.id,"digest":agent.digest()}),
                 cli.json,
@@ -30,18 +35,16 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
         Agent::Doctor { config } => {
             let c = read_runner(config)?;
             let mut items = vec![];
-            for a in crate::plugins::load_agents(&c.agents, c.bundled_agents)?
-                .agents
-                .values()
+            for (id, mut agent) in crate::plugins::load_agents(&c.agents, c.bundled_agents)?.agents
             {
-                items.push(runner::inspect(a, &std::env::current_dir()?).await);
+                agent.bind_runner(&c.data_dir, c.agent_instances.get(&id).copied())?;
+                items.push(runner::inspect(&agent, &std::env::current_dir()?).await);
             }
             display(json!(items), cli.json);
         }
         Agent::Test { file, cwd, prompt } => {
-            let mut a: AgentConfig = config::read(file)?;
-            crate::launch::normalize_commands(&mut a)?;
-            a.validate()?;
+            let mut a: ResolvedAgent = config::read(file)?;
+            a.normalize()?;
             let mut t = TaskConfig {
                 dag: None,
                 version: 1,
@@ -61,22 +64,28 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
             let id = Uuid::new_v4();
             let session_title =
                 config::generated_session_title(&t.name, chrono::Utc::now(), "UTC")?;
-            let out = process::execute_output_named_format(
-                &a.submit,
-                &t,
-                id,
-                None,
-                Duration::from_secs(120),
-                tokio_util::sync::CancellationToken::new(),
-                None,
-                if a.mode == config::AgentMode::Sync {
-                    a.output.format.clone()
-                } else {
-                    config::OutputFormat::Text
-                },
-                Some(&session_title),
-            )
-            .await?;
+            let out = if a.mode == config::AgentMode::Sync {
+                a.execute(
+                    &t,
+                    id,
+                    Duration::from_secs(120),
+                    tokio_util::sync::CancellationToken::new(),
+                    None,
+                    Some(&session_title),
+                )
+                .await?
+            } else {
+                a.job_command(
+                    AgentOperation::Submit,
+                    &t,
+                    id,
+                    None,
+                    Duration::from_secs(60),
+                    tokio_util::sync::CancellationToken::new(),
+                    None,
+                )
+                .await?
+            };
             ensure!(
                 out.code == Some(0) && out.stopped.is_none() && out.confirmed,
                 "agent submit failed (exit {:?}, stopped {:?}, confirmed {}): {}{}",
@@ -94,16 +103,17 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
             } else {
                 let b: Value = serde_json::from_str(&out.stdout)?;
                 let job = b["job_id"].as_str().context("submit must return job_id")?;
-                let status = process::execute(
-                    a.status.as_ref().context("status")?,
-                    &t,
-                    id,
-                    Some(job),
-                    Duration::from_secs(10),
-                    tokio_util::sync::CancellationToken::new(),
-                    None,
-                )
-                .await?;
+                let status = a
+                    .job_command(
+                        AgentOperation::Poll,
+                        &t,
+                        id,
+                        Some(job),
+                        Duration::from_secs(10),
+                        tokio_util::sync::CancellationToken::new(),
+                        None,
+                    )
+                    .await?;
                 ensure!(status.code == Some(0), "status command failed");
                 display(
                     json!({"job_id":job,"status":serde_json::from_str::<Value>(&status.stdout)?}),

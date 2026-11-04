@@ -1703,6 +1703,2208 @@
         "title": "PasswordBody",
         "type": "object"
       },
+      "PluginBinding": {
+        "$defs": {
+          "FailurePolicy": {
+            "enum": [
+              "reject",
+              "wait",
+              "continue"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "event": {
+            "type": "string"
+          },
+          "expires_seconds": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "failure_policy": {
+            "$ref": "#/components/schemas/PluginBinding/$defs/FailurePolicy"
+          },
+          "filter": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "handler": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "instance_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "max_attempts": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "position": {
+            "default": 0,
+            "format": "int32",
+            "type": "integer"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "runner_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "instance_id",
+          "runner_id",
+          "handler",
+          "kind",
+          "event",
+          "enabled",
+          "failure_policy",
+          "timeout_seconds",
+          "max_attempts",
+          "expires_seconds",
+          "revision"
+        ],
+        "title": "Binding",
+        "type": "object"
+      },
+      "PluginSdk": {
+        "$defs": {
+          "Action": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "input": {
+                "default": {
+                  "properties": {},
+                  "type": "object"
+                }
+              },
+              "label": {
+                "type": "string"
+              },
+              "output": {
+                "default": null
+              },
+              "permission": {
+                "default": "",
+                "type": "string"
+              },
+              "side_effects": {
+                "default": false,
+                "type": "boolean"
+              },
+              "timeout_seconds": {
+                "default": 60,
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "Actor": {
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string"
+              },
+              "roles": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          "AgentContext": {
+            "additionalProperties": false,
+            "description": "Snapshot of authorized inputs, not an internal TaskConfig, Assignment or database row.",
+            "properties": {
+              "cwd": {
+                "type": "string"
+              },
+              "deadline": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "job_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "run_id": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "session_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "session_title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "task_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "cwd",
+              "deadline"
+            ],
+            "type": "object"
+          },
+          "AgentDescriptor": {
+            "additionalProperties": false,
+            "properties": {
+              "logo": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/AgentMode"
+              },
+              "name": {
+                "type": "string"
+              },
+              "operations": {
+                "items": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/AgentOperation"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/ParameterSpec"
+                },
+                "default": {},
+                "type": "object"
+              }
+            },
+            "required": [
+              "name",
+              "mode",
+              "operations"
+            ],
+            "type": "object"
+          },
+          "AgentFact": {
+            "additionalProperties": false,
+            "properties": {
+              "fact": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/NativeFact"
+              },
+              "request_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "run_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "seq": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "request_id",
+              "run_id",
+              "seq",
+              "fact"
+            ],
+            "type": "object"
+          },
+          "AgentMode": {
+            "enum": [
+              "sync",
+              "async"
+            ],
+            "type": "string"
+          },
+          "AgentOperation": {
+            "description": "A declared operation must have an implementation registered during initialization.",
+            "enum": [
+              "detect",
+              "execute",
+              "submit",
+              "poll",
+              "cancel",
+              "reconcile",
+              "models",
+              "session_list",
+              "session_inspect",
+              "session_resume",
+              "session_rename",
+              "session_interactive"
+            ],
+            "type": "string"
+          },
+          "AgentRecord": {
+            "additionalProperties": false,
+            "description": "Acknowledged, per-request public output. The host rejects wrong identities,\nout-of-order records, unsupported versions and writes from read-only queries.",
+            "properties": {
+              "record": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/StreamRecord"
+              },
+              "request_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "run_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "seq": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "request_id",
+              "run_id",
+              "seq",
+              "record"
+            ],
+            "type": "object"
+          },
+          "AgentReply": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "detection",
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/Detection"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "execution",
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/ExecutionOutcome"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "models",
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/ModelCatalog"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "sessions",
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/Catalog"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "session",
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/SessionInfo"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "interactive",
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/InteractivePlan"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "renamed",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "AgentRequest": {
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "type": "string"
+              },
+              "context": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/AgentContext"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "input": {
+                "default": null,
+                "description": "Operation-specific input (query/cursor/limit or a requested native title)."
+              },
+              "operation": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/AgentOperation"
+              }
+            },
+            "required": [
+              "id",
+              "agent",
+              "operation",
+              "context"
+            ],
+            "type": "object"
+          },
+          "Binding": {
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "event": {
+                "type": "string"
+              },
+              "expires_seconds": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failure_policy": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/FailurePolicy"
+              },
+              "filter": {
+                "additionalProperties": true,
+                "default": {},
+                "type": "object"
+              },
+              "handler": {
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "instance_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "max_attempts": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "position": {
+                "default": 0,
+                "format": "int32",
+                "type": "integer"
+              },
+              "revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "runner_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "timeout_seconds": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "instance_id",
+              "runner_id",
+              "handler",
+              "kind",
+              "event",
+              "enabled",
+              "failure_policy",
+              "timeout_seconds",
+              "max_attempts",
+              "expires_seconds",
+              "revision"
+            ],
+            "type": "object"
+          },
+          "Catalog": {
+            "additionalProperties": false,
+            "properties": {
+              "next_cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sessions": {
+                "items": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/Entry"
+                },
+                "type": "array"
+              },
+              "version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "sessions"
+            ],
+            "type": "object"
+          },
+          "ConfigUpdate": {
+            "additionalProperties": false,
+            "properties": {
+              "config": true,
+              "expected_revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "operation_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "secrets": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/SecretUpdate"
+                },
+                "default": {},
+                "type": "object"
+              }
+            },
+            "required": [
+              "operation_id",
+              "expected_revision",
+              "config"
+            ],
+            "type": "object"
+          },
+          "CredentialSlot": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "required": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "Decision": {
+            "oneOf": [
+              {
+                "properties": {
+                  "decision": {
+                    "const": "allow",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "decision"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "const": "deny",
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "paths": {
+                    "default": [],
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "decision",
+                  "code",
+                  "message"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "decision": {
+                    "const": "patch",
+                    "type": "string"
+                  },
+                  "value": true
+                },
+                "required": [
+                  "decision",
+                  "value"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "DeliveryOutcome": {
+            "oneOf": [
+              {
+                "properties": {
+                  "outcome": {
+                    "const": "success",
+                    "type": "string"
+                  },
+                  "result": true
+                },
+                "required": [
+                  "outcome",
+                  "result"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "const": "retry_after",
+                    "type": "string"
+                  },
+                  "seconds": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "seconds",
+                  "message"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "const": "permanent_failure",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "message"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "const": "uncertain",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "message"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "Detection": {
+            "additionalProperties": false,
+            "properties": {
+              "available": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "available"
+            ],
+            "type": "object"
+          },
+          "Entry": {
+            "additionalProperties": false,
+            "properties": {
+              "cwd": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "updated_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "cwd"
+            ],
+            "type": "object"
+          },
+          "EnvironmentValue": {
+            "description": "References keep native credentials on the device and out of RPC plans.",
+            "oneOf": [
+              {
+                "properties": {
+                  "source": {
+                    "const": "literal",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "source": {
+                    "const": "inherited",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "source": {
+                    "const": "credential",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "value"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "Event": {
+            "properties": {
+              "aggregate_id": {
+                "type": "string"
+              },
+              "aggregate_revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "aggregate_type": {
+                "type": "string"
+              },
+              "causation_id": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "committed_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "correlation_id": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "data": true,
+              "event_type": {
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "occurred_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "operation_id": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "origin": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/Actor"
+              },
+              "schema_version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "source_runner_id": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "workspace_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "event_type",
+              "schema_version",
+              "workspace_id",
+              "aggregate_type",
+              "aggregate_id",
+              "aggregate_revision",
+              "occurred_at",
+              "committed_at",
+              "origin",
+              "data"
+            ],
+            "type": "object"
+          },
+          "ExecutionOutcome": {
+            "description": "Native completion is separate from the authoritative Run lifecycle.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "Explicit acknowledgement that no native work was submitted or started.",
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "const": "not_started",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "message"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "exit_code": {
+                    "format": "int32",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "outcome": {
+                    "const": "completed",
+                    "type": "string"
+                  },
+                  "result": true
+                },
+                "required": [
+                  "outcome",
+                  "result",
+                  "confirmed"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "job_id": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "const": "submitted",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "job_id"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "job_id": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "const": "running",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "job_id"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "job_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "outcome": {
+                    "const": "cancel_requested",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "confirmed": {
+                    "type": "boolean"
+                  },
+                  "outcome": {
+                    "const": "cancelled",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "confirmed"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "outcome": {
+                    "const": "uncertain",
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "Extension": {
+            "additionalProperties": false,
+            "properties": {
+              "actions": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/Action"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "agents": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/AgentDescriptor"
+                },
+                "description": "Static Agent capabilities implemented by this same plugin entry point.",
+                "type": "object"
+              },
+              "args": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "command": {
+                "type": "string"
+              },
+              "config": {
+                "default": {
+                  "properties": {},
+                  "type": "object"
+                }
+              },
+              "credentials": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/CredentialSlot"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "events": {
+                "additionalProperties": true,
+                "default": {},
+                "type": "object"
+              },
+              "handlers": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/Handler"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "hooks": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/Hook"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "name": {
+                "type": "string"
+              },
+              "permissions": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "providers": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/Provider"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "sdk_protocol": {
+                "default": 1,
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "translations": {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "default": {},
+                "type": "object"
+              }
+            },
+            "required": [
+              "command",
+              "name"
+            ],
+            "type": "object"
+          },
+          "ExtensionError": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "paths": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "type": "object"
+          },
+          "FailurePolicy": {
+            "enum": [
+              "reject",
+              "wait",
+              "continue"
+            ],
+            "type": "string"
+          },
+          "Handler": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "events": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "timeout_seconds": {
+                "default": 60,
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "events"
+            ],
+            "type": "object"
+          },
+          "Hook": {
+            "additionalProperties": false,
+            "properties": {
+              "description": {
+                "default": "",
+                "type": "string"
+              },
+              "stage": {
+                "type": "string"
+              },
+              "timeout_seconds": {
+                "default": 60,
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "stage"
+            ],
+            "type": "object"
+          },
+          "Instance": {
+            "properties": {
+              "applied_revision": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "config": true,
+              "credential_status": {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "declaration": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/Extension"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "extension": {
+                "type": "string"
+              },
+              "grants": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "runner_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "runner_id",
+              "source",
+              "extension",
+              "name",
+              "revision",
+              "enabled",
+              "version",
+              "grants",
+              "config",
+              "state",
+              "declaration"
+            ],
+            "type": "object"
+          },
+          "Interaction": {
+            "oneOf": [
+              {
+                "properties": {
+                  "fraction": {
+                    "format": "double",
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "kind": {
+                    "const": "progress",
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "form",
+                    "type": "string"
+                  },
+                  "schema": true,
+                  "title": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "schema"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "secret",
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "slot": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "slot",
+                  "label"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "const": "confirm",
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "description"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "choice",
+                    "type": "string"
+                  },
+                  "options": {
+                    "items": {
+                      "$ref": "#/components/schemas/PluginSdk/$defs/UiChoice"
+                    },
+                    "type": "array"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "options"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "open_url",
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "url",
+                  "label"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "expires_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "const": "device_code",
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "url",
+                  "code",
+                  "expires_at"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "download",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "reference": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "reference",
+                  "name"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "navigate",
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "path"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "toast",
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "InteractivePlan": {
+            "additionalProperties": false,
+            "description": "Runner validates this plan against the selected Session/cwd, then owns the terminal.\nNo shell script, task instructions, native secrets or arbitrary Gateway argv are accepted.",
+            "properties": {
+              "argv": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "cwd": {
+                "type": "string"
+              },
+              "env": {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/EnvironmentValue"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "cwd",
+              "argv"
+            ],
+            "type": "object"
+          },
+          "Invocation": {
+            "properties": {
+              "actor": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/Actor"
+              },
+              "causation_id": {
+                "format": "uuid",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "deadline": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "expected_revision": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "handler": {
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "input": true,
+              "instance_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "operation_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "operation_id",
+              "instance_id",
+              "kind",
+              "handler",
+              "input",
+              "deadline",
+              "actor"
+            ],
+            "type": "object"
+          },
+          "LogRecord": {
+            "additionalProperties": false,
+            "properties": {
+              "diagnostic": {
+                "type": "boolean"
+              },
+              "recording_issue": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/RecordingIssue"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Explicit recording degradation; ordinary diagnostics do not imply lost events."
+              },
+              "stream": {
+                "default": "stdout",
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
+          },
+          "ModelCatalog": {
+            "additionalProperties": false,
+            "properties": {
+              "models": {
+                "items": {
+                  "$ref": "#/components/schemas/PluginSdk/$defs/ModelEntry"
+                },
+                "type": "array"
+              },
+              "version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "models"
+            ],
+            "type": "object"
+          },
+          "ModelEntry": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "parameter_options": {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "default": {},
+                "type": "object"
+              },
+              "parameters": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "parameters"
+            ],
+            "type": "object"
+          },
+          "NativeFact": {
+            "description": "Observed native lifecycle, distinct from the SDK worker and authoritative Run state.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "event": {
+                    "const": "started",
+                    "type": "string"
+                  },
+                  "pid": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "event",
+                  "pid"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "event": {
+                    "const": "input_submitted",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "event"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "event": {
+                    "const": "native_finished",
+                    "type": "string"
+                  },
+                  "exit_code": {
+                    "format": "int32",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "event"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "event": {
+                    "const": "start_failed",
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "event",
+                  "message"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "ParameterSpec": {
+            "additionalProperties": false,
+            "properties": {
+              "default": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "enum": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "label": {
+                "default": "",
+                "type": "string"
+              },
+              "type": {
+                "default": "string",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "Provider": {
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "default": null
+              },
+              "kind": {
+                "type": "string"
+              },
+              "output": {
+                "default": null
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          "Receipt": {
+            "properties": {
+              "error": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/ExtensionError"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "result": true,
+              "revision": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "revision"
+            ],
+            "type": "object"
+          },
+          "RecordingIssue": {
+            "enum": [
+              "content_shortened",
+              "event_limit",
+              "event_unsupported",
+              "event_parse_failed",
+              "event_too_large",
+              "content_limit"
+            ],
+            "type": "string"
+          },
+          "SecretUpdate": {
+            "oneOf": [
+              {
+                "properties": {
+                  "operation": {
+                    "const": "keep",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "operation": {
+                    "const": "replace",
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "operation": {
+                    "const": "clear",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "SessionInfo": {
+            "additionalProperties": false,
+            "properties": {
+              "cwd": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "persisted": {
+                "type": "boolean"
+              },
+              "title": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version",
+              "id",
+              "cwd",
+              "persisted"
+            ],
+            "type": "object"
+          },
+          "StreamRecord": {
+            "oneOf": [
+              {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/TraceNode"
+                  },
+                  "type": {
+                    "const": "trace",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "data"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/LogRecord"
+                  },
+                  "type": {
+                    "const": "log",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "data"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "data": true,
+                  "type": {
+                    "const": "result",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "data"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "data": {
+                    "$ref": "#/components/schemas/PluginSdk/$defs/SessionInfo"
+                  },
+                  "type": {
+                    "const": "session",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "data"
+                ],
+                "type": "object"
+              }
+            ],
+            "properties": {
+              "version": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "version"
+            ],
+            "type": "object",
+            "unevaluatedProperties": false
+          },
+          "TraceKind": {
+            "enum": [
+              "message",
+              "tool",
+              "command"
+            ],
+            "type": "string"
+          },
+          "TraceNode": {
+            "additionalProperties": false,
+            "properties": {
+              "finished_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "input": {
+                "default": null
+              },
+              "kind": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/TraceKind"
+              },
+              "occurred_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "output": {
+                "default": null
+              },
+              "parent_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "started_at": {
+                "format": "date-time",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "$ref": "#/components/schemas/PluginSdk/$defs/TraceState"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "status",
+              "title",
+              "occurred_at"
+            ],
+            "type": "object"
+          },
+          "TraceState": {
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "UiChoice": {
+            "properties": {
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "agent_descriptor": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/AgentDescriptor"
+          },
+          "agent_fact": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/AgentFact"
+          },
+          "agent_record": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/AgentRecord"
+          },
+          "agent_reply": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/AgentReply"
+          },
+          "agent_request": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/AgentRequest"
+          },
+          "binding": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Binding"
+          },
+          "config_update": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/ConfigUpdate"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Decision"
+          },
+          "event": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Event"
+          },
+          "extension": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Extension"
+          },
+          "instance": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Instance"
+          },
+          "interaction": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Interaction"
+          },
+          "invocation": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Invocation"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/DeliveryOutcome"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/PluginSdk/$defs/Receipt"
+          }
+        },
+        "required": [
+          "agent_descriptor",
+          "agent_request",
+          "agent_reply",
+          "agent_record",
+          "agent_fact",
+          "extension",
+          "instance",
+          "config_update",
+          "event",
+          "binding",
+          "invocation",
+          "decision",
+          "receipt",
+          "interaction",
+          "outcome"
+        ],
+        "title": "Contract",
+        "type": "object"
+      },
       "Resolution": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "properties": {
@@ -5789,7 +7991,7 @@
   },
   "info": {
     "title": "wakeit API",
-    "version": "0.4.2"
+    "version": "0.4.3"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -8462,113 +10664,6 @@
         ]
       }
     },
-    "/api/v1/workspaces/{workspace}/agents/templates/{id}": {
-      "get": {
-        "operationId": "get__agents_templates_id",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "workspace",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/yaml": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid input"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Authentication required"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Insufficient permissions"
-          },
-          "404": {
-            "description": "Workspace or resource unavailable"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Request too large"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid JSON shape"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "sessionCookie": []
-          }
-        ]
-      }
-    },
     "/api/v1/workspaces/{workspace}/audit": {
       "get": {
         "operationId": "get__audit",
@@ -9678,6 +11773,577 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace}/plugins/artifacts/{id}/download": {
+      "get": {
+        "operationId": "plugin_get__plugins_artifacts_id_download",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/bindings": {
+      "get": {
+        "operationId": "plugin_get__plugins_bindings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "plugin_post__plugins_bindings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PluginBinding"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/deliveries": {
+      "get": {
+        "operationId": "plugin_get__plugins_deliveries",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/deliveries/{id}": {
+      "post": {
+        "operationId": "plugin_post__plugins_deliveries_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "properties": {
+                  "action": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "title": "Control",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/events": {
+      "get": {
+        "operationId": "plugin_get__plugins_events",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/events/{id}": {
+      "get": {
+        "operationId": "plugin_get__plugins_events_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/operations": {
+      "get": {
+        "operationId": "plugin_get__plugins_operations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/operations/{id}": {
+      "get": {
+        "operationId": "plugin_get__plugins_operations_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "plugin_post__plugins_operations_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "properties": {
+                  "action": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "title": "Control",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/plugins/replay": {
+      "post": {
+        "operationId": "plugin_post__plugins_replay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "properties": {
+                  "action": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "title": "Control",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace}/runners": {
       "get": {
         "operationId": "get__runners",
@@ -10461,6 +13127,129 @@
               }
             },
             "description": "Invalid JSON shape"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/runners/{id}/plugins": {
+      "get": {
+        "operationId": "plugin_get__runners_id_plugins",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/runners/{id}/plugins/control": {
+      "post": {
+        "operationId": "plugin_post__runners_id_plugins_control",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "properties": {
+                  "action": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "title": "Control",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
           }
         },
         "security": [
@@ -11894,6 +14683,112 @@
         ]
       }
     },
+    "/api/v1/workspaces/{workspace}/runs/{id}/reconcile": {
+      "post": {
+        "description": "Operator only. Queue verification of an unknown execution by its saved Runner/Agent backend. Does not resubmit work or accept a caller-supplied state/result. A DAG uses its actual node execution ID. Offline delivery is durable; the Run remains unknown until evidence is received.",
+        "operationId": "post__runs_id_reconcile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid input"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permissions"
+          },
+          "404": {
+            "description": "Workspace or resource unavailable"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid JSON shape"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/workspaces/{workspace}/runs/{id}/resolve": {
       "post": {
         "operationId": "post__runs_id_resolve",
@@ -11997,6 +14892,79 @@
               }
             },
             "description": "Invalid JSON shape"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{workspace}/runs/{id}/result/retry": {
+      "post": {
+        "operationId": "plugin_post__runs_id_result_retry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "properties": {
+                  "action": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "default": null
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "title": "Control",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plugin result"
+          },
+          "400": {
+            "description": "Invalid schema, invocation or plugin operation"
+          },
+          "403": {
+            "description": "Plugin capability or member permission denied"
+          },
+          "409": {
+            "description": "Revision conflict"
+          },
+          "503": {
+            "description": "Target device unavailable"
           }
         },
         "security": [

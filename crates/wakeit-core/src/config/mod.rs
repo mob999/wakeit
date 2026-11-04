@@ -30,14 +30,4 @@ pub fn duration(value: &str) -> Result<Duration> {
     );
     Ok(d)
 }
-pub fn validate_id(id: &str) -> Result<()> {
-    ensure!(
-        !id.is_empty()
-            && id.len() <= 80
-            && id
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'),
-        "id must use 1–80 letters, numbers, hyphens or underscores"
-    );
-    Ok(())
-}
+pub use wakeit_plugin_protocol::validate_id;

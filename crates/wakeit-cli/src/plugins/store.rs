@@ -263,12 +263,14 @@ pub(super) async fn install(value: &str, replace: &[String]) -> Result<Value> {
         .packages
         .retain(|p| p.source.identity() != identity);
     registry.removed.retain(|s| s != &identity);
-    let provided = manifest::read(&package.root)?.wakeit.agents;
+    let manifest = manifest::read(&package.root)?;
+    let provided = manifest
+        .wakeit
+        .agent_ids()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
     for id in replace {
-        ensure!(
-            provided.contains_key(id),
-            "plugin does not provide agent {id}"
-        );
+        ensure!(provided.contains(id), "plugin does not provide agent {id}");
         registry.agent_sources.insert(id.clone(), identity.clone());
     }
     registry.packages.push(package.clone());

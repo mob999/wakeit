@@ -33,7 +33,9 @@ def main():
     if args.product == 'cli' and not args.probe:
         parser.error('--probe is required for CLI replacement checks')
     probe = args.probe.resolve() if args.probe else None
-    folder = Path(tempfile.mkdtemp(prefix='wakeit-native-'))
+    temporary = ROOT / '.local' / 'native-checks'
+    temporary.mkdir(parents=True, exist_ok=True)
+    folder = Path(tempfile.mkdtemp(prefix='wakeit-native-', dir=temporary))
     try:
         if args.product == 'gateway':
             config = folder / '网关 config.yaml'
@@ -91,8 +93,12 @@ def main():
             env.pop('WAKEIT_BUNDLED_PLUGIN_DIR',None)
             packages=json.loads(run(bundle_probe,'--json','plugin','list',env=env))['packages']
             official=next(p for p in packages if p['bundled'])
-            declared=json.loads((ROOT/'wakeit-plugin.json').read_text())['wakeit']['agents']
-            assert len(official['agents'])==len(declared)
+            resources = json.loads((ROOT / 'wakeit-plugin.json').read_text())['wakeit']
+            declared = set(resources.get('agents', {}))
+            for plugin in resources.get('plugins', {}).values():
+                declared.update(plugin.get('agents', {}))
+            assert set(official['agents']) == declared
+            assert official['status'] == 'installed'
             assert (folder/'wakeit-plugins'/run(binary,'--version').strip().split()[-1]/'wakeit-plugin.json').is_file()
         print('CLI executable/bundle replacement and failed-candidate checks passed.')
     finally:

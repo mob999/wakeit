@@ -206,7 +206,7 @@ async fn run(mut cli: Cli) -> Result<()> {
                 Plugin::List => crate::plugins::list()?,
                 Plugin::Validate { dir } => {
                     let info = crate::plugins::manifest::validate(dir)?;
-                    json!({"valid":true,"name":info.name,"version":info.version,"agents":info.wakeit.agents.keys().collect::<Vec<_>>()})
+                    json!({"valid":true,"name":info.name,"version":info.version,"agents":info.wakeit.agent_ids().collect::<Vec<_>>()})
                 }
                 Plugin::Update { source } => crate::plugins::update(source.as_deref()).await?,
                 Plugin::Remove { source } => crate::plugins::remove(source)?,

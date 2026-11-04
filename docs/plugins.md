@@ -2,7 +2,9 @@
 
 [简体中文](plugins-zh.md)
 
-CLI 0.2 includes an official plugin with all supported Agent adapters. Install a third-party plugin on the device where its Runner executes:
+The CLI includes an official Agent plugin. The SDK integration below describes the current source contract, not a claim that every released CLI supports it. When targeting an installed release, use that release's schema and advertised capabilities.
+
+Installation is unchanged. Install a third-party plugin on the device where its Runner executes:
 
 ```sh
 wakeit plugin install https://github.com/example/wakeit-agent
@@ -42,13 +44,35 @@ Place `wakeit-plugin.json` at the repository root:
   "version": "1.0.0",
   "wakeit": {
     "protocol": 1,
-    "agents": {"example": "agents/example.yaml"},
-    "runtimes": ["node"]
+    "runtimes": ["node"],
+    "plugins": {
+      "example": {
+        "name": "Example plugin",
+        "command": "node",
+        "args": ["{{plugin.root}}/plugin.js"],
+        "agents": {
+          "example": {
+            "name": "Example Agent",
+            "mode": "sync",
+            "parameters": {"model": {"type": "string", "label": "Model"}},
+            "operations": ["detect", "execute"]
+          }
+        }
+      }
+    }
   }
 }
 ```
 
-The manifest keys define Agent IDs; package YAML can omit `id`. An Agent YAML uses the existing [adapter protocol](protocol.md). `command: ./bin/example` resolves from the package root. Use `{{plugin.root}}/adapter.cjs` for package files in arguments; the process working directory remains the task's directory. Bare commands such as `node` use PATH. Declare any required interpreters in `runtimes`; Wakeit does not run build hooks or install dependencies.
+`wakeit.plugins` declares one entry point per plugin, which can provide Agents, event handlers, hooks, actions and providers together. Keys in its `agents` map define Agent IDs; each Descriptor declares the name, optional logo, parameters and supported operations. The program registers callbacks through SDK `Plugin.agent(id, Agent)`; initialization checks registrations against the declaration. An Agent is not an ordinary action. See the [Plugin SDK](plugin-sdk.md) for implementation.
+
+`command: ./bin/example` resolves from the package root. Use `{{plugin.root}}/plugin.js` for package files in arguments. The Agent request carries the task working directory; bare commands such as `node` use PATH. Declare required interpreters in `runtimes`; Wakeit does not run build hooks or install dependencies.
+
+### Legacy compatibility
+
+Existing standalone user Agent YAML and `wakeit.agents: {"example": "agents/example.yaml"}` continue to use the [command adapter protocol](protocol.md). The manifest defines the Agent ID; legacy package YAML can omit `id`. The old `wakeit.extensions` field remains a compatibility input for plugin declarations; use `wakeit.plugins` for new packages. Do not declare the same plugin or Agent through both forms.
+
+The official package uses static Descriptors under `wakeit.plugins.official` and starts its unified entry with `args: ["sdk"]`. It does not generate or read official Agent YAML. Older CLIs may reject a new manifest; do not depend on silently ignored fields or an ordinary-action fallback.
 
 Native plugins can supply a gzip tar archive for each platform under `wakeit.artifacts`, or use `wakeit.artifact` for a common URL template:
 
@@ -61,7 +85,7 @@ Native plugins can supply a gzip tar archive for each platform under `wakeit.art
 }
 ```
 
-Archive paths are relative to the package root and contain regular files/directories. Platform archives supply executable resources; they cannot replace the manifest or Agent YAML checked out from Git. Alternatively, `checksums_url` may point to a SHA256SUMS file containing the artifact filename. An unsupported platform or missing runtime produces an installation error. URLs can use `{version}` from the package manifest and `{target}` from the device platform. Check package integrity with `wakeit plugin validate --dir ./my-agent`. See `wakeit schema plugin` for the complete manifest schema.
+Archive paths are relative to the package root and contain regular files/directories. Platform archives supply executable resources; they cannot replace the manifest or legacy Agent YAML checked out from Git. Alternatively, `checksums_url` may point to a SHA256SUMS file containing the artifact filename. An unsupported platform or missing runtime produces an installation error. URLs can use `{version}` from the package manifest and `{target}` from the device platform. Check package integrity with `wakeit plugin validate --dir ./my-agent`. See `wakeit schema plugin` for the complete manifest schema.
 
 Optionally declare `wakeit.commands`, a map of command names to package-relative executable paths. Invoke one without changing cwd using `wakeit plugin exec SOURCE COMMAND -- ARGS`. The official package exposes `adapter` for direct detection or session queries, for example:
 
@@ -71,11 +95,13 @@ wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect kimi-code
 
 ## Upgrade from CLI 0.1
 
-Install the complete CLI 0.2 bundle using the [installer](install.md). The old `wakeit adapter` commands have been removed. If a Runner explicitly lists old official YAML files, regenerate them with `wakeit agent init ID --file NEW_FILE` and update its `agents` paths, or use `bundled_agents: true` with an empty `agents` list. Preserve any custom Agent options you need.
+Install the complete CLI bundle using the [installer](install.md). The old `wakeit adapter` commands have been removed. To use official SDK Agents, set `bundled_agents: true` and remove the corresponding old official definitions from the Runner's `agents` path list to avoid duplicate IDs. Keep standalone custom YAML where needed; `agents` can be empty when only the official package is used.
+
+SDK Agents do not need YAML generated by `wakeit agent init`; that command applies only to compatible adapters still declared with YAML. Preserve required custom configuration, device identity and credentials.
 
 New setup/enrollment uses plugin resources directly. Keep device credentials and Runner identity; no Gateway upgrade is required. New plugin-backed sessions retain the executable path from their package version.
 
-Official adapters use `run AGENT [--session ID] [--model MODEL] -- NATIVE_ARGV` for both new and resumed executions. Kimi runs its native ACP over stdio. Existing native session titles are preserved; when a verified session has none, Runner keeps a local display name used in session inspection and search. Later native titles take precedence. Third-party command and event interfaces are unchanged.
+Official adapters use SDK Agent callbacks for new and resumed executions and construct separate native argv values. The standalone `adapter -- run …` helper remains for protocol diagnostics, not official registration. Kimi runs its native ACP over stdio. Existing native session titles are preserved; when a verified session has none, Runner keeps a local display name used in session inspection and search. Later native titles take precedence. Third-party command and event interfaces are unchanged.
 
 ## General extensions
 

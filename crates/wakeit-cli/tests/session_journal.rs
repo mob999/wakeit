@@ -1,10 +1,10 @@
-#[path = "../../../fixtures/official_agent.rs"]
+#[path = "support/legacy_agent.rs"]
 mod support;
 use chrono::Utc;
 use serde_json::{Value, json};
 use uuid::Uuid;
 use wakeit::{
-    config::{AgentConfig, TaskConfig},
+    config::{AgentConfig, CommandSpec, SessionAdapter, TaskConfig},
     protocol::{Assignment, RunEvent},
     runner::journal::Journal,
     runner::sessions::{RunSession, SessionInfo},
@@ -14,12 +14,34 @@ use wakeit_agent_runtime::stream::Normalizer;
 
 const ID: &str = "550e8400-e29b-41d4-a716-446655440000";
 
+// Only Journal session state is under test; these commands are never executed.
+fn legacy_session_agent() -> AgentConfig {
+    let mut agent = support::legacy_agent();
+    let command = |operation: &str| CommandSpec {
+        command: "synthetic-session-helper".into(),
+        args: vec![operation.into(), "{{session.id}}".into()],
+        ..Default::default()
+    };
+    agent.session = Some(SessionAdapter {
+        list: None,
+        rename: None,
+        inspect: command("inspect"),
+        resume: CommandSpec {
+            stdin: Some("{{task.prompt}}".into()),
+            ..command("resume")
+        },
+        interactive: command("interactive"),
+    });
+    agent.validate().unwrap();
+    agent
+}
+
 async fn fixture(bound: bool) -> (tempfile::TempDir, Journal, Uuid) {
     let directory = tempfile::tempdir().unwrap();
     let runner = Uuid::new_v4();
     let journal = Journal::open(directory.path(), runner).await.unwrap();
-    let task: TaskConfig = serde_json::from_value(json!({"version":1,"id":"session-fixture","name":"Session","runner":"runner","agent":"pi","cwd":directory.path(),"prompt":"OK","parameters":{},"session":if bound {json!({"id":ID})}else{Value::Null},"schedule":null,"enabled":false})).unwrap();
-    let agent: AgentConfig = support::official_agent("pi");
+    let task: TaskConfig = serde_json::from_value(json!({"version":1,"id":"session-fixture","name":"Session","runner":"runner","agent":"synthetic-legacy","cwd":directory.path(),"prompt":"OK","parameters":{},"session":if bound {json!({"id":ID})}else{Value::Null},"schedule":null,"enabled":false})).unwrap();
+    let agent: AgentConfig = legacy_session_agent();
     let run = Uuid::new_v4();
     journal
         .insert(
@@ -220,7 +242,7 @@ async fn different_ids_and_directories_cannot_replace_the_bound_or_verified_iden
     let good = RunSession {
         id: ID.into(),
         runner_id: journal.runner,
-        agent: "pi".into(),
+        agent: "synthetic-legacy".into(),
         cwd: cwd.clone(),
         ready: true,
         reason: None,
@@ -246,12 +268,24 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
         let cwd = directory.path().to_string_lossy().into_owned();
         journal.record_session(run, info(ID, &cwd)).await.unwrap();
         assert!(
-            wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).is_err()
+            wakeit::runner::sessions::lock_for(
+                directory.path(),
+                journal.runner,
+                "synthetic-legacy",
+                ID
+            )
+            .is_err()
         );
         let shared = journal.clone();
         drop(journal);
         assert!(
-            wakeit::runner::sessions::lock_for(directory.path(), shared.runner, "pi", ID).is_err()
+            wakeit::runner::sessions::lock_for(
+                directory.path(),
+                shared.runner,
+                "synthetic-legacy",
+                ID
+            )
+            .is_err()
         );
         if via_event {
             shared
@@ -261,8 +295,13 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
         } else {
             shared.phase(run, "done", None).await.unwrap();
         }
-        let guard =
-            wakeit::runner::sessions::lock_for(directory.path(), shared.runner, "pi", ID).unwrap();
+        let guard = wakeit::runner::sessions::lock_for(
+            directory.path(),
+            shared.runner,
+            "synthetic-legacy",
+            ID,
+        )
+        .unwrap();
         drop(guard);
     }
     let (directory, journal, run) = fixture(false).await;
@@ -274,8 +313,13 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
         .emit(run, "state", json!({"state":"unknown"}), Some("unknown"))
         .await
         .unwrap();
-    let _guard =
-        wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
+    let _guard = wakeit::runner::sessions::lock_for(
+        directory.path(),
+        journal.runner,
+        "synthetic-legacy",
+        ID,
+    )
+    .unwrap();
     let config:wakeit::runner::config::RunnerConfig=serde_json::from_value(json!({"version":1,"gateway":"http://localhost:1","id":journal.runner,"name":"fixture","token_file":"unused","nats_url":"nats://localhost:1","credentials_file":"unused","data_dir":directory.path(),"agents":[],"allowed_roots":[directory.path()]})).unwrap();
     assert!(
         wakeit::runner::sessions::ensure_idle(
@@ -291,8 +335,13 @@ async fn fresh_sessions_hold_the_cli_lock_across_clones_until_done_or_unknown() 
 #[tokio::test]
 async fn fresh_session_lock_conflicts_are_durable_and_bound_runs_reuse_the_runner_guard() {
     let (directory, journal, run) = fixture(false).await;
-    let guard =
-        wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
+    let guard = wakeit::runner::sessions::lock_for(
+        directory.path(),
+        journal.runner,
+        "synthetic-legacy",
+        ID,
+    )
+    .unwrap();
     journal
         .record_session(run, info(ID, &directory.path().to_string_lossy()))
         .await
@@ -311,8 +360,13 @@ async fn fresh_session_lock_conflicts_are_durable_and_bound_runs_reuse_the_runne
         session.reason
     );
     let (directory, journal, run) = fixture(true).await;
-    let _runner_guard =
-        wakeit::runner::sessions::lock_for(directory.path(), journal.runner, "pi", ID).unwrap();
+    let _runner_guard = wakeit::runner::sessions::lock_for(
+        directory.path(),
+        journal.runner,
+        "synthetic-legacy",
+        ID,
+    )
+    .unwrap();
     journal
         .record_session(run, info(ID, &directory.path().to_string_lossy()))
         .await
@@ -337,7 +391,7 @@ async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native
     let session = RunSession {
         id: ID.into(),
         runner_id: journal.runner,
-        agent: "pi".into(),
+        agent: "synthetic-legacy".into(),
         cwd: cwd.clone(),
         ready: true,
         reason: None,
@@ -359,7 +413,7 @@ async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native
     second.run_id = Uuid::new_v4();
     second.task.name = "Different task".into();
     second.task.session = Some(wakeit::config::SessionBinding { id: ID.into() });
-    let agent = support::official_agent("pi");
+    let agent = legacy_session_agent();
     journal.insert(&second, &agent).await.unwrap();
     journal
         .save_session(second.run_id, session.clone())
@@ -393,7 +447,7 @@ async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native
     // Native titles take precedence, while the fallback remains unchanged for later absence.
     assert_eq!(
         journal
-            .session_title("pi", ID, &cwd, Some("Native changed again"))
+            .session_title("synthetic-legacy", ID, &cwd, Some("Native changed again"))
             .await
             .unwrap()
             .as_deref(),
@@ -401,7 +455,7 @@ async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native
     );
     assert_eq!(
         journal
-            .session_title("pi", ID, &cwd, None)
+            .session_title("synthetic-legacy", ID, &cwd, None)
             .await
             .unwrap()
             .as_deref(),
@@ -413,7 +467,7 @@ async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native
         .unwrap();
     assert!(
         journal
-            .session_title("pi", "unmanaged", &cwd, None)
+            .session_title("synthetic-legacy", "unmanaged", &cwd, None)
             .await
             .unwrap()
             .is_none()
@@ -428,7 +482,12 @@ async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native
     let other = tempfile::tempdir().unwrap();
     assert!(
         journal
-            .session_title("pi", ID, &other.path().to_string_lossy(), None)
+            .session_title(
+                "synthetic-legacy",
+                ID,
+                &other.path().to_string_lossy(),
+                None
+            )
             .await
             .is_err()
     );
@@ -443,7 +502,7 @@ async fn untitled_sessions_keep_a_local_name_across_runs_and_prefer_later_native
         .unwrap();
     assert_eq!(
         journal
-            .session_title("pi", ID, &cwd, None)
+            .session_title("synthetic-legacy", ID, &cwd, None)
             .await
             .unwrap()
             .as_deref(),
@@ -457,7 +516,7 @@ async fn native_titles_and_unverified_sessions_do_not_create_local_aliases() {
     let mut session = RunSession {
         id: ID.into(),
         runner_id: journal.runner,
-        agent: "pi".into(),
+        agent: "synthetic-legacy".into(),
         cwd,
         ready: true,
         reason: None,
@@ -481,7 +540,7 @@ async fn native_titles_and_unverified_sessions_do_not_create_local_aliases() {
             RunSession {
                 id: ID.into(),
                 runner_id: journal.runner,
-                agent: "pi".into(),
+                agent: "synthetic-legacy".into(),
                 cwd,
                 ready: true,
                 reason: None,

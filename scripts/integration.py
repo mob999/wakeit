@@ -8,6 +8,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pg-bin', default=os.environ.get('PG_BIN'))
     parser.add_argument('--keep-running', action='store_true')
+    parser.add_argument('--agents-only', action='store_true', help='Run SDK Agent Task/DAG acceptance')
     parser.add_argument('--plugins-only', action='store_true', help='Run generic extension SDK acceptance')
     parser.add_argument('--transport-only', action='store_true', help='Run focused payload isolation and offline delivery acceptance')
     parser.add_argument('--device-auth-only', action='store_true', help='Run the device-flow subset against a fresh disposable service')
@@ -21,6 +22,14 @@ def main():
     if args.gateway_port: gateway_port=args.gateway_port
     database = f'postgres://{getpass.getuser()}@127.0.0.1:{pg_port}/postgres'
     env = dict(os.environ, WAKEIT_DATABASE_URL=database, WAKEIT_PASSWORD='wakeit-integration-password', RUST_LOG='wakeit=info,async_nats=warn')
+    # All CLI/Runner registries and native Agent homes belong to this disposable
+    # stack, including when a contributor runs the script on a daily-use machine.
+    for name, relative in [('HOME', 'home'), ('USERPROFILE', 'home'), ('APPDATA', 'appdata'), ('XDG_CONFIG_HOME', 'config'), ('XDG_CACHE_HOME', 'cache')]:
+        directory = root / relative
+        directory.mkdir(exist_ok=True)
+        env[name] = str(directory)
+    for name in ['WAKEIT_TOKEN', 'WAKEIT_TOKEN_FILE', 'WAKEIT_WORKSPACE', 'WAKEIT_GATEWAY', 'WAKEIT_ENROLL_TOKEN']:
+        env.pop(name, None)
     processes, files, checks = [], [], []
     pg_started = False
     success = False
@@ -144,14 +153,23 @@ def main():
         if args.plugins_only:
             env['WAKEIT_PLUGIN_HOME']=str(root/'plugin-packages')
             command([BIN,'plugin','install',ROOT/'fixtures/plugins/generic'],env)
+        if args.agents_only:
+            from sdk_agent_checks import configure as configure_sdk_agent
+            env['WAKEIT_PLUGIN_HOME']=str(root/'plugin-packages')
+            command([BIN,'plugin','install',configure_sdk_agent(root)],env)
         runner_process=spawn('runner',[BIN,'runner','start','--config',runner_file])
-        wait(lambda:any(r['online'] and len(r['agents'])==5 for r in api('/runners')),'Runner registration and agent detection')
+        wait(lambda:any(r['online'] and len(r['agents'])==(7 if args.agents_only else 5) for r in api('/runners')),'Runner registration and agent detection')
         check('Runner enrollment, WebSocket transport and local adapter detection')
         def task(id,agent='mock-sync',prompt='hello',schedule=None,**execution):
             return {'version':1,'id':id,'name':id,'runner':'test-device','agent':agent,'cwd':str(cwd),'prompt':prompt,'schedule':schedule,'enabled':True,'execution':dict(timeout='1h',start_grace='1h',overlap='skip',misfire='latest',**execution)}
         def apply(c,revision=None):return api('/tasks/'+c['id'],'PUT',{'config':c,'expected_revision':revision})
         def trigger(id,key=None):return api('/tasks/'+id+'/runs','POST',{},key)['id']
         def final(id,state='succeeded',timeout=25):return wait(lambda:(r if (r:=api('/runs/'+id))['state']==state else None), f'run {state}',timeout)
+        if args.agents_only:
+            from sdk_agent_checks import verify as verify_sdk_agents
+            verify_sdk_agents(locals())
+            success=True
+            return
         if args.plugins_only:
             from plugin_sdk_checks import verify as verify_plugins
             verify_plugins(locals())

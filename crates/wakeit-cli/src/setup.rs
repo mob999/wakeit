@@ -367,6 +367,7 @@ pub async fn run(
             data_dir: dir.join("data"),
             concurrency: 2,
             agents: Vec::new(),
+            agent_instances: Default::default(),
             bundled_agents: true,
             allowed_roots: pending.roots.iter().map(PathBuf::from).collect(),
         };

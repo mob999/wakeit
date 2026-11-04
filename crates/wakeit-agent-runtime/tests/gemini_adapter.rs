@@ -1,11 +1,9 @@
-#[path = "../../../fixtures/official_agent.rs"]
-mod official;
 use wakeit_agent_runtime::gemini::GeminiNormalizer;
 mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit_core::trace::{RecordData, TraceKind, TraceState};
+use wakeit_plugin_sdk::trace::{RecordData, TraceKind, TraceState};
 
 #[test]
 fn native_fixture_preserves_chunks_and_tool_lifecycle() {
@@ -116,18 +114,54 @@ fn snapshot_messages_replace_text_and_unknown_events_are_diagnostic_only() {
 }
 
 #[test]
-fn yaml_has_explicit_headless_execution_without_invented_models_or_sessions() {
-    let config: Value = serde_json::to_value(official::official_agent("gemini-cli")).unwrap();
-    assert_eq!(config["id"], "gemini-cli");
-    assert!(config["models"].is_null());
-    assert!(config["session"].is_null());
-    let args = config["submit"]["args"].as_array().unwrap();
-    assert!(args.windows(2).any(|w| w == [json!("--prompt"), json!("")]));
+fn sdk_native_arguments_keep_instructions_off_argv_and_advertise_only_supported_queries() {
+    use wakeit_plugin_sdk::adapter::{AgentDescriptor, AgentOperation, AgentRequest};
+    let manifest: Value =
+        serde_json::from_str(include_str!("../../../wakeit-plugin.json")).unwrap();
+    let descriptor: AgentDescriptor = serde_json::from_value(
+        manifest["wakeit"]["plugins"]["official"]["agents"]["gemini-cli"].clone(),
+    )
+    .unwrap();
+    let prompt = "Synthetic instructions\n--resume $(not-a-shell)";
+    let model = "synthetic model with spaces";
+    let request: AgentRequest = serde_json::from_value(json!({
+        "id": uuid::Uuid::new_v4(), "agent": "gemini-cli", "operation": "execute",
+        "context": {"cwd":"/synthetic", "deadline":chrono::Utc::now() + chrono::Duration::seconds(60),
+            "run_id":uuid::Uuid::new_v4(), "task_id":"synthetic", "prompt":prompt,
+            "parameters":json!({"model": model})}
+    })).unwrap();
+    request.validate(&descriptor).unwrap();
+    let args = wakeit_agent_runtime::official_args::native_args(&request, false).unwrap();
+    let (input_flag, input_value) = ("--prompt", "");
     assert!(
         args.windows(2)
-            .any(|w| w == [json!("--output-format"), json!("stream-json")])
+            .any(|pair| pair[0] == input_flag && pair[1] == input_value)
     );
-    assert_eq!(config["submit"]["stdin"], "{{task.prompt}}");
+    assert!(
+        args.windows(2)
+            .any(|pair| pair[0] == "--output-format" && pair[1] == "stream-json")
+    );
+    assert!(
+        args.windows(2)
+            .any(|pair| pair[0] == "--model" && pair[1] == model)
+    );
+    assert!(!args.iter().any(|arg| arg.contains(prompt)));
+    assert!(
+        !args
+            .iter()
+            .any(|arg| arg == "--resume" || arg == "--no-session")
+    );
+    assert!(!descriptor.operations.contains(&AgentOperation::Models));
+    for operation in [
+        AgentOperation::SessionList,
+        AgentOperation::SessionInspect,
+        AgentOperation::SessionResume,
+        AgentOperation::SessionRename,
+        AgentOperation::SessionInteractive,
+    ] {
+        assert!(!descriptor.operations.contains(&operation));
+    }
+    assert!(wakeit_agent_runtime::official_args::native_args(&request, true).is_err());
 }
 
 #[test]
@@ -170,7 +204,7 @@ fn oversized_delta_response_is_bounded_and_never_published_as_complete_answer() 
     assert!(
         overflow
             .iter()
-            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit_core::trace::RECORD_LIMIT)
+            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit_plugin_sdk::trace::RECORD_LIMIT)
     );
     for _ in 0..10 {
         assert!(
