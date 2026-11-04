@@ -1036,5 +1036,17 @@
   "plugins.continueInteraction": "Continue interaction",
   "plugins.open": "Open",
   "plugins.grantedPermissions": "Granted permissions",
-  "plugins.logs": "Plugin logs"
+  "plugins.logs": "Plugin logs",
+  "plugins.manage": "Plugin management",
+  "plugins.enable": "Enable {{name}}",
+  "plugins.disable": "Disable {{name}}",
+  "plugins.busy": "Another plugin operation is in progress.",
+  "plugins.replaceCredential": "Replace {{name}}",
+  "plugins.clearCredential": "Clear {{name}} on save",
+  "plugins.undoCredential": "Discard changes to {{name}}",
+  "plugins.cancelInvocation": "Cancel {{name}} invocation",
+  "plugins.retryDelivery": "Retry event delivery",
+  "plugins.deliveryActions": "Event delivery actions",
+  "plugins.replayDescription": "Deliver this event again. The handler may repeat side effects.",
+  "plugins.disableBeforeRemove": "Disable the instance before removing it."
 }

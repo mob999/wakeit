@@ -18,9 +18,14 @@
 .plugin-title {
   @apply flex min-h-11 items-center justify-between gap-4 px-4 border-b border-ui-border;
 }
-.plugin-title > div,
-.plugin-title-actions {
+.plugin-title > div {
   @apply flex items-center gap-3 min-w-0;
+}
+.plugin-title > .plugin-title-actions {
+  @apply gap-1 shrink-0;
+}
+.plugin-title-actions > .text-muted {
+  @apply mr-2;
 }
 .plugin-title h2 {
   @apply text-xs font-semibold truncate;
@@ -54,10 +59,10 @@
   @apply flex items-center gap-2 min-h-8;
 }
 .plugin-secret-control input {
-  @apply flex-1;
+  @apply flex-1 min-w-0;
 }
 .plugin-secret-control > span {
-  @apply flex-1;
+  @apply flex-1 min-w-0;
 }
 .plugin-config-card > .plugin-field {
   @apply px-3;

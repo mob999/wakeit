@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { api, apiUrl, workspaceBase } from '../api/client'
 import type { Runner } from '../api/types'
 import { ActionIcon } from '../actions/ActionIcon'
+import { ActionMenu, ActionMenuItem } from '../actions/ActionMenu'
 import { Button, IconButton, Modal } from '../components/ui'
 import { ChoicePicker } from '../components/ChoicePicker'
 import { DetailTabs } from '../components/DetailTabs'
@@ -175,6 +176,23 @@ export function RunnerPlugins({
                 <span className="text-muted">{instance.version}</span>
               </div>
               <div className="plugin-title-actions">
+                <span className="text-muted">
+                  {!runner.online ? tr('设备离线') : tr(`plugins.state.${instance.state}`)}
+                </span>
+                {admin && (
+                  <IconButton
+                    label={tr(instance.enabled ? 'plugins.disable' : 'plugins.enable', {
+                      name: instance.name,
+                    })}
+                    disabled={!runner.online || busy}
+                    disabledReason={tr(!runner.online ? '设备离线' : 'plugins.busy')}
+                    onClick={() =>
+                      mutate(instance.enabled ? 'disable' : 'enable', { instance_id: instance.id })
+                    }
+                  >
+                    <ActionIcon name={instance.enabled ? 'disableTask' : 'enableTask'} />
+                  </IconButton>
+                )}
                 {admin && (
                   <PluginPackageActions
                     instance={instance}
@@ -187,19 +205,6 @@ export function RunnerPlugins({
                     disabled={!runner.online || busy}
                     mutate={mutate}
                   />
-                )}
-                <span className="text-muted">
-                  {!runner.online ? tr('设备离线') : tr(`plugins.state.${instance.state}`)}
-                </span>
-                {admin && (
-                  <Button
-                    disabled={!runner.online || busy}
-                    onClick={() =>
-                      mutate(instance.enabled ? 'disable' : 'enable', { instance_id: instance.id })
-                    }
-                  >
-                    {instance.enabled ? tr('禁用') : tr('启用')}
-                  </Button>
                 )}
               </div>
             </div>
@@ -376,20 +381,34 @@ function PluginConfig({
                           : tr('plugins.notConfigured')}
                     </span>
                   )}
-                  <Button
-                    disabled={disabled}
-                    onClick={() =>
-                      setSecrets({ ...secrets, [slot]: { operation: 'replace', value: '' } })
-                    }
-                  >
-                    {tr('plugins.replace')}
-                  </Button>
-                  <Button
-                    disabled={disabled || !instance.credential_status[slot]}
-                    onClick={() => setSecrets({ ...secrets, [slot]: { operation: 'clear' } })}
-                  >
-                    {tr('清除')}
-                  </Button>
+                  <div className="action-group">
+                    <IconButton
+                      label={tr('plugins.replaceCredential', { name: spec.label })}
+                      disabled={disabled}
+                      onClick={() =>
+                        setSecrets({ ...secrets, [slot]: { operation: 'replace', value: '' } })
+                      }
+                    >
+                      <ActionIcon name="edit" />
+                    </IconButton>
+                    <IconButton
+                      label={tr('plugins.clearCredential', { name: spec.label })}
+                      danger
+                      disabled={disabled || !instance.credential_status[slot]}
+                      onClick={() => setSecrets({ ...secrets, [slot]: { operation: 'clear' } })}
+                    >
+                      <ActionIcon name="delete" />
+                    </IconButton>
+                    {secrets[slot] && secrets[slot].operation !== 'keep' && (
+                      <IconButton
+                        label={tr('plugins.undoCredential', { name: spec.label })}
+                        disabled={disabled}
+                        onClick={() => setSecrets({ ...secrets, [slot]: { operation: 'keep' } })}
+                      >
+                        <ActionIcon name="undo" />
+                      </IconButton>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -540,12 +559,16 @@ function PluginCapabilities({
                   />
                 </>
               )}
-              <Button
+              <IconButton
+                className="ml-auto"
+                label={tr(candidate.enabled ? 'plugins.disable' : 'plugins.enable', {
+                  name: d.event,
+                })}
                 disabled={!admin}
                 onClick={() => save({ ...candidate, enabled: !candidate.enabled })}
               >
-                {candidate.enabled ? tr('禁用') : tr('启用')}
-              </Button>
+                <ActionIcon name={candidate.enabled ? 'disableTask' : 'enableTask'} />
+              </IconButton>
             </div>
           </div>
         )
@@ -713,11 +736,12 @@ function PluginActivity({
           <span className="text-muted">{item.state}</span>
           <span className="text-muted">{item.error}</span>
           {item.state === 'running' && admin && (
-            <Button
+            <IconButton
+              label={tr('plugins.cancelInvocation', { name: item.handler })}
               onClick={() => mutate('cancel', { instance_id: instance.id, invocation_id: item.id })}
             >
-              {tr('取消')}
-            </Button>
+              <ActionIcon name="stop" />
+            </IconButton>
           )}
         </div>
       ))}
@@ -737,8 +761,9 @@ function PluginActivity({
           <span>{d.state}</span>
           <span className="text-muted">{d.error}</span>
           {admin && (
-            <>
-              <Button
+            <div className="action-group">
+              <IconButton
+                label={tr('plugins.retryDelivery')}
                 onClick={async () => {
                   try {
                     await api(`/plugins/deliveries/${d.id}`, 'POST', { action: 'retry' })
@@ -748,17 +773,25 @@ function PluginActivity({
                   }
                 }}
               >
-                {tr('重试')}
-              </Button>
-              <Button
-                onClick={async () => {
-                  await api(`/plugins/deliveries/${d.id}`, 'POST', { action: 'replay' })
-                  await deliveries.refetch()
-                }}
-              >
-                {tr('plugins.replay')}
-              </Button>
-            </>
+                <ActionIcon name="retry" />
+              </IconButton>
+              <ActionMenu label={tr('plugins.deliveryActions')}>
+                <ActionMenuItem
+                  icon="rerun"
+                  reason={tr('plugins.replayDescription')}
+                  onSelect={async () => {
+                    try {
+                      await api(`/plugins/deliveries/${d.id}`, 'POST', { action: 'replay' })
+                      await deliveries.refetch()
+                    } catch (e) {
+                      toast((e as Error).message)
+                    }
+                  }}
+                >
+                  {tr('plugins.replay')}
+                </ActionMenuItem>
+              </ActionMenu>
+            </div>
           )}
         </div>
       ))}

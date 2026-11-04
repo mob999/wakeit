@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { t as tr } from '../i18n'
 import { ActionIcon } from '../actions/ActionIcon'
+import { ActionMenu, ActionMenuItem, ActionMenuSeparator } from '../actions/ActionMenu'
 import { Button, IconButton, Modal } from '../components/ui'
 export function PluginPackageActions({
   instance,
@@ -19,7 +20,7 @@ export function PluginPackageActions({
   const [source, setSource] = useState('')
   return (
     <>
-      {allowInstall && (
+      {!instance && allowInstall && (
         <IconButton
           label={tr('plugins.install')}
           disabled={disabled}
@@ -29,22 +30,26 @@ export function PluginPackageActions({
         </IconButton>
       )}
       {instance && (
-        <>
-          <IconButton
-            label={tr('plugins.upgrade')}
-            disabled={disabled}
-            onClick={() => setAction('upgrade')}
-          >
-            <ActionIcon name="refresh" />
-          </IconButton>
-          <IconButton
-            label={tr('plugins.remove')}
+        <ActionMenu label={tr('plugins.manage')}>
+          {allowInstall && (
+            <ActionMenuItem icon="add" disabled={disabled} onSelect={() => setAction('install')}>
+              {tr('plugins.install')}
+            </ActionMenuItem>
+          )}
+          <ActionMenuItem icon="refresh" disabled={disabled} onSelect={() => setAction('upgrade')}>
+            {tr('plugins.upgrade')}
+          </ActionMenuItem>
+          <ActionMenuSeparator />
+          <ActionMenuItem
+            icon="archive"
+            danger
             disabled={disabled || instance.enabled}
-            onClick={() => setAction('remove')}
+            reason={instance.enabled ? tr('plugins.disableBeforeRemove') : undefined}
+            onSelect={() => setAction('remove')}
           >
-            <ActionIcon name="archive" />
-          </IconButton>
-        </>
+            {tr('plugins.remove')}
+          </ActionMenuItem>
+        </ActionMenu>
       )}
       <Modal
         open={action !== null}
@@ -55,6 +60,7 @@ export function PluginPackageActions({
             <Button onClick={() => setAction(null)}>{tr('取消')}</Button>
             <Button
               variant="solid"
+              danger={action === 'remove'}
               disabled={disabled || (action === 'install' && !source)}
               onClick={async () => {
                 if (action === 'upgrade' && instance && upgradeGrants) {
@@ -73,7 +79,7 @@ export function PluginPackageActions({
                 if (result) setAction(null)
               }}
             >
-              {tr('确认')}
+              {tr('plugins.' + (action ?? 'install'))}
             </Button>
           </>
         }

@@ -1036,5 +1036,17 @@
   "plugins.continueInteraction": "继续处理交互",
   "plugins.open": "打开",
   "plugins.grantedPermissions": "已授予权限",
-  "plugins.logs": "插件日志"
+  "plugins.logs": "插件日志",
+  "plugins.manage": "插件管理",
+  "plugins.enable": "启用 {{name}}",
+  "plugins.disable": "停用 {{name}}",
+  "plugins.busy": "插件操作进行中。",
+  "plugins.replaceCredential": "更换 {{name}}",
+  "plugins.clearCredential": "保存后清除 {{name}}",
+  "plugins.undoCredential": "撤销对 {{name}} 的修改",
+  "plugins.cancelInvocation": "取消 {{name}} 调用",
+  "plugins.retryDelivery": "重试事件投递",
+  "plugins.deliveryActions": "事件投递操作",
+  "plugins.replayDescription": "重新投递此事件，处理程序可能重复执行并产生副作用。",
+  "plugins.disableBeforeRemove": "请先停用实例，再将其移除。"
 }
