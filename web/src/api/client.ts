@@ -56,5 +56,37 @@ export async function api<T = any>(
         : tr('请求失败 ({{v0}})', { v0: response.status }),
       value,
     )
+  if (
+    response.status === 202 &&
+    typeof value.operation_url === 'string' &&
+    /^\/plugins\/operations\/[0-9a-f-]{36}$/.test(value.operation_url)
+  ) {
+    while (!signal?.aborted) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          signal?.removeEventListener('abort', abort)
+          resolve()
+        }, 250)
+        const abort = () => {
+          clearTimeout(timer)
+          reject(signal?.reason ?? new Error(tr('已取消')))
+        }
+        signal?.addEventListener('abort', abort, { once: true })
+      })
+      const receipt = await api(value.operation_url, 'GET', undefined, undefined, signal)
+      if (receipt.state === 'committed' || receipt.state === 'succeeded') return receipt.result
+      if (['rejected', 'conflict', 'failed', 'cancelled', 'expired'].includes(receipt.state))
+        throw new ApiError(
+          receipt.state === 'conflict' ? 409 : 400,
+          apiErrorText(
+            receipt.error?.message ?? receipt.error ?? receipt.state,
+            tr,
+            (state) => stateNames[state] ?? state,
+          ),
+          receipt,
+        )
+    }
+    throw signal?.reason ?? new Error(tr('已取消'))
+  }
   return value
 }

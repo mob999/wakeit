@@ -52,7 +52,7 @@ def file_scopes(path):
         return {'cli', 'integration', 'packaging'} if path.endswith('Cargo.toml') else {'cli', 'integration'}
     if path.startswith('crates/wakeit-gateway/'):
         return {'gateway', 'integration', 'packaging'} if path.endswith('Cargo.toml') else {'gateway', 'integration'}
-    if path.startswith(('crates/wakeit-agent-runtime/', 'plugins/')) or path == 'wakeit-plugin.json':
+    if path.startswith(('crates/wakeit-agent-runtime/', 'crates/wakeit-plugin-sdk/', 'sdk/', 'plugins/')) or path == 'wakeit-plugin.json':
         return {'cli', 'integration', 'packaging', 'docs'}
     if path.startswith('fixtures/'):
         return {'gateway', 'integration'}

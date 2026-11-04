@@ -83,9 +83,17 @@ pub async fn start(config: GatewayConfig) -> Result<()> {
                 tokio::select! {_=cancel.cancelled()=>break,_=tick.tick()=>{
                     if let Err(e)=s.authority.sync_revocations(&s.config.nats_url,&s.pool).await{tracing::warn!(error=%e,"NATS revocation sync deferred")}
                     if let Err(e)=crate::store::terminals::maintain(&s).await{tracing::warn!(error=%e,"terminal lifecycle reconciliation deferred")}
+                    if let Err(e)=crate::store::plugins::maintain(&s.pool).await{tracing::warn!(error=%e,"plugin lifecycle maintenance deferred")}
                     if let Err(e)=cleanup(&s).await{tracing::warn!(error=%e,"retention cleanup failed")}
                 }}
             }
+        }
+    });
+    let operation_host = app.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        loop {
+            tokio::select! {_=operation_host.shutdown.cancelled()=>break,_=tick.tick()=>{if let Err(error)=crate::store::plugins::business_operations(&operation_host).await{tracing::warn!(error=%error,"plugin business operations deferred");}}}
         }
     });
     let listener = tokio::net::TcpListener::bind(&app.config.listen).await?;

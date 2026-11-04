@@ -122,12 +122,27 @@ pub(crate) async fn save(
     State(s): State<App>,
     h: HeaderMap,
     Path(id): Path<String>,
-    ApiJson(body): ApiJson<SaveTemplate>,
+    ApiJson(mut body): ApiJson<SaveTemplate>,
 ) -> Result<Response> {
     let actor = user(&s, &h, "operator", true).await?;
     let workspace = actor.workspace()?;
     if body.definition.id != id {
         return Err(Error::bad("taskTemplate.idMismatch"));
+    }
+    let proposed = crate::store::plugins::gate(
+        &s.pool,
+        workspace,
+        actor.id,
+        &crate::api::plugins::hook_key(&h),
+        "template.save.prepare",
+        json!({"definition":body.definition}),
+    )
+    .await
+    .map_err(|e| Error::bad(e.to_string()))?;
+    body.definition = serde_json::from_value(proposed["definition"].clone())
+        .map_err(|e| Error::bad(e.to_string()))?;
+    if body.definition.id != id {
+        return Err(Error::bad("Hook changed template identity"));
     }
     let definition = body.definition.clone();
     let issues = tokio::task::spawn_blocking(move || templates::validate_definition(&definition))
@@ -249,10 +264,48 @@ async fn compile(
         schedule.insert("timezone".into(), json!(timezone));
     }
 
-    tokio::task::spawn_blocking(move || templates::compile(&definition, &request))
+    let actor:Option<Uuid>=sqlx::query_scalar("SELECT i.managed_by FROM plugin_bindings b JOIN plugin_instances i ON i.id=b.instance_id WHERE b.workspace_id=$1 AND b.kind='hook' AND b.event IN ('template.compile.prepare','template.compile.result') AND b.enabled AND i.enabled ORDER BY b.position,b.id LIMIT 1").bind(workspace).fetch_optional(&s.pool).await?;
+    let key = hex::encode(Sha256::digest(serde_json::to_vec(
+        &json!({"definition":definition,"request":request}),
+    )?));
+    if let Some(actor) = actor {
+        let input = serde_json::to_value(&request)?;
+        let effective = crate::store::plugins::gate(
+            &s.pool,
+            workspace,
+            actor,
+            &key,
+            "template.compile.prepare",
+            input.clone(),
+        )
         .await
-        .map_err(anyhow::Error::from)
-        .map_err(Error::from)
+        .map_err(|e| Error::bad(e.to_string()))?;
+        request = serde_json::from_value(effective).map_err(|e| Error::bad(e.to_string()))?;
+    }
+    let mut preview =
+        tokio::task::spawn_blocking(move || templates::compile(&definition, &request))
+            .await
+            .map_err(anyhow::Error::from)?;
+    if let Some(actor) = actor
+        && let Some(config) = preview.config.take()
+    {
+        let effective = crate::store::plugins::gate(
+            &s.pool,
+            workspace,
+            actor,
+            &key,
+            "template.compile.result",
+            json!({"config":config}),
+        )
+        .await
+        .map_err(|e| Error::bad(e.to_string()))?;
+        let config: TaskConfig = serde_json::from_value(effective["config"].clone())
+            .map_err(|e| Error::bad(e.to_string()))?;
+        config.validate().map_err(|e| Error::bad(e.to_string()))?;
+        preview.graph = config.dag.clone();
+        preview.config = Some(config);
+    }
+    Ok(preview)
 }
 pub(crate) async fn preview(
     State(s): State<App>,

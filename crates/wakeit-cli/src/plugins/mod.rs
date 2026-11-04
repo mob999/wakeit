@@ -1,4 +1,5 @@
 //! User-level adapter packages. Packages never execute inside the Gateway.
+pub mod extensions;
 pub mod manifest;
 pub mod source;
 mod store;

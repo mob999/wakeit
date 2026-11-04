@@ -24,6 +24,29 @@ pub struct WorkspaceContext {
 pub async fn identity(pool: &PgPool, credential: &str) -> Result<Option<Identity>> {
     let row = sqlx::query("SELECT u.id,u.username,u.instance_admin,c.kind,c.workspace_id FROM credentials c JOIN users u ON u.id=c.user_id WHERE c.hash=$1 AND u.active AND (c.expires_at IS NULL OR c.expires_at>now())")
         .bind(credential).fetch_optional(pool).await?;
+    if row.is_none() {
+        let plugin=sqlx::query("SELECT u.id,u.username,p.workspace_id FROM plugin_api_tokens p JOIN plugin_instances i ON i.id=p.instance_id JOIN users u ON u.id=p.actor_id WHERE p.hash=$1 AND p.expires_at>now() AND i.enabled AND u.active")
+            .bind(credential).fetch_optional(pool).await?;
+        if plugin.is_none() {
+            let operation=sqlx::query("SELECT u.id,u.username,o.workspace_id FROM plugin_operation_tokens o JOIN users u ON u.id=o.actor_id JOIN plugin_operations p ON p.id=o.operation_id WHERE o.hash=$1 AND o.expires_at>now() AND u.active AND p.state IN ('running','committed')").bind(credential).fetch_optional(pool).await?;
+            return Ok(operation.map(|r| Identity {
+                id: r.get("id"),
+                username: r.get("username"),
+                instance_admin: false,
+                kind: "operation".into(),
+                workspace_id: Some(r.get("workspace_id")),
+                credential: credential.into(),
+            }));
+        }
+        return Ok(plugin.map(|r| Identity {
+            id: r.get("id"),
+            username: r.get("username"),
+            instance_admin: false,
+            kind: "extension".into(),
+            workspace_id: Some(r.get("workspace_id")),
+            credential: credential.into(),
+        }));
+    }
     Ok(row.map(|r| Identity {
         id: r.get("id"),
         username: r.get("username"),
@@ -39,7 +62,9 @@ pub async fn authorize(
     identity: &Identity,
     workspace: Uuid,
 ) -> Result<Option<WorkspaceContext>> {
-    if identity.kind == "api" && identity.workspace_id != Some(workspace) {
+    if matches!(identity.kind.as_str(), "api" | "extension" | "operation")
+        && identity.workspace_id != Some(workspace)
+    {
         return Ok(None);
     }
     let row=sqlx::query("SELECT w.is_demo,m.role,m.active,u.active AS user_active,EXISTS(SELECT 1 FROM user_identities i WHERE i.user_id=u.id AND i.provider='github') AS github FROM workspaces w JOIN users u ON u.id=$2 LEFT JOIN workspace_members m ON m.workspace_id=w.id AND m.user_id=u.id WHERE w.id=$1")
@@ -85,7 +110,7 @@ pub async fn check_member(
     workspace: Uuid,
     needed: &str,
 ) -> Result<Uuid> {
-    let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2)")
+    let row=sqlx::query("SELECT u.id,m.role,w.is_demo FROM credentials c JOIN users u ON u.id=c.user_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=$2 JOIN workspaces w ON w.id=m.workspace_id WHERE c.hash=$1 AND u.active AND m.active AND (c.expires_at IS NULL OR c.expires_at>now()) AND (c.kind='session' OR c.workspace_id=$2) UNION ALL SELECT u.id,m.role,w.is_demo FROM plugin_api_tokens p JOIN plugin_instances i ON i.id=p.instance_id JOIN users u ON u.id=p.actor_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=p.workspace_id JOIN workspaces w ON w.id=p.workspace_id WHERE p.hash=$1 AND p.workspace_id=$2 AND p.expires_at>now() AND i.enabled AND u.active AND m.active UNION ALL SELECT u.id,m.role,w.is_demo FROM plugin_operation_tokens p JOIN plugin_operations o ON o.id=p.operation_id JOIN users u ON u.id=p.actor_id JOIN workspace_members m ON m.user_id=u.id AND m.workspace_id=p.workspace_id JOIN workspaces w ON w.id=p.workspace_id WHERE p.hash=$1 AND p.workspace_id=$2 AND p.expires_at>now() AND o.state IN ('running','committed') AND u.active AND m.active")
         .bind(credential).bind(workspace).fetch_optional(&mut **tx).await?.ok_or(PermissionDenied("workspace access denied"))?;
     if row.get::<bool, _>("is_demo") {
         return Err(PermissionDenied("demo workspace is read only").into());
@@ -95,6 +120,50 @@ pub async fn check_member(
     {
         return Err(PermissionDenied("insufficient permissions").into());
     }
+    let operation: Option<Uuid> = sqlx::query_scalar(
+        "SELECT operation_id FROM plugin_operation_tokens WHERE hash=$1 AND expires_at>now()",
+    )
+    .bind(credential)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if let Some(operation) = operation {
+        let active: bool = sqlx::query_scalar(
+            "SELECT state IN ('running','committed') FROM plugin_operations WHERE id=$1 FOR UPDATE",
+        )
+        .bind(operation)
+        .fetch_one(&mut **tx)
+        .await?;
+        if !active {
+            return Err(PermissionDenied("operation cancelled or expired").into());
+        }
+        let changed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_hook_calls c JOIN plugin_bindings b ON b.id=c.binding_id JOIN plugin_instances i ON i.id=b.instance_id WHERE c.operation_id=$1 AND (b.revision<>c.binding_revision OR i.revision<>c.instance_revision OR NOT b.enabled OR NOT i.enabled))").bind(operation).fetch_one(&mut **tx).await?;
+        if changed {
+            return Err(PermissionDenied("Hook configuration changed before commit").into());
+        }
+        sqlx::query("SELECT set_config('wakeit.operation_id',$1,true)")
+            .bind(operation.to_string())
+            .execute(&mut **tx)
+            .await?;
+    }
+    let plugin: Option<Uuid> = sqlx::query_scalar(
+        "SELECT instance_id FROM plugin_api_tokens WHERE hash=$1 AND expires_at>now()",
+    )
+    .bind(credential)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if plugin.is_some() {
+        let context =
+            sqlx::query("SELECT causation_id,causation_depth FROM plugin_api_tokens WHERE hash=$1")
+                .bind(credential)
+                .fetch_one(&mut **tx)
+                .await?;
+        sqlx::query("SELECT set_config('wakeit.causation_id',$1,true),set_config('wakeit.causation_depth',$2,true)").bind(context.get::<Option<Uuid>,_>("causation_id").map(|id|id.to_string()).unwrap_or_default()).bind(context.get::<i32,_>("causation_depth").to_string()).execute(&mut **tx).await?;
+    }
+    let actor = serde_json::json!({"kind":if plugin.is_some(){"plugin"}else{"user"},"id":plugin.unwrap_or(row.get("id")),"user_id":row.get::<Uuid,_>("id"),"roles":[row.get::<String,_>("role")]});
+    sqlx::query("SELECT set_config('wakeit.actor',$1,true)")
+        .bind(actor.to_string())
+        .execute(&mut **tx)
+        .await?;
     Ok(row.get("id"))
 }
 

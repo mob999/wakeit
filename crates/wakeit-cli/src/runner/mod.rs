@@ -35,11 +35,13 @@ use uuid::Uuid;
 struct Active {
     cancel: CancellationToken,
     stop: CancellationToken,
+    deadline: tokio::time::Instant,
 }
 #[derive(Clone)]
 struct Runner {
     config: Arc<RunnerConfig>,
     journal: Journal,
+    extensions: crate::plugins::extensions::Runtime,
     agents: Arc<HashMap<String, AgentConfig>>,
     runtime: Uuid,
     client: reqwest::Client,
@@ -239,6 +241,11 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
     }
     let journal = Journal::open(&config.data_dir, config.id).await?;
     let slots = Arc::new(Semaphore::new(config.concurrency));
+    let config = Arc::new(config);
+    let shutdown = CancellationToken::new();
+    let extensions =
+        crate::plugins::extensions::Runtime::new(config.clone(), journal.clone(), shutdown.clone())
+            .await?;
     let runner = Runner {
         slots: slots.clone(),
         runtime: Uuid::new_v4(),
@@ -246,16 +253,27 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
             .timeout(Duration::from_secs(15))
             .build()?,
         token: Arc::new(std::fs::read_to_string(&config.token_file)?),
-        config: Arc::new(config),
+        config,
+        extensions,
         journal,
         agents: Arc::new(agents),
         active: Arc::new(Mutex::new(HashMap::new())),
-        shutdown: CancellationToken::new(),
+        shutdown,
         run_locks: Arc::new(Mutex::new(HashMap::new())),
     };
-    loop {
-        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::runner::queries::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0,"web_terminal":1}})).await {Ok(_)=>break,Err(e)=>{tracing::warn!(error=%e,"waiting for device lease");tokio::time::sleep(Duration::from_secs(5)).await;}}
-    }
+    let extension_protocol = loop {
+        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::runner::queries::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0,"web_terminal":1}})).await {
+            Ok(reply)=>{
+                if let Some(jwt)=reply["nats_jwt"].as_str(){
+                    let existing=std::fs::read_to_string(&runner.config.credentials_file)?;
+                    let seed=existing.lines().find(|line|line.starts_with("SU") && nkeys::KeyPair::from_seed(line).is_ok()).context("Runner NKey seed missing")?;
+                    crate::connection::atomic(&runner.config.credentials_file,wakeit_core::credentials::credentials(jwt,seed))?;
+                }
+                break reply["extension_protocol"].as_u64().unwrap_or(0);
+            }
+            Err(e)=>{tracing::warn!(error=%e,"waiting for device lease");tokio::time::sleep(Duration::from_secs(5)).await;}
+        }
+    };
     runner.recover().await?;
     let client = bus::connect(
         &runner.config.nats_url,
@@ -263,6 +281,16 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         Some(format!("_INBOX.r_{}", runner.config.id.simple())),
     )
     .await?;
+    let extension_host = runner.extensions.clone();
+    let extension_client = client.clone();
+    let runtime = runner.runtime;
+    let extensions = tokio::spawn(async move {
+        if extension_protocol == 1 {
+            extension_host.serve(extension_client, runtime).await
+        } else {
+            Ok(())
+        }
+    });
     let queries = tokio::spawn(crate::runner::queries::serve(
         client.clone(),
         runner.config.clone(),
@@ -352,6 +380,7 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         work,
         maintenance,
         queries,
+        extensions,
         terminals
     );
     drop(lock);

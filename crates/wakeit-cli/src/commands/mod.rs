@@ -62,11 +62,12 @@ async fn run(mut cli: Cli) -> Result<()> {
     }
     let local_only = matches!(
         &cli.command,
-        Command::Plugin { .. }
-            | Command::Template {
-                command: Template::Validate { .. }
-            }
-            | Command::Update { .. }
+        Command::Plugin { command } if !matches!(command,Plugin::Instance{..})
+    ) || matches!(
+        &cli.command,
+        Command::Template {
+            command: Template::Validate { .. }
+        } | Command::Update { .. }
             | Command::Skill { .. }
             | Command::Connection { .. }
             | Command::Run {
@@ -182,6 +183,23 @@ async fn run(mut cli: Cli) -> Result<()> {
         Command::Members { command } => accounts::members(&cli, command).await?,
         Command::Plugin { command } => {
             let value = match command {
+                Plugin::Instance {
+                    runner,
+                    action,
+                    file,
+                } => {
+                    let params = if let Some(file) = file {
+                        serde_json::from_slice(&std::fs::read(file)?)?
+                    } else {
+                        json!({})
+                    };
+                    Client::new(&cli)?
+                        .post(
+                            &format!("/runners/{runner}/plugins/control"),
+                            json!({"action":action,"params":params}),
+                        )
+                        .await?
+                }
                 Plugin::Install { source, replace } => {
                     crate::plugins::install(source, replace).await?
                 }
@@ -205,6 +223,7 @@ async fn run(mut cli: Cli) -> Result<()> {
         }
         Command::Schema { kind } => {
             let value = match kind.as_str() {
+                "plugin-sdk" => wakeit_core::extensions::schema(),
                 "plugin" => {
                     serde_json::to_value(schemars::schema_for!(crate::plugins::manifest::Manifest))?
                 }

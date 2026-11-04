@@ -251,3 +251,7 @@ wakeit skill install --dir /path/to/agent/skills/wakeit
 ## Agent 插件
 
 `wakeit plugin install SOURCE` 支持 Git 仓库和本地目录；`list` 查看包与本机 Runner 加载状态，`update [SOURCE]` 更新浮动版本，`remove SOURCE` 取消加载。变更在 Runner 下次启动生效，不自动中断任务。同 ID 冲突使用 `install SOURCE --replace-agent ID` 显式选择。完整格式与示例见[插件指南](plugins-zh.md)。
+
+## 通用插件实例
+
+`wakeit plugin instance --runner ID ACTION --file PARAMS.json` 使用与设备插件页相同的实例管理契约。`catalog` 不需要参数文件；创建、配置、启停、动作和活动查询使用具名操作。使用 `wakeit schema plugin-sdk` 获取配置、事件、Hook 和调用结构。完整说明见[插件 SDK](plugin-sdk-zh.md)。

@@ -20,7 +20,10 @@ pub struct Manifest {
 pub struct Resources {
     pub protocol: u32,
     /// Agent IDs are declared here; package YAML need not repeat them.
+    #[serde(default)]
     pub agents: BTreeMap<String, PathBuf>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extensions: BTreeMap<String, wakeit_core::extensions::Extension>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub commands: BTreeMap<String, PathBuf>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -60,10 +63,20 @@ pub fn read(root: &Path) -> Result<Manifest> {
         "unsupported plugin manifest or adapter protocol"
     );
     ensure!(
-        !manifest.name.trim().is_empty() && !manifest.wakeit.agents.is_empty(),
-        "plugin name and agents are required"
+        !manifest.name.trim().is_empty()
+            && !(manifest.wakeit.agents.is_empty()
+                && manifest.wakeit.commands.is_empty()
+                && manifest.wakeit.extensions.is_empty()),
+        "plugin name and at least one resource are required"
     );
     semver::Version::parse(&manifest.version).context("plugin version must be semver")?;
+    for (id, extension) in &manifest.wakeit.extensions {
+        crate::config::validate_id(id)?;
+        extension.validate()?;
+        if let Some(path) = extension.command.strip_prefix("./") {
+            relative(Path::new(path))?;
+        }
+    }
     for id in manifest.wakeit.agents.keys() {
         crate::config::validate_id(id)?;
     }
@@ -149,6 +162,24 @@ pub fn resolve(root: &Path, agent: &mut AgentConfig) -> Result<()> {
 }
 pub fn validate(root: &Path) -> Result<Manifest> {
     let manifest = read(root)?;
+    for extension in manifest.wakeit.extensions.values() {
+        if extension.command.starts_with("./") {
+            let root = root.canonicalize()?;
+            let path = executable(root.join(&extension.command))
+                .canonicalize()
+                .context("extension executable missing")?;
+            ensure!(
+                path.starts_with(&root),
+                "extension executable escapes package"
+            );
+        } else {
+            ensure!(
+                which::which(&extension.command).is_ok(),
+                "extension runtime unavailable: {}",
+                extension.command
+            );
+        }
+    }
     for runtime in &manifest.wakeit.runtimes {
         ensure!(
             which::which(runtime).is_ok(),

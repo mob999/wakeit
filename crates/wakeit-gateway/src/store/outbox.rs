@@ -19,13 +19,44 @@ pub async fn dispatch(pool: &PgPool, js: &async_nats::jetstream::Context) -> Res
     let ids: Vec<i64> = sqlx::query_scalar("SELECT id FROM outbox WHERE published_at IS NULL AND quarantined_at IS NULL ORDER BY id LIMIT 20")
         .fetch_all(pool).await?;
     for id in ids {
+        let pending=sqlx::query("SELECT workspace_id,message_id,payload FROM outbox WHERE id=$1 AND published_at IS NULL AND quarantined_at IS NULL").bind(id).fetch_optional(pool).await?;
+        let Some(pending) = pending else {
+            continue;
+        };
+        let original: Value = pending.get("payload");
+        let prepared = if original.get("task").is_some() {
+            match super::plugins::prepare_assignment(
+                pool,
+                pending.get("workspace_id"),
+                pending.get("message_id"),
+                &original,
+            )
+            .await
+            {
+                Ok(value) => value,
+                Err(error) if error.is::<super::plugins::GatePending>() => continue,
+                Err(error) => {
+                    quarantine(
+                        pool,
+                        id,
+                        pending.get("workspace_id"),
+                        &original,
+                        &format!("plugin admission: {error}"),
+                    )
+                    .await?;
+                    continue;
+                }
+            }
+        } else {
+            original
+        };
         // Commit each acknowledgement independently. A later failed publish must
         // not roll back markers for messages the broker already accepted.
         let mut tx = pool.begin().await?;
         let row = sqlx::query("SELECT subject,payload,message_id,workspace_id FROM outbox WHERE id=$1 AND published_at IS NULL AND quarantined_at IS NULL FOR UPDATE SKIP LOCKED")
             .bind(id).fetch_optional(&mut *tx).await?;
         let Some(row) = row else { continue };
-        let payload: Value = row.get("payload");
+        let payload: Value = prepared;
         let result = bus::publish(
             js,
             row.get("subject"),

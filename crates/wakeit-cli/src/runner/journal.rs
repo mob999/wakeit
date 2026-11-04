@@ -92,12 +92,46 @@ impl Journal {
                 .await?;
         }
         sqlx::query("CREATE TABLE IF NOT EXISTS session_titles(agent TEXT NOT NULL,session_id TEXT NOT NULL,cwd TEXT NOT NULL,title TEXT NOT NULL,PRIMARY KEY(agent,session_id))").execute(&pool).await?;
+        sqlx::raw_sql("CREATE TABLE IF NOT EXISTS extension_events(id TEXT PRIMARY KEY,event_type TEXT NOT NULL,instance TEXT,data TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,published INTEGER NOT NULL DEFAULT 0);CREATE TABLE IF NOT EXISTS extension_results(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,kind TEXT NOT NULL,data TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);").execute(&pool).await?;
         Ok(Self {
             pool,
             dir: dir.into(),
             runner,
             session_locks: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         })
+    }
+    pub async fn extension_event(&self, event_type: &str, data: Value) -> Result<Uuid> {
+        let id = Uuid::new_v4();
+        sqlx::query("INSERT INTO extension_events(id,event_type,data) VALUES(?,?,?)")
+            .bind(id.to_string())
+            .bind(event_type)
+            .bind(data.to_string())
+            .execute(&self.pool)
+            .await?;
+        Ok(id)
+    }
+    pub async fn extension_result(&self, run: Uuid, kind: &str, data: &Value) -> Result<Uuid> {
+        let id = Uuid::new_v4();
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("INSERT INTO extension_results(id,run_id,kind,data) VALUES(?,?,?,?)")
+            .bind(id.to_string())
+            .bind(run.to_string())
+            .bind(kind)
+            .bind(data.to_string())
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("INSERT INTO extension_events(id,event_type,data) VALUES(?,?,?)")
+            .bind(Uuid::new_v4().to_string())
+            .bind(if kind == "native" {
+                "result.native_available"
+            } else {
+                "result.published"
+            })
+            .bind(json!({"run_id":run,"result_ref":id,"kind":kind}).to_string())
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(id)
     }
     pub async fn insert(&self, a: &Assignment, agent: &AgentConfig) -> Result<()> {
         sqlx::query("INSERT OR IGNORE INTO local_runs(id,assignment,agent,claim,phase,started) VALUES(?,?,?,?, 'intent',?)").bind(a.run_id.to_string()).bind(serde_json::to_string(a)?).bind(serde_json::to_string(agent)?).bind(Uuid::new_v4().to_string()).bind(Utc::now().to_rfc3339()).execute(&self.pool).await?;
@@ -313,6 +347,7 @@ impl Journal {
         id: Uuid,
         mut session: crate::runner::sessions::RunSession,
     ) -> Result<()> {
+        let previous = self.session(id).await?;
         self.name_session(id, &mut session).await?;
         let mut tx = self.pool.begin().await?;
         let row =
@@ -328,7 +363,7 @@ impl Journal {
             claim_id: row.get::<String, _>("claim").parse()?,
             seq: row.get("seq"),
             kind: "session".into(),
-            data: serde_json::to_value(session)?,
+            data: serde_json::to_value(&session)?,
             timestamp: Utc::now(),
         };
         sqlx::query("INSERT INTO pending_events(run_id,seq,payload) VALUES(?,?,?)")
@@ -337,6 +372,18 @@ impl Journal {
             .bind(serde_json::to_string(&event)?)
             .execute(&mut *tx)
             .await?;
+        let event_type = if previous.is_none() {
+            Some("session.bound")
+        } else if previous.as_ref().is_some_and(|p| p.title != session.title) {
+            Some("session.title_changed")
+        } else if previous.as_ref().is_some_and(|p| p.ready != session.ready) {
+            Some("session.availability_changed")
+        } else {
+            None
+        };
+        if let Some(event_type) = event_type {
+            sqlx::query("INSERT INTO extension_events(id,event_type,data) VALUES(?,?,?)").bind(Uuid::new_v4().to_string()).bind(event_type).bind(json!({"run_id":id,"session_id":session.id,"title":session.title,"ready":session.ready}).to_string()).execute(&mut *tx).await?;
+        }
         tx.commit().await?;
         Ok(())
     }
@@ -355,6 +402,10 @@ impl Journal {
             .bind(Utc::now().to_rfc3339())
             .execute(&self.pool)
             .await?;
+        if phase == "claimed" {
+            self.extension_event("execution.claimed", json!({"run_id":id}))
+                .await?;
+        }
         if matches!(phase, "done" | "unknown") {
             locks.remove(&id);
         }
@@ -364,6 +415,8 @@ impl Journal {
         sqlx::query("INSERT OR IGNORE INTO cancellations(run_id) VALUES(?)")
             .bind(id.to_string())
             .execute(&self.pool)
+            .await?;
+        self.extension_event("execution.cancel_requested", json!({"run_id":id}))
             .await?;
         Ok(())
     }
@@ -436,6 +489,15 @@ impl Journal {
             .bind(serde_json::to_string(&event)?)
             .execute(&mut *tx)
             .await?;
+        let lifecycle = match kind {
+            "snapshot" => Some("execution.prepared"),
+            "state" if event.data["state"] == "unknown" => Some("execution.uncertain"),
+            "state" if phase == Some("done") => Some("execution.finished"),
+            _ => None,
+        };
+        if let Some(event_type) = lifecycle {
+            sqlx::query("INSERT INTO extension_events(id,event_type,data) VALUES(?,?,?)").bind(Uuid::new_v4().to_string()).bind(event_type).bind(json!({"run_id":id,"state":event.data["state"],"reason":event.data["reason"],"sequence":event.seq}).to_string()).execute(&mut *tx).await?;
+        }
         tx.commit().await?;
         if phase.is_some_and(|phase| matches!(phase, "done" | "unknown")) {
             locks.remove(&id);

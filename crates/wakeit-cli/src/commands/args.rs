@@ -313,6 +313,14 @@ pub(super) enum Skill {
 
 #[derive(Subcommand)]
 pub(super) enum Plugin {
+    /// Manage an extension on a connected Runner using the WebUI operation contract.
+    Instance {
+        #[arg(long)]
+        runner: Uuid,
+        action: String,
+        #[arg(long)]
+        file: Option<PathBuf>,
+    },
     /// Check a package without installing it or loading user plugins.
     Validate {
         #[arg(long)]

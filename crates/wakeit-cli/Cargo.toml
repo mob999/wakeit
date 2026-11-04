@@ -48,6 +48,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 vt100 = "0.18"
 which = "8"
 yaml_serde = "0.10"
+notify = "8"
 
 [dev-dependencies]
 wakeit-agent-runtime = { path = "../wakeit-agent-runtime" }

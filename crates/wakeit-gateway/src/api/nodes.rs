@@ -114,6 +114,7 @@ pub(crate) async fn retry_node(
 ) -> Result<Json<Value>> {
     let actor = user(&s, &h, "operator", true).await?;
     let key = request_key(&h)?;
+    crate::store::plugins::gate(&s.pool,actor.workspace()?,actor.id,&key,"dag.recovery.prepare",json!({"run_id":id,"node_id":node,"execution_id":b.execution_id,"resume_stopped":b.resume_stopped})).await.map_err(|e|Error::bad(e.to_string()))?;
     crate::store::dag_recovery::retry(
         &s,
         &actor,

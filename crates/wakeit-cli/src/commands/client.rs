@@ -63,6 +63,42 @@ impl Client {
                 .map(|v| format!("\n{}", serde_json::to_string_pretty(v).unwrap_or_default()))
                 .unwrap_or_default()
         );
+        if status == reqwest::StatusCode::ACCEPTED
+            && let Some(path) = value["operation_url"].as_str()
+        {
+            ensure!(
+                path.starts_with("/plugins/operations/")
+                    && path
+                        .rsplit('/')
+                        .next()
+                        .is_some_and(|id| id.parse::<Uuid>().is_ok()),
+                "invalid operation receipt"
+            );
+            loop {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                let response = self
+                    .http
+                    .get(self.api_url(path))
+                    .bearer_auth(self.token.trim())
+                    .send()
+                    .await?;
+                ensure!(
+                    response.status().is_success(),
+                    "operation status unavailable"
+                );
+                let receipt: Value = response.json().await?;
+                match receipt["state"].as_str().unwrap_or("") {
+                    "committed" | "succeeded" => return Ok(receipt["result"].clone()),
+                    "rejected" | "conflict" | "failed" | "cancelled" | "expired" => anyhow::bail!(
+                        "{}",
+                        receipt["error"]
+                            .as_str()
+                            .unwrap_or("operation did not complete")
+                    ),
+                    _ => {}
+                }
+            }
+        }
         Ok(value)
     }
     pub(super) async fn optional(&self, path: &str) -> Result<Option<Value>> {

@@ -8,6 +8,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pg-bin', default=os.environ.get('PG_BIN'))
     parser.add_argument('--keep-running', action='store_true')
+    parser.add_argument('--plugins-only', action='store_true', help='Run generic extension SDK acceptance')
     parser.add_argument('--transport-only', action='store_true', help='Run focused payload isolation and offline delivery acceptance')
     parser.add_argument('--device-auth-only', action='store_true', help='Run the device-flow subset against a fresh disposable service')
     parser.add_argument('--gateway-port', type=int, help='Optional fixed port for the local preview')
@@ -140,6 +141,9 @@ def main():
         session_agent=configure_sessions(runner_dir,remote,MOCK)
         runner_config={'version':1,'gateway':base,'id':runner_id,'name':'test-device','token_file':str(runner_dir/'device.token'),'nats_url':config['nats_public_url'],'credentials_file':str(runner_dir/'runner.creds'),'data_dir':str(runner_dir/'data'),'concurrency':1 if args.transport_only else 2,'agents':[str(runner_dir/'agents/mock-sync.yaml'),str(runner_dir/'agents/mock-async.yaml'),str(runner_dir/'agents/mock-sync-json.yaml'),str(runner_dir/'agents/mock-events.yaml'),str(session_agent)],'allowed_roots':[str(cwd)]}
         runner_file=runner_dir/'runner.yaml'; runner_file.write_text(json.dumps(runner_config))
+        if args.plugins_only:
+            env['WAKEIT_PLUGIN_HOME']=str(root/'plugin-packages')
+            command([BIN,'plugin','install',ROOT/'fixtures/plugins/generic'],env)
         runner_process=spawn('runner',[BIN,'runner','start','--config',runner_file])
         wait(lambda:any(r['online'] and len(r['agents'])==5 for r in api('/runners')),'Runner registration and agent detection')
         check('Runner enrollment, WebSocket transport and local adapter detection')
@@ -148,6 +152,19 @@ def main():
         def apply(c,revision=None):return api('/tasks/'+c['id'],'PUT',{'config':c,'expected_revision':revision})
         def trigger(id,key=None):return api('/tasks/'+id+'/runs','POST',{},key)['id']
         def final(id,state='succeeded',timeout=25):return wait(lambda:(r if (r:=api('/runs/'+id))['state']==state else None), f'run {state}',timeout)
+        if args.plugins_only:
+            from plugin_sdk_checks import verify as verify_plugins
+            verify_plugins(locals())
+            success=True
+            if args.keep_running:
+                state={'base_url':base,'workspace':workspace,'runner_id':runner_id,'username':'admin','password':env['WAKEIT_PASSWORD'],'pids':[p.pid for p in processes if p.poll() is None],'artifact_dir':str(root)}
+                state_file=ROOT/args.state_file;state_file.parent.mkdir(parents=True,exist_ok=True);state_file.write_text(json.dumps(state));state_file.chmod(0o600)
+                def interrupt_plugins(signum,frame):raise KeyboardInterrupt
+                signal.signal(signal.SIGTERM,interrupt_plugins)
+                try:
+                    while True:time.sleep(1)
+                except KeyboardInterrupt:pass
+            return
         if args.transport_only:
             from transport_checks import verify as verify_transport
             verify_transport(locals())

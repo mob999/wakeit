@@ -76,3 +76,7 @@ Install the complete CLI 0.2 bundle using the [installer](install.md). The old `
 New setup/enrollment uses plugin resources directly. Keep device credentials and Runner identity; no Gateway upgrade is required. New plugin-backed sessions retain the executable path from their package version.
 
 Official adapters use `run AGENT [--session ID] [--model MODEL] -- NATIVE_ARGV` for both new and resumed executions. Kimi runs its native ACP over stdio. Existing native session titles are preserved; when a verified session has none, Runner keeps a local display name used in session inspection and search. Later native titles take precedence. Third-party command and event interfaces are unchanged.
+
+## General extensions
+
+Packages can also provide event handlers, lifecycle hooks and device-configured actions. See the [Plugin SDK](plugin-sdk.md).

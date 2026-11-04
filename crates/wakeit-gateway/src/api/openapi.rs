@@ -711,5 +711,47 @@ pub fn document() -> Value {
         }
         paths.insert(format!("/api/v1{path}"), json!(operations));
     }
+    schemas.insert(
+        "PluginSdk".into(),
+        schema::<wakeit_core::extensions::Contract>("PluginSdk"),
+    );
+    schemas.insert(
+        "PluginBinding".into(),
+        schema::<wakeit_core::extensions::Binding>("PluginBinding"),
+    );
+    for (path, methods) in [
+        ("/runners/{id}/plugins", vec!["get"]),
+        ("/runners/{id}/plugins/control", vec!["post"]),
+        ("/plugins/bindings", vec!["get", "post"]),
+        ("/plugins/replay", vec!["post"]),
+        ("/plugins/artifacts/{id}/download", vec!["get"]),
+        ("/plugins/events", vec!["get"]),
+        ("/plugins/events/{id}", vec!["get"]),
+        ("/plugins/operations", vec!["get"]),
+        ("/plugins/operations/{id}", vec!["get", "post"]),
+        ("/runs/{id}/result/retry", vec!["post"]),
+        ("/plugins/deliveries", vec!["get"]),
+        ("/plugins/deliveries/{id}", vec!["post"]),
+    ] {
+        let mut operations = serde_json::Map::new();
+        for method in methods {
+            let mut operation = json!({"operationId":format!("plugin_{}_{}",method,path.replace('/',"_").replace(['{','}'],"")),"security":[{"bearerAuth":[]},{"sessionCookie":[]}],"responses":{"200":{"description":"Plugin result"},"400":{"description":"Invalid schema, invocation or plugin operation"},"403":{"description":"Plugin capability or member permission denied"},"409":{"description":"Revision conflict"},"503":{"description":"Target device unavailable"}}});
+            let mut parameters = vec![
+                json!({"name":"workspace","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}),
+            ];
+            if path.contains("{id}") {
+                parameters.push(json!({"name":"id","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}));
+            }
+            operation["parameters"] = json!(parameters);
+            if method == "post" {
+                operation["requestBody"] = json!({"required":true,"content":{"application/json":{"schema":if path=="/plugins/bindings"{json!({"$ref":"#/components/schemas/PluginBinding"})}else{serde_json::to_value(schemars::schema_for!(super::plugins::Control)).unwrap()}}}});
+            }
+            operations.insert(method.into(), operation);
+        }
+        paths.insert(
+            format!("/api/v1/workspaces/{{workspace}}{path}"),
+            Value::Object(operations),
+        );
+    }
     json!({"openapi":"3.1.0","info":{"title":"wakeit API","version":env!("CARGO_PKG_VERSION")},"paths":paths,"components":{"securitySchemes":{"bearerAuth":{"type":"http","scheme":"bearer"},"deviceToken":{"type":"http","scheme":"bearer","description":"Runner device token"},"sessionCookie":{"type":"apiKey","in":"cookie","name":"wakeit_session"}},"schemas":schemas}})
 }

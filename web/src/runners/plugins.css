@@ -1,0 +1,153 @@
+@reference '../styles/tailwind.css';
+.plugin-workbench {
+  @apply grid grid-cols-[200px_minmax(0,1fr)] flex-1 min-h-0 overflow-hidden;
+}
+.plugin-list {
+  @apply border-r border-ui-border overflow-y-auto;
+}
+.plugin-list-row {
+  @apply flex w-full items-center justify-between gap-2 px-3 py-2 text-left rounded;
+}
+.plugin-list-row:hover,
+.plugin-list-row.is-selected {
+  @apply bg-list-selected text-ink;
+}
+.plugin-detail {
+  @apply flex flex-col min-w-0 min-h-0;
+}
+.plugin-title {
+  @apply flex min-h-11 items-center justify-between gap-4 px-4 border-b border-ui-border;
+}
+.plugin-title > div {
+  @apply flex items-center gap-3 min-w-0;
+}
+.plugin-title > .plugin-title-actions {
+  @apply gap-1 shrink-0;
+}
+.plugin-title-actions > .text-muted {
+  @apply mr-2;
+}
+.plugin-title h2 {
+  @apply text-xs font-semibold truncate;
+}
+.plugin-detail-body {
+  @apply overflow-auto flex-1 min-h-0 p-4;
+}
+.plugin-config-card {
+  @apply border border-ui-border rounded-md overflow-hidden;
+}
+.plugin-section-title {
+  @apply flex items-center min-h-10 px-3 py-2 text-xs font-semibold border-b border-ui-border;
+}
+.plugin-field-group {
+  @apply px-3 py-2;
+}
+.plugin-field {
+  @apply grid grid-cols-[minmax(120px,28%)_minmax(0,1fr)] items-start gap-4 py-2;
+}
+.plugin-field-label {
+  @apply flex items-center gap-2 min-h-8 text-xs;
+}
+.plugin-field-control {
+  @apply min-w-0;
+}
+.plugin-field input:not([type='checkbox']),
+.plugin-field textarea {
+  @apply w-full min-w-0;
+}
+.plugin-secret-control {
+  @apply flex items-center gap-2 min-h-8;
+}
+.plugin-secret-control input {
+  @apply flex-1 min-w-0;
+}
+.plugin-secret-control > span {
+  @apply flex-1 min-w-0;
+}
+.plugin-config-card > .plugin-field {
+  @apply px-3;
+}
+.plugin-array {
+  @apply block;
+}
+.plugin-array > .plugin-field-label {
+  @apply justify-between;
+}
+.plugin-array-items {
+  @apply ml-3 border-l border-ui-border pl-3;
+}
+.plugin-array-item {
+  @apply flex items-start gap-2;
+}
+.plugin-array-item > .plugin-field,
+.plugin-array-item > .plugin-field-group {
+  @apply flex-1 min-w-0;
+}
+.plugin-config-footer {
+  @apply flex items-center justify-between gap-4 border-t border-ui-border px-3 py-2;
+}
+.plugin-capability {
+  @apply py-3 border-b border-ui-border;
+}
+.plugin-capability > div:first-child {
+  @apply flex items-center gap-3;
+}
+.plugin-capability-controls {
+  @apply flex items-center gap-2 mt-2;
+}
+.plugin-capability-controls > .choice-selector {
+  @apply min-w-32;
+}
+.plugin-order {
+  @apply w-16;
+}
+.plugin-permissions,
+.plugin-permission {
+  @apply py-2 text-xs;
+}
+.plugin-activity-row {
+  @apply flex items-center gap-3 px-3 py-2 border-b border-ui-border min-w-0;
+}
+.plugin-activity-row > span:last-of-type {
+  @apply truncate flex-1;
+}
+.plugin-actions {
+  @apply flex flex-wrap gap-2 py-3;
+}
+@media (max-width: 1000px) {
+  .plugin-workbench {
+    @apply grid-cols-[150px_minmax(0,1fr)];
+  }
+  .plugin-field {
+    @apply grid-cols-[110px_minmax(0,1fr)] gap-2;
+  }
+}
+@media (max-width: 700px) {
+  .plugin-workbench {
+    @apply flex flex-col overflow-auto;
+  }
+  .plugin-list {
+    @apply border-r-0 border-b shrink-0 max-h-40;
+  }
+  .plugin-detail {
+    @apply min-h-96 shrink-0;
+  }
+}
+
+.plugin-list .pane-heading h2 {
+  @apply text-ui font-semibold m-0;
+}
+.plugin-title h2,
+.plugin-field-label {
+  @apply text-ui;
+}
+.plugin-title .text-muted {
+  @apply text-meta;
+}
+
+.plugin-diagnostics {
+  @apply max-h-64 overflow-auto px-3 py-2 text-meta;
+}
+.plugin-diagnostics pre {
+  @apply whitespace-pre-wrap break-all;
+}

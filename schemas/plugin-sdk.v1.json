@@ -1,0 +1,1294 @@
+{
+  "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "input": {
+          "default": {
+            "properties": {},
+            "type": "object"
+          }
+        },
+        "label": {
+          "type": "string"
+        },
+        "output": {
+          "default": null
+        },
+        "permission": {
+          "default": "",
+          "type": "string"
+        },
+        "side_effects": {
+          "default": false,
+          "type": "boolean"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "Actor": {
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "roles": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Binding": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "event": {
+          "type": "string"
+        },
+        "expires_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failure_policy": {
+          "$ref": "#/$defs/FailurePolicy"
+        },
+        "filter": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "handler": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "instance_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "max_attempts": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "position": {
+          "default": 0,
+          "format": "int32",
+          "type": "integer"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "runner_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "instance_id",
+        "runner_id",
+        "handler",
+        "kind",
+        "event",
+        "enabled",
+        "failure_policy",
+        "timeout_seconds",
+        "max_attempts",
+        "expires_seconds",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "ConfigUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "config": true,
+        "expected_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "operation_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "secrets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SecretUpdate"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "required": [
+        "operation_id",
+        "expected_revision",
+        "config"
+      ],
+      "type": "object"
+    },
+    "CredentialSlot": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "required": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "Decision": {
+      "oneOf": [
+        {
+          "properties": {
+            "decision": {
+              "const": "allow",
+              "type": "string"
+            }
+          },
+          "required": [
+            "decision"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "decision": {
+              "const": "deny",
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "paths": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "decision",
+            "code",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "decision": {
+              "const": "patch",
+              "type": "string"
+            },
+            "value": true
+          },
+          "required": [
+            "decision",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DeliveryOutcome": {
+      "oneOf": [
+        {
+          "properties": {
+            "outcome": {
+              "const": "success",
+              "type": "string"
+            },
+            "result": true
+          },
+          "required": [
+            "outcome",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "outcome": {
+              "const": "retry_after",
+              "type": "string"
+            },
+            "seconds": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "outcome",
+            "seconds",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "outcome": {
+              "const": "permanent_failure",
+              "type": "string"
+            }
+          },
+          "required": [
+            "outcome",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "outcome": {
+              "const": "uncertain",
+              "type": "string"
+            }
+          },
+          "required": [
+            "outcome",
+            "message"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Event": {
+      "properties": {
+        "aggregate_id": {
+          "type": "string"
+        },
+        "aggregate_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "aggregate_type": {
+          "type": "string"
+        },
+        "causation_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "committed_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": true,
+        "event_type": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "operation_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "$ref": "#/$defs/Actor"
+        },
+        "schema_version": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_runner_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "event_type",
+        "schema_version",
+        "workspace_id",
+        "aggregate_type",
+        "aggregate_id",
+        "aggregate_revision",
+        "occurred_at",
+        "committed_at",
+        "origin",
+        "data"
+      ],
+      "type": "object"
+    },
+    "Extension": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Action"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "args": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "type": "string"
+        },
+        "config": {
+          "default": {
+            "properties": {},
+            "type": "object"
+          }
+        },
+        "credentials": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CredentialSlot"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "events": {
+          "additionalProperties": true,
+          "default": {},
+          "type": "object"
+        },
+        "handlers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Handler"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "hooks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Hook"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "permissions": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "providers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Provider"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "sdk_protocol": {
+          "default": 1,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "translations": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "required": [
+        "command",
+        "name"
+      ],
+      "type": "object"
+    },
+    "ExtensionError": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "paths": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "type": "object"
+    },
+    "FailurePolicy": {
+      "enum": [
+        "reject",
+        "wait",
+        "continue"
+      ],
+      "type": "string"
+    },
+    "Handler": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "events": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "events"
+      ],
+      "type": "object"
+    },
+    "Hook": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "stage": {
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 60,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "stage"
+      ],
+      "type": "object"
+    },
+    "Instance": {
+      "properties": {
+        "applied_revision": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "config": true,
+        "credential_status": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "declaration": {
+          "$ref": "#/$defs/Extension"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extension": {
+          "type": "string"
+        },
+        "grants": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "runner_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "runner_id",
+        "source",
+        "extension",
+        "name",
+        "revision",
+        "enabled",
+        "version",
+        "grants",
+        "config",
+        "state",
+        "declaration"
+      ],
+      "type": "object"
+    },
+    "Interaction": {
+      "oneOf": [
+        {
+          "properties": {
+            "fraction": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "progress",
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "form",
+              "type": "string"
+            },
+            "schema": true,
+            "title": {
+              "type": "string"
+            },
+            "value": {
+              "default": null
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "schema"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "secret",
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "slot": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "slot",
+            "label"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "confirm",
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "description"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "choice",
+              "type": "string"
+            },
+            "options": {
+              "items": {
+                "$ref": "#/$defs/UiChoice"
+              },
+              "type": "array"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "title",
+            "options"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "open_url",
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "url",
+            "label"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "expires_at": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "kind": {
+              "const": "device_code",
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "url",
+            "code",
+            "expires_at"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "download",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "reference": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "reference",
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "navigate",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "toast",
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Invocation": {
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "causation_id": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "deadline": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expected_revision": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "handler": {
+          "type": "string"
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "input": true,
+        "instance_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "operation_id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "operation_id",
+        "instance_id",
+        "kind",
+        "handler",
+        "input",
+        "deadline",
+        "actor"
+      ],
+      "type": "object"
+    },
+    "Provider": {
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "default": null
+        },
+        "kind": {
+          "type": "string"
+        },
+        "output": {
+          "default": null
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Receipt": {
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtensionError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "result": true,
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "SecretUpdate": {
+      "oneOf": [
+        {
+          "properties": {
+            "operation": {
+              "const": "keep",
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "operation": {
+              "const": "replace",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "operation": {
+              "const": "clear",
+              "type": "string"
+            }
+          },
+          "required": [
+            "operation"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "UiChoice": {
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "binding": {
+      "$ref": "#/$defs/Binding"
+    },
+    "config_update": {
+      "$ref": "#/$defs/ConfigUpdate"
+    },
+    "decision": {
+      "$ref": "#/$defs/Decision"
+    },
+    "event": {
+      "$ref": "#/$defs/Event"
+    },
+    "extension": {
+      "$ref": "#/$defs/Extension"
+    },
+    "instance": {
+      "$ref": "#/$defs/Instance"
+    },
+    "interaction": {
+      "$ref": "#/$defs/Interaction"
+    },
+    "invocation": {
+      "$ref": "#/$defs/Invocation"
+    },
+    "outcome": {
+      "$ref": "#/$defs/DeliveryOutcome"
+    },
+    "receipt": {
+      "$ref": "#/$defs/Receipt"
+    }
+  },
+  "required": [
+    "extension",
+    "instance",
+    "config_update",
+    "event",
+    "binding",
+    "invocation",
+    "decision",
+    "receipt",
+    "interaction",
+    "outcome"
+  ],
+  "title": "Contract",
+  "type": "object",
+  "x-wakeit-events": [
+    "workspace.created",
+    "workspace.settings_changed",
+    "member.joined",
+    "member.left",
+    "member.role_changed",
+    "task.created",
+    "task.updated",
+    "task.enabled_changed",
+    "task.schedule_changed",
+    "task.archived",
+    "task.restored",
+    "template.created",
+    "template.updated",
+    "template.archived",
+    "template.restored",
+    "template.instantiated",
+    "schedule.occurrence_created",
+    "schedule.evaluated",
+    "schedule.next_changed",
+    "run.created",
+    "run.queued",
+    "run.started",
+    "run.state_changed",
+    "run.cancel_requested",
+    "run.retry_requested",
+    "run.reopened",
+    "run.uncertain",
+    "run.reconciled",
+    "run.finished",
+    "dag.node.ready",
+    "dag.node.state_changed",
+    "dag.node.retry_scheduled",
+    "dag.node.attempt_created",
+    "dag.node.attempt_finished",
+    "dag.node.finished",
+    "dag.recovery_planned",
+    "dag.recovered",
+    "execution.claimed",
+    "execution.prepared",
+    "execution.started",
+    "execution.input_submitted",
+    "execution.native_finished",
+    "execution.cancel_requested",
+    "execution.cancel_confirmed",
+    "execution.uncertain",
+    "execution.reconciled",
+    "execution.finished",
+    "execution.message_updated",
+    "execution.tool_updated",
+    "execution.log",
+    "execution.recording_changed",
+    "session.created",
+    "session.bound",
+    "session.title_changed",
+    "session.availability_changed",
+    "session.continuation_started",
+    "session.continuation_finished",
+    "result.native_available",
+    "result.published",
+    "result.derived_published",
+    "result.processing_failed",
+    "result.expired",
+    "artifact.registered",
+    "artifact.exported",
+    "artifact.expired",
+    "artifact.removed",
+    "file.changed",
+    "device.enrolled",
+    "device.online",
+    "device.offline",
+    "device.capabilities_changed",
+    "device.lease_lost",
+    "device.lease_recovered",
+    "device.revoked",
+    "agent.availability_changed",
+    "agent.catalog_changed",
+    "plugin.installed",
+    "plugin.updated",
+    "plugin.removed",
+    "instance.created",
+    "instance.activating",
+    "instance.activated",
+    "instance.deactivated",
+    "instance.failed",
+    "instance.recovered",
+    "instance.config_changed",
+    "instance.permissions_changed",
+    "credential.status_changed",
+    "auth.flow_changed",
+    "action.started",
+    "action.progress",
+    "action.finished",
+    "operation.state_changed",
+    "delivery.state_changed"
+  ],
+  "x-wakeit-hooks": [
+    {
+      "mutable_fields": [
+        "settings"
+      ],
+      "stage": "workspace.settings.prepare"
+    },
+    {
+      "mutable_fields": [
+        "config"
+      ],
+      "stage": "task.save.prepare"
+    },
+    {
+      "mutable_fields": [],
+      "stage": "task.activation.prepare"
+    },
+    {
+      "mutable_fields": [
+        "definition"
+      ],
+      "stage": "template.save.prepare"
+    },
+    {
+      "mutable_fields": [
+        "values",
+        "unset",
+        "bindings"
+      ],
+      "stage": "template.compile.prepare"
+    },
+    {
+      "mutable_fields": [
+        "config"
+      ],
+      "stage": "template.compile.result"
+    },
+    {
+      "mutable_fields": [
+        "prompt",
+        "parameters"
+      ],
+      "stage": "schedule.fire.prepare"
+    },
+    {
+      "mutable_fields": [
+        "prompt",
+        "parameters"
+      ],
+      "stage": "run.create.prepare"
+    },
+    {
+      "mutable_fields": [
+        "prompt",
+        "parameters"
+      ],
+      "stage": "run.retry.prepare"
+    },
+    {
+      "mutable_fields": [],
+      "stage": "dag.recovery.prepare"
+    },
+    {
+      "mutable_fields": [
+        "prompt",
+        "parameters"
+      ],
+      "stage": "dag.node.dispatch.prepare"
+    },
+    {
+      "mutable_fields": [
+        "prompt",
+        "parameters"
+      ],
+      "stage": "execution.prepare"
+    },
+    {
+      "mutable_fields": [],
+      "stage": "session.bind.prepare"
+    },
+    {
+      "mutable_fields": [
+        "prompt",
+        "parameters"
+      ],
+      "stage": "session.continue.prepare"
+    },
+    {
+      "mutable_fields": [
+        "title"
+      ],
+      "stage": "session.title.prepare"
+    },
+    {
+      "mutable_fields": [
+        "result",
+        "artifacts",
+        "metadata"
+      ],
+      "stage": "result.publish.prepare"
+    },
+    {
+      "mutable_fields": [
+        "metadata"
+      ],
+      "stage": "artifact.export.prepare"
+    },
+    {
+      "mutable_fields": [
+        "input"
+      ],
+      "stage": "action.prepare"
+    }
+  ]
+}

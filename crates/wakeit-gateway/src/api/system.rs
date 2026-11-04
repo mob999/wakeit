@@ -22,6 +22,7 @@ pub(crate) async fn ready(State(s): State<App>) -> Result<Json<Value>> {
 
 pub(crate) async fn schema(Path(kind): Path<String>) -> Result<Json<Value>> {
     Ok(Json(match kind.as_str() {
+        "plugin-sdk" => wakeit_core::extensions::schema(),
         "agent" => serde_json::to_value(schemars::schema_for!(wakeit_core::config::AgentConfig))?,
         "task" => serde_json::to_value(schemars::schema_for!(TaskConfig))?,
         "template" => {
@@ -67,6 +68,6 @@ pub(crate) async fn metrics(State(s): State<App>, h: HeaderMap) -> Result<Respon
 pub(crate) async fn meta(State(s): State<App>) -> Json<Value> {
     let version = env!("CARGO_PKG_VERSION");
     Json(
-        json!({"version":version,"public_url":s.config.public_url,"auth":{"mode":s.config.auth.mode,"allow_registration":s.config.auth.allow_registration}}),
+        json!({"version":version,"public_url":s.config.public_url,"extensions":{"protocol":1},"auth":{"mode":s.config.auth.mode,"allow_registration":s.config.auth.allow_registration}}),
     )
 }

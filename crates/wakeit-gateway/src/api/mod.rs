@@ -11,6 +11,8 @@ pub(crate) mod http;
 pub(crate) mod moments;
 pub(crate) mod nodes;
 pub mod openapi;
+mod plugin_operations;
+pub(crate) mod plugins;
 pub(crate) mod runners;
 pub(crate) mod runs;
 pub(crate) mod sessions;
@@ -131,9 +133,30 @@ pub fn router(app: App) -> Router {
         .route("/runs/{id}/nodes/{node}/retry", post(nodes::retry_node))
         .route("/runs/{id}/cancel", post(runs::cancel))
         .route("/runs/{id}/retry", post(runs::retry))
+        .route("/runs/{id}/result/retry", post(plugins::reprocess_result))
         .route("/runs/{id}/resolve", post(runs::resolve))
         .route("/runs/{id}/events", get(events::events))
         .route("/runs/{id}/stream", get(events::stream))
+        .route("/runners/{id}/plugins", get(plugins::catalog))
+        .route("/runners/{id}/plugins/control", post(plugins::control))
+        .route(
+            "/plugins/bindings",
+            get(plugins::bindings).post(plugins::bind),
+        )
+        .route("/plugins/replay", post(plugins::replay))
+        .route(
+            "/plugins/artifacts/{id}/download",
+            get(plugins::artifact_download),
+        )
+        .route("/plugins/events", get(plugins::events))
+        .route("/plugins/events/{id}", get(plugins::event))
+        .route("/plugins/operations", get(plugins::operations))
+        .route(
+            "/plugins/operations/{id}",
+            get(plugins::operation).post(plugins::operation_action),
+        )
+        .route("/plugins/deliveries", get(plugins::deliveries))
+        .route("/plugins/deliveries/{id}", post(plugins::delivery_action))
         .route("/runners", get(runners::runners))
         .route("/runners/enrollment", post(runners::enrollment))
         .route("/runners/{id}/revoke", post(runners::revoke))
@@ -144,6 +167,10 @@ pub fn router(app: App) -> Router {
         )
         .route("/timezones", get(settings::timezones))
         .route("/audit", get(settings::audits))
+        .route_layer(axum::middleware::from_fn_with_state(
+            app.clone(),
+            plugin_operations::boundary,
+        ))
         .route_layer(axum::middleware::from_fn(workspace_scope));
     Router::new()
         .route(
@@ -165,6 +192,12 @@ pub fn router(app: App) -> Router {
         .route("/api/v1/device/hello", post(device::hello))
         .route("/api/v1/device/heartbeat", post(device::heartbeat))
         .route("/api/v1/device/claim", post(device::claim))
+        .route("/api/v1/device/plugins/poll", post(plugins::poll))
+        .route("/api/v1/device/plugins/ack", post(plugins::ack))
+        .route("/api/v1/device/plugins/api", post(plugins::host_api))
+        .route("/api/v1/device/plugins/events", post(plugins::device_events))
+        .route("/api/v1/device/plugins/auth/register", post(plugins::auth_register))
+        .route("/api/v1/plugins/auth/callback", get(plugins::auth_callback))
         .route("/api/v1/schema/{kind}", get(system::schema))
         .route("/api/v1/openapi.json", get(system::openapi))
         .nest("/api/v1/workspaces/{workspace}", business)

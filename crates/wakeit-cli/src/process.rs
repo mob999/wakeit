@@ -234,10 +234,13 @@ pub async fn execute_output_named_format(
         .with_context(|| format!("start {}", spec.command))?;
     let result: Result<Output> = async {
     let group = ProcessGroup::new(&child)?;
+    if let Some(sink)=&sink{sink.journal.extension_event("execution.started",serde_json::json!({"run_id":id})).await?;}
+    let lifecycle=sink.clone();
     let stdout = child.stdout.take().context("stdout")?;
     let stderr = child.stderr.take().context("stderr")?;
     let out_sink = sink.clone().filter(|s| s.stdout);
     let err_sink = sink;
+    let native_lifecycle=err_sink.clone();
     let exited = CancellationToken::new();
     let stdout = tokio::spawn(read_output(stdout, out_sink, "stdout", format, exited.clone()));
     let stderr = tokio::spawn(read_output(stderr, err_sink, "stderr", OutputFormat::Text, exited.clone()));
@@ -251,8 +254,7 @@ pub async fn execute_output_named_format(
         && let Some(mut stdin) = child.stdin.take()
     {
         tokio::spawn(async move {
-            let _ = stdin.write_all(input.as_bytes()).await;
-            let _ = stdin.shutdown().await;
+            if stdin.write_all(input.as_bytes()).await.is_ok() && stdin.shutdown().await.is_ok() && let Some(sink)=lifecycle{let _=sink.journal.extension_event("execution.input_submitted",serde_json::json!({"run_id":id})).await;}
         });
     }
     let limit = spec
@@ -269,6 +271,7 @@ pub async fn execute_output_named_format(
         _=tokio::time::sleep(limit)=>{stopped=Some("timed_out");group.terminate();match tokio::time::timeout(Duration::from_secs(5),child.wait()).await{Ok(v)=>v?,Err(_)=>{group.kill();child.kill().await.ok();child.wait().await?}}}
     };
     // Commands belong to a run; terminate any descendants holding the output pipes.
+    if let Some(sink)=&native_lifecycle{sink.journal.extension_event("execution.native_finished",serde_json::json!({"run_id":id,"exit_code":status.code(),"stopped":stopped})).await?;}
     let terminated = group.finish().await;
     exited.cancel();
     let out = stdout.await??;
