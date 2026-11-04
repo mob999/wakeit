@@ -93,7 +93,7 @@ def main():
             env.pop('WAKEIT_BUNDLED_PLUGIN_DIR',None)
             packages=json.loads(run(bundle_probe,'--json','plugin','list',env=env))['packages']
             official=next(p for p in packages if p['bundled'])
-            resources = json.loads((ROOT / 'wakeit-plugin.json').read_text())['wakeit']
+            resources = json.loads((ROOT / 'wakeit-plugin.json').read_text(encoding='utf-8'))['wakeit']
             declared = set(resources.get('agents', {}))
             for plugin in resources.get('plugins', {}).values():
                 declared.update(plugin.get('agents', {}))

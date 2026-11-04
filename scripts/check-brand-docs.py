@@ -31,7 +31,7 @@ def main():
         jsonschema.validate(yaml.safe_load(path.read_text(encoding='utf-8')), template_schema)
     assert (ROOT / 'examples/task-template.yaml').read_bytes() == (ROOT / 'skills/wakeit/assets/task-template.yaml').read_bytes()
     plugin_schema = json.loads((ROOT / 'schemas/plugin.v1.json').read_text())
-    plugin = json.loads((ROOT / 'wakeit-plugin.json').read_text())
+    plugin = json.loads((ROOT / 'wakeit-plugin.json').read_text(encoding='utf-8'))
     jsonschema.validate(plugin, plugin_schema)
     resources = plugin['wakeit']
     assert not resources.get('agents'), 'Official Agents must use SDK declarations, not YAML resources'

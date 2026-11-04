@@ -17,7 +17,7 @@ TARGETS = (
 
 
 def official_resources(binary, suffix):
-    manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text())
+    manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text(encoding='utf-8'))
     if manifest['version'] != product_version('cli'):
         raise SystemExit('The bundled official package version must match the CLI release')
     definitions = [(ROOT / path, path) for path in manifest['wakeit'].get('agents', {}).values()]

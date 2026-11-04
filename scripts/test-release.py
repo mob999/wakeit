@@ -67,7 +67,7 @@ class Packaging(unittest.TestCase):
             self.assertTrue(all(name.startswith('wakeit') and '..' not in Path(name).parts for name in names))
 
     def test_sdk_bundle_keeps_manifest_and_packages_shared_program_once(self):
-        manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text())
+        manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text(encoding='utf-8'))
         resources = manifest['wakeit']
         self.assertFalse(resources.get('agents'), 'Official package must not require Agent YAML')
         declared = set(resources.get('commands', {}).values())
@@ -105,7 +105,7 @@ class Packaging(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('package_release', SCRIPT)
         package = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(package)
-        manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text())
+        manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text(encoding='utf-8'))
         manifest['wakeit'].pop('commands', None)
         source = self.directory / 'sdk-only'
         source.mkdir()
@@ -121,7 +121,7 @@ class Packaging(unittest.TestCase):
             for resource in resources:
                 (self.source / Path(resource).name).write_bytes(b'SDK-only fixture')
             package.stage(binary, output)
-        self.assertEqual(json.loads((output / 'wakeit-plugin.json').read_text()), manifest)
+        self.assertEqual(json.loads((output / 'wakeit-plugin.json').read_text(encoding='utf-8')), manifest)
         for resource in resources:
             self.assertEqual((output / resource).read_bytes(), b'SDK-only fixture')
         self.assertFalse(list(output.rglob('*.yaml')))

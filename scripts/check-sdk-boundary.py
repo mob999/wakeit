@@ -11,7 +11,7 @@ OUTPUT = ROOT / '.local/validation/sdk-boundary'
 def dependency_tree(package):
     result = subprocess.run(
         ['cargo', 'tree', '--locked', '-p', package, '--edges', 'normal,build', '--prefix', 'none'],
-        cwd=ROOT, check=True, text=True, stdout=subprocess.PIPE,
+        cwd=ROOT, check=True, text=True, encoding='utf-8', stdout=subprocess.PIPE,
     ).stdout
     (OUTPUT / f'{package}.txt').write_text(result, encoding='utf-8')
     return set(re.findall(r'^([a-zA-Z0-9_-]+) v', result, re.MULTILINE))
