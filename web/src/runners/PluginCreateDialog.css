@@ -1,0 +1,153 @@
+@reference '../styles/tailwind.css';
+
+.modal.plugin-create-dialog {
+  @apply w-[min(640px,_calc(100vw_-_32px))] max-h-[calc(100dvh_-_32px)] text-ui;
+}
+.plugin-create-dialog > .modal-heading {
+  @apply items-center min-h-11 px-4 py-2;
+}
+.plugin-create-dialog > .modal-heading h2 {
+  @apply text-ui font-title;
+}
+.plugin-create-dialog.is-pending > .modal-heading .modal-heading-actions {
+  @apply invisible;
+}
+.plugin-create-dialog > form {
+  @apply min-h-0;
+}
+.plugin-create-dialog .plugin-create-body {
+  @apply flex flex-col gap-3 p-4 overscroll-contain;
+}
+.plugin-create-dialog .plugin-create-body > .content-card {
+  @apply shrink-0;
+}
+.plugin-create-dialog .content-card > .card-header {
+  @apply min-h-9! px-3 py-2;
+}
+.plugin-create-dialog .content-card > .card-body {
+  @apply p-0;
+}
+.plugin-create-dialog .field {
+  @apply grid grid-cols-[100px_minmax(0,_1fr)] items-center gap-x-3 gap-y-1 m-0 px-3 py-2 border-b border-ui-border;
+}
+.plugin-create-dialog .field:last-child {
+  @apply border-b-0;
+}
+.plugin-create-dialog .field > label,
+.plugin-create-dialog .plugin-field-label {
+  @apply text-ui;
+}
+.plugin-create-dialog .field > small {
+  @apply col-start-2 text-meta [overflow-wrap:anywhere];
+}
+.plugin-create-dialog :is(input:not([type='checkbox']), .choice-selector) {
+  @apply min-w-0 min-h-7 py-1 px-2 text-ui;
+}
+.plugin-create-dialog .content-card .plugin-create-properties {
+  @apply grid-cols-[112px_minmax(0,_1fr)] text-ui;
+}
+.plugin-create-dialog .content-card .plugin-create-properties > dt,
+.plugin-create-dialog .content-card .plugin-create-properties > dd {
+  @apply min-h-9 py-2 px-3;
+}
+.plugin-create-capabilities {
+  @apply flex flex-wrap gap-x-4 gap-y-1;
+}
+.plugin-create-version {
+  @apply ml-2 text-meta text-muted;
+}
+.plugin-create-description,
+.plugin-create-hint {
+  @apply m-0 px-3 py-2 text-meta text-muted leading-[1.6] [overflow-wrap:anywhere];
+}
+.plugin-create-description {
+  @apply border-t border-ui-border;
+}
+.plugin-create-dialog .plugin-create-config .plugin-field-group {
+  @apply px-3 py-1;
+}
+.plugin-create-dialog .plugin-create-config .plugin-field {
+  @apply grid-cols-[100px_minmax(0,_1fr)] gap-3 py-2 px-3;
+}
+.plugin-create-dialog .plugin-create-config .plugin-field-group > .plugin-field {
+  @apply px-0;
+}
+.plugin-create-dialog .plugin-create-config .plugin-field-label {
+  @apply min-h-7;
+}
+.plugin-create-dialog .plugin-create-config .plugin-array {
+  @apply grid;
+}
+.plugin-create-dialog .plugin-create-config .plugin-array-items {
+  @apply min-w-0 m-0 p-0 border-0;
+}
+.plugin-create-dialog .plugin-create-config .plugin-array-item > .plugin-field {
+  @apply block p-0 border-0;
+}
+.plugin-create-dialog .plugin-create-config textarea {
+  @apply text-ui;
+}
+.plugin-create-permission {
+  @apply flex items-start gap-2.5 px-3 py-2.5 border-t border-ui-border cursor-pointer;
+}
+.plugin-create-permission > span {
+  @apply flex flex-col min-w-0 gap-1;
+}
+.plugin-create-permission-heading {
+  @apply flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-ui font-medium;
+}
+.plugin-create-permission-heading > code {
+  @apply text-meta font-normal text-muted [overflow-wrap:anywhere];
+}
+.plugin-create-permission-description {
+  @apply text-meta text-muted leading-[1.6];
+}
+.plugin-create-dialog input[type='checkbox'] {
+  @apply w-3.5 h-3.5 min-w-3.5 p-0 m-0.5 shrink-0 accent-ink [box-shadow:none];
+}
+.plugin-create-dialog label:has(> input:disabled) {
+  @apply cursor-default;
+}
+.plugin-create-notice,
+.plugin-create-error {
+  @apply m-0 rounded-card border border-ui-border bg-surface px-3 py-2 text-ui leading-[1.6] [overflow-wrap:anywhere];
+}
+.plugin-create-notice {
+  @apply text-muted;
+}
+.plugin-create-error {
+  @apply flex flex-col gap-1 text-failure;
+}
+.plugin-create-error > span {
+  @apply text-meta whitespace-pre-wrap max-h-28 overflow-auto;
+}
+.plugin-create-dialog .plugin-create-footer {
+  @apply justify-between flex-wrap gap-3 px-4 py-3 text-ui;
+}
+.plugin-create-enable,
+.plugin-create-actions {
+  @apply flex items-center gap-2;
+}
+.plugin-create-actions {
+  @apply ml-auto;
+}
+@media (max-width: 480px) {
+  .plugin-create-dialog .plugin-create-body {
+    @apply p-3;
+  }
+  .plugin-create-dialog .field,
+  .plugin-create-dialog .plugin-create-config .plugin-field {
+    @apply grid-cols-[minmax(0,_1fr)] gap-y-1;
+  }
+  .plugin-create-dialog .field > small {
+    @apply col-start-1;
+  }
+  .plugin-create-dialog .content-card .plugin-create-properties {
+    @apply grid-cols-[80px_minmax(0,_1fr)];
+  }
+}
+@media (pointer: coarse) {
+  .plugin-create-dialog input:not([type='checkbox']) {
+    @apply text-[16px];
+  }
+}

@@ -69,18 +69,11 @@ pub async fn detect(id: &str) -> Result<String> {
 }
 
 async fn probe(executable: &str, args: &[&str]) -> Result<String> {
-    let mut spec = crate::config::CommandSpec {
-        command: executable.into(),
-        args: args.iter().map(|s| (*s).into()).collect(),
-        ..Default::default()
-    };
-    crate::launch::normalize_native_command(&mut spec)?;
-    let mut command = Command::new(spec.command);
-    for arg in spec.args {
-        if let crate::config::CommandArg::Literal(value) = arg {
-            command.arg(value);
-        }
-    }
+    let mut executable = executable.to_owned();
+    let mut args = args.iter().map(|arg| (*arg).to_owned()).collect();
+    wakeit_plugin_sdk::native::normalize_native_command(&mut executable, &mut args)?;
+    let mut command = Command::new(executable);
+    command.args(args);
     let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -176,33 +169,11 @@ fn kimi_models(value: &Value) -> Result<ModelCatalog> {
 }
 
 fn spawn(executable: &str, args: &[&str]) -> Result<Child> {
-    let mut spec = crate::config::AgentConfig {
-        version: 1,
-        id: "discovery".into(),
-        name: "discovery".into(),
-        logo: None,
-        mode: crate::config::AgentMode::Sync,
-        submit: crate::config::CommandSpec {
-            command: executable.into(),
-            args: args.iter().map(|s| (*s).into()).collect(),
-            ..Default::default()
-        },
-        status: None,
-        cancel: None,
-        detect: None,
-        session: None,
-        models: None,
-        parameters: Default::default(),
-        output: Default::default(),
-        poll_interval: "5s".into(),
-    };
-    crate::launch::normalize_commands(&mut spec)?;
-    let mut command = Command::new(&spec.submit.command);
-    for arg in &spec.submit.args {
-        if let crate::config::CommandArg::Literal(v) = arg {
-            command.arg(v);
-        }
-    }
+    let mut native = executable.to_owned();
+    let mut args = args.iter().map(|arg| (*arg).to_owned()).collect();
+    wakeit_plugin_sdk::native::normalize_native_command(&mut native, &mut args)?;
+    let mut command = Command::new(native);
+    command.args(args);
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

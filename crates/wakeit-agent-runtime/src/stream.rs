@@ -182,8 +182,8 @@ impl Normalizer {
             },
         };
         let mut node = node;
-        node.input = wakeit_core::capture::bounded_value(node.input, RECORD_LIMIT / 4);
-        node.output = wakeit_core::capture::bounded_value(node.output, RECORD_LIMIT / 4);
+        node.input = wakeit_plugin_sdk::capture::bounded_value(node.input, RECORD_LIMIT / 4);
+        node.output = wakeit_plugin_sdk::capture::bounded_value(node.output, RECORD_LIMIT / 4);
         self.nodes.insert(id.into(), node.clone());
         StreamRecord::new(RecordData::Trace(node))
     }
@@ -196,7 +196,7 @@ impl Normalizer {
                 self.result = None;
                 let mut records = self.diagnostic("session ID changed");
                 records.push(StreamRecord::new(RecordData::Session(
-                    wakeit_core::sessions::SessionInfo {
+                    wakeit_plugin_sdk::sessions::SessionInfo {
                         version: 1,
                         id,
                         cwd: std::env::current_dir()
@@ -209,10 +209,10 @@ impl Normalizer {
                 )));
                 return records;
             }
-            if self.session_id.is_none() && wakeit_core::sessions::validate_id(&id).is_ok() {
+            if self.session_id.is_none() && wakeit_plugin_sdk::sessions::validate_id(&id).is_ok() {
                 self.session_id = Some(id.clone());
                 session_records.push(StreamRecord::new(RecordData::Session(
-                    wakeit_core::sessions::SessionInfo {
+                    wakeit_plugin_sdk::sessions::SessionInfo {
                         version: 1,
                         id,
                         cwd: std::env::current_dir()
@@ -824,23 +824,23 @@ pub(crate) async fn write_records(
         if bytes.len() > RECORD_LIMIT {
             match &mut record.record {
                 RecordData::Result(value) => {
-                    *value = wakeit_core::capture::bounded_value(
+                    *value = wakeit_plugin_sdk::capture::bounded_value(
                         std::mem::take(value),
                         RECORD_LIMIT / 2,
                     );
                 }
                 RecordData::Trace(node) => {
-                    node.input = wakeit_core::capture::bounded_value(
+                    node.input = wakeit_plugin_sdk::capture::bounded_value(
                         std::mem::take(&mut node.input),
                         RECORD_LIMIT / 4,
                     );
-                    node.output = wakeit_core::capture::bounded_value(
+                    node.output = wakeit_plugin_sdk::capture::bounded_value(
                         std::mem::take(&mut node.output),
                         RECORD_LIMIT / 4,
                     );
                 }
                 RecordData::Log(log) => {
-                    let text = wakeit_core::capture::preview(&log.text);
+                    let text = wakeit_plugin_sdk::capture::preview(&log.text);
                     log.text = text["preview"].as_str().unwrap_or("").to_owned();
                     log.text
                         .push_str("\n[Native Agent output preview truncated.]\n");
@@ -861,8 +861,10 @@ pub(crate) async fn write_records(
                 })))?;
             }
         }
-        writer.write_all(&bytes).await?;
-        writer.write_all(b"\n").await?;
+        if !crate::official_io::emit(&bytes).await? {
+            writer.write_all(&bytes).await?;
+            writer.write_all(b"\n").await?;
+        }
     }
     writer.flush().await?;
     Ok(())
@@ -889,36 +891,27 @@ pub async fn stream_checked(
 ) -> Result<i32> {
     let mut normalizer = Normalizer::new(protocol)?;
     let executable = args.first().context("provide a native command after --")?;
-    let mut spec = crate::config::CommandSpec {
-        command: executable.clone(),
-        args: args[1..].iter().cloned().map(Into::into).collect(),
-        ..Default::default()
-    };
-    crate::launch::normalize_native_command(&mut spec)?;
+    let mut executable = executable.to_owned();
+    let mut arguments = args[1..].to_vec();
+    wakeit_plugin_sdk::native::normalize_native_command(&mut executable, &mut arguments)?;
     // Inherit the Runner's process group / Windows Job Object; never detach the child.
-    let mut command = Command::new(&spec.command);
+    let mut command = Command::new(&executable);
     #[cfg(windows)]
     ensure!(
-        !spec.command.to_lowercase().ends_with(".cmd")
-            && !spec.command.to_lowercase().ends_with(".bat"),
+        !executable.to_lowercase().ends_with(".cmd")
+            && !executable.to_lowercase().ends_with(".bat"),
         "use an explicit interpreter and script entry point on Windows"
     );
-    let arguments = spec.args.iter().filter_map(|arg| match arg {
-        crate::config::CommandArg::Literal(v) => Some(v),
-        _ => None,
-    });
     // AGY's documented stdin is NDJSON, not a raw prompt. Other native CLIs
     // retain their configured stdin exactly as supplied by the adapter.
-    let prompt_input = if protocol == "agy" {
-        let mut input = Vec::new();
-        tokio::io::stdin()
-            .take(1024 * 1024 + 1)
-            .read_to_end(&mut input)
-            .await?;
-        ensure!(input.len() <= 1024 * 1024, "prompt exceeds 1 MiB");
-        Some(crate::agy::encode_prompt(
-            std::str::from_utf8(&input).context("prompt must be UTF-8")?,
-        )?)
+    let sdk = crate::official_io::active();
+    let prompt_input = if protocol == "agy" || (sdk && crate::official_io::uses_stdin(protocol)) {
+        let input = crate::official_io::input().await?;
+        Some(if protocol == "agy" {
+            crate::agy::encode_prompt(std::str::from_utf8(&input).context("prompt must be UTF-8")?)?
+        } else {
+            input
+        })
     } else {
         None
     };
@@ -927,18 +920,32 @@ pub async fn stream_checked(
         .args(arguments)
         .stdin(if prompt_input.is_some() {
             Stdio::piped()
+        } else if sdk {
+            Stdio::null()
         } else {
             Stdio::inherit()
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .kill_on_drop(true);
-    let mut child = command.spawn().context("start native Agent")?;
-    let input_task = if let Some(bytes) = prompt_input {
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            crate::official_io::start_failed(&error.to_string()).await?;
+            return Err(error).context("start native Agent");
+        }
+    };
+    crate::official_io::started(child.id().context("native process ID unavailable")?).await?;
+    if sdk && !crate::official_io::uses_stdin(protocol) {
+        crate::official_io::input_submitted(crate::official_io::context()).await?;
+    }
+    let mut input_task = if let Some(bytes) = prompt_input {
         let mut stdin = child.stdin.take().context("native stdin")?;
+        let context = crate::official_io::context();
         Some(tokio::spawn(async move {
             stdin.write_all(&bytes).await?;
-            stdin.shutdown().await
+            stdin.shutdown().await?;
+            crate::official_io::input_submitted(context).await
         }))
     } else {
         None
@@ -949,7 +956,16 @@ pub async fn stream_checked(
     let mut dropping = false;
     let mut buffer = [0u8; 8192];
     loop {
-        let n = reader.read(&mut buffer).await?;
+        let n = tokio::select! {
+            read = reader.read(&mut buffer) => read?,
+            _ = crate::official_io::cancelled() => {
+                child.kill().await?;
+                if let Some(input) = input_task.take() { input.abort(); let _ = input.await; }
+                let status = child.wait().await?;
+                crate::official_io::finished(status.code()).await?;
+                return Ok(130);
+            }
+        };
         if n == 0 {
             break;
         }
@@ -965,7 +981,7 @@ pub async fn stream_checked(
                                 write_records(
                                     &mut writer,
                                     vec![StreamRecord::new(RecordData::Session(
-                                        wakeit_core::sessions::SessionInfo {
+                                        wakeit_plugin_sdk::sessions::SessionInfo {
                                             version: 1,
                                             id: native_session_id(protocol, &v).unwrap().into(),
                                             cwd: std::env::current_dir()?
@@ -978,7 +994,12 @@ pub async fn stream_checked(
                                 )
                                 .await?;
                                 child.kill().await?;
-                                child.wait().await?;
+                                if let Some(input) = input_task.take() {
+                                    input.abort();
+                                    let _ = input.await;
+                                }
+                                let status = child.wait().await?;
+                                crate::official_io::finished(status.code()).await?;
                                 anyhow::bail!("Agent returned a different session ID");
                             }
                             normalizer.accept(v)
@@ -1020,7 +1041,7 @@ pub async fn stream_checked(
                     write_records(
                         &mut writer,
                         vec![StreamRecord::new(RecordData::Session(
-                            wakeit_core::sessions::SessionInfo {
+                            wakeit_plugin_sdk::sessions::SessionInfo {
                                 version: 1,
                                 id: native_session_id(protocol, &v).unwrap().into(),
                                 cwd: std::env::current_dir()?.to_string_lossy().into_owned(),
@@ -1031,7 +1052,12 @@ pub async fn stream_checked(
                     )
                     .await?;
                     child.kill().await?;
-                    child.wait().await?;
+                    if let Some(input) = input_task.take() {
+                        input.abort();
+                        let _ = input.await;
+                    }
+                    let status = child.wait().await?;
+                    crate::official_io::finished(status.code()).await?;
                     anyhow::bail!("Agent returned a different session ID");
                 }
                 normalizer.accept(v)
@@ -1049,12 +1075,15 @@ pub async fn stream_checked(
         write_records(&mut writer, normalizer.diagnostic("session ID missing")).await?;
     }
     let status = child.wait().await?;
-    if let Some(input) = input_task {
-        let written = input.await.context("native stdin writer stopped")?;
-        // A native failure can close stdin early. Preserve that exit code.
-        if status.success() {
-            written.context("write native prompt")?;
-        }
+    let written = if let Some(input) = input_task {
+        input.await.context("native stdin writer stopped")?
+    } else {
+        Ok(())
+    };
+    crate::official_io::finished(status.code()).await?;
+    // A native failure can close stdin early. Preserve that exit code.
+    if status.success() {
+        written.context("write native prompt")?;
     }
     // A native nonzero exit never publishes an earlier partial answer as a report.
     if status.success() {

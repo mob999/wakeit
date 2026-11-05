@@ -1,6 +1,6 @@
 use serde_json::json;
 use wakeit_agent_runtime::kimi_acp::Normalizer;
-use wakeit_core::trace::{RecordData, TraceState};
+use wakeit_plugin_sdk::trace::{RecordData, TraceState};
 #[test]
 fn tool_failure_can_recover_but_partial_or_private_output_is_not_the_report() {
     let mut normalizer = Normalizer::default();

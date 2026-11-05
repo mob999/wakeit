@@ -130,6 +130,8 @@ wakeit --json run watch <run-id> --timeout 10m
 取消请求发出不等于已取消。`unknown` 不自动重试；先确认原进程或远端任务已经结束，再记录实际状态：
 
 ```sh
+wakeit run reconcile <run-id> # 请求保存的 SDK 后端核对 unknown，不重交任务
+wakeit run reconcile <run-id> --node <node-id> # 核对 DAG 节点
 wakeit run resolve <run-id> --state interrupted --reason '已确认原进程结束'
 ```
 

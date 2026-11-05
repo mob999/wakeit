@@ -3,7 +3,7 @@ use support::assert_single_report;
 
 use serde_json::{Value, json};
 use wakeit_agent_runtime::qwen_cursor::{CursorNormalizer, QwenNormalizer, native_session_id};
-use wakeit_core::trace::{
+use wakeit_plugin_sdk::trace::{
     RECORD_LIMIT, RecordData, StreamRecord, TraceKind, TraceNode, TraceState,
 };
 

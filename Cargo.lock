@@ -4190,7 +4190,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
- "wakeit-core",
+ "wakeit-plugin-sdk",
  "which",
  "yaml_serde",
 ]
@@ -4236,6 +4236,7 @@ dependencies = [
  "vt100",
  "wakeit-agent-runtime",
  "wakeit-core",
+ "wakeit-plugin-protocol",
  "which",
  "windows-sys 0.61.2",
  "yaml_serde",
@@ -4247,13 +4248,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-nats",
- "base64 0.22.1",
  "chrono",
  "chrono-tz",
  "croner",
  "hex",
  "humantime",
- "jsonschema",
  "minijinja",
  "percent-encoding",
  "pulldown-cmark",
@@ -4266,6 +4265,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+ "wakeit-plugin-protocol",
  "which",
  "yaml_serde",
 ]
@@ -4307,6 +4307,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "wakeit-plugin-protocol"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "hex",
+ "jsonschema",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "wakeit-plugin-sdk"
 version = "0.1.0"
 dependencies = [
@@ -4316,7 +4333,8 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
- "wakeit-core",
+ "wakeit-plugin-protocol",
+ "which",
 ]
 
 [[package]]

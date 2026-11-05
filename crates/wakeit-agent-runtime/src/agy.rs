@@ -224,21 +224,14 @@ impl Normalizer {
 pub async fn discover_models() -> Result<ModelCatalog> {
     tokio::time::timeout(Duration::from_secs(20), async {
         // Global output flags must precede the subcommand (upstream issue #777).
-        let mut spec = crate::config::CommandSpec {
-            command: "agy".into(),
-            args: ["--output-format", "json", "models"]
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            ..Default::default()
-        };
-        crate::launch::normalize_native_command(&mut spec)?;
-        let mut command = Command::new(&spec.command);
-        for arg in &spec.args {
-            if let crate::config::CommandArg::Literal(value) = arg {
-                command.arg(value);
-            }
-        }
+        let mut executable = "agy".to_owned();
+        let mut args = ["--output-format", "json", "models"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        wakeit_plugin_sdk::native::normalize_native_command(&mut executable, &mut args)?;
+        let mut command = Command::new(executable);
+        command.args(args);
         command
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

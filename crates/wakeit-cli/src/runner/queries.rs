@@ -1,7 +1,8 @@
 //! Read-only device capabilities. Queries never enter the execution journal or durable queues.
+use super::agent_backend::{Agent, AgentOperation, AgentReply};
 use crate::runner::config::RunnerConfig;
 use crate::{
-    config::{AgentConfig, TaskConfig},
+    config::TaskConfig,
     process,
     protocol::{self, ModelCatalog, QueryError, QueryReply, QueryRequest},
 };
@@ -90,11 +91,8 @@ pub fn list_directories(
         json!({"path":current.to_string_lossy(),"parent":parent,"breadcrumbs":breadcrumbs,"directories":directories.into_iter().map(|(name,path)|json!({"name":name,"path":path})).collect::<Vec<_>>(),"next_cursor":next_cursor}),
     )
 }
-pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
-    let command = agent
-        .models
-        .as_ref()
-        .context("agent has no models interface")?;
+pub async fn models(agent: impl Into<Agent>, cwd: &str) -> Result<ModelCatalog> {
+    let agent = agent.into();
     let task = TaskConfig {
         dag: None,
         version: 1,
@@ -110,22 +108,40 @@ pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
         enabled: false,
         execution: Default::default(),
     };
-    let output = process::execute(
-        command,
-        &task,
-        Uuid::new_v4(),
-        None,
-        Duration::from_secs(25),
-        CancellationToken::new(),
-        None,
-    )
-    .await?;
-    ensure!(
-        output.code == Some(0) && output.stopped.is_none(),
-        "models command failed or timed out"
-    );
-    let catalog: ModelCatalog =
-        serde_json::from_str(&output.stdout).context("models command returned invalid JSON")?;
+    let catalog: ModelCatalog = if let Some(config) = agent.legacy() {
+        let command = config
+            .models
+            .as_ref()
+            .context("agent has no models interface")?;
+        let output = process::execute(
+            command,
+            &task,
+            Uuid::new_v4(),
+            None,
+            Duration::from_secs(25),
+            CancellationToken::new(),
+            None,
+        )
+        .await?;
+        ensure!(
+            output.code == Some(0) && output.stopped.is_none() && output.confirmed,
+            "models command failed or timed out"
+        );
+        serde_json::from_str(&output.stdout).context("models command returned invalid JSON")?
+    } else {
+        let request = agent.request(AgentOperation::Models, &task, None, Duration::from_secs(25));
+        let response = agent
+            .invoke(request, CancellationToken::new(), None)
+            .await?;
+        ensure!(
+            response.confirmed && response.stopped.is_none(),
+            "models request did not stop cleanly"
+        );
+        let AgentReply::Models(catalog) = response.reply else {
+            anyhow::bail!("invalid models reply")
+        };
+        catalog
+    };
     ensure!(
         catalog.version == 1 && catalog.models.len() <= 10000,
         "invalid models response version or size"
@@ -154,7 +170,7 @@ pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
 pub async fn serve(
     client: async_nats::Client,
     config: Arc<RunnerConfig>,
-    agents: Arc<HashMap<String, AgentConfig>>,
+    agents: Arc<HashMap<String, Agent>>,
     journal: super::journal::Journal,
     runtime: Uuid,
     stop: CancellationToken,

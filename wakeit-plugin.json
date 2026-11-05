@@ -4,26 +4,280 @@
   "version": "0.2.1",
   "wakeit": {
     "protocol": 1,
-    "agents": {
-      "agy": "plugins/official/agents/agy.yaml",
-      "claude-code": "plugins/official/agents/claude-code.yaml",
-      "cline": "plugins/official/agents/cline.yaml",
-      "codex": "plugins/official/agents/codex.yaml",
-      "copilot": "plugins/official/agents/copilot.yaml",
-      "cursor": "plugins/official/agents/cursor.yaml",
-      "gemini-cli": "plugins/official/agents/gemini-cli.yaml",
-      "goose": "plugins/official/agents/goose.yaml",
-      "kimi-code": "plugins/official/agents/kimi-code.yaml",
-      "opencode": "plugins/official/agents/opencode.yaml",
-      "pi": "plugins/official/agents/pi.yaml",
-      "qwen-code": "plugins/official/agents/qwen-code.yaml"
-    },
     "commands": {
       "adapter": "plugins/official/bin/wakeit-agent-runtime"
     },
     "artifact": {
       "url": "https://github.com/mob999/wakeit/releases/download/cli-v{version}/wakeit-agents-{target}.tar.gz",
       "checksums_url": "https://github.com/mob999/wakeit/releases/download/cli-v{version}/SHA256SUMS"
+    },
+    "plugins": {
+      "official": {
+        "name": "Official Agents",
+        "command": "./plugins/official/bin/wakeit-agent-runtime",
+        "args": [
+          "sdk"
+        ],
+        "agents": {
+          "agy": {
+            "name": "Antigravity CLI",
+            "logo": "/agent-logos/agy.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              },
+              "reasoning": {
+                "type": "string",
+                "label": "推理强度"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "models",
+              "reconcile"
+            ]
+          },
+          "claude-code": {
+            "name": "Claude Code",
+            "logo": "/agent-logos/claude-code.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              },
+              "reasoning": {
+                "type": "string",
+                "label": "推理强度"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "reconcile",
+              "session_inspect",
+              "session_interactive",
+              "session_list",
+              "session_resume"
+            ]
+          },
+          "cline": {
+            "name": "Cline",
+            "logo": "/agent-logos/cline.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              },
+              "provider": {
+                "type": "string",
+                "label": "Provider"
+              },
+              "reasoning": {
+                "type": "string",
+                "label": "推理强度"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "reconcile"
+            ]
+          },
+          "codex": {
+            "name": "Codex",
+            "logo": "/agent-logos/codex.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              },
+              "reasoning": {
+                "type": "string",
+                "label": "推理强度"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "models",
+              "reconcile",
+              "session_inspect",
+              "session_interactive",
+              "session_list",
+              "session_rename",
+              "session_resume"
+            ]
+          },
+          "copilot": {
+            "name": "GitHub Copilot CLI",
+            "logo": "/agent-logos/copilot.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "reconcile"
+            ]
+          },
+          "cursor": {
+            "name": "Cursor",
+            "logo": "/agent-logos/cursor.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "reconcile"
+            ]
+          },
+          "gemini-cli": {
+            "name": "Gemini CLI",
+            "logo": "/agent-logos/gemini-cli.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "reconcile"
+            ]
+          },
+          "goose": {
+            "name": "Goose",
+            "logo": "/agent-logos/goose.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              },
+              "provider": {
+                "type": "string",
+                "label": "Provider"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "reconcile"
+            ]
+          },
+          "kimi-code": {
+            "name": "Kimi Code",
+            "logo": "/agent-logos/kimi-code.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "models",
+              "reconcile",
+              "session_inspect",
+              "session_interactive",
+              "session_list",
+              "session_resume"
+            ]
+          },
+          "opencode": {
+            "name": "OpenCode",
+            "logo": "/agent-logos/opencode.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "models",
+              "reconcile",
+              "session_inspect",
+              "session_interactive",
+              "session_list",
+              "session_resume"
+            ]
+          },
+          "pi": {
+            "name": "Pi",
+            "logo": "/agent-logos/pi.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              },
+              "provider": {
+                "type": "string",
+                "label": "Provider"
+              },
+              "reasoning": {
+                "type": "string",
+                "label": "推理强度"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "models",
+              "reconcile",
+              "session_inspect",
+              "session_interactive",
+              "session_list",
+              "session_resume"
+            ]
+          },
+          "qwen-code": {
+            "name": "Qwen Code",
+            "logo": "/agent-logos/qwen-code.svg",
+            "parameters": {
+              "model": {
+                "type": "string",
+                "label": "模型"
+              }
+            },
+            "mode": "sync",
+            "operations": [
+              "detect",
+              "execute",
+              "reconcile"
+            ]
+          }
+        },
+        "description": "Official native Agent integrations.",
+        "translations": {
+          "zh": {
+            "name": "官方 Agent",
+            "description": "对接原生 Agent 的官方插件。"
+          }
+        }
+      }
     }
   }
 }

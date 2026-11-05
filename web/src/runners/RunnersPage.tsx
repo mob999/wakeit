@@ -219,7 +219,13 @@ export function RunnersPage({ user, toast }: { user: User; toast: (message: stri
               tabIndex={0}
             >
               {section === 'plugins' ? (
-                <RunnerPlugins runner={runner} admin={admin} canAct={editable} toast={toast} />
+                <RunnerPlugins
+                  key={runner.id}
+                  runner={runner}
+                  admin={admin}
+                  canAct={editable}
+                  toast={toast}
+                />
               ) : section === 'agents' ? (
                 <RunnerAgents
                   runner={runner}

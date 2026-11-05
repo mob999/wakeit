@@ -39,6 +39,68 @@
       ],
       "type": "object"
     },
+    "AgentDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "logo": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "$ref": "#/$defs/AgentMode"
+        },
+        "name": {
+          "type": "string"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/AgentOperation"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterSpec"
+          },
+          "default": {},
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "mode",
+        "operations"
+      ],
+      "type": "object"
+    },
+    "AgentMode": {
+      "enum": [
+        "sync",
+        "async"
+      ],
+      "type": "string"
+    },
+    "AgentOperation": {
+      "description": "A declared operation must have an implementation registered during initialization.",
+      "enum": [
+        "detect",
+        "execute",
+        "submit",
+        "poll",
+        "cancel",
+        "reconcile",
+        "models",
+        "session_list",
+        "session_inspect",
+        "session_resume",
+        "session_rename",
+        "session_interactive"
+      ],
+      "type": "string"
+    },
     "Artifact": {
       "additionalProperties": false,
       "properties": {
@@ -93,6 +155,13 @@
             "$ref": "#/$defs/Action"
           },
           "default": {},
+          "type": "object"
+        },
+        "agents": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AgentDescriptor"
+          },
+          "description": "Static Agent capabilities implemented by this same plugin entry point.",
           "type": "object"
         },
         "args": {
@@ -228,6 +297,33 @@
       ],
       "type": "object"
     },
+    "ParameterSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enum": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "label": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "default": "string",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "Provider": {
       "additionalProperties": false,
       "properties": {
@@ -283,6 +379,13 @@
           "additionalProperties": {
             "$ref": "#/$defs/Extension"
           },
+          "type": "object"
+        },
+        "plugins": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Extension"
+          },
+          "description": "Canonical plugin entry points and statically declared capabilities.",
           "type": "object"
         },
         "protocol": {

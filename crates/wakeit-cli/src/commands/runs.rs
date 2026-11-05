@@ -70,6 +70,23 @@ pub(super) async fn run(cli: &Cli, command: &Run) -> Result<()> {
                     };
                     display(result, cli.json);
                 }
+                Run::Reconcile { id, node } => {
+                    let execution = if let Some(node) = node {
+                        crate::config::validate_id(node)?;
+                        let current = c.get(&format!("/runs/{id}/nodes/{node}")).await?;
+                        current["node"]["execution_id"]
+                            .as_str()
+                            .context("node has no execution to reconcile")?
+                            .parse::<uuid::Uuid>()?
+                    } else {
+                        *id
+                    };
+                    display(
+                        c.post(&format!("/runs/{execution}/reconcile"), json!({}))
+                            .await?,
+                        cli.json,
+                    );
+                }
                 Run::Resolve { id, state, reason } => display(
                     c.post(
                         &format!("/runs/{id}/resolve"),

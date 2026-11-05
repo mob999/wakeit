@@ -135,6 +135,7 @@ pub fn router(app: App) -> Router {
         .route("/runs/{id}/retry", post(runs::retry))
         .route("/runs/{id}/result/retry", post(plugins::reprocess_result))
         .route("/runs/{id}/resolve", post(runs::resolve))
+        .route("/runs/{id}/reconcile", post(runs::reconcile))
         .route("/runs/{id}/events", get(events::events))
         .route("/runs/{id}/stream", get(events::stream))
         .route("/runners/{id}/plugins", get(plugins::catalog))

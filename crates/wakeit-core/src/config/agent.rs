@@ -3,17 +3,12 @@ use anyhow::{Context, Result, bail, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+pub use wakeit_plugin_protocol::agent::{AgentMode, ParameterSpec};
 
 fn poll() -> String {
     "5s".into()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentMode {
-    Sync,
-    Async,
-}
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum CommandArg {
@@ -29,20 +24,6 @@ impl From<&str> for CommandArg {
     fn from(v: &str) -> Self {
         Self::Literal(v.into())
     }
-}
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ParameterSpec {
-    #[serde(rename = "type", default = "string_type")]
-    pub kind: String,
-    #[serde(default)]
-    pub label: String,
-    pub default: Option<String>,
-    #[serde(rename = "enum", default)]
-    pub choices: Vec<String>,
-}
-fn string_type() -> String {
-    "string".into()
 }
 pub fn resolve_parameters(
     specs: &BTreeMap<String, ParameterSpec>,

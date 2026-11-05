@@ -518,16 +518,12 @@ fn business_route(
         "runs.list" => ("GET", "/runs".into(), None),
         "runs.get" => ("GET", format!("/runs/{}", resource()?), None),
         "runs.events" => ("GET", format!("/runs/{}/events", resource()?), None),
-        "runs.cancel" | "runs.retry" | "runs.reconcile" => (
+        "runs.cancel" | "runs.retry" | "runs.reconcile" | "runs.resolve" => (
             "POST",
             format!(
                 "/runs/{}/{}",
                 resource()?,
-                if method == "runs.reconcile" {
-                    "resolve"
-                } else {
-                    method.split('.').next_back().unwrap()
-                }
+                method.split('.').next_back().unwrap()
             ),
             body,
         ),

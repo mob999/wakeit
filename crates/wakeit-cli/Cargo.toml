@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 http = "1"
 wakeit-core = { path = "../wakeit-core" }
+wakeit-plugin-protocol = { path = "../wakeit-plugin-protocol" }
 anyhow = "1"
 async-nats = "0.50"
 base64 = "0.22"

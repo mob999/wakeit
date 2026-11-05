@@ -76,7 +76,7 @@ impl Runtime {
         let manifest = manifest::read(&package.root)?;
         let declaration = manifest
             .wakeit
-            .extensions
+            .plugins
             .get(id)
             .context("extension resource not found")?
             .clone();
@@ -85,7 +85,7 @@ impl Runtime {
     pub async fn catalog(&self) -> Result<Value> {
         let mut packages = Vec::new();
         for p in super::packages(&super::registry()?, self.config.bundled_agents)? {
-            match manifest::read(&p.root){Ok(m)=>packages.push(json!({"source":p.source.identity(),"name":m.name,"version":m.version,"extensions":m.wakeit.extensions,"agents":m.wakeit.agents.keys().collect::<Vec<_>>(),"commands":m.wakeit.commands.keys().collect::<Vec<_>>() })),Err(e)=>packages.push(json!({"source":p.source.identity(),"error":e.to_string()}))}
+            match manifest::read(&p.root){Ok(m)=>packages.push(json!({"source":p.source.identity(),"name":m.name,"version":m.version,"extensions":m.wakeit.plugins,"agents":m.wakeit.agent_ids().collect::<Vec<_>>(),"commands":m.wakeit.commands.keys().collect::<Vec<_>>() })),Err(e)=>packages.push(json!({"source":p.source.identity(),"error":e.to_string()}))}
         }
         let rows = sqlx::query(
             "SELECT id,source,extension FROM extension_instances WHERE removed=0 ORDER BY name,id",
@@ -165,6 +165,15 @@ impl Runtime {
                     "extension registrations differ from manifest: {key}"
                 );
             }
+            let registered_agents: std::collections::BTreeMap<
+                String,
+                wakeit_plugin_protocol::adapter::AgentDescriptor,
+            > = serde_json::from_value(setup.get("agents").cloned().unwrap_or_else(|| json!({})))?;
+            ensure!(
+                serde_json::to_value(&registered_agents)?
+                    == serde_json::to_value(&declaration.agents)?,
+                "Agent registrations differ from manifest"
+            );
             if activate {
                 peer.call(
                     "activate",
