@@ -144,7 +144,7 @@ Hooks execute in configured order. Gateway hooks run on the selected device with
 
 ## Device configuration
 
-Open **Devices → device → Plugins** to create and configure instances, set credentials, bind handlers and inspect activity. The same management contract is available through CLI:
+Open **Devices → device → Plugins** to configure instances, bind handlers and inspect activity. **Add plugin** collects the name, settings, credential slots and permission choices in one form. No permissions are selected by default, and enabling after setup is an explicit choice. If setup is interrupted after creation, continue with the saved instance rather than creating another one; the form retains its entries until closed. The same management contract is available through CLI:
 
 ```sh
 wakeit --json plugin instance --runner RUNNER_ID catalog
