@@ -37,7 +37,21 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
             let mut items = vec![];
             for (id, mut agent) in crate::plugins::load_agents(&c.agents, c.bundled_agents)?.agents
             {
-                agent.bind_runner(&c.data_dir, c.agent_instances.get(&id).copied())?;
+                agent.bind_runner(&c.data_dir, None)?;
+                let journal = c.data_dir.join("journal.sqlite");
+                if agent.legacy().is_none() && journal.is_file() {
+                    let options = sqlx::sqlite::SqliteConnectOptions::new()
+                        .filename(journal)
+                        .read_only(true);
+                    let pool = sqlx::SqlitePool::connect_with(options).await?;
+                    if let Err(error) = agent
+                        .select_instance(&pool, c.agent_instances.get(&id).copied())
+                        .await
+                    {
+                        tracing::warn!(agent = %id, %error, "Agent instance unavailable");
+                    }
+                    pool.close().await;
+                }
                 items.push(runner::inspect(&agent, &std::env::current_dir()?).await);
             }
             display(json!(items), cli.json);
@@ -52,6 +66,7 @@ pub(super) async fn agent(cli: &Cli, command: &Agent) -> Result<()> {
                 name: "Agent test".into(),
                 runner: "local".into(),
                 agent: a.id.clone(),
+                agent_instance: None,
                 cwd: cwd.canonicalize()?.to_string_lossy().into(),
                 prompt: prompt.clone(),
                 parameters: Default::default(),

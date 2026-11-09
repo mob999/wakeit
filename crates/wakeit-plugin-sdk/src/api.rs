@@ -31,6 +31,9 @@ pub struct Page<T> {
     pub page_size: Option<u64>,
 }
 impl Context {
+    pub async fn runtime_info(&self) -> Result<crate::RuntimeInfo> {
+        self.call("runtime.info", json!({})).await
+    }
     pub async fn task(&self, id: &str) -> Result<TaskRecord> {
         self.call("tasks.get", json!({"id":id})).await
     }

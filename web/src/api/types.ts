@@ -40,6 +40,9 @@ export type Agent = {
   name: string
   logo?: string | null
   mode: 'sync' | 'async'
+  instance_id?: string | null
+  plugin_source?: string | null
+  plugin_resource?: string | null
   digest: string
   available: boolean
   version?: string
@@ -63,6 +66,7 @@ export type Runner = {
   info: {
     os?: string
     arch?: string
+    agent_instances?: number
     web_terminal?: number
     concurrency?: number
     active?: number
@@ -78,6 +82,7 @@ export type TaskConfig = {
   name: string
   runner: string
   agent: string
+  agent_instance?: string | null
   cwd: string
   prompt: string
   parameters: Record<string, string>
@@ -99,6 +104,7 @@ export type DagNode = {
   pre: string[]
   runner: string
   agent: string
+  agent_instance?: string | null
   cwd: string
   prompt: NodeInstruction
   parameters: Record<string, string>

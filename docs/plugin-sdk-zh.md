@@ -122,36 +122,13 @@ wakeit --json plugin instance --runner RUNNER_ID configure --file settings.json
 
 网页安装、更新和删除代码包需要设备所有者明确允许：在 DATA_DIR/plugins-policy.json 中设置 `{"remote_package_management":true}`。配置和实例管理不等于允许任意远程 Shell。
 
-### 将配置型 SDK Agent 绑定到本地实例
+### 为 SDK Agent 选择实例
 
-Runner 配置 version 1 支持 `agent_instances`，将 Agent ID 显式映射到本地插件实例 UUID；该字段可省略，默认为空映射。官方 Agent 默认没有实例专属配置或凭证，因此无需创建实例或填写绑定。配置型 SDK Agent 必须显式绑定，不会按显示名称相同或列表中的第一项自动选择实例。
+SDK Agent 始终通过插件实例运行。Runner 启动时会为尚无实例的已安装插件资源创建默认实例。随 Runner 提供的官方 Agent 也遵循同一规则。只有初始配置有效、且未声明凭证和权限的新默认实例才会自动启用。如果插件已有且只有一个实例，Runner 会保留其设置并将它作为默认实例。Runner 不会重新启用已停用的实例，也不会重新创建已移除的默认实例。
 
-1. 在实际执行任务的 Runner 上安装插件，通过“设备 → 指定设备 → 插件”或上面的 CLI 命令在该设备创建实例。选择已安装的 `source` 和 `wakeit.plugins` 中的插件资源键；管理 API 将该资源键称为 `extension`。按声明配置字段和凭证槽，授予所需且已声明的权限，并启用实例。
-2. 从创建响应或 `plugin instance --runner RUNNER_ID catalog` 获取实例 UUID，在该 Runner 本地 `runner.yaml` 中将其绑定到 Agent ID，不写入 Task 或 Agent 参数。
-3. 保存文件后按现有 Runner 配置重载流程生效；当前 Runner 配置变更需重启 Runner。保存文件不会把已经开始的 Run 切换到另一个实例。
+在“设备 → 指定设备 → 插件”中配置实例、授权所需权限并启用。如果有多个实例，可从已启用实例的菜单中选择“设为默认实例”。切换默认实例只影响未显式绑定实例的新 Run。
 
-例如，某插件的配置 schema 声明了字符串 `endpoint` 时，CLI 创建文件可采用以下内容。请按已安装插件替换 `SOURCE_FROM_CATALOG`、资源键、配置和 grants；下列 UUID 是合成示例：
-
-```json
-{
-  "instance_id": "8c311e35-4bec-4fc4-a6ae-f3654b3ff8b4",
-  "source": "SOURCE_FROM_CATALOG",
-  "extension": "example",
-  "name": "Work account",
-  "config": {"endpoint": "https://service.example.com"},
-  "grants": []
-}
-```
-
-配置并启用该实例后，将以下绑定合并进已有 Runner 配置：
-
-```yaml
-version: 1
-agent_instances:
-  example: 8c311e35-4bec-4fc4-a6ae-f3654b3ff8b4
-```
-
-这里的 `example` 是 Agent ID，不是实例显示名称。实例必须位于同一 Runner，属于该 Agent 的相同安装来源、插件资源和包版本；缺少、停用、移除或不匹配时均报错，不回退到其他实例。UUID 是开发／运维配置引用，不应加入任务指令或日常报告文案。
+自动化可以在任务或 DAG 节点配置中用 `agent_instance` 引用设备目录中的实例 UUID。它优先于本地 version 1 `runner.yaml` 中可选的 `agent_instances`（Agent ID 到实例 UUID 的映射）。两者均未设置时才使用默认实例。实例必须位于同一 Runner，且属于该 Agent 的相同安装来源和插件资源；实例缺失、停用或不匹配时，不会替换为其他实例。旧版命令型 Agent 不使用插件实例。
 
 Runner 将非秘密配置及其修订固定在 Run 本地快照中，`config.get` 读取该快照值，而非之后编辑的最新配置。凭证不进入快照：`credentials.get` 只按需即时读取已声明的槽，并核验实例当前可用性和权限。代码升级或普通配置变化不会替换已固定的执行上下文：保存的版本资源和配置快照仍可用于旧作业与会话。升级时未变更的凭证仍可读取；轮换或清除凭证后，旧调用不能继续读取该槽，需要新的已授权调用。停用／移除实例或撤销所需权限后，即使快照仍在，也会阻止后续宿主读取；撤销不会抹除已经交给受信本机代码的值，也不会改写已有 Run 快照。
 

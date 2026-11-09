@@ -139,12 +139,13 @@ pub fn document() -> Value {
         "type":"object", "additionalProperties":false, "required":["cwd","id"],
         "properties":{
             "cwd":{"type":"string","minLength":1,"description":"Native Runner path within its allowed roots."},
+            "agent_instance":{"type":["string","null"],"format":"uuid","description":"Optional SDK Agent instance on this Runner."},
             "id":{"type":"string","minLength":1,"maxLength":256,"description":"Explicit Agent-native session ID; paths and implicit last-session aliases are not accepted."}
         }
     }));
     schemas.insert("SessionListQuery".into(), json!({
         "type":"object", "additionalProperties":false, "required":["cwd"],
-        "properties":{"cwd":{"type":"string","minLength":1},"cursor":{"type":["string","null"]},"q":{"type":["string","null"]}}
+        "properties":{"cwd":{"type":"string","minLength":1},"agent_instance":{"type":["string","null"],"format":"uuid","description":"Optional SDK Agent instance on this Runner."},"cursor":{"type":["string","null"]},"q":{"type":["string","null"]}}
     }));
     schemas.insert("SessionCatalog".into(), json!({
         "type":"object", "required":["version","sessions"],

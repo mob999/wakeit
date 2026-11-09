@@ -20,6 +20,7 @@ fn task(cwd: &str) -> TaskConfig {
         name: "Trace".into(),
         runner: "fixture".into(),
         agent: "synthetic-legacy".into(),
+        agent_instance: None,
         cwd: cwd.into(),
         prompt: "中文\n\" literal".into(),
         parameters: Default::default(),

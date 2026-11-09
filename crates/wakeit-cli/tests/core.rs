@@ -12,6 +12,7 @@ fn task(cwd: &str) -> TaskConfig {
         name: "test".into(),
         runner: "test".into(),
         agent: "synthetic-legacy".into(),
+        agent_instance: None,
         cwd: cwd.into(),
         prompt: "hello".into(),
         parameters: Default::default(),

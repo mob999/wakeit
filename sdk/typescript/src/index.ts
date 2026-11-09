@@ -18,6 +18,12 @@ export type Event<T = Json> = {
   origin: { kind: string; id: string | null; roles: string[] }; data: T
   snapshot_ref?: { event_id: string }; idempotency_key?: string
 }
+export interface RuntimeInfo {
+  runner_id: string; instance_id: string; sdk_protocol: number; version: string
+  platform: string; arch: string; invocation_id: string | null
+  /** Gateway-advertised browser URL, not the Runner connection address. Older hosts may omit it. */
+  public_url?: string | null
+}
 export type Invocation = {
   id: string; instance_id: string; operation_id: string; kind: 'event' | 'hook' | 'action' | 'provider'
   handler: string; input: Json; deadline: string; expected_revision: number | null
@@ -93,6 +99,10 @@ export class Runs extends Domain {
     return this.call<{ ok: true; run_id: string; requested: true }>('reconcile', { id, request_key: requestKey })
   }
 }
+export class Runtime extends Domain {
+  constructor() { super('runtime') }
+  info() { return this.call<RuntimeInfo>('info') }
+}
 export class Context {
   readonly invocation?: Invocation
   readonly signal: AbortSignal
@@ -102,7 +112,7 @@ export class Context {
   members = new Domain('members'); devices = new Domain('devices'); agents = new Domain('agents')
   models = new Domain('models'); sessions = new Domain('sessions'); results = new Domain('results')
   files = new Domain('files'); artifacts = new Domain('artifacts'); plugins = new Domain('plugins')
-  events = new Domain('events'); auth = new Domain('auth'); runtime = new Domain('runtime')
+  events = new Domain('events'); auth = new Domain('auth'); runtime = new Runtime()
   http = new Domain('http'); process = new Domain('process'); providers = new Domain('providers')
   config = {
     get: <T = ObjectValue>() => host<{ value: T; revision: number }>('config.get'),

@@ -315,6 +315,7 @@ await new Plugin().agent('synthetic-catalog',agent).serve();
         .unwrap();
         Agent::sdk(SdkBackend {
             instance_id: None,
+            legacy_stateless: false,
             runtime_directory: None,
             configuration: None,
             plugin: "catalog".into(),

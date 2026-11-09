@@ -32,6 +32,8 @@ pub use wakeit_plugin_protocol::adapter::{
 pub struct SdkBackend {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legacy_stateless: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_directory: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -74,6 +76,7 @@ pub struct Agent {
     pub output: OutputSpec,
     pub poll_interval: String,
     pub backend: Backend,
+    pub(crate) runtime: Option<crate::plugins::extensions::Runtime>,
 }
 impl Serialize for Agent {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
@@ -108,6 +111,7 @@ impl From<AgentConfig> for Agent {
             output: config.output.clone(),
             poll_interval: config.poll_interval.clone(),
             backend: Backend::LegacyCommand(Box::new(config)),
+            runtime: None,
         }
     }
 }
@@ -163,6 +167,7 @@ impl Agent {
             },
             poll_interval: "5s".into(),
             backend: Backend::SdkBackend(Box::new(config)),
+            runtime: None,
         })
     }
     /// Only the owning Runner supplies its instance selection and local data namespace.
@@ -173,6 +178,142 @@ impl Agent {
             config.configuration = None;
         }
         Ok(())
+    }
+    pub async fn select_instance(
+        &mut self,
+        pool: &SqlitePool,
+        explicit: Option<Uuid>,
+    ) -> Result<()> {
+        let Backend::SdkBackend(previous) = &self.backend else {
+            ensure!(
+                explicit.is_none(),
+                "legacy command Agents do not support plugin instance selection"
+            );
+            return Ok(());
+        };
+        let selected = match explicit {
+            Some(id) => Some(id),
+            None => {
+                crate::plugins::extensions::defaults::selected(
+                    pool,
+                    &previous.source,
+                    &previous.plugin,
+                )
+                .await?
+            }
+        };
+        let mut backend = (**previous).clone();
+        backend.instance_id = selected;
+        backend.configuration = None;
+        backend.legacy_stateless = false;
+        if let Some(id) = selected {
+            let row=sqlx::query("SELECT source,extension,root,version,declaration FROM extension_instances WHERE id=? AND removed=0")
+                .bind(id.to_string()).fetch_optional(pool).await?.context("selected Agent instance is unavailable")?;
+            ensure!(
+                row.get::<String, _>("source") == backend.source
+                    && row.get::<String, _>("extension") == backend.plugin,
+                "selected Agent instance belongs to another plugin source or resource"
+            );
+            let root = PathBuf::from(row.get::<String, _>("root")).canonicalize()?;
+            let manifest = crate::plugins::manifest::read(&root)?;
+            let declaration: wakeit_core::extensions::Extension =
+                serde_json::from_str(row.get("declaration"))?;
+            ensure!(
+                manifest.version == row.get::<String, _>("version")
+                    && manifest
+                        .wakeit
+                        .plugins
+                        .get(&backend.plugin)
+                        .is_some_and(|d| serde_json::to_value(d).ok()
+                            == serde_json::to_value(&declaration).ok()),
+                "selected Agent instance code declaration changed"
+            );
+            backend.descriptor = declaration
+                .agents
+                .get(&backend.id)
+                .context("instance does not provide this Agent")?
+                .clone();
+            backend.command = if declaration.command.starts_with("./") {
+                crate::plugins::manifest::executable(root.join(&declaration.command))
+            } else {
+                which::which(&declaration.command).context("plugin interpreter is unavailable")?
+            };
+            let root_text = wakeit_core::native_command::external_path(&root);
+            backend.args = declaration
+                .args
+                .iter()
+                .map(|arg| arg.replace("{{plugin.root}}", &root_text))
+                .collect();
+            if root != backend.root {
+                backend.revision = None;
+            }
+            backend.root = root;
+            backend.version = manifest.version;
+        }
+        let runtime = self.runtime.clone();
+        *self = Self::sdk(backend)?;
+        self.runtime = runtime;
+        Ok(())
+    }
+    pub async fn watch_instance(
+        &self,
+        cancel: CancellationToken,
+    ) -> Result<tokio_util::sync::DropGuard> {
+        let finished = CancellationToken::new();
+        let guard = finished.clone().drop_guard();
+        if let Backend::SdkBackend(backend) = &self.backend {
+            let id = backend
+                .instance_id
+                .context("Agent requires a persistent plugin instance")?;
+            let directory = backend
+                .runtime_directory
+                .as_ref()
+                .context("Runner instance store required")?;
+            let options = sqlx::sqlite::SqliteConnectOptions::new()
+                .filename(directory.join("journal.sqlite"))
+                .read_only(true)
+                .busy_timeout(Duration::from_secs(2));
+            let pool = sqlx::SqlitePool::connect_with(options).await?;
+            let runtime = self.runtime.clone();
+            tokio::spawn(async move {
+                let mut tick = tokio::time::interval(Duration::from_millis(200));
+                let mut authority = tokio::time::Instant::now() - Duration::from_secs(5);
+                loop {
+                    tokio::select! {_=finished.cancelled()=>break,_=cancel.cancelled()=>break,_=tick.tick()=>{}}
+                    let row = sqlx::query(
+                        "SELECT enabled,removed,declaration FROM extension_instances WHERE id=?",
+                    )
+                    .bind(id.to_string())
+                    .fetch_optional(&pool)
+                    .await;
+                    let Ok(Some(row)) = row else {
+                        cancel.cancel();
+                        break;
+                    };
+                    if row.get::<i64, _>("enabled") == 0 || row.get::<i64, _>("removed") != 0 {
+                        cancel.cancel();
+                        break;
+                    }
+                    if authority.elapsed() >= Duration::from_secs(5) {
+                        authority = tokio::time::Instant::now();
+                        let declaration: Result<wakeit_core::extensions::Extension, _> =
+                            serde_json::from_str(row.get("declaration"));
+                        if let (Some(runtime), Ok(declaration)) = (&runtime, declaration)
+                            && (!declaration.permissions.is_empty()
+                                || !declaration.credentials.is_empty())
+                        {
+                            let allowed = tokio::select! {_=finished.cancelled()=>break,_=cancel.cancelled()=>break,result=runtime.require_agent_grants(id, &declaration.permissions)=>result};
+                            if allowed.is_err() {
+                                cancel.cancel();
+                                break;
+                            }
+                        }
+                    }
+                }
+                pool.close().await;
+            });
+        }
+        Ok(guard)
     }
     /// Preserve a recorded instance/revision when continuing an existing Run.
     pub fn bind_saved_runner(&mut self, directory: &Path) -> Result<()> {
@@ -195,7 +336,8 @@ impl Agent {
         let Backend::SdkBackend(backend) = &self.backend else {
             bail!("SDK environment references require an SDK backend")
         };
-        let host = AgentHost::load(backend).await?;
+        let mut host = AgentHost::load(backend).await?;
+        host.runtime = self.runtime.clone();
         let request = Uuid::new_v4();
         let mut env = BTreeMap::new();
         let mut inherited = BTreeMap::new();
@@ -343,7 +485,43 @@ impl Agent {
                 .is_none_or(|sink| Some(sink.id) == request.context.run_id),
             "Agent sink belongs to another Run"
         );
-        invoke(config, request, cancel, sink).await
+        let cleanup = request.context.run_id.is_some()
+            && matches!(
+                request.operation,
+                AgentOperation::Cancel | AgentOperation::Reconcile
+            );
+        let _binding_guard = if cleanup {
+            None
+        } else {
+            Some(self.watch_instance(cancel.clone()).await?)
+        };
+        let registered = if let Some(runtime) = &self.runtime {
+            let instance = config
+                .instance_id
+                .context("Agent requires a selected plugin instance")?;
+            runtime
+                .register_agent(
+                    instance,
+                    request.id,
+                    request.operation,
+                    request.context.run_id,
+                    cancel.clone(),
+                )
+                .await?;
+            true
+        } else {
+            false
+        };
+        let request_id = request.id;
+        let result = invoke(config, request, cancel, sink, self.runtime.clone()).await;
+        if registered {
+            self.runtime
+                .as_ref()
+                .expect("registered runtime")
+                .unregister_agent(request_id)
+                .await;
+        }
+        result
     }
     pub(super) async fn reconcile(
         &self,
@@ -823,9 +1001,20 @@ struct AgentHost {
     declaration: wakeit_core::extensions::Extension,
     configuration: ConfigurationSnapshot,
     pool: Option<SqlitePool>,
+    runtime: Option<crate::plugins::extensions::Runtime>,
+    cleanup: bool,
+    call_context: Option<(
+        AgentRequest,
+        CancellationToken,
+        std::sync::Arc<std::sync::atomic::AtomicBool>,
+    )>,
+    unfinished_process: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 impl AgentHost {
     async fn load(backend: &SdkBackend) -> Result<Self> {
+        Self::load_for(backend, false).await
+    }
+    async fn load_for(backend: &SdkBackend, cleanup: bool) -> Result<Self> {
         let manifest = crate::plugins::manifest::read(&backend.root)?;
         ensure!(
             manifest.version == backend.version,
@@ -845,28 +1034,10 @@ impl AgentHost {
                     == serde_json::to_value(&backend.descriptor).ok()),
             "SDK instance Agent declaration changed"
         );
-        if backend.instance_id.is_none() {
-            let empty_schema = declaration.config == json!({"type":"object","properties":{}})
-                || declaration.config == json!({})
-                || declaration.config == Value::Bool(true);
-            ensure!(
-                empty_schema
-                    && declaration.credentials.is_empty()
-                    && declaration.permissions.is_empty(),
-                "Agent requires an explicitly selected plugin instance in agent_instances"
-            );
-            return Ok(Self {
-                backend: backend.clone(),
-                declaration,
-                configuration: ConfigurationSnapshot {
-                    revision: 0,
-                    value: json!({}),
-                    credential_fingerprints: BTreeMap::new(),
-                },
-                pool: None,
-                redactor: AgentRedactor::default(),
-            });
-        }
+        ensure!(
+            backend.instance_id.is_some(),
+            "Agent requires a persistent plugin instance"
+        );
         let directory = backend
             .runtime_directory
             .as_ref()
@@ -889,11 +1060,15 @@ impl AgentHost {
                 credential_fingerprints: BTreeMap::new(),
             },
             pool: Some(pool),
+            runtime: None,
+            cleanup,
+            call_context: None,
+            unfinished_process: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             redactor: AgentRedactor::default(),
         };
         let row = host.current(false).await?;
         host.configuration = host.saved_configuration(&row).await?;
-        if !host.declaration.credentials.is_empty() {
+        if !cleanup && !host.declaration.credentials.is_empty() {
             let row = host.current(true).await?;
             let secrets: Value = serde_json::from_str(row.get("secrets"))?;
             for slot in host.declaration.credentials.keys() {
@@ -1042,23 +1217,29 @@ impl AgentHost {
             "selected Agent instance belongs to another plugin source or resource"
         );
         ensure!(
-            row.get::<i64, _>("enabled") != 0 && row.get::<i64, _>("removed") == 0,
+            (self.cleanup && !credentials)
+                || (row.get::<i64, _>("enabled") != 0 && row.get::<i64, _>("removed") == 0),
             "selected Agent instance is disabled or removed"
         );
         let grants: Vec<String> = serde_json::from_str(row.get("grants"))?;
+        let current: wakeit_core::extensions::Extension =
+            serde_json::from_str(row.get("declaration"))?;
         ensure!(
-            self.declaration
-                .permissions
-                .iter()
-                .all(|permission| grants.contains(permission)),
+            (self.cleanup && !credentials)
+                || self
+                    .declaration
+                    .permissions
+                    .iter()
+                    .all(|permission| grants.contains(permission)
+                        && current.permissions.contains(permission)),
             "Agent instance permission was not granted or has been revoked"
         );
         Ok(row)
     }
     async fn call(&self, method: &str, params: &Value, request: Uuid) -> Result<Value> {
         ensure!(
-            ["config.get", "credentials.get"].contains(&method),
-            "Agent host API is not supported by this Runner bridge"
+            !self.backend.legacy_stateless || ["config.get", "credentials.get"].contains(&method),
+            "historical Agent invocation cannot acquire new host capabilities"
         );
         if let Some(id) = params.get("agent_request_id") {
             ensure!(*id == json!(request), "Agent host request identity changed");
@@ -1075,14 +1256,51 @@ impl AgentHost {
                 "Agent host request belongs to another instance"
             );
         }
+        if !["config.get", "credentials.get"].contains(&method) {
+            let current = self.current(false).await?;
+            if self.cleanup
+                && (current.get::<i64, _>("enabled") == 0 || current.get::<i64, _>("removed") != 0)
+            {
+                ensure!(
+                    ["runtime.info", "log.write", "health.report"].contains(&method),
+                    "disabled instance cleanup cannot access additional host capabilities"
+                );
+            }
+            let runtime = self
+                .runtime
+                .as_ref()
+                .context("Agent host runtime is unavailable")?;
+            let (request, stop, pending) = self
+                .call_context
+                .clone()
+                .context("Agent host call context is unavailable")?;
+            let deadline = tokio::time::Instant::now()
+                + (request.context.deadline - Utc::now())
+                    .to_std()
+                    .unwrap_or_default();
+            let result = tokio::select! {
+                _=stop.cancelled()=>Err(anyhow::anyhow!("Agent host request cancelled")),
+                _=tokio::time::sleep_until(deadline)=>Err(anyhow::anyhow!("Agent host request deadline exceeded")),
+                result=runtime.agent_host_call(&self.backend,&self.declaration,&self.configuration,(request,stop.clone(),pending),method,params.clone())=>result,
+            };
+            return result;
+        }
         match method {
             "config.get" => {
-                if self.pool.is_some() {
-                    self.current(false).await?;
-                }
+                self.current(false).await?;
                 Ok(json!({"value":self.configuration.value,"revision":self.configuration.revision}))
             }
             "credentials.get" => {
+                if let Some(runtime) = &self.runtime {
+                    runtime
+                        .require_agent_grants(
+                            self.backend
+                                .instance_id
+                                .context("Agent instance is not selected")?,
+                            &self.declaration.permissions,
+                        )
+                        .await?;
+                }
                 let slot = params["slot"]
                     .as_str()
                     .context("credential slot is required")?;
@@ -1399,12 +1617,24 @@ async fn invoke(
     request: AgentRequest,
     cancel: CancellationToken,
     sink: Option<LogSink>,
+    runtime: Option<crate::plugins::extensions::Runtime>,
 ) -> Result<Invocation> {
     ensure!(
         !cancel.is_cancelled(),
         "Agent request cancelled before start"
     );
-    let host = AgentHost::load(config).await?;
+    let cleanup = request.context.run_id.is_some()
+        && matches!(
+            request.operation,
+            AgentOperation::Cancel | AgentOperation::Reconcile
+        );
+    let mut host = AgentHost::load_for(config, cleanup).await?;
+    host.call_context = Some((
+        request.clone(),
+        cancel.child_token(),
+        host.unfinished_process.clone(),
+    ));
+    host.runtime = runtime;
     let cwd = Path::new(&request.context.cwd).canonicalize()?;
     config
         .root
@@ -1535,7 +1765,14 @@ async fn invoke(
             if let Some(method) = value["method"].as_str() {
                 if !["agent.record", "agent.fact"].contains(&method) {
                     ensure!(!value["id"].is_null(), "unsupported Agent notification");
-                    let host_result = if control.reason().is_some() { Err(anyhow::anyhow!("Agent request is stopping; only bounded execution observations may finish")) } else { host.call(method, &value["params"], request.id).await };
+                    let host_result = if control.reason().is_some() { Err(anyhow::anyhow!("Agent request is stopping; only bounded execution observations may finish")) } else {
+                        tokio::select! {
+                            _=control.stopping.cancelled()=>Err(anyhow::anyhow!("Agent host request is stopping")),
+                            _=cancel.cancelled()=>Err(anyhow::anyhow!("Agent host request cancelled")),
+                            result=host.call(method, &value["params"], request.id)=>result,
+                        }
+                    };
+                    if method=="process.execute" && (host_result.is_ok() || host.unfinished_process.load(std::sync::atomic::Ordering::SeqCst)) { work_observed=true; }
                     let host_result=if control.reason().is_some() {Err(anyhow::anyhow!("Agent request is stopping; host access is closed"))} else {host_result};
                     let response = match host_result {
                         Ok(result) => json!({"jsonrpc":"2.0","id":value["id"],"result":result}),
@@ -1642,7 +1879,10 @@ async fn invoke(
     let _ = monitor.await;
     exited.cancel();
     let diagnostics = stderr_task.await;
-    let clean = tree_confirmed
+    let clean = !host
+        .unfinished_process
+        .load(std::sync::atomic::Ordering::SeqCst)
+        && tree_confirmed
         && diagnostics
             .as_ref()
             .is_ok_and(|r| r.as_ref().is_ok_and(|eof| *eof));
@@ -1777,9 +2017,50 @@ pub(crate) mod tests {
             .into();
         }
         std::fs::write(root.join("wakeit-plugin.json"), serde_json::to_vec(&json!({"manifest_version":1,"name":"@synthetic/agents","version":"1.0.0","wakeit":{"protocol":1,"plugins":{"synthetic-entry":{"name":"Synthetic entry","command":"node","agents":{"synthetic":descriptor.clone()}}}}})).unwrap()).unwrap();
+        let instance_root = root.join("fixture-instance");
+        let copied_root = root.to_path_buf();
+        let copied_instance = instance_root.clone();
+        let instance = std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(async move {
+                    let journal = Journal::open(&copied_instance, Uuid::new_v4())
+                        .await
+                        .unwrap();
+                    crate::plugins::extensions::storage::initialize(&journal.pool)
+                        .await
+                        .unwrap();
+                    crate::plugins::extensions::defaults::initialize(&journal.pool)
+                        .await
+                        .unwrap();
+                    let declaration = crate::plugins::manifest::read(&copied_root)
+                        .unwrap()
+                        .wakeit
+                        .plugins["synthetic-entry"]
+                        .clone();
+                    let id = crate::plugins::extensions::defaults::ensure(
+                        &journal.pool,
+                        "synthetic:test",
+                        "synthetic-entry",
+                        &copied_root,
+                        "1.0.0",
+                        &declaration,
+                    )
+                    .await
+                    .unwrap()
+                    .unwrap();
+                    journal.pool.close().await;
+                    id
+                })
+        })
+        .join()
+        .unwrap();
         Agent::sdk(SdkBackend {
-            instance_id: None,
-            runtime_directory: None,
+            instance_id: Some(instance),
+            legacy_stateless: false,
+            runtime_directory: Some(instance_root),
             configuration: None,
             plugin: "synthetic-entry".into(),
             id: "synthetic".into(),
@@ -1876,12 +2157,13 @@ await new Plugin().agent('synthetic',agent).serve();
         std::fs::write(manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
         let directory = root.join("runtime");
         let journal = Journal::open(&directory, Uuid::new_v4()).await.unwrap();
-        sqlx::query("CREATE TABLE extension_instances(id TEXT PRIMARY KEY,source TEXT NOT NULL,extension TEXT NOT NULL,root TEXT NOT NULL,version TEXT NOT NULL,revision INTEGER NOT NULL,enabled INTEGER NOT NULL,removed INTEGER NOT NULL,grants TEXT NOT NULL,declaration TEXT NOT NULL,config TEXT NOT NULL,secrets TEXT NOT NULL)").execute(&journal.pool).await.unwrap();
-        sqlx::query("CREATE TABLE extension_versions(instance TEXT NOT NULL,revision INTEGER NOT NULL,snapshot TEXT NOT NULL,PRIMARY KEY(instance,revision))").execute(&journal.pool).await.unwrap();
+        crate::plugins::extensions::storage::initialize(&journal.pool)
+            .await
+            .unwrap();
         let id = Uuid::new_v4();
         let declaration =
             crate::plugins::manifest::read(root).unwrap().wakeit.plugins["synthetic-entry"].clone();
-        sqlx::query("INSERT INTO extension_instances VALUES(?,?,?,?,?,1,1,0,?,?,?,?)")
+        sqlx::query("INSERT INTO extension_instances(id,source,extension,root,version,revision,enabled,removed,grants,declaration,config,secrets,name,state) VALUES(?,?,?,?,?,1,1,0,?,?,?,? ,'Synthetic configured','running')")
             .bind(id.to_string())
             .bind("synthetic:test")
             .bind("synthetic-entry")
@@ -2036,25 +2318,16 @@ await new Plugin().agent('synthetic',agent).serve();
         assert!(AgentHost::load(&foreign_runner).await.is_err());
     }
     #[tokio::test]
-    async fn stateless_defaults_are_real_but_do_not_grant_credentials_or_mutating_apis() {
+    async fn sdk_agents_cannot_bypass_a_persistent_instance() {
         let root = directory();
-        let agent = fixture(root.path(), "query");
-        let Backend::SdkBackend(backend) = agent.backend else {
+        let agent = fixture(root.path(), "configuration");
+        let Backend::SdkBackend(mut backend) = agent.backend else {
             unreachable!()
         };
-        let host = AgentHost::load(&backend).await.unwrap();
-        let request = Uuid::new_v4();
-        assert_eq!(
-            host.call("config.get", &json!({}), request).await.unwrap(),
-            json!({"value":{},"revision":0})
-        );
-        assert!(
-            host.call("credentials.get", &json!({"slot":"token"}), request)
-                .await
-                .is_err()
-        );
-        assert!(host.call("config.save", &json!({}), request).await.is_err());
+        backend.instance_id = None;
+        assert!(AgentHost::load(&backend).await.is_err());
     }
+
     async fn upgrade_instance(root: &Path, pool: &SqlitePool, instance: Uuid) {
         let directory = root.join("version-two");
         std::fs::create_dir_all(&directory).unwrap();
@@ -2245,11 +2518,19 @@ await new Plugin().agent('synthetic',agent).serve();
             )
             .await
             .unwrap();
+        let app = axum::Router::new().route(
+            "/api/v1/device/plugins/api",
+            axum::routing::post(|| async { axum::Json(json!({"grants":["network:outbound"]})) }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let gateway = format!("http://{}", listener.local_addr().unwrap());
+        let authority = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        std::fs::write(root.path().join("unused.token"), "synthetic-device-token").unwrap();
         let config = crate::runner::config::RunnerConfig {
             version: 1,
             id: runner,
             name: "synthetic".into(),
-            gateway: "http://127.0.0.1:1".into(),
+            gateway,
             nats_url: "nats://127.0.0.1:1".into(),
             token_file: root.path().join("unused.token"),
             credentials_file: root.path().join("unused.creds"),
@@ -2289,6 +2570,12 @@ await new Plugin().agent('synthetic',agent).serve();
             "literal SDK environment values must not be re-expanded"
         );
         drop(prepared);
+        let other_invocation = Uuid::new_v4().to_string();
+        sqlx::query("INSERT INTO extension_invocations(id,instance,kind,handler,input,actor,operation_id,state) VALUES(?,?,'action','synthetic','{}','{}',?,'running')")
+            .bind(&other_invocation)
+            .bind(instance.to_string())
+            .bind(Uuid::new_v4().to_string())
+            .execute(&journal.pool).await.unwrap();
         let path = root.path().join("runner.yaml");
         std::fs::write(&path, yaml_serde::to_string(&config).unwrap()).unwrap();
         assert_eq!(
@@ -2300,6 +2587,16 @@ await new Plugin().agent('synthetic',agent).serve();
         assert_eq!(
             std::fs::read_to_string(root.path().join("environment-ok")).unwrap(),
             "ok"
+        );
+        let other_state: String =
+            sqlx::query_scalar("SELECT state FROM extension_invocations WHERE id=?")
+                .bind(other_invocation)
+                .fetch_one(&journal.pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            other_state, "running",
+            "local continuation must not recover a live Runner's calls"
         );
         let snapshot: String = sqlx::query_scalar("SELECT agent FROM local_runs WHERE id=?")
             .bind(run.to_string())
@@ -2348,6 +2645,7 @@ await new Plugin().agent('synthetic',agent).serve();
                 .await
                 .is_err()
         );
+        authority.abort();
     }
     fn synthetic_secret() -> String {
         ["synthetic-secret", "\"", "\n", "尾"].concat()
@@ -2555,7 +2853,7 @@ await new Plugin().agent('synthetic',agent).serve();
         let root = directory();
         let (mut agent, pool, instance) = configured_fixture(root.path(), "configuration").await;
         let secret = synthetic_secret();
-        sqlx::query("INSERT INTO extension_instances SELECT ?,source,extension,root,version,revision,enabled,removed,grants,declaration,config,? FROM extension_instances WHERE id=?")
+        sqlx::query("INSERT INTO extension_instances(id,source,extension,name,root,version,revision,enabled,removed,grants,declaration,config,secrets) SELECT ?,source,extension,name,root,version,revision,enabled,removed,grants,declaration,config,? FROM extension_instances WHERE id=?")
             .bind(Uuid::new_v4().to_string()).bind(json!({"token":secret}).to_string()).bind(instance.to_string()).execute(&pool).await.unwrap();
         let Backend::SdkBackend(backend) = &agent.backend else {
             unreachable!()
@@ -3760,4 +4058,278 @@ readline.createInterface({input:process.stdin}).on('close',()=>clearInterval(tim
  }
 });
 "#;
+}
+
+#[cfg(test)]
+mod instance_host_tests {
+    use super::*;
+    use crate::runner::{config::RunnerConfig, journal::Journal};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    async fn host() -> (
+        tempfile::TempDir,
+        AgentHost,
+        Arc<AtomicBool>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        use axum::{
+            Json, Router,
+            http::StatusCode,
+            routing::{get, post},
+        };
+        let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local/shared-agent-host");
+        std::fs::create_dir_all(&base).unwrap();
+        let root = tempfile::tempdir_in(base).unwrap();
+        let agent = super::tests::fixture(root.path(), "unused");
+        let Backend::SdkBackend(mut backend) = agent.backend else {
+            unreachable!()
+        };
+        let data = backend.runtime_directory.clone().unwrap();
+        let runner = Uuid::new_v4();
+        let journal = Journal::open(&data, runner).await.unwrap();
+        let mut manifest: Value =
+            serde_json::from_slice(&std::fs::read(root.path().join("wakeit-plugin.json")).unwrap())
+                .unwrap();
+        manifest["wakeit"]["plugins"]["synthetic-entry"]["permissions"] =
+            json!(["tasks:read", "process:execute"]);
+        std::fs::write(
+            root.path().join("wakeit-plugin.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        let declaration = crate::plugins::manifest::read(root.path())
+            .unwrap()
+            .wakeit
+            .plugins["synthetic-entry"]
+            .clone();
+        sqlx::query("UPDATE extension_instances SET declaration=?,grants=? WHERE id=?")
+            .bind(serde_json::to_string(&declaration).unwrap())
+            .bind(json!(["tasks:read", "process:execute"]).to_string())
+            .bind(backend.instance_id.unwrap().to_string())
+            .execute(&journal.pool)
+            .await
+            .unwrap();
+        let authorized = Arc::new(AtomicBool::new(true));
+        let server_authorized = authorized.clone();
+        let app = Router::new()
+            .route(
+                "/api/v1/meta",
+                get(|| async { Json(json!({"public_url":"https://gateway.example.test"})) }),
+            )
+            .route(
+                "/api/v1/device/plugins/api",
+                post(move |Json(body): Json<Value>| {
+                    let authorized = server_authorized.clone();
+                    async move {
+                        if !authorized.load(Ordering::SeqCst) {
+                            return (
+                                StatusCode::FORBIDDEN,
+                                Json(json!({"error":"synthetic delegated principal revoked"})),
+                            );
+                        }
+                        match body["method"].as_str().unwrap_or("") {
+                            "runtime.authorize" => (
+                                StatusCode::OK,
+                                Json(json!({"grants":["tasks:read","process:execute"]})),
+                            ),
+                            "tasks.list" => {
+                                assert!(body["params"].get("invocation_id").is_none());
+                                assert!(body["params"].get("agent_request_id").is_none());
+                                (
+                                    StatusCode::OK,
+                                    Json(json!({"items":[{"id":"synthetic-task"}]})),
+                                )
+                            }
+                            _ => (
+                                StatusCode::BAD_REQUEST,
+                                Json(json!({"error":"unexpected synthetic method"})),
+                            ),
+                        }
+                    }
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let gateway = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let token = root.path().join("synthetic.token");
+        std::fs::write(&token, "synthetic-device-token").unwrap();
+        let config = RunnerConfig {
+            version: 1,
+            gateway,
+            id: runner,
+            name: "Synthetic".into(),
+            token_file: token,
+            nats_url: "nats://127.0.0.1:1".into(),
+            credentials_file: root.path().join("unused.creds"),
+            data_dir: data.clone(),
+            concurrency: 2,
+            agents: vec![],
+            agent_instances: Default::default(),
+            bundled_agents: false,
+            allowed_roots: vec![root.path().to_path_buf()],
+        };
+        let runtime = crate::plugins::extensions::Runtime::existing(
+            Arc::new(config),
+            journal,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        backend.configuration = None;
+        let mut host = AgentHost::load(&backend).await.unwrap();
+        host.runtime = Some(runtime);
+        let task:TaskConfig=serde_json::from_value(json!({"version":1,"id":"shared-host","name":"Shared host","runner":"synthetic","agent":"synthetic","cwd":root.path(),"prompt":"synthetic instruction","parameters":{},"schedule":null})).unwrap();
+        let bound = Agent::sdk(*backend).unwrap();
+        let request = bound.request(
+            AgentOperation::Execute,
+            &task,
+            Some(Uuid::new_v4()),
+            Duration::from_secs(10),
+        );
+        host.call_context = Some((
+            request,
+            CancellationToken::new(),
+            host.unfinished_process.clone(),
+        ));
+        (root, host, authorized, server)
+    }
+    #[tokio::test]
+    async fn agent_host_shares_instance_apis_but_cannot_impersonate_an_action_or_another_instance()
+    {
+        let (_root, host, _authorized, server) = host().await;
+        let request = host.call_context.as_ref().unwrap().0.id;
+        let info = host
+            .call("runtime.info", &json!({}), request)
+            .await
+            .unwrap();
+        assert_eq!(
+            info["instance_id"],
+            json!(host.backend.instance_id.unwrap())
+        );
+        assert_eq!(info["invocation_id"], json!(request));
+        assert_eq!(info["public_url"], "https://gateway.example.test");
+        host.call(
+            "storage.set",
+            &json!({"key":"value","value":"synthetic"}),
+            request,
+        )
+        .await
+        .unwrap();
+        let value = host
+            .call("storage.get", &json!({"key":"value"}), request)
+            .await
+            .unwrap();
+        assert_eq!(value["value"], "synthetic");
+        assert!(
+            host.call(
+                "storage.get",
+                &json!({"key":"value","instance_id":Uuid::new_v4()}),
+                request
+            )
+            .await
+            .is_err()
+        );
+        let tasks = host
+            .call(
+                "tasks.list",
+                &json!({"invocation_id":Uuid::new_v4()}),
+                request,
+            )
+            .await
+            .unwrap();
+        assert_eq!(tasks["items"][0]["id"], "synthetic-task");
+        server.abort();
+    }
+    #[tokio::test]
+    async fn agent_host_cannot_mutate_administrator_settings() {
+        let (_root, host, _authorized, server) = host().await;
+        let request = host.call_context.as_ref().unwrap().0.id;
+        let before = host.call("config.get", &json!({}), request).await.unwrap();
+        let error = host.call("config.save", &json!({"update":{
+            "operation_id": Uuid::new_v4(), "expected_revision": before["revision"], "config": before["value"]
+        }}), request).await.unwrap_err();
+        assert!(error.to_string().contains("administrator required"));
+        assert_eq!(
+            host.call("config.get", &json!({}), request).await.unwrap(),
+            before
+        );
+        server.abort();
+    }
+    #[tokio::test]
+    async fn queries_keep_read_only_restrictions_and_current_workspace_revocation_is_authoritative()
+    {
+        let (_root, mut host, authorized, server) = host().await;
+        host.call_context.as_mut().unwrap().0.operation = AgentOperation::Models;
+        let request = host.call_context.as_ref().unwrap().0.id;
+        assert!(
+            host.call(
+                "storage.set",
+                &json!({"key":"value","value":"synthetic"}),
+                request
+            )
+            .await
+            .is_err()
+        );
+        assert!(host.call("tasks.list", &json!({}), request).await.is_ok());
+        authorized.store(false, Ordering::SeqCst);
+        assert!(host.call("tasks.list", &json!({}), request).await.is_err());
+        server.abort();
+    }
+    #[tokio::test]
+    async fn historical_empty_contexts_cannot_acquire_new_private_storage_or_workspace_apis() {
+        let (_root, mut host, _authorized, server) = host().await;
+        let request = host.call_context.as_ref().unwrap().0.id;
+        host.backend.legacy_stateless = true;
+        assert!(host.call("config.get", &json!({}), request).await.is_ok());
+        assert!(
+            host.call("storage.get", &json!({"key":"value"}), request)
+                .await
+                .is_err()
+        );
+        assert!(host.call("tasks.list", &json!({}), request).await.is_err());
+        server.abort();
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn managed_agent_host_children_are_cancelled_with_the_owning_request() {
+        let (root, host, _authorized, server) = host().await;
+        let request = host.call_context.as_ref().unwrap().0.id;
+        let stop = host.call_context.as_ref().unwrap().1.clone();
+        let marker = root.path().join("managed-child.pid");
+        let node = which::which("node").unwrap();
+        let script = format!(
+            "require('fs').writeFileSync({},String(process.pid));setInterval(()=>{{}},1000)",
+            serde_json::to_string(&marker.to_string_lossy()).unwrap()
+        );
+        let command = json!({"command":node,"args":["-e",script]});
+        let cwd = root.path().to_path_buf();
+        let handle = tokio::spawn(async move {
+            host.call(
+                "process.execute",
+                &json!({"cwd":cwd,"command":command,"timeout_seconds":30}),
+                request,
+            )
+            .await
+        });
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while !marker.exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let pid: libc::pid_t = std::fs::read_to_string(&marker).unwrap().parse().unwrap();
+        stop.cancel();
+        assert!(handle.await.unwrap().is_err());
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while unsafe { libc::kill(pid, 0) } == 0 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("managed child survived cancellation");
+        server.abort();
+    }
 }

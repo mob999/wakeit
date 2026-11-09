@@ -15,6 +15,7 @@ use std::{
     process::Stdio,
     time::Duration,
 };
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 pub use wakeit_core::sessions::{RunSession, SessionInfo, validate_id};
@@ -469,6 +470,8 @@ pub(crate) struct PreparedContinuation {
     pub literal_environment: bool,
     pub session: RunSession,
     pub _lock: File,
+    pub instance_stop: CancellationToken,
+    pub _instance_guard: tokio_util::sync::DropGuard,
 }
 pub(crate) async fn prepare_local(
     config: &RunnerConfig,
@@ -501,6 +504,17 @@ pub(crate) async fn prepare_local(
     ensure_idle(config, &session, Some(run)).await?;
     let mut agent = saved.agent;
     agent.bind_saved_runner(&config.data_dir)?;
+    if agent.legacy().is_none() {
+        let journal = crate::runner::journal::Journal::open(&config.data_dir, config.id).await?;
+        agent.runtime = Some(
+            crate::plugins::extensions::Runtime::existing(
+                std::sync::Arc::new(config.clone()),
+                journal,
+                CancellationToken::new(),
+            )
+            .await?,
+        );
+    }
     agent.normalize()?;
     let mut task = saved.assignment.task;
     task.cwd = session.cwd.clone();
@@ -510,12 +524,16 @@ pub(crate) async fn prepare_local(
     });
     inspect(&agent, &task, run, &session.id).await?;
     let command = interactive_spec(&agent, &task, run, &session.id, false).await?;
+    let instance_stop = CancellationToken::new();
+    let instance_guard = agent.watch_instance(instance_stop.clone()).await?;
     Ok(PreparedContinuation {
         task,
         command,
         literal_environment: agent.legacy().is_none(),
         session,
         _lock: guard,
+        instance_stop,
+        _instance_guard: instance_guard,
     })
 }
 pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
@@ -584,6 +602,17 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
     let _guard = lock(&config, &session.agent, &session.id)?;
     ensure_idle(&config, &session, Some(run_id)).await?;
     agent.bind_saved_runner(&config.data_dir)?;
+    if agent.legacy().is_none() {
+        let journal = crate::runner::journal::Journal::open(&config.data_dir, config.id).await?;
+        agent.runtime = Some(
+            crate::plugins::extensions::Runtime::existing(
+                std::sync::Arc::new(config.clone()),
+                journal,
+                CancellationToken::new(),
+            )
+            .await?,
+        );
+    }
     agent.normalize()?;
     let mut task = assignment.task;
     task.cwd = session.cwd.clone();
@@ -594,7 +623,9 @@ pub async fn resume(run_id: Uuid, explicit: Option<&Path>) -> Result<i32> {
     inspect(&agent, &task, run_id, &session.id).await?;
     let spec = interactive_spec(&agent, &task, run_id, &session.id, false).await?;
     let occupancy = mark_continuation(&config, run_id, &session)?;
-    let result = interactive(&spec, &task, run_id, agent.legacy().is_none()).await;
+    let stop = CancellationToken::new();
+    let _binding_guard = agent.watch_instance(stop.clone()).await?;
+    let result = interactive(&spec, &task, run_id, agent.legacy().is_none(), stop).await;
     if result.as_ref().err().is_none_or(|error| {
         error
             .downcast_ref::<process::CommandStartedError>()
@@ -639,6 +670,7 @@ async fn interactive(
     task: &TaskConfig,
     run_id: Uuid,
     literal_environment: bool,
+    stop: CancellationToken,
 ) -> Result<i32> {
     let mut command = tokio::process::Command::new(&spec.command);
     let (args, cwd) = process::render_command(spec, task, run_id, None, None)?;
@@ -661,7 +693,7 @@ async fn interactive(
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .kill_on_drop(true);
-    crate::runner::interactive::execute(command).await
+    crate::runner::interactive::execute(command, stop).await
 }
 
 #[cfg(test)]
@@ -858,9 +890,15 @@ mod tests {
         let task: TaskConfig = serde_json::from_value(serde_json::json!({"version":1,"id":"fixture","name":"fixture","runner":"fixture","agent":"codex","cwd":dir.path(),"prompt":"","session":{"id":"ses_1"},"schedule":null})).unwrap();
         let command: CommandSpec = serde_json::from_value(serde_json::json!({"command":"/bin/sh","args":["-c","test -z \"$1\" && exit 7", "fixture", "{{task.prompt}}"]})).unwrap();
         assert_eq!(
-            interactive(&command, &task, Uuid::new_v4(), false)
-                .await
-                .unwrap(),
+            interactive(
+                &command,
+                &task,
+                Uuid::new_v4(),
+                false,
+                CancellationToken::new()
+            )
+            .await
+            .unwrap(),
             7
         );
     }

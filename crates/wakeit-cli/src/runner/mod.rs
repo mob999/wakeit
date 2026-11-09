@@ -46,6 +46,7 @@ struct Runner {
     journal: Journal,
     extensions: crate::plugins::extensions::Runtime,
     agents: Arc<HashMap<String, Agent>>,
+    agent_info: Arc<Mutex<Vec<AgentInfo>>>,
     runtime: Uuid,
     client: reqwest::Client,
     token: Arc<String>,
@@ -142,6 +143,7 @@ impl Runner {
                 continue;
             };
             run.agent.bind_saved_runner(&self.config.data_dir)?;
+            run.agent.runtime = Some(self.extensions.clone());
             let Some(mut session) = run.session else {
                 continue;
             };
@@ -175,7 +177,7 @@ impl Runner {
             }
         }
         let active = self.config.concurrency - self.slots.available_permits();
-        let response=self.post("heartbeat",json!({"runtime_id":self.runtime,"claims":claims,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":self.config.concurrency,"active":active,"web_terminal":1,"unknown":self.journal.unknown_count().await?}})).await?;
+        let response=self.post("heartbeat",json!({"runtime_id":self.runtime,"claims":claims,"agents":self.agent_info.lock().await.clone(),"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":self.config.concurrency,"active":active,"web_terminal":1,"agent_instances":1,"unknown":self.journal.unknown_count().await?}})).await?;
         for id in response["closed"]
             .as_array()
             .into_iter()
@@ -231,6 +233,18 @@ pub async fn inspect(agent: impl Into<Agent>, cwd: &Path) -> AgentInfo {
         name: agent.name.clone(),
         logo: agent.logo.clone(),
         mode: agent.mode.clone(),
+        instance_id: match &agent.backend {
+            agent_backend::Backend::SdkBackend(b) => b.instance_id,
+            _ => None,
+        },
+        plugin_source: match &agent.backend {
+            agent_backend::Backend::SdkBackend(b) => Some(b.source.clone()),
+            _ => None,
+        },
+        plugin_resource: match &agent.backend {
+            agent_backend::Backend::SdkBackend(b) => Some(b.plugin.clone()),
+            _ => None,
+        },
         digest: agent.digest(),
         available,
         version,
@@ -258,9 +272,6 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
     let loaded = crate::plugins::load_agents(&config.agents, config.bundled_agents)?;
     crate::plugins::record_loaded(&config, &loaded.snapshot)?;
     let mut agents = loaded.agents;
-    for (id, agent) in &mut agents {
-        agent.bind_runner(&config.data_dir, config.agent_instances.get(id).copied())?;
-    }
     let journal = Journal::open(&config.data_dir, config.id).await?;
     let slots = Arc::new(Semaphore::new(config.concurrency));
     let config = Arc::new(config);
@@ -268,6 +279,16 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
     let extensions =
         crate::plugins::extensions::Runtime::new(config.clone(), journal.clone(), shutdown.clone())
             .await?;
+    for (id, agent) in &mut agents {
+        agent.bind_runner(&config.data_dir, None)?;
+        if let Err(error) = agent
+            .select_instance(&journal.pool, config.agent_instances.get(id).copied())
+            .await
+        {
+            tracing::warn!(agent = %id, %error, "Agent instance unavailable");
+        }
+        agent.runtime = Some(extensions.clone());
+    }
     let mut info = Vec::new();
     for agent in agents.values() {
         info.push(inspect(agent, &std::env::current_dir()?).await);
@@ -283,12 +304,38 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         extensions,
         journal,
         agents: Arc::new(agents),
+        agent_info: Arc::new(Mutex::new(info.clone())),
         active: Arc::new(Mutex::new(HashMap::new())),
         shutdown,
         run_locks: Arc::new(Mutex::new(HashMap::new())),
     };
+    let refresh_runner = runner.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! { _=refresh_runner.shutdown.cancelled()=>break, _=refresh_runner.extensions.changed()=>{} }
+            let mut advertised = Vec::new();
+            for (id, base) in refresh_runner.agents.iter() {
+                let mut agent = base.clone();
+                if agent
+                    .select_instance(
+                        &refresh_runner.journal.pool,
+                        refresh_runner.config.agent_instances.get(id).copied(),
+                    )
+                    .await
+                    .is_err()
+                {
+                    agent
+                        .bind_runner(&refresh_runner.config.data_dir, None)
+                        .ok();
+                }
+                advertised
+                    .push(inspect(&agent, &std::env::current_dir().unwrap_or_default()).await);
+            }
+            *refresh_runner.agent_info.lock().await = advertised;
+        }
+    });
     let extension_protocol = loop {
-        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::runner::queries::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0,"web_terminal":1}})).await {
+        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::runner::queries::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0,"web_terminal":1,"agent_instances":1}})).await {
             Ok(reply)=>{
                 if let Some(jwt)=reply["nats_jwt"].as_str(){
                     let existing=std::fs::read_to_string(&runner.config.credentials_file)?;

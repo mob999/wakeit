@@ -93,7 +93,11 @@ pub async fn poll(pool: &PgPool, workspace: Uuid, runner: Uuid) -> Result<Value>
     tx.commit().await?;
     let bindings:Vec<Value>=sqlx::query_scalar("SELECT to_jsonb(b.*)-'workspace_id'-'created_at' FROM plugin_bindings b WHERE runner_id=$1 AND workspace_id=$2 AND kind='hook' ORDER BY position,id").bind(runner).bind(workspace).fetch_all(pool).await?;
     let cancellations:Vec<String>=sqlx::query_scalar("SELECT request#>>'{params,invocation,id}' FROM plugin_operations WHERE runner_id=$1 AND workspace_id=$2 AND state='cancelled' AND request#>>'{params,invocation,id}' IS NOT NULL ORDER BY updated_at DESC LIMIT 100").bind(runner).bind(workspace).fetch_all(pool).await?;
-    Ok(json!({"items":items,"bindings":bindings,"cancellations":cancellations}))
+    let revoked:Vec<Uuid>=sqlx::query_scalar("SELECT i.id FROM plugin_instances i WHERE i.runner_id=$1 AND i.workspace_id=$2 AND i.enabled AND i.managed_by IS NOT NULL AND NOT EXISTS(SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.user_id=i.managed_by AND m.workspace_id=i.workspace_id AND m.active AND m.role='admin' AND u.active)")
+        .bind(runner).bind(workspace).fetch_all(pool).await?;
+    Ok(
+        json!({"items":items,"bindings":bindings,"cancellations":cancellations,"revoked_instances":revoked}),
+    )
 }
 pub async fn acknowledge(
     pool: &PgPool,

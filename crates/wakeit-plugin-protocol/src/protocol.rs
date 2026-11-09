@@ -10,6 +10,12 @@ pub struct AgentInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
     pub mode: AgentMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<uuid::Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_resource: Option<String>,
     pub digest: String,
     pub available: bool,
     pub version: Option<String>,

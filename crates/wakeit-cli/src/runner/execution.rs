@@ -30,7 +30,19 @@ impl Runner {
                 .map_err(|e| anyhow::anyhow!(e.to_string()))?;
                 return Ok(());
             };
-            self.journal.insert(&assignment, agent).await?;
+            let mut selected = agent.clone();
+            selected
+                .select_instance(
+                    &self.journal.pool,
+                    assignment.task.agent_instance.or_else(|| {
+                        self.config
+                            .agent_instances
+                            .get(&assignment.task.agent)
+                            .copied()
+                    }),
+                )
+                .await?;
+            self.journal.insert(&assignment, &selected).await?;
         }
         let run = self.journal.get(id).await?.context("journal")?;
         let progress_stop = CancellationToken::new();
@@ -116,7 +128,7 @@ impl Runner {
             return Ok(());
         }
         if run.phase == "intent" {
-            let reply=self.post("claim",json!({"run_id":id,"claim_id":run.claim,"runtime_id":self.runtime,"agent_digest":run.agent.digest()})).await?;
+            let reply=self.post("claim",json!({"run_id":id,"claim_id":run.claim,"runtime_id":self.runtime,"agent_digest":run.agent.digest(),"agent_instance":match &run.agent.backend {agent_backend::Backend::SdkBackend(b)=>b.instance_id,_=>None}})).await?;
             if reply["execute"] != true {
                 if reply["state"].as_str().is_some_and(protocol::terminal) {
                     self.journal.phase(id, "done", None).await?;
@@ -149,6 +161,7 @@ impl Runner {
             }
         }
         run.agent.bind_saved_runner(&self.config.data_dir)?;
+        run.agent.runtime = Some(self.extensions.clone());
         if let Err(error) = run.agent.pin_configuration().await {
             let uncertain = run.job.is_some();
             self.state(
@@ -189,7 +202,7 @@ impl Runner {
             return result;
         }
         self.journal.resolved(&run.assignment).await?;
-        self.journal.emit(id,"snapshot",json!({"parameters":run.assignment.task.parameters,"cwd":run.assignment.task.cwd,"agent_digest":run.agent.digest(),"trace_supported":matches!(run.agent.output.format,OutputFormat::Events),"session_supported":run.agent.session_supported(),"session_title":run.session_title,"model":run.assignment.task.parameters.get("model").map(String::as_str).unwrap_or("Agent 默认")}),None).await?;
+        self.journal.emit(id,"snapshot",json!({"parameters":run.assignment.task.parameters,"cwd":run.assignment.task.cwd,"agent_digest":run.agent.digest(),"agent_instance":match &run.agent.backend {agent_backend::Backend::SdkBackend(b)=>b.instance_id,_=>None},"trace_supported":matches!(run.agent.output.format,OutputFormat::Events),"session_supported":run.agent.session_supported(),"session_title":run.session_title,"model":run.assignment.task.parameters.get("model").map(String::as_str).unwrap_or("Agent 默认")}),None).await?;
         if self.journal.cancelled(id).await? {
             self.state(
                 id,
@@ -794,6 +807,7 @@ impl Runner {
         );
         let observation: Result<Value> = async {
             run.agent.bind_saved_runner(&self.config.data_dir)?;
+            run.agent.runtime = Some(self.extensions.clone());
             run.agent.pin_configuration().await?;
             process::validate_cwd(&run.assignment.task.cwd, &self.config.allowed_roots)?;
             if let Some(reason) = run
@@ -1165,6 +1179,7 @@ mod tests {
             journal,
             extensions,
             agents: Arc::new(HashMap::new()),
+            agent_info: Default::default(),
             runtime: Uuid::new_v4(),
             client: reqwest::Client::new(),
             token: Arc::new("synthetic-unused-token".into()),

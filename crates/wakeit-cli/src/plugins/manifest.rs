@@ -235,7 +235,7 @@ pub fn validate(root: &Path) -> Result<Manifest> {
     }
     Ok(manifest)
 }
-pub(super) fn executable(mut path: PathBuf) -> PathBuf {
+pub(crate) fn executable(mut path: PathBuf) -> PathBuf {
     if cfg!(windows) && !path.is_file() && path.extension().is_none() {
         path.set_extension("exe");
     }

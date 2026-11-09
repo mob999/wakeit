@@ -91,14 +91,24 @@ def verify(context):
     agents = api('/agents')
     agent = next(a for a in agents if a['id'] == 'sdk-agent')
     assert agent['available'] and agent['trace_supported'] and agent['models_supported']
-    # Hello advertises metadata before the Runner's query subscription is ready.
-    models = wait(lambda: api(f'/runners/{identity}/agents/sdk-agent/models/query', 'POST', {'cwd': str(context['cwd'])}), 'SDK Agent model query channel')
+    # Hello advertises metadata before the device inventory and query subscription are ready.
+    instance = agent['instance_id']
+    assert instance
+    catalog = f'/runners/{identity}/plugins'
+    advertised = wait(lambda: next((i for i in api(catalog)['instances'] if i['id'] == instance), None), 'default SDK Agent instance inventory')
+    assert advertised['is_default'] and advertised['enabled']
+    models_path = f'/runners/{identity}/agents/sdk-agent/models/query'
+    model_query = {'cwd': str(context['cwd']), 'agent_instance': instance}
+    models = wait(lambda: api(models_path, 'POST', model_query), 'SDK Agent model query channel')
     assert len(models['models']) == 1 and models['models'][0]['id'] == 'synthetic-model'
-    apply(task('sdk-ordinary', 'sdk-agent', 'SDK-only final result'))
+    expect_status(lambda: api(models_path, 'POST', {**model_query, 'agent_instance': '00000000-0000-4000-8000-000000000001'}), 400)
+    ordinary = dict(task('sdk-ordinary', 'sdk-agent', 'SDK-only final result'), agent_instance=instance)
+    apply(ordinary)
     completed = final(trigger('sdk-ordinary'))
     assert completed['result'] == 'SDK-only final result'
     assert completed['execution_snapshot']['parameters']['model'] == 'synthetic-model'
-    check('SDK-only Agent registration, model query and durable ordinary Task result without Agent YAML')
+    assert completed['execution_snapshot']['agent_instance'] == instance
+    check('SDK Agent default instance is advertised and explicit queries and Runs use that instance')
 
     apply(task('sdk-cancel', 'sdk-agent', 'wait-for-cancel'))
     waiting = trigger('sdk-cancel')

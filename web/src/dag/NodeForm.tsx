@@ -99,7 +99,14 @@ export function NodeForm({
               }))}
             onChange={(id) => {
               if (id !== runner?.id)
-                patch({ runner: id, agent: '', cwd: '', parameters: {}, session: null })
+                patch({
+                  runner: id,
+                  agent: '',
+                  agent_instance: undefined,
+                  cwd: '',
+                  parameters: {},
+                  session: null,
+                })
             }}
           />
         </Field>
@@ -119,7 +126,8 @@ export function NodeForm({
                 icon: <AgentLogo name={a.name} logo={a.logo} />,
               }))}
             onChange={(id) => {
-              if (id !== node.agent) patch({ agent: id, parameters: {}, session: null })
+              if (id !== node.agent)
+                patch({ agent: id, agent_instance: undefined, parameters: {}, session: null })
             }}
           />
         </Field>
@@ -136,6 +144,7 @@ export function NodeForm({
         runner={runner}
         agent={agent}
         cwd={node.cwd}
+        agentInstance={node.agent_instance}
         values={node.parameters}
         onOptionsChange={setModelOptions}
         submitting={disabled}
@@ -176,6 +185,7 @@ export function NodeForm({
               agent={agent}
               cwd={node.cwd}
               disabled={disabled}
+              agentInstance={node.agent_instance}
               value={node.session ?? null}
               onChange={(session) => patch({ session })}
             />

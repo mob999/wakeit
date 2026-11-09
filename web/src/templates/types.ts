@@ -21,6 +21,7 @@ export type InputSchema = {
 export type Binding = {
   runner?: string | null
   agent?: string | null
+  agent_instance?: string | null
   parameters?: Record<string, string> | null
 }
 export type TaskBlueprint = Record<string, unknown> & {

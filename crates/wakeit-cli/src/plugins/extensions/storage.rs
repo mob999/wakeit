@@ -32,6 +32,7 @@ END;
     sqlx::query("UPDATE extension_interactions SET state='cancelled' WHERE state='waiting'")
         .execute(pool)
         .await?;
+    super::defaults::initialize(pool).await?;
     Ok(())
 }
 pub async fn get(
@@ -45,9 +46,12 @@ pub async fn get(
         .fetch_one(pool)
         .await?;
     let secrets: serde_json::Map<String, Value> = serde_json::from_str(row.get("secrets"))?;
+    let is_default =
+        super::defaults::selected(pool, row.get("source"), row.get("extension")).await? == Some(id);
     Ok(Instance {
         id,
         runner_id: runner,
+        is_default,
         source: row.get("source"),
         extension: row.get("extension"),
         name: row.get("name"),

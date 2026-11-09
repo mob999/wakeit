@@ -4304,6 +4304,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wakeit-core",
+ "wakeit-plugin-protocol",
 ]
 
 [[package]]

@@ -45,6 +45,7 @@ type Instance = {
   enabled: boolean
   revision: number
   applied_revision?: number
+  is_default?: boolean
   config?: unknown
   grants: string[]
   credential_status: Record<string, boolean>
@@ -195,7 +196,12 @@ export function RunnerPlugins({
             <div className="plugin-title">
               <div>
                 <h2>{instance.name}</h2>
-                <span className="text-muted">{instance.version}</span>
+                <span className="text-muted">
+                  {instance.version}
+                  {instance.is_default && Object.keys(instance.declaration.agents ?? {}).length > 0
+                    ? ` · ${tr('plugins.defaultInstance')}`
+                    : ''}
+                </span>
               </div>
               <div className="plugin-title-actions">
                 <span className="text-muted">
@@ -218,6 +224,11 @@ export function RunnerPlugins({
                 {admin && (
                   <PluginPackageActions
                     instance={instance}
+                    canSetDefault={
+                      instance.is_default === false &&
+                      instance.enabled &&
+                      Object.keys(instance.declaration.agents ?? {}).length > 0
+                    }
                     upgradeGrants={
                       catalog.data?.packages.find((p) => p.source === instance.source)?.extensions[
                         instance.extension

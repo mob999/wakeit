@@ -8,7 +8,7 @@ use wakeit::{
     process::LogSink,
     protocol::Assignment,
     runner::{
-        agent_backend::{Agent, SdkBackend},
+        agent_backend::{Agent, Backend, SdkBackend},
         journal::Journal,
     },
 };
@@ -16,6 +16,33 @@ use wakeit_plugin_protocol::{
     adapter::{AgentDescriptor, AgentOperation},
     agent::AgentMode,
 };
+
+// Isolate stdio composition from package discovery and Gateway registration. The
+// Runner still resolves the invocation against a real enabled instance in SQLite.
+async fn bind_fixture_instance(
+    journal: &Journal,
+    data: &std::path::Path,
+    agent: &mut Agent,
+    declaration: &Value,
+) {
+    let Backend::SdkBackend(backend) = &agent.backend else {
+        unreachable!()
+    };
+    sqlx::query("CREATE TABLE extension_instances(id TEXT PRIMARY KEY, source TEXT, extension TEXT, root TEXT, version TEXT, revision INTEGER, enabled INTEGER, removed INTEGER, grants TEXT, declaration TEXT, config TEXT, secrets TEXT)")
+        .execute(&journal.pool).await.unwrap();
+    let instance = Uuid::new_v4();
+    sqlx::query("INSERT INTO extension_instances VALUES(?,?,?,?,?,1,1,0,'[]',?,'{}','{}')")
+        .bind(instance.to_string())
+        .bind(&backend.source)
+        .bind(&backend.plugin)
+        .bind(backend.root.to_str().unwrap())
+        .bind(&backend.version)
+        .bind(declaration.to_string())
+        .execute(&journal.pool)
+        .await
+        .unwrap();
+    agent.bind_runner(data, Some(instance)).unwrap();
+}
 
 #[tokio::test]
 async fn real_sdk_output_reaches_runner_result_and_failed_output_is_not_published() {
@@ -61,7 +88,7 @@ await new Plugin().agent('synthetic', agent).serve();
             descriptor = serde_json::to_string(&descriptor).unwrap()
         );
         std::fs::write(path.join("adapter.ts"), script).unwrap();
-        let agent = Agent::sdk(SdkBackend {
+        let mut agent = Agent::sdk(SdkBackend {
             id: "synthetic".into(),
             plugin: "synthetic".into(),
             descriptor,
@@ -74,6 +101,7 @@ await new Plugin().agent('synthetic', agent).serve();
                 &path.join("adapter.ts"),
             )],
             instance_id: None,
+            legacy_stateless: false,
             runtime_directory: None,
             configuration: None,
         })
@@ -84,6 +112,7 @@ await new Plugin().agent('synthetic', agent).serve();
             name: "Synthetic task".into(),
             runner: "synthetic-device".into(),
             agent: "synthetic".into(),
+            agent_instance: None,
             cwd: path.to_string_lossy().into(),
             prompt: "synthetic prompt".into(),
             parameters: BTreeMap::new(),
@@ -98,6 +127,7 @@ await new Plugin().agent('synthetic', agent).serve();
         let data = path.join("data");
         std::fs::create_dir_all(&data).unwrap();
         let journal = Journal::open(&data, runner).await.unwrap();
+        bind_fixture_instance(&journal, &data, &mut agent, &declaration).await;
         journal
             .insert(
                 &Assignment {
@@ -141,8 +171,8 @@ await new Plugin().agent('synthetic', agent).serve();
 }
 
 #[cfg(unix)]
-#[test]
-fn installed_official_agent_uses_the_sdk_runner_path_with_synthetic_native_io() {
+#[tokio::test]
+async fn installed_official_agent_uses_the_sdk_runner_path_with_synthetic_native_io() {
     use std::{fs, os::unix::fs::PermissionsExt, process::Command};
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let local = source.join(".local/sdk-agent-integration");
@@ -231,7 +261,7 @@ process.stdin.on('end',()=>{
         manifest["wakeit"]["plugins"]["official"]["agents"]["copilot"].clone(),
     )
     .unwrap();
-    let agent = Agent::sdk(SdkBackend {
+    let mut agent = Agent::sdk(SdkBackend {
         id: "copilot".into(),
         plugin: "official".into(),
         descriptor,
@@ -242,10 +272,21 @@ process.stdin.on('end',()=>{
         command: program,
         args: vec!["sdk".into()],
         instance_id: None,
+        legacy_stateless: false,
         runtime_directory: None,
         configuration: None,
     })
     .unwrap();
+    let data = root.join("data");
+    let journal = Journal::open(&data, Uuid::new_v4()).await.unwrap();
+    bind_fixture_instance(
+        &journal,
+        &data,
+        &mut agent,
+        &manifest["wakeit"]["plugins"]["official"],
+    )
+    .await;
+    journal.pool.close().await;
     let snapshot = root.join("backend.json");
     fs::write(&snapshot, serde_json::to_vec(&agent).unwrap()).unwrap();
     let output = cli(&[

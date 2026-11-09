@@ -171,36 +171,13 @@ Code versions and ordinary configuration revisions are recorded for invocations.
 
 Remote package installation/update/removal requires the device owner's explicit policy. Set `{"remote_package_management":true}` in `DATA_DIR/plugins-policy.json` to allow workspace administrators to request those operations. Configuration and instance management do not require granting arbitrary remote shell access.
 
-### Bind a configured SDK Agent to a local instance
+### Choose an instance for an SDK Agent
 
-Runner configuration version 1 supports `agent_instances`, an optional map from Agent ID to a local plugin instance UUID; omitting it is equivalent to an empty map. Official Agents need no instance or binding by default because they have no instance-specific configuration or credentials. A configured SDK Agent must have an explicit binding; neither a matching display name nor the first item in a list selects an instance.
+SDK Agents always run through a plugin instance. On startup Runner creates a default instance for each installed plugin resource that has no instances. Official Agents are bundled and use the same rule. A new default is enabled automatically only if its initial configuration is valid and it declares no credentials or permissions. If a plugin already has exactly one instance, Runner keeps its settings and uses it as the default. Runner does not re-enable disabled instances or recreate a removed default.
 
-1. Install the package on the executing Runner and use **Devices → device → Plugins**, or the CLI commands above, to create an instance on that device. Select the installed `source` and the plugin resource key from `wakeit.plugins` (the management API calls that key `extension`). Configure its declared fields and credential slots, grant the required declared permissions, and enable the instance.
-2. Obtain the instance UUID from the creation response or `plugin instance --runner RUNNER_ID catalog`. Bind it to the Agent ID in that Runner's local `runner.yaml`, not in a Task or Agent parameter.
-3. Save the file and apply it through the existing Runner configuration reload procedure; current Runner configuration changes take effect after restarting Runner. Saving the file does not switch an already-started Run to another instance.
+Use **Devices → device → Plugins** to configure the instance, authorize the required permissions and enable it. If you have more than one instance, choose **Set as default** from the enabled instance's menu. Changing the default only affects new Runs that have no explicit binding.
 
-For example, for a plugin whose configuration schema declares an `endpoint` string, a CLI creation file can contain the following. Replace `SOURCE_FROM_CATALOG`, the resource key, configuration and grants with those of the installed plugin; the UUID below is synthetic:
-
-```json
-{
-  "instance_id": "8c311e35-4bec-4fc4-a6ae-f3654b3ff8b4",
-  "source": "SOURCE_FROM_CATALOG",
-  "extension": "example",
-  "name": "Work account",
-  "config": {"endpoint": "https://service.example.com"},
-  "grants": []
-}
-```
-
-After configuring and enabling that instance, merge this binding into the existing Runner configuration:
-
-```yaml
-version: 1
-agent_instances:
-  example: 8c311e35-4bec-4fc4-a6ae-f3654b3ff8b4
-```
-
-`example` here is the Agent ID, not the instance display name. The selected instance must belong to the same Runner, installed source, plugin resource and package version as the Agent. Missing, disabled, removed or mismatched instances produce an error rather than falling back to another instance. These UUIDs are operational configuration references, not content to add to task instructions or everyday reports.
+For automation, Task and DAG node configuration can set `agent_instance` to an instance UUID from the device catalog. This overrides `agent_instances`, the optional map from Agent ID to instance UUID in the local version-1 `runner.yaml`. If neither is set, Runner uses the default. The selected instance must belong to the same Runner, installed source and plugin resource as the Agent. If it is missing, disabled or mismatched, Runner does not substitute another instance. Legacy command Agents do not use plugin instances.
 
 Runner pins non-secret configuration and its revision in the Run-local snapshot. `config.get` reads that pinned value, not the latest edited configuration. Credentials are never copied into the snapshot: `credentials.get` reads only a declared slot, on demand, while checking the instance's current availability and permissions. Changing code or ordinary configuration does not replace the pinned execution context: retained version resources and configuration snapshots remain usable for saved jobs and sessions. Unchanged credentials can still be read across a package upgrade; rotating or clearing a credential denies the older invocation access to that slot, and a new authorized invocation is required. Disabling/removing the instance or revoking required permissions blocks further host reads even when a snapshot exists. Revocation does not erase values already handed to trusted local code or rewrite an existing Run's snapshot.
 

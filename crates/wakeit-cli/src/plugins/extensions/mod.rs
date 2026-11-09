@@ -4,11 +4,12 @@ use self::peer::Peer;
 use self::storage as store;
 use super::manifest;
 mod auth;
+pub(crate) mod defaults;
 mod files;
-mod host;
+pub(crate) mod host;
 mod management;
 mod peer;
-mod storage;
+pub(crate) mod storage;
 mod watch;
 use crate::runner::{config::RunnerConfig, journal::Journal};
 use anyhow::{Context, Result, bail, ensure};
@@ -27,17 +28,40 @@ pub struct Runtime {
     peers: Arc<Mutex<HashMap<Uuid, Peer>>>,
     invocation_slots: Arc<tokio::sync::Semaphore>,
     calls: Arc<Mutex<HashMap<Uuid, CancellationToken>>>,
+    agent_calls: Arc<Mutex<HashMap<Uuid, (Uuid, CancellationToken)>>>,
     responses: Arc<Mutex<HashMap<String, Value>>>,
     watches: Arc<Mutex<HashMap<Uuid, watch::Watch>>>,
     http: reqwest::Client,
     token: Arc<String>,
     stop: CancellationToken,
+    changed: Arc<tokio::sync::Notify>,
+}
+impl std::fmt::Debug for Runtime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PluginRuntime")
+    }
 }
 impl Runtime {
     pub async fn new(
         config: Arc<RunnerConfig>,
         journal: Journal,
         stop: CancellationToken,
+    ) -> Result<Self> {
+        Self::open(config, journal, stop, true).await
+    }
+    /// Attach to an initialized Runner for an explicit local continuation, without bootstrapping defaults.
+    pub async fn existing(
+        config: Arc<RunnerConfig>,
+        journal: Journal,
+        stop: CancellationToken,
+    ) -> Result<Self> {
+        Self::open(config, journal, stop, false).await
+    }
+    async fn open(
+        config: Arc<RunnerConfig>,
+        journal: Journal,
+        stop: CancellationToken,
+        bootstrap: bool,
     ) -> Result<Self> {
         crate::runner::config::private_directory(&config.data_dir)?;
         #[cfg(unix)]
@@ -48,20 +72,156 @@ impl Runtime {
                 std::fs::Permissions::from_mode(0o600),
             )?;
         }
-        store::initialize(&journal.pool).await?;
-        self::auth::initialize(&journal.pool).await?;
-        Ok(Self {
+        // Only the Runner startup owns recovery of in-flight extension state.
+        if bootstrap {
+            store::initialize(&journal.pool).await?;
+            self::auth::initialize(&journal.pool).await?;
+        }
+        let runtime = Self {
             responses: Default::default(),
             watches: Default::default(),
             token: Arc::new(std::fs::read_to_string(&config.token_file)?),
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()?,
             config,
             journal,
             peers: Default::default(),
             invocation_slots: Arc::new(tokio::sync::Semaphore::new(32)),
             calls: Default::default(),
+            agent_calls: Default::default(),
             stop,
-        })
+            changed: Default::default(),
+        };
+        if bootstrap {
+            runtime.ensure_defaults().await?;
+        }
+        Ok(runtime)
+    }
+    pub async fn ensure_defaults(&self) -> Result<()> {
+        let mut installed = Vec::new();
+        for package in super::packages(&super::registry()?, self.config.bundled_agents)? {
+            let manifest = manifest::read(&package.root)?;
+            let source = package.source.identity();
+            for (resource, declaration) in &manifest.wakeit.plugins {
+                defaults::ensure(
+                    &self.journal.pool,
+                    &source,
+                    resource,
+                    &package.root,
+                    &manifest.version,
+                    declaration,
+                )
+                .await?;
+                installed.push((source.clone(), resource.clone()));
+            }
+        }
+        defaults::retain_installed(&self.journal.pool, &installed).await?;
+        defaults::migrate_history(&self.journal.pool, &self.config.data_dir).await?;
+        Ok(())
+    }
+    pub async fn changed(&self) {
+        self.changed.notified().await;
+    }
+    pub async fn register_agent(
+        &self,
+        instance: Uuid,
+        request: Uuid,
+        operation: wakeit_plugin_protocol::adapter::AgentOperation,
+        run: Option<Uuid>,
+        cancel: CancellationToken,
+    ) -> Result<()> {
+        use wakeit_plugin_protocol::adapter::AgentOperation;
+        let metadata: String =
+            sqlx::query_scalar("SELECT declaration FROM extension_instances WHERE id=?")
+                .bind(instance.to_string())
+                .fetch_one(&self.journal.pool)
+                .await?;
+        let declaration: Extension = serde_json::from_str(&metadata)?;
+        let cleanup = run.is_some()
+            && matches!(
+                operation,
+                AgentOperation::Cancel | AgentOperation::Reconcile
+            );
+        if !cleanup && (!declaration.permissions.is_empty() || !declaration.credentials.is_empty())
+        {
+            self.require_agent_grants(instance, &declaration.permissions)
+                .await?;
+        }
+        let mut calls = self.agent_calls.lock().await;
+        let row = sqlx::query("SELECT enabled,removed FROM extension_instances WHERE id=?")
+            .bind(instance.to_string())
+            .fetch_optional(&self.journal.pool)
+            .await?
+            .context("plugin instance is unavailable")?;
+        ensure!(
+            cleanup || (row.get::<i64, _>("enabled") != 0 && row.get::<i64, _>("removed") == 0),
+            "plugin instance is disabled or removed"
+        );
+        calls.insert(request, (instance, cancel));
+        Ok(())
+    }
+    pub async fn unregister_agent(&self, request: Uuid) {
+        self.agent_calls.lock().await.remove(&request);
+    }
+    pub async fn cancel_agents(&self, instance: Uuid) {
+        for (owner, stop) in self.agent_calls.lock().await.values() {
+            if *owner == instance {
+                stop.cancel();
+            }
+        }
+    }
+    pub async fn authorized_grants(&self, instance: Uuid) -> Result<Vec<String>> {
+        let result = self
+            .remote(instance, "runtime.authorize", json!({}))
+            .await?;
+        Ok(serde_json::from_value(result["grants"].clone())?)
+    }
+    pub async fn require_agent_grants(&self, instance: Uuid, permissions: &[String]) -> Result<()> {
+        let grants = self.authorized_grants(instance).await?;
+        ensure!(
+            permissions
+                .iter()
+                .all(|permission| grants.contains(permission)),
+            "Agent instance permission was not granted or has been revoked"
+        );
+        Ok(())
+    }
+    pub async fn agent_host_call(
+        &self,
+        backend: &crate::runner::agent_backend::SdkBackend,
+        declaration: &Extension,
+        configuration: &crate::runner::agent_backend::ConfigurationSnapshot,
+        context: (
+            wakeit_plugin_protocol::adapter::AgentRequest,
+            CancellationToken,
+            Arc<std::sync::atomic::AtomicBool>,
+        ),
+        method: &str,
+        mut params: Value,
+    ) -> Result<Value> {
+        use self::peer::Host;
+        let id = backend.instance_id.context("Agent instance required")?;
+        let mut snapshot = self.instance(id).await?;
+        snapshot.revision = configuration.revision;
+        snapshot.config = configuration.value.clone();
+        snapshot.version = backend.version.clone();
+        snapshot.declaration = declaration.clone();
+        // Agent callbacks cannot impersonate an action or another invocation.
+        let fields = params
+            .as_object_mut()
+            .context("host API parameters must be an object")?;
+        fields.remove("invocation_id");
+        fields.remove("agent_request_id");
+        fields.remove("instance_id");
+        InstanceHost {
+            runtime: self.clone(),
+            instance: id,
+            snapshot,
+            agent_context: Some(context),
+        }
+        .request(method.into(), params)
+        .await
     }
     fn declaration(&self, source: &str, id: &str) -> Result<(PathBuf, String, Extension)> {
         let identity = if source.starts_with("local:") {
@@ -103,7 +263,7 @@ impl Runtime {
             }
         }
         Ok(
-            json!({"packages":packages,"instances":instances,"sdk_protocol":1,"runner_id":self.config.id,"remote_management":self.remote_management()}),
+            json!({"packages":packages,"instances":instances,"sdk_protocol":1,"instance_protocol":1,"runner_id":self.config.id,"remote_management":self.remote_management()}),
         )
     }
     async fn instance(&self, id: Uuid) -> Result<Instance> {
@@ -135,6 +295,7 @@ impl Runtime {
                 runtime: self.clone(),
                 instance: instance.id,
                 snapshot: instance.clone(),
+                agent_context: None,
             }),
         )
         .await?;
@@ -273,7 +434,12 @@ impl Runtime {
             .or(params["invocation"]["instance_id"].as_str())
             .and_then(|s| s.parse::<Uuid>().ok());
         match self.control_inner(method, params).await {
-            Ok(v) => Ok(v),
+            Ok(v) => {
+                if !["catalog", "activity", "operation", "file_read"].contains(&method) {
+                    self.changed.notify_one();
+                }
+                Ok(v)
+            }
             Err(e) => {
                 if let Some(id) = id {
                     Err(anyhow::anyhow!(self.redact(id, &e.to_string()).await))
@@ -775,6 +941,15 @@ impl Runtime {
             let Ok(commands) = response.json::<Value>().await else {
                 continue;
             };
+            for id in commands["revoked_instances"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .filter_map(|id| id.parse::<Uuid>().ok())
+            {
+                self.control("disable", json!({"instance_id":id})).await?;
+            }
             for id in commands["cancellations"]
                 .as_array()
                 .into_iter()

@@ -238,6 +238,7 @@ fn sdk_agent(
         .collect();
     Agent::sdk(SdkBackend {
         instance_id: None,
+        legacy_stateless: false,
         runtime_directory: None,
         configuration: None,
         id: id.into(),

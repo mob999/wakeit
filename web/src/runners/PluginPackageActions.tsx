@@ -6,12 +6,14 @@ import { Button, IconButton, Modal } from '../components/ui'
 export function PluginPackageActions({
   instance,
   allowInstall,
+  canSetDefault,
   disabled,
   upgradeGrants,
   mutate,
 }: {
   instance?: { id: string; enabled: boolean }
   allowInstall?: boolean
+  canSetDefault?: boolean
   disabled: boolean
   upgradeGrants?: string[]
   mutate: (action: string, params: Record<string, unknown>) => Promise<unknown>
@@ -39,6 +41,15 @@ export function PluginPackageActions({
           <ActionMenuItem icon="refresh" disabled={disabled} onSelect={() => setAction('upgrade')}>
             {tr('plugins.upgrade')}
           </ActionMenuItem>
+          {canSetDefault && (
+            <ActionMenuItem
+              icon="check"
+              disabled={disabled}
+              onSelect={() => void mutate('set_default', { instance_id: instance.id })}
+            >
+              {tr('plugins.setDefault')}
+            </ActionMenuItem>
+          )}
           <ActionMenuSeparator />
           <ActionMenuItem
             icon="archive"

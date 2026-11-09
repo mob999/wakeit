@@ -31,6 +31,8 @@ pub struct BindingSlot {
 pub struct Binding {
     pub runner: Option<String>,
     pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_instance: Option<uuid::Uuid>,
     pub parameters: Option<BTreeMap<String, String>>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

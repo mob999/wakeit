@@ -1,5 +1,5 @@
 /** Agent capability protocol. It never grants a plugin authority to set Run state. */
-import type { Json, ObjectValue } from './index.ts'
+import type { Json, ObjectValue, RuntimeInfo } from './index.ts'
 
 export type AgentOperation = 'detect' | 'execute' | 'submit' | 'poll' | 'cancel' | 'reconcile' | 'models'
   | 'session_list' | 'session_inspect' | 'session_resume' | 'session_rename' | 'session_interactive'
@@ -88,7 +88,7 @@ export class AgentContext {
   readonly signal: AbortSignal
   /** @internal Also stops outstanding host work when the request has completed. */
   readonly workSignal: AbortSignal
-  private readonly call: HostCall
+  private readonly hostCall: HostCall
   private readonly requestId: string
   private readonly runId?: string
   private readonly execution: boolean
@@ -97,7 +97,7 @@ export class AgentContext {
   private finished = false
   private output: Promise<void> = Promise.resolve()
   constructor(request: AgentRequest, signal: AbortSignal, call: HostCall) {
-    this.request = request; this.signal = signal; this.call = call
+    this.request = request; this.signal = signal; this.hostCall = call
     this.requestId = request.id; this.runId = request.context.run_id
     this.execution = isExecution(request.operation)
     this.workSignal = AbortSignal.any([signal, this.outputController.signal])
@@ -113,7 +113,7 @@ export class AgentContext {
     // Bind identity at construction, and snapshot payloads before waiting for an ACK.
     const write = this.output.then(async () => {
       this.outputController.signal.throwIfAborted()
-      await this.call(method, {
+      await this.hostCall(method, {
         request_id: this.requestId, run_id: this.runId!, seq: this.sequence, [field]: value,
       }, this.outputController.signal)
       this.sequence++
@@ -211,12 +211,17 @@ export class AgentContext {
   log(log: LogRecord) { return this.record({ version: 1, type: 'log', data: log }) }
   session(session: SessionInfo) { return this.record({ version: 1, type: 'session', data: session }) }
   result(result: Json) { return this.record({ version: 1, type: 'result', data: result }) }
+  callHost<T = Json>(method: string, params: ObjectValue = {}) {
+    this.assertActive()
+    return this.hostCall<T>(method, { ...params, agent_request_id: this.requestId }, this.workSignal)
+  }
+  runtimeInfo() { return this.callHost<RuntimeInfo>('runtime.info') }
   config<T = ObjectValue>() {
     this.assertActive()
-    return this.call<{ value: T; revision: number }>('config.get', { agent_request_id: this.requestId }, this.workSignal)
+    return this.hostCall<{ value: T; revision: number }>('config.get', { agent_request_id: this.requestId }, this.workSignal)
   }
   credential(slot: string) {
     this.assertActive()
-    return this.call<Json>('credentials.get', { slot, agent_request_id: this.requestId }, this.workSignal)
+    return this.hostCall<Json>('credentials.get', { slot, agent_request_id: this.requestId }, this.workSignal)
   }
 }

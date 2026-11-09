@@ -8,6 +8,20 @@ use uuid::Uuid;
 
 pub const SDK_PROTOCOL: u32 = 1;
 
+/// Safe instance context. The URL is Gateway-advertised, never the private Runner connection.
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct RuntimeInfo {
+    pub runner_id: Uuid,
+    pub instance_id: Uuid,
+    pub sdk_protocol: u32,
+    pub version: String,
+    pub platform: String,
+    pub arch: String,
+    pub invocation_id: Option<Uuid>,
+    #[serde(default)]
+    pub public_url: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Extension {
@@ -108,6 +122,8 @@ pub struct Provider {
 pub struct Instance {
     pub id: Uuid,
     pub runner_id: Uuid,
+    #[serde(default)]
+    pub is_default: bool,
     pub source: String,
     pub extension: String,
     pub name: String,
@@ -694,6 +710,7 @@ mod tests {
 
 #[derive(Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Contract {
+    pub runtime_info: RuntimeInfo,
     pub agent_descriptor: crate::adapter::AgentDescriptor,
     pub agent_request: crate::adapter::AgentRequest,
     pub agent_reply: crate::adapter::AgentReply,

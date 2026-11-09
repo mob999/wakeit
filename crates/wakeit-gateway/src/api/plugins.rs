@@ -17,6 +17,29 @@ use sqlx::Row;
 use uuid::Uuid;
 use wakeit_core::extensions::{Actor, Binding, Invocation};
 
+async fn sync_instance(
+    s: &App,
+    workspace: Uuid,
+    runner: Uuid,
+    instance: &wakeit_core::extensions::Instance,
+) -> Result<()> {
+    if instance.runner_id != runner {
+        return Err(Error::bad("plugin instance belongs to another Runner"));
+    }
+    let result=sqlx::query("INSERT INTO plugin_instances(id,workspace_id,runner_id,source,extension,name,version,enabled,state,revision,grants,declaration,managed_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'[]',$11,NULL) ON CONFLICT(id) DO UPDATE SET state=excluded.state,enabled=excluded.enabled,revision=excluded.revision,version=excluded.version,declaration=excluded.declaration,updated_at=now() WHERE plugin_instances.runner_id=excluded.runner_id AND plugin_instances.workspace_id=excluded.workspace_id AND plugin_instances.source=excluded.source AND plugin_instances.extension=excluded.extension AND plugin_instances.revision<=excluded.revision AND plugin_instances.state!='removed'")
+        .bind(instance.id).bind(workspace).bind(runner).bind(&instance.source).bind(&instance.extension).bind(&instance.name).bind(&instance.version).bind(instance.enabled).bind(&instance.state).bind(instance.revision).bind(json!(instance.declaration)).execute(&s.pool).await?;
+    if result.rows_affected() == 0 {
+        let same_identity: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_instances WHERE id=$1 AND workspace_id=$2 AND runner_id=$3 AND source=$4 AND extension=$5)")
+            .bind(instance.id).bind(workspace).bind(runner).bind(&instance.source).bind(&instance.extension).fetch_one(&s.pool).await?;
+        if !same_identity {
+            return Err(Error::conflict(
+                "plugin instance inventory identity changed",
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Deserialize, schemars::JsonSchema)]
 pub(crate) struct Control {
     pub action: String,
@@ -142,6 +165,25 @@ pub(crate) async fn control(
             ));
         }
     }
+    if !read
+        && body.action != "create"
+        && body.action != "invoke"
+        && let Some(id) = body.params["instance_id"]
+            .as_str()
+            .and_then(|v| v.parse::<Uuid>().ok())
+    {
+        let exists:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_instances WHERE id=$1 AND runner_id=$2 AND workspace_id=$3)").bind(id).bind(runner).bind(workspace).fetch_one(&s.pool).await?;
+        if !exists {
+            let inventory = rpc(&s, workspace, runner, "catalog", json!({})).await?;
+            let value = inventory["instances"]
+                .as_array()
+                .and_then(|items| items.iter().find(|i| i["id"] == json!(id)))
+                .ok_or_else(Error::missing)?;
+            let instance: wakeit_core::extensions::Instance = serde_json::from_value(value.clone())
+                .map_err(|_| Error::bad("invalid plugin instance inventory"))?;
+            sync_instance(&s, workspace, runner, &instance).await?;
+        }
+    }
     if !read && body.action == "invoke" {
         let mut invocation: Invocation = serde_json::from_value(body.params["invocation"].clone())
             .map_err(|e| Error::bad(e.to_string()))?;
@@ -176,6 +218,14 @@ pub(crate) async fn control(
         ));
     }
     let params = body.params.clone();
+    if body.action == "enable" {
+        let instance: Uuid = serde_json::from_value(params["instance_id"].clone())
+            .map_err(|_| Error::bad("instance required"))?;
+        // An unowned, unprivileged instance can acquire its administrator at activation.
+        // Never change an existing delegation without an explicit authorization request.
+        sqlx::query("UPDATE plugin_instances SET managed_by=$4 WHERE id=$1 AND runner_id=$2 AND workspace_id=$3 AND managed_by IS NULL AND grants='[]'::jsonb AND state!='removed'")
+            .bind(instance).bind(runner).bind(workspace).bind(actor.id).execute(&s.pool).await?;
+    }
     let mut value = rpc(&s, workspace, runner, &body.action, body.params).await?;
     if actor.role != "admin"
         && body.action == "catalog"
@@ -206,13 +256,19 @@ pub(crate) async fn control(
             .ok_or_else(|| Error::bad("instance required"))?
             .parse()
             .map_err(|_| Error::bad("invalid instance"))?;
-        sqlx::query("UPDATE plugin_instances SET grants=$4 WHERE id=$1 AND runner_id=$2 AND workspace_id=$3").bind(id).bind(runner).bind(workspace).bind(&params["grants"]).execute(&s.pool).await?;
+        sqlx::query("UPDATE plugin_instances SET grants=$4,managed_by=$5 WHERE id=$1 AND runner_id=$2 AND workspace_id=$3 AND state!='removed'").bind(id).bind(runner).bind(workspace).bind(&params["grants"]).bind(actor.id).execute(&s.pool).await?;
         sqlx::query("UPDATE plugin_bindings SET enabled=false,revision=revision+1 WHERE instance_id=$1 AND workspace_id=$2 AND NOT ($3::jsonb ? CASE WHEN kind='hook' THEN 'hooks:'||event ELSE 'events:read' END)").bind(id).bind(workspace).bind(&params["grants"]).execute(&s.pool).await?;
     }
     if body.action == "create" {
         let instance: wakeit_core::extensions::Instance = serde_json::from_value(value.clone())?;
-        sqlx::query("INSERT INTO plugin_instances(id,workspace_id,runner_id,source,extension,name,version,revision,grants,declaration,managed_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO NOTHING")
-            .bind(instance.id).bind(workspace).bind(runner).bind(instance.source).bind(instance.extension).bind(instance.name).bind(instance.version).bind(instance.revision).bind(json!(instance.grants)).bind(json!(instance.declaration)).bind(actor.id).execute(&s.pool).await?;
+        sync_instance(&s, workspace, runner, &instance).await?;
+        // The inventory poll may have already discovered the newly created instance.
+        // It cannot grant authority; only the grants explicitly confirmed in this request can.
+        let requested_grants = params.get("grants").cloned().unwrap_or_else(|| json!([]));
+        if json!(instance.grants) == requested_grants {
+            sqlx::query("UPDATE plugin_instances SET grants=$4,managed_by=$5 WHERE id=$1 AND runner_id=$2 AND workspace_id=$3 AND managed_by IS NULL AND state!='removed'")
+                .bind(instance.id).bind(runner).bind(workspace).bind(requested_grants).bind(actor.id).execute(&s.pool).await?;
+        }
     }
     Ok(Json(value))
 }
@@ -415,10 +471,13 @@ pub(crate) async fn poll(
     }
     if let Some(instances) = body["instances"].as_array_mut() {
         for instance in instances {
-            let Some(id) = instance["id"].as_str().and_then(|v| v.parse::<Uuid>().ok()) else {
+            let Some(_id) = instance["id"].as_str().and_then(|v| v.parse::<Uuid>().ok()) else {
                 continue;
             };
-            sqlx::query("UPDATE plugin_instances SET state=$4,enabled=$5,revision=$6,version=$7,updated_at=now() WHERE id=$1 AND runner_id=$2 AND workspace_id=$3").bind(id).bind(runner).bind(workspace).bind(instance["state"].as_str().unwrap_or("unavailable")).bind(instance["enabled"]==true).bind(instance["revision"].as_i64().unwrap_or(1)).bind(instance["version"].as_str().unwrap_or("unknown")).execute(&s.pool).await?;
+            let parsed: wakeit_core::extensions::Instance =
+                serde_json::from_value(instance.clone())
+                    .map_err(|_| Error::bad("invalid plugin instance inventory"))?;
+            sync_instance(&s, workspace, runner, &parsed).await?;
             instance.as_object_mut().map(|i| i.remove("config"));
         }
     }
@@ -624,10 +683,15 @@ pub(crate) async fn host_api(
         .ok_or_else(|| Error::bad("instance required"))?
         .parse()
         .map_err(|_| Error::bad("invalid instance"))?;
-    let row=sqlx::query("SELECT i.* FROM plugin_instances i JOIN workspace_members m ON m.workspace_id=i.workspace_id AND m.user_id=i.managed_by WHERE i.id=$1 AND i.runner_id=$2 AND i.workspace_id=$3 AND i.enabled AND m.active AND m.role='admin'").bind(instance).bind(runner).bind(workspace).fetch_optional(&s.pool).await?.ok_or_else(||Error(StatusCode::FORBIDDEN,"extension permission revoked".into()))?;
     let method = body["method"]
         .as_str()
         .ok_or_else(|| Error::bad("method required"))?;
+    let row=sqlx::query("SELECT i.* FROM plugin_instances i JOIN workspace_members m ON m.workspace_id=i.workspace_id AND m.user_id=i.managed_by JOIN users u ON u.id=m.user_id AND u.active WHERE i.id=$1 AND i.runner_id=$2 AND i.workspace_id=$3 AND (i.enabled OR $4) AND i.state!='removed' AND m.active AND m.role='admin'")
+        .bind(instance).bind(runner).bind(workspace).bind(method=="runtime.authorize").fetch_optional(&s.pool).await?.ok_or_else(||Error(StatusCode::FORBIDDEN,"extension permission revoked".into()))?;
+    if method == "runtime.authorize" {
+        return Ok(Json(json!({"grants":row.get::<Value,_>("grants")})));
+    }
+
     let grants: Vec<String> = serde_json::from_value(row.get("grants"))?;
     if method == "files.device_read" {
         if !grants.contains(&"files:read".into()) {

@@ -529,6 +529,7 @@ fn binding(
     let value = Binding {
         runner: supplied.runner.or(defaults.runner),
         agent: supplied.agent.or(defaults.agent),
+        agent_instance: supplied.agent_instance.or(defaults.agent_instance),
         parameters: supplied.parameters.or(defaults.parameters),
     };
     for (field, present) in [
@@ -635,6 +636,7 @@ pub fn compile(definition: &Definition, request: &InstanceRequest) -> Preview {
         }),
         runner: String::new(),
         agent: String::new(),
+        agent_instance: None,
         cwd: String::new(),
         prompt: String::new(),
         parameters: BTreeMap::new(),
@@ -807,6 +809,7 @@ pub fn compile(definition: &Definition, request: &InstanceRequest) -> Preview {
                 pre,
                 runner: bound.runner.clone().unwrap_or_default(),
                 agent: bound.agent.clone().unwrap_or_default(),
+                agent_instance: bound.agent_instance,
                 cwd: render(
                     &env,
                     &n.body.cwd,
@@ -865,6 +868,7 @@ pub fn compile(definition: &Definition, request: &InstanceRequest) -> Preview {
         let bound = binding(definition, request, slot, &mut preview.issues);
         config.runner = bound.runner.unwrap_or_default();
         config.agent = bound.agent.unwrap_or_default();
+        config.agent_instance = bound.agent_instance;
         config.parameters = bound.parameters.unwrap_or_default();
         config.cwd = render(
             &env,
@@ -917,9 +921,12 @@ pub fn compile(definition: &Definition, request: &InstanceRequest) -> Preview {
 pub fn from_task(task: &TaskConfig) -> anyhow::Result<Definition> {
     let mut bindings = BTreeMap::<String, BindingSlot>::new();
     let mut slots = BTreeMap::<String, String>::new();
-    let mut slot = |runner: &str, agent: &str, parameters: &BTreeMap<String, String>| {
-        let key =
-            serde_json::to_string(&(runner, agent, parameters)).expect("binding serialization");
+    let mut slot = |runner: &str,
+                    agent: &str,
+                    parameters: &BTreeMap<String, String>,
+                    agent_instance: Option<uuid::Uuid>| {
+        let key = serde_json::to_string(&(runner, agent, parameters, agent_instance))
+            .expect("binding serialization");
         if let Some(name) = slots.get(&key) {
             return name.clone();
         }
@@ -931,6 +938,7 @@ pub fn from_task(task: &TaskConfig) -> anyhow::Result<Definition> {
                 defaults: Binding {
                     runner: Some(runner.into()),
                     agent: Some(agent.into()),
+                    agent_instance,
                     parameters: Some(parameters.clone()),
                 },
             },
@@ -978,7 +986,7 @@ pub fn from_task(task: &TaskConfig) -> anyhow::Result<Definition> {
                 when: None,
                 node: None,
                 name: Some(Text::Literal(n.name.clone())),
-                binding: Some(slot(&n.runner, &n.agent, &n.parameters)),
+                binding: Some(slot(&n.runner, &n.agent, &n.parameters, n.agent_instance)),
                 cwd: Some(Text::Literal(n.cwd.clone())),
                 prompt: Some(BlueprintPrompt { parts }),
                 pre: n
@@ -1011,7 +1019,12 @@ pub fn from_task(task: &TaskConfig) -> anyhow::Result<Definition> {
             }),
         });
     } else {
-        blueprint.binding = Some(slot(&task.runner, &task.agent, &task.parameters));
+        blueprint.binding = Some(slot(
+            &task.runner,
+            &task.agent,
+            &task.parameters,
+            task.agent_instance,
+        ));
         blueprint.cwd = Some(Text::Literal(task.cwd.clone()));
         blueprint.prompt = Some(Text::Literal(task.prompt.clone()));
     }

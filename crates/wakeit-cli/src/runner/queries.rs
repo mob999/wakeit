@@ -100,6 +100,7 @@ pub async fn models(agent: impl Into<Agent>, cwd: &str) -> Result<ModelCatalog> 
         name: "Model query".into(),
         runner: "local".into(),
         agent: agent.id.clone(),
+        agent_instance: None,
         cwd: cwd.into(),
         prompt: String::new(),
         parameters: crate::config::resolve_parameters(&agent.parameters, &Default::default())?,
@@ -235,16 +236,22 @@ pub async fn serve(
                     "list_sessions" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
                         process::validate_cwd(cwd,&config.allowed_roots)?;
-                        let agent=agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
-                        super::catalog::query(&journal,agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
+                        let agent_id=request.payload["agent"].as_str().context("agent is required")?;
+                        let mut agent=agents.get(agent_id).context("agent is unavailable")?.clone();
+                        let selected=request.payload.get("agent_instance").filter(|v|!v.is_null()).map(|v|serde_json::from_value::<Uuid>(v.clone())).transpose()?.or_else(||config.agent_instances.get(agent_id).copied());
+                        agent.select_instance(&journal.pool,selected).await?;
+                        super::catalog::query(&journal,&agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
                     }
                     "inspect_session" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
                         process::validate_cwd(cwd, &config.allowed_roots)?;
-                        let agent = agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
+                        let agent_id=request.payload["agent"].as_str().context("agent is required")?;
+                        let mut agent=agents.get(agent_id).context("agent is unavailable")?.clone();
+                        let selected=request.payload.get("agent_instance").filter(|v|!v.is_null()).map(|v|serde_json::from_value::<Uuid>(v.clone())).transpose()?.or_else(||config.agent_instances.get(agent_id).copied());
+                        agent.select_instance(&journal.pool,selected).await?;
                         let id=request.payload["id"].as_str().context("session ID is required")?;
                         let task:TaskConfig=serde_json::from_value(json!({"version":1,"id":"session-query","name":"session query","runner":config.name,"agent":agent.id,"cwd":cwd,"prompt":"","schedule":null}))?;
-                        let mut info=crate::runner::sessions::inspect(agent,&task,Uuid::new_v4(),id).await?;
+                        let mut info=crate::runner::sessions::inspect(&agent,&task,Uuid::new_v4(),id).await?;
                         info.title=journal.session_title(&agent.id,&info.id,&info.cwd,info.title.as_deref()).await?;
                         Ok(serde_json::to_value(info)?)
                     }
@@ -254,8 +261,10 @@ pub async fn serve(
                         let id = request.payload["agent"]
                             .as_str()
                             .context("agent is required")?;
-                        let agent = agents.get(id).context("agent is unavailable")?;
-                        Ok(serde_json::to_value(models(agent, cwd).await?)?)
+                        let mut agent = agents.get(id).context("agent is unavailable")?.clone();
+                        let selected=request.payload.get("agent_instance").filter(|v|!v.is_null()).map(|v|serde_json::from_value::<Uuid>(v.clone())).transpose()?.or_else(||config.agent_instances.get(id).copied());
+                        agent.select_instance(&journal.pool,selected).await?;
+                        Ok(serde_json::to_value(models(&agent, cwd).await?)?)
                     }
                     _ => anyhow::bail!("unsupported query action"),
                 }

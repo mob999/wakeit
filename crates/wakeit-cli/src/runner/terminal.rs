@@ -504,7 +504,7 @@ impl Runtime {
                         }
                     },
                     _=tick.tick()=>{
-                        let terminate=entry.stop.is_cancelled() || shutdown.is_cancelled() || Instant::now()>*entry.lease.lock().unwrap();
+                        let terminate=prepared.instance_stop.is_cancelled() || entry.stop.is_cancelled() || shutdown.is_cancelled() || Instant::now()>*entry.lease.lock().unwrap();
                         if terminate && stopping.is_none(){group.terminate();stopping=Some(Instant::now());*entry.state.lock().unwrap()=json!({"state":"closing"});}
                         if stopping.is_some_and(|start|start.elapsed()>=Duration::from_secs(5)){group.kill();}
                         if let Some(status)=child.try_wait()?{break status}
