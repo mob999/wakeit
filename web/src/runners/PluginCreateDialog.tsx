@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { t as tr } from '../i18n'
 import { ChoicePicker } from '../components/ChoicePicker'
 import { ContentCard } from '../components/ContentCard'
 import { Button, Field, Modal } from '../components/ui'
+import { ActionIcon } from '../actions/ActionIcon'
+import { InfoTrigger } from '../actions/InfoTrigger'
 import { PluginFields, schemaDefaults, type Schema } from './PluginFields'
 import './plugins.css'
 import './PluginCreateDialog.css'
@@ -63,6 +65,19 @@ const permissionKeys: Record<string, string> = {
   'hooks:result.publish.prepare': 'resultHook',
 }
 
+function PluginCreateInfo({ label, description }: { label: string; description: string }) {
+  return (
+    <InfoTrigger
+      label={`${label} — ${tr('详情')}`}
+      tooltip={description}
+      className="plugin-create-info"
+      content={<p>{description}</p>}
+    >
+      <ActionIcon name="info" />
+    </InfoTrigger>
+  )
+}
+
 function hasConfigFields(schema?: Schema): boolean {
   if (!schema) return false
   const types = Array.isArray(schema.type) ? schema.type : [schema.type]
@@ -101,6 +116,7 @@ export function PluginCreateDialog({
   const [attempted, setAttempted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const credentialId = useId()
   const submitLock = useRef(false)
   const errorRef = useRef<HTMLDivElement>(null)
   const busy = pending || submitting
@@ -213,7 +229,18 @@ export function PluginCreateDialog({
               {tr('pluginCreate.unavailable')}
             </p>
           )}
-          <ContentCard title={tr('pluginCreate.details')} className="plugin-create-details">
+          <ContentCard
+            title={tr('pluginCreate.details')}
+            className="plugin-create-details"
+            actions={
+              resource?.description && (
+                <PluginCreateInfo
+                  label={tr('pluginCreate.details')}
+                  description={resource.description}
+                />
+              )
+            }
+          >
             <Field label={tr('plugins.resource')}>
               <ChoicePicker
                 label={tr('plugins.resource')}
@@ -276,9 +303,6 @@ export function PluginCreateDialog({
                       '—'}
                   </dd>
                 </dl>
-                {resource.description && (
-                  <p className="plugin-create-description">{resource.description}</p>
-                )}
               </>
             )}
           </ContentCard>
@@ -294,15 +318,29 @@ export function PluginCreateDialog({
             </ContentCard>
           )}
           {!!credentials.length && (
-            <ContentCard title={tr('plugins.credentials')} className="plugin-create-credentials">
-              <p className="plugin-create-hint">{tr('pluginCreate.credentialsHint')}</p>
-              {credentials.map(([slot, spec]) => (
-                <Field
-                  key={slot}
-                  label={`${spec.label}${spec.required ? ' *' : ''}`}
-                  hint={spec.description}
-                >
+            <ContentCard
+              title={tr('plugins.credentials')}
+              className="plugin-create-credentials"
+              actions={
+                <PluginCreateInfo
+                  label={tr('plugins.credentials')}
+                  description={tr('pluginCreate.credentialsHint')}
+                />
+              }
+            >
+              {credentials.map(([slot, spec], index) => (
+                <div className="field" key={slot}>
+                  <div className="plugin-create-field-label">
+                    <label htmlFor={`${credentialId}-${index}`}>
+                      {spec.label}
+                      {spec.required ? ' *' : ''}
+                    </label>
+                    {spec.description && (
+                      <PluginCreateInfo label={spec.label} description={spec.description} />
+                    )}
+                  </div>
                   <input
+                    id={`${credentialId}-${index}`}
                     type="password"
                     required={!!spec.required && !setupSaved}
                     autoComplete="new-password"
@@ -311,7 +349,7 @@ export function PluginCreateDialog({
                     disabled={busy}
                     onChange={(event) => setSecrets({ ...secrets, [slot]: event.target.value })}
                   />
-                </Field>
+                </div>
               ))}
             </ContentCard>
           )}
@@ -319,45 +357,47 @@ export function PluginCreateDialog({
             <ContentCard
               title={tr('pluginCreate.permissions')}
               className="plugin-create-permissions"
+              actions={
+                !!permissions.length && (
+                  <PluginCreateInfo
+                    label={tr('pluginCreate.permissions')}
+                    description={`${tr('pluginCreate.permissionsHint')}\n\n${tr('pluginCreate.permissionBoundary')}`}
+                  />
+                )
+              }
             >
-              <p className="plugin-create-hint">
-                {tr(
-                  permissions.length
-                    ? 'pluginCreate.permissionsHint'
-                    : 'pluginCreate.noPermissions',
-                )}
-              </p>
-              {!!permissions.length && (
-                <p className="plugin-create-hint">{tr('pluginCreate.permissionBoundary')}</p>
+              {!permissions.length && (
+                <p className="plugin-create-empty">{tr('pluginCreate.noPermissions')}</p>
               )}
               {permissions.map((permission) => {
                 const key = `pluginCreate.permission.${
                   Object.hasOwn(permissionKeys, permission) ? permissionKeys[permission] : 'unknown'
                 }`
                 return (
-                  <label className="plugin-create-permission" key={permission}>
-                    <input
-                      type="checkbox"
-                      checked={grants.includes(permission)}
-                      disabled={busy || identityLocked}
-                      onChange={(event) =>
-                        setGrants((current) =>
-                          event.target.checked
-                            ? [...current, permission]
-                            : current.filter((item) => item !== permission),
-                        )
-                      }
-                    />
-                    <span>
+                  <div className="plugin-create-permission" key={permission}>
+                    <label className="plugin-create-permission-choice">
+                      <input
+                        type="checkbox"
+                        checked={grants.includes(permission)}
+                        disabled={busy || identityLocked}
+                        onChange={(event) =>
+                          setGrants((current) =>
+                            event.target.checked
+                              ? [...current, permission]
+                              : current.filter((item) => item !== permission),
+                          )
+                        }
+                      />
                       <span className="plugin-create-permission-heading">
                         <span>{tr(`${key}.title`)}</span>
                         <code>{permission}</code>
                       </span>
-                      <span className="plugin-create-permission-description">
-                        {tr(`${key}.description`)}
-                      </span>
-                    </span>
-                  </label>
+                    </label>
+                    <PluginCreateInfo
+                      label={tr(`${key}.title`)}
+                      description={tr(`${key}.description`)}
+                    />
+                  </div>
                 )
               })}
             </ContentCard>

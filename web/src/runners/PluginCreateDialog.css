@@ -22,7 +22,7 @@
   @apply shrink-0;
 }
 .plugin-create-dialog .content-card > .card-header {
-  @apply min-h-9! px-3 py-2;
+  @apply min-h-9! justify-start gap-1 px-3 py-2;
 }
 .plugin-create-dialog .content-card > .card-body {
   @apply p-0;
@@ -36,9 +36,6 @@
 .plugin-create-dialog .field > label,
 .plugin-create-dialog .plugin-field-label {
   @apply text-ui;
-}
-.plugin-create-dialog .field > small {
-  @apply col-start-2 text-meta [overflow-wrap:anywhere];
 }
 .plugin-create-dialog :is(input:not([type='checkbox']), .choice-selector) {
   @apply min-w-0 min-h-7 py-1 px-2 text-ui;
@@ -56,12 +53,26 @@
 .plugin-create-version {
   @apply ml-2 text-meta text-muted;
 }
-.plugin-create-description,
-.plugin-create-hint {
+.plugin-create-empty {
   @apply m-0 px-3 py-2 text-meta text-muted leading-[1.6] [overflow-wrap:anywhere];
 }
-.plugin-create-description {
-  @apply border-t border-ui-border;
+.plugin-create-info {
+  @apply inline-flex shrink-0 items-center justify-center w-5 h-5 p-0 rounded bg-transparent border-0 text-muted cursor-pointer;
+}
+.plugin-create-info:hover,
+.plugin-create-info[data-state='open'] {
+  @apply text-ink;
+}
+.plugin-create-info:focus-visible {
+  outline: 1px solid var(--muted);
+  outline-offset: 2px;
+}
+.plugin-create-info > .action-icon,
+.plugin-create-dialog .plugin-create-config .quiet > .action-icon {
+  @apply size-3;
+}
+.plugin-create-field-label {
+  @apply flex items-center gap-1 min-w-0 text-ui font-title [overflow-wrap:anywhere];
 }
 .plugin-create-dialog .plugin-create-config .plugin-field-group {
   @apply px-3 py-1;
@@ -88,19 +99,19 @@
   @apply text-ui;
 }
 .plugin-create-permission {
-  @apply flex items-start gap-2.5 px-3 py-2.5 border-t border-ui-border cursor-pointer;
+  @apply flex items-center gap-2 px-3 py-2 border-t border-ui-border;
 }
-.plugin-create-permission > span {
-  @apply flex flex-col min-w-0 gap-1;
+.plugin-create-permission:first-child {
+  @apply border-t-0;
+}
+.plugin-create-permission-choice {
+  @apply flex flex-1 items-start gap-2.5 min-w-0 cursor-pointer;
 }
 .plugin-create-permission-heading {
-  @apply flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-ui font-medium;
+  @apply flex flex-wrap items-baseline gap-x-2 gap-y-0.5 min-w-0 text-ui font-medium;
 }
 .plugin-create-permission-heading > code {
   @apply text-meta font-normal text-muted [overflow-wrap:anywhere];
-}
-.plugin-create-permission-description {
-  @apply text-meta text-muted leading-[1.6];
 }
 .plugin-create-dialog input[type='checkbox'] {
   @apply w-3.5 h-3.5 min-w-3.5 p-0 m-0.5 shrink-0 accent-ink [box-shadow:none];
@@ -138,9 +149,6 @@
   .plugin-create-dialog .field,
   .plugin-create-dialog .plugin-create-config .plugin-field {
     @apply grid-cols-[minmax(0,_1fr)] gap-y-1;
-  }
-  .plugin-create-dialog .field > small {
-    @apply col-start-1;
   }
   .plugin-create-dialog .content-card .plugin-create-properties {
     @apply grid-cols-[80px_minmax(0,_1fr)];
