@@ -22,6 +22,9 @@ pub struct Resources {
     /// Agent IDs are declared here; package YAML need not repeat them.
     #[serde(default)]
     pub agents: BTreeMap<String, PathBuf>,
+    /// Canonical plugin entry points and statically declared capabilities.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub plugins: BTreeMap<String, wakeit_core::extensions::Extension>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub extensions: BTreeMap<String, wakeit_core::extensions::Extension>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -32,6 +35,15 @@ pub struct Resources {
     pub artifact: Option<Artifact>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runtimes: Vec<String>,
+}
+impl Resources {
+    pub fn agent_ids(&self) -> impl Iterator<Item = &String> {
+        self.agents.keys().chain(
+            self.plugins
+                .values()
+                .flat_map(|plugin| plugin.agents.keys()),
+        )
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -55,9 +67,18 @@ pub fn relative(path: &Path) -> Result<()> {
 }
 /// Declaration reading never depends on installed interpreters or Agent programs.
 pub fn read(root: &Path) -> Result<Manifest> {
-    let manifest: Manifest = serde_json::from_slice(
+    let mut manifest: Manifest = serde_json::from_slice(
         &std::fs::read(root.join(FILE)).context("plugin needs wakeit-plugin.json at its root")?,
     )?;
+    // Legacy extension resources normalize to the one plugin contract. Never
+    // silently pick one of two declarations with the same package resource ID.
+    for (id, resource) in std::mem::take(&mut manifest.wakeit.extensions) {
+        ensure!(
+            !manifest.wakeit.plugins.contains_key(&id),
+            "plugin resource declared twice: {id}"
+        );
+        manifest.wakeit.plugins.insert(id, resource);
+    }
     ensure!(
         manifest.manifest_version == 1 && manifest.wakeit.protocol == 1,
         "unsupported plugin manifest or adapter protocol"
@@ -66,15 +87,29 @@ pub fn read(root: &Path) -> Result<Manifest> {
         !manifest.name.trim().is_empty()
             && !(manifest.wakeit.agents.is_empty()
                 && manifest.wakeit.commands.is_empty()
-                && manifest.wakeit.extensions.is_empty()),
+                && manifest.wakeit.plugins.is_empty()),
         "plugin name and at least one resource are required"
     );
     semver::Version::parse(&manifest.version).context("plugin version must be semver")?;
-    for (id, extension) in &manifest.wakeit.extensions {
+    for (id, extension) in &manifest.wakeit.plugins {
         crate::config::validate_id(id)?;
         extension.validate()?;
         if let Some(path) = extension.command.strip_prefix("./") {
             relative(Path::new(path))?;
+        }
+    }
+    let mut agent_ids = manifest
+        .wakeit
+        .agents
+        .keys()
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    for plugin in manifest.wakeit.plugins.values() {
+        for id in plugin.agents.keys() {
+            ensure!(
+                agent_ids.insert(id.clone()),
+                "Agent declared twice in package: {id}"
+            );
         }
     }
     for id in manifest.wakeit.agents.keys() {
@@ -162,7 +197,7 @@ pub fn resolve(root: &Path, agent: &mut AgentConfig) -> Result<()> {
 }
 pub fn validate(root: &Path) -> Result<Manifest> {
     let manifest = read(root)?;
-    for extension in manifest.wakeit.extensions.values() {
+    for extension in manifest.wakeit.plugins.values() {
         if extension.command.starts_with("./") {
             let root = root.canonicalize()?;
             let path = executable(root.join(&extension.command))
@@ -200,7 +235,7 @@ pub fn validate(root: &Path) -> Result<Manifest> {
     }
     Ok(manifest)
 }
-pub(super) fn executable(mut path: PathBuf) -> PathBuf {
+pub(crate) fn executable(mut path: PathBuf) -> PathBuf {
     if cfg!(windows) && !path.is_file() && path.extension().is_none() {
         path.set_extension("exe");
     }

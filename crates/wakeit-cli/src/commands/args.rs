@@ -284,6 +284,13 @@ pub(super) enum Run {
         #[arg(long, requires = "node")]
         resume_stopped: bool,
     },
+    /// Ask the saved Agent backend to verify an unknown execution, without resubmitting it.
+    Reconcile {
+        id: Uuid,
+        /// Verify the current execution of one unknown DAG node.
+        #[arg(long)]
+        node: Option<String>,
+    },
     Resolve {
         id: Uuid,
         #[arg(long)]

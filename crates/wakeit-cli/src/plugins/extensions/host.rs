@@ -6,13 +6,25 @@ pub(super) struct InstanceHost {
     pub(super) runtime: Runtime,
     pub(super) instance: Uuid,
     pub(super) snapshot: Instance,
+    pub(super) agent_context: Option<(
+        wakeit_plugin_protocol::adapter::AgentRequest,
+        CancellationToken,
+        Arc<std::sync::atomic::AtomicBool>,
+    )>,
 }
 impl Host for InstanceHost {
     fn request(&self, method: String, params: Value) -> BoxFuture<'static, Result<Value>> {
         let runtime = self.runtime.clone();
         let id = self.instance;
         let snapshot = self.snapshot.clone();
+        let agent_context = self.agent_context.clone();
         Box::pin(async move {
+            if let Some((request, stop, _)) = &agent_context {
+                ensure!(
+                    !stop.is_cancelled() && request.context.deadline > Utc::now(),
+                    "Agent host request is no longer active"
+                );
+            }
             let mut instance = snapshot;
             let current = runtime.instance(id).await?;
             ensure!(
@@ -27,7 +39,30 @@ impl Host for InstanceHost {
                     .contains(&method.as_str()),
                 "extension was disabled"
             );
-            instance.grants = current.grants.clone();
+            instance.grants = current
+                .grants
+                .iter()
+                .filter(|grant| {
+                    instance.declaration.permissions.contains(grant)
+                        && current.declaration.permissions.contains(grant)
+                })
+                .cloned()
+                .collect();
+            if ![
+                "config.get",
+                "credentials.status",
+                "runtime.info",
+                "log.write",
+                "health.report",
+                "storage.get",
+                "storage.list",
+                "storage.set",
+            ]
+            .contains(&method.as_str())
+            {
+                let authorized = runtime.authorized_grants(id).await?;
+                instance.grants.retain(|grant| authorized.contains(grant));
+            }
             if let Some(snapshot) = sqlx::query_scalar::<_, String>(
                 "SELECT snapshot FROM extension_versions WHERE instance=? AND revision=?",
             )
@@ -40,18 +75,21 @@ impl Host for InstanceHost {
                 instance.config = snapshot["config"].clone();
             }
             let invocation = params["invocation_id"].as_str();
-            let in_hook = if let Some(invocation) = invocation {
-                sqlx::query_scalar::<_, String>(
-                    "SELECT kind FROM extension_invocations WHERE id=? AND instance=?",
-                )
-                .bind(invocation)
-                .bind(id.to_string())
-                .fetch_optional(&runtime.journal.pool)
-                .await?
-                    == Some("hook".into())
-            } else {
-                false
-            };
+            let in_hook = agent_context
+                .as_ref()
+                .is_some_and(|(request, _, _)| request.operation.is_read_only())
+                || if let Some(invocation) = invocation {
+                    sqlx::query_scalar::<_, String>(
+                        "SELECT kind FROM extension_invocations WHERE id=? AND instance=?",
+                    )
+                    .bind(invocation)
+                    .bind(id.to_string())
+                    .fetch_optional(&runtime.journal.pool)
+                    .await?
+                        == Some("hook".into())
+                } else {
+                    false
+                };
             let actor = if let Some(invocation) = invocation {
                 sqlx::query_scalar::<_, String>(
                     "SELECT actor FROM extension_invocations WHERE id=? AND instance=?",
@@ -65,20 +103,36 @@ impl Host for InstanceHost {
             } else {
                 None
             };
-            let user_admin = actor.as_ref().is_none_or(|actor| {
-                actor.kind != "user" || actor.roles.iter().any(|role| role == "admin")
-            });
+            // The absence of an invocation is administrative only for lifecycle callbacks,
+            // not for Agent requests or a caller supplying an unknown invocation ID.
+            let user_admin = agent_context.is_none()
+                && (invocation.is_none()
+                    || actor.as_ref().is_some_and(|actor| {
+                        actor.kind == "user" && actor.roles.iter().any(|role| role == "admin")
+                    }));
             if method.starts_with("storage.") {
                 ensure!(
                     !in_hook || ["storage.get", "storage.list"].contains(&method.as_str()),
-                    "Hook context cannot modify storage"
+                    "Read-only plugin context cannot modify storage"
                 );
                 return store::storage(&runtime.journal.pool, id, &method, &params).await;
             }
             match method.as_str() {
-                "runtime.info" => Ok(
-                    json!({"runner_id":runtime.config.id,"instance_id":id,"sdk_protocol":1,"version":env!("CARGO_PKG_VERSION"),"platform":std::env::consts::OS,"arch":std::env::consts::ARCH,"invocation_id":invocation}),
-                ),
+                "runtime.info" => Ok(serde_json::to_value(
+                    wakeit_core::extensions::RuntimeInfo {
+                        runner_id: runtime.config.id,
+                        instance_id: id,
+                        sdk_protocol: 1,
+                        version: env!("CARGO_PKG_VERSION").into(),
+                        platform: std::env::consts::OS.into(),
+                        arch: std::env::consts::ARCH.into(),
+                        invocation_id: agent_context
+                            .as_ref()
+                            .map(|(request, _, _)| request.id)
+                            .or(invocation.map(str::parse).transpose()?),
+                        public_url: public_url(&runtime.http, &runtime.config.gateway).await,
+                    },
+                )?),
                 "providers.query" => {
                     ensure!(
                         current.state == "running",
@@ -229,7 +283,7 @@ impl Host for InstanceHost {
                     );
                     ensure!(
                         !in_hook || params["method"].as_str().unwrap_or("GET") == "GET",
-                        "Hook HTTP access must be read-only"
+                        "Read-only plugin HTTP access must be read-only"
                     );
                     let url = reqwest::Url::parse(params["url"].as_str().context("URL required")?)?;
                     ensure!(
@@ -276,8 +330,16 @@ impl Host for InstanceHost {
                     let task: crate::config::TaskConfig = serde_json::from_value(
                         json!({"version":1,"id":"plugin-action","name":instance.name,"runner":runtime.config.name,"agent":"plugin","cwd":cwd,"prompt":""}),
                     )?;
-                    let signal = if let Some(call) = invocation.and_then(|s| s.parse::<Uuid>().ok())
-                    {
+                    if let Some((request, _, _)) = &agent_context {
+                        ensure!(
+                            std::path::Path::new(cwd).canonicalize()?
+                                == std::path::Path::new(&request.context.cwd).canonicalize()?,
+                            "Agent process working directory differs from its Run"
+                        );
+                    }
+                    let signal = if let Some((_, signal, _)) = &agent_context {
+                        signal.clone()
+                    } else if let Some(call) = invocation.and_then(|s| s.parse::<Uuid>().ok()) {
                         runtime
                             .calls
                             .lock()
@@ -288,18 +350,42 @@ impl Host for InstanceHost {
                     } else {
                         runtime.stop.child_token()
                     };
+                    if let Some((_, _, pending)) = &agent_context {
+                        pending.store(true, std::sync::atomic::Ordering::SeqCst);
+                    }
                     let output = crate::process::execute(
                         &spec,
                         &task,
-                        Uuid::new_v4(),
+                        agent_context
+                            .as_ref()
+                            .and_then(|(r, _, _)| r.context.run_id)
+                            .unwrap_or_else(Uuid::new_v4),
                         None,
                         Duration::from_secs(
                             params["timeout_seconds"].as_u64().unwrap_or(60).min(3600),
+                        )
+                        .min(
+                            agent_context
+                                .as_ref()
+                                .map(|(r, _, _)| {
+                                    (r.context.deadline - Utc::now())
+                                        .to_std()
+                                        .unwrap_or_default()
+                                })
+                                .unwrap_or(Duration::from_secs(3600)),
                         ),
                         signal,
                         None,
                     )
-                    .await?;
+                    .await;
+                    if let Some((_, _, pending)) = &agent_context {
+                        let unfinished = match &output {
+                            Ok(o) => !o.confirmed,
+                            Err(e) => e.is::<crate::process::CommandStartedError>(),
+                        };
+                        pending.store(unfinished, std::sync::atomic::Ordering::SeqCst);
+                    }
+                    let output = output?;
                     Ok(
                         json!({"exit_code":output.code,"stdout":output.stdout,"stderr":output.stderr,"confirmed":output.confirmed,"stopped":output.stopped}),
                     )
@@ -389,6 +475,12 @@ impl Host for InstanceHost {
                     .await
                 }
                 "auth.status" | "auth.cancel" => {
+                    if method == "auth.cancel" {
+                        ensure!(
+                            user_admin && !in_hook,
+                            "administrator required to cancel authorization"
+                        );
+                    }
                     super::auth::status(
                         &runtime.journal.pool,
                         id,
@@ -404,13 +496,19 @@ impl Host for InstanceHost {
                         user_admin,
                         "administrator required to change plugin settings"
                     );
-                    ensure!(!in_hook, "Hook context cannot modify configuration");
+                    ensure!(
+                        !in_hook,
+                        "Read-only plugin context cannot modify configuration"
+                    );
                     let update: ConfigUpdate = serde_json::from_value(params["update"].clone())?;
                     store::save(&runtime.journal.pool, id, update, &instance.declaration).await
                 }
                 "credentials.set" | "credentials.remove" => {
                     ensure!(user_admin, "administrator required to change credentials");
-                    ensure!(!in_hook, "Hook context cannot modify credentials");
+                    ensure!(
+                        !in_hook,
+                        "Read-only plugin context cannot modify credentials"
+                    );
                     let slot = params["slot"]
                         .as_str()
                         .context("credential slot required")?
@@ -553,12 +651,97 @@ impl Host for InstanceHost {
                                 "get", "list", "validate", "preview", "inspect", "status", "read"
                             ]
                             .contains(&method.rsplit('.').next().unwrap_or("")),
-                            "Hook context only permits read APIs"
+                            "Read-only plugin context only permits read APIs"
                         );
                     }
                     runtime.remote(id, &method, params).await
                 }
             }
         })
+    }
+}
+
+async fn public_url(http: &reqwest::Client, gateway: &str) -> Option<String> {
+    // Public metadata requires no device bearer token. Do not expose that token,
+    // credentials or the potentially private Runner connection URL to plugins.
+    let metadata: Value = http
+        .get(format!("{}/api/v1/meta", gateway.trim_end_matches('/')))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let url = reqwest::Url::parse(metadata.get("public_url")?.as_str()?).ok()?;
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.has_host()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    Some(url.as_str().trim_end_matches('/').to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::public_url;
+    use axum::{
+        Json, Router,
+        http::{HeaderMap, StatusCode},
+        routing::get,
+    };
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn runtime_public_url_uses_public_metadata_without_device_credentials() {
+        let app = Router::new().route(
+            "/api/v1/meta",
+            get(|headers: HeaderMap| async move {
+                assert!(!headers.contains_key("authorization"));
+                Json(json!({"public_url":"https://public.example.test/wakeit/"}))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let gateway = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        assert_eq!(
+            public_url(&reqwest::Client::new(), &gateway)
+                .await
+                .as_deref(),
+            Some("https://public.example.test/wakeit")
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn runtime_public_url_never_falls_back_to_connection_url_or_exposes_credentials() {
+        for value in [
+            json!({}),
+            json!({"public_url":"https://user:password@example.test"}),
+            json!({"public_url":"https://example.test/?token=private"}),
+            json!({"public_url":"javascript:alert(1)"}),
+        ] {
+            let app = Router::new().route("/api/v1/meta", get(move || async move { Json(value) }));
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let gateway = format!("http://{}", listener.local_addr().unwrap());
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            assert_eq!(public_url(&reqwest::Client::new(), &gateway).await, None);
+            server.abort();
+        }
+        let app = Router::new().route(
+            "/api/v1/meta",
+            get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let gateway = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        assert_eq!(public_url(&reqwest::Client::new(), &gateway).await, None);
+        server.abort();
     }
 }

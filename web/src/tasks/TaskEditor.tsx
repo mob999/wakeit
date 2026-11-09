@@ -19,6 +19,7 @@ import { SessionBinding } from '../sessions/SessionBinding'
 export type TaskDefaults = {
   runner: string
   agent?: string
+  agent_instance?: string | null
   cwd?: string
   parameters?: Record<string, string>
   session?: { id: string } | null
@@ -73,6 +74,7 @@ export function TaskEditor({
           name: '',
           runner: defaults?.runner ?? '',
           agent: defaults?.agent ?? '',
+          agent_instance: defaults?.agent_instance,
           cwd: defaults?.cwd ?? '',
           prompt: '',
           parameters: defaults?.parameters ?? {},
@@ -215,6 +217,7 @@ export function TaskEditor({
                     runner: value,
                     cwd: '',
                     agent: '',
+                    agent_instance: undefined,
                     parameters: {},
                     session: null,
                   }))
@@ -239,7 +242,15 @@ export function TaskEditor({
               }))}
             onChange={(value) =>
               setConfig((c) =>
-                value === c.agent ? c : { ...c, agent: value, parameters: {}, session: null },
+                value === c.agent
+                  ? c
+                  : {
+                      ...c,
+                      agent: value,
+                      agent_instance: undefined,
+                      parameters: {},
+                      session: null,
+                    },
               )
             }
           />
@@ -255,6 +266,7 @@ export function TaskEditor({
         runner={selectedRunner}
         agent={selectedRunner?.agents.find((a) => a.id === config.agent)}
         cwd={config.cwd}
+        agentInstance={config.agent_instance}
         values={config.parameters}
         onChange={(values) => change('parameters', values)}
         onOptionsChange={setModelOptions}
@@ -282,6 +294,7 @@ export function TaskEditor({
                 runner={selectedRunner}
                 agent={selectedAgent}
                 cwd={config.cwd}
+                agentInstance={config.agent_instance}
                 value={config.session ?? null}
                 disabled={save.isPending}
                 onChange={(session) => change('session', session)}

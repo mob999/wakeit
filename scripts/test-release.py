@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise each product's release packaging with isolated native fixtures."""
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -8,6 +9,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 from changelog import entries, validate, product_version, changelog_paths
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +20,9 @@ TARGETS = ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
 
 class Packaging(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        temporary = ROOT / '.local' / 'packaging-checks'
+        temporary.mkdir(parents=True, exist_ok=True)
+        self.temp = tempfile.TemporaryDirectory(dir=temporary)
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
         self.source = self.directory / 'native'
@@ -62,20 +66,65 @@ class Packaging(unittest.TestCase):
             self.assertIn('wakeit/assets/events-adapter.py', names)
             self.assertTrue(all(name.startswith('wakeit') and '..' not in Path(name).parts for name in names))
 
-    def test_platform_program_archive_does_not_duplicate_git_definitions(self):
-        binary=self.source/'wakeit'
+    def test_sdk_bundle_keeps_manifest_and_packages_shared_program_once(self):
+        manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text(encoding='utf-8'))
+        resources = manifest['wakeit']
+        self.assertFalse(resources.get('agents'), 'Official package must not require Agent YAML')
+        declared = set(resources.get('commands', {}).values())
+        declared.update(entry['command'].removeprefix('./') for entry in resources['plugins'].values())
+        for target in (TARGETS[0], TARGETS[-1]):
+            with self.subTest(target=target):
+                suffix = '.exe' if 'windows' in target else ''
+                binary = self.source / ('wakeit' + suffix)
+                binary.write_bytes(b'CLI fixture')
+                for resource in declared:
+                    (self.source / (Path(resource).name + suffix)).write_bytes(b'Runtime fixture')
+                output = self.directory / target
+                result = subprocess.run([
+                    sys.executable, str(SCRIPT), 'binary', '--product', 'cli', '--target', target,
+                    '--input', str(binary), '--output', str(output),
+                ], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = {resource + suffix for resource in declared}
+                with tarfile.open(output / f'wakeit-agents-{target}.tar.gz') as archive:
+                    self.assertCountEqual(archive.getnames(), expected)
+                    for member in expected:
+                        self.assertEqual(archive.extractfile(member).read(), b'Runtime fixture')
+                with tarfile.open(output / f'wakeit-{target}.tar.gz') as archive:
+                    prefix = f'wakeit-plugins/{product_version("cli")}/'
+                    self.assertCountEqual(archive.getnames(), [
+                        'wakeit' + suffix, prefix + 'wakeit-plugin.json',
+                        *(prefix + member for member in expected),
+                    ])
+                    self.assertEqual(archive.extractfile(prefix + 'wakeit-plugin.json').read(),
+                                     (ROOT / 'wakeit-plugin.json').read_bytes())
+                    for member in expected:
+                        self.assertEqual(archive.extractfile(prefix + member).read(), b'Runtime fixture')
+
+    def test_staging_sdk_entry_without_a_command_alias_requires_its_program(self):
+        spec = importlib.util.spec_from_file_location('package_release', SCRIPT)
+        package = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(package)
+        manifest = json.loads((ROOT / 'wakeit-plugin.json').read_text(encoding='utf-8'))
+        manifest['wakeit'].pop('commands', None)
+        source = self.directory / 'sdk-only'
+        source.mkdir()
+        (source / 'wakeit-plugin.json').write_text(json.dumps(manifest))
+        binary = self.source / 'wakeit'
         binary.write_bytes(b'CLI fixture')
-        (self.source/'wakeit-agent-runtime').write_bytes(b'Runtime fixture')
-        output=self.directory/'native-package'
-        result=subprocess.run([sys.executable,str(SCRIPT),'binary','--product','cli','--target',TARGETS[0],'--input',str(binary),'--output',str(output)],capture_output=True,text=True)
-        self.assertEqual(result.returncode,0,result.stderr)
-        manifest=json.loads((ROOT/'wakeit-plugin.json').read_text())
-        with tarfile.open(output/f'wakeit-agents-{TARGETS[0]}.tar.gz') as archive:
-            self.assertEqual(set(archive.getnames()),set(manifest['wakeit']['commands'].values()))
-        with tarfile.open(output/f'wakeit-{TARGETS[0]}.tar.gz') as archive:
-            prefix=f'wakeit-plugins/{product_version("cli")}/'
-            for resource in manifest['wakeit']['agents'].values():
-                self.assertEqual(archive.extractfile(prefix+resource).read(),(ROOT/resource).read_bytes())
+        output = self.directory / 'staged-sdk'
+        with patch.object(package, 'ROOT', source):
+            with self.assertRaisesRegex(SystemExit, 'Build the native helper'):
+                package.stage(binary, output)
+            resources = {entry['command'].removeprefix('./')
+                         for entry in manifest['wakeit']['plugins'].values()}
+            for resource in resources:
+                (self.source / Path(resource).name).write_bytes(b'SDK-only fixture')
+            package.stage(binary, output)
+        self.assertEqual(json.loads((output / 'wakeit-plugin.json').read_text(encoding='utf-8')), manifest)
+        for resource in resources:
+            self.assertEqual((output / resource).read_bytes(), b'SDK-only fixture')
+        self.assertFalse(list(output.rglob('*.yaml')))
 
     def test_missing_and_duplicate_targets_fail(self):
         name = f'wakeit-{TARGETS[0]}.tar.gz'

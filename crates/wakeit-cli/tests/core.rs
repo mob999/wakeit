@@ -1,4 +1,4 @@
-#[path = "../../../fixtures/official_agent.rs"]
+#[path = "support/legacy_agent.rs"]
 mod support;
 use chrono::Utc;
 use serde_json::json;
@@ -11,7 +11,8 @@ fn task(cwd: &str) -> TaskConfig {
         id: "test".into(),
         name: "test".into(),
         runner: "test".into(),
-        agent: "codex".into(),
+        agent: "synthetic-legacy".into(),
+        agent_instance: None,
         cwd: cwd.into(),
         prompt: "hello".into(),
         parameters: Default::default(),
@@ -27,7 +28,7 @@ async fn journal_limits_large_results_and_preserves_pending_uploads() {
     let dir = tempfile::tempdir().unwrap();
     let runner = Uuid::new_v4();
     let id = Uuid::new_v4();
-    let agent: AgentConfig = support::official_agent("codex");
+    let agent: AgentConfig = support::legacy_agent();
     let a = Assignment {
         version: 1,
         run_id: id,
@@ -77,7 +78,7 @@ async fn logs_preserve_utf8_split_across_pipe_reads() {
     let t = task(dir.path().to_str().unwrap());
     let id = Uuid::new_v4();
     let runner = Uuid::new_v4();
-    let agent: AgentConfig = support::official_agent("codex");
+    let agent: AgentConfig = support::legacy_agent();
     let journal = Journal::open(&dir.path().join("journal"), runner)
         .await
         .unwrap();
@@ -123,7 +124,7 @@ async fn journal_survives_reopen_and_deduplicates() {
     let dir = tempfile::tempdir().unwrap();
     let id = Uuid::new_v4();
     let runner = Uuid::new_v4();
-    let agent: AgentConfig = support::official_agent("codex");
+    let agent: AgentConfig = support::legacy_agent();
     let a = Assignment {
         version: 1,
         run_id: id,
@@ -382,17 +383,20 @@ fn directory_boundaries() {
 }
 
 #[tokio::test]
-async fn agent_logo_configuration_and_runner_manifest() {
-    let mut agent: AgentConfig = support::official_agent("pi");
-    agent.detect = None;
+async fn legacy_agent_logo_configuration_and_runner_manifest() {
+    let mut agent: AgentConfig = support::legacy_agent();
+    agent.logo = Some("/agent-logos/synthetic.svg".into());
     agent.validate().unwrap();
     let info = wakeit::runner::inspect(&agent, std::path::Path::new(".")).await;
-    assert_eq!(info.logo.as_deref(), Some("/agent-logos/pi.svg"));
+    assert_eq!(info.logo.as_deref(), Some("/agent-logos/synthetic.svg"));
     assert_eq!(
         serde_json::to_value(&info).unwrap()["logo"],
-        "/agent-logos/pi.svg"
+        "/agent-logos/synthetic.svg"
     );
-    for value in ["https://example.com/agent.svg", "/agent-logos/pi.svg"] {
+    for value in [
+        "https://example.com/agent.svg",
+        "/agent-logos/synthetic.svg",
+    ] {
         agent.logo = Some(value.into());
         agent.validate().unwrap();
     }

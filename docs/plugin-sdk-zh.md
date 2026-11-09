@@ -2,9 +2,63 @@
 
 [English](plugin-sdk.md)
 
-通用扩展为插件包增加事件处理器、生命周期 Hook、动作和查询 Provider，由 Runner 作为独立进程管理。扩展不在 Gateway 进程内运行，也不要求包含 Agent 适配器。
+本文描述当前源码中的 SDK 契约，不表示所有已发布版本均已具备这些能力。对接已安装的 CLI 时，以该版本提供的 schema 和实际支持的操作为准。
 
-安装和来源身份沿用[插件包](plugins-zh.md)。包可以提供 `agents`、可执行 `commands`、`extensions` 中的一种或多种资源。每个实例在自己的 Runner 上保存配置、凭证和私有数据；代码可以共享，工作区之间不共享实例数据。
+统一 SDK 为插件包注册 Agent、事件处理器、生命周期 Hook、动作和查询 Provider，由 Runner 作为独立进程管理，不在 Gateway 进程内运行。普通扩展无需包含 Agent。
+
+安装和来源身份沿用[插件包](plugins-zh.md)。新包通过 `wakeit.plugins` 声明统一入口；可执行 `commands` 和旧 `agents`／`extensions` 输入继续兼容。每个扩展实例在自己的 Runner 上保存配置、凭证和私有数据；代码可以共享，工作区之间不共享实例数据。
+
+## Agent 回调
+
+在插件的 `agents` 映射中声明 Descriptor，格式见[Agent 插件](plugins-zh.md#编写插件)。同步 Agent 声明 `detect` 和 `execute`；异步 Agent 声明 `detect`、`submit` 和 `poll`。仅在实现后声明核对、模型和会话等可选操作；会话操作要求具备检查能力。独立 `cancel` operation 面向原生任务，不用于取消活动中的同步请求。回调必须与声明一致，不能用普通 action 冒充 Agent。
+
+以下 TypeScript 注册方式假定自己的 `adapter.js` 提供与清单一致的 Descriptor 和类型化检测、执行回调：
+
+```ts
+import { Agent, Plugin } from '@wakeit/plugin-sdk'
+import { descriptor, detect, execute } from './adapter.js'
+
+await new Plugin()
+  .agent('example', new Agent(descriptor)
+    .on('detect', detect)
+    .on('execute', execute))
+  .serve()
+```
+
+Rust 使用 `wakeit_plugin_sdk::agent::Agent`，通过 `Agent::new(descriptor).on(AgentOperation::Detect, detect).on(AgentOperation::Execute, execute)` 和 `Plugin::new().agent("example", agent)` 注册。两种 SDK 的 Agent 契约均不依赖 Core、CLI 或 Gateway。Rust 通过 `wakeit-plugin-protocol` 共享 wire DTO；插件作者引用 SDK，而非宿主配置类型。Rust task API 接收公开 JSON 配置（`save_task(id, config, revision, request_key)`），不接收 Core `TaskConfig`。
+
+宿主通过 `agent.invoke` 发送类型化 `AgentRequest`，回调返回 `AgentReply`。执行上下文包含已授权的工作目录、期限、参数、Run／Task 身份和任务指令；非执行查询不接收任务指令。会话操作使用精确的原生 Session ID，不回退到“最新会话”，检查时不能创建会话。
+
+执行期间使用 Agent 上下文的 `record`、`trace`、`log`、`session` 和 `result` 输出公开内容。每条 `agent.record` 携带请求／Run 身份及序号，并等待宿主确认；内部仍使用 version-1 `StreamRecord`。不要向 JSON-RPC stdout 直接混写裸事件 JSONL 或原生输出，不把私有数据混入公开记录。
+
+### 原生生命周期与输出收尾
+
+通过 `agent.fact` 报告原生生命周期事实，使用绑定当前 Run 的 `AgentFact {request_id, run_id, seq, fact: NativeFact}`。宿主与 `agent.record` 一样逐条确认；fact 与 record 共用该次调用的**同一条有序序号序列**，不能单独维护 fact 计数器或改变已绑定的请求／Run 身份。
+
+| 原生事实 | 含义 |
+|---|---|
+| `started {pid}` | 原生进程已实际创建；仅完成准备不算启动。 |
+| `input_submitted` | 任务指令已实际交给原生执行，而非仅生成输入。 |
+| `native_finished {exit_code}` | 原生进程已结束；该事实本身不代表权威 Run 已完成。 |
+| `start_failed {message}` | 原生进程创建失败，附带失败原因。 |
+
+明确没有启动或提交原生工作时，返回 `ExecutionOutcome::NotStarted`，序列化为 `not_started {message}`。已知的 spawn 失败不能误报为 `unknown`／`uncertain`；反过来，未收到回复不等于从未启动，无法核实时仍须保留不确定状态。
+
+真实最终报告可通过 `ctx.result(value)`（已 ACK 的 `StreamRecord::Result`）或 `ExecutionOutcome::Completed.result` 二选一提供，无需重复发送。已有已 ACK 流结果且 `Completed.result` 为 `null` 时，Runner 采用流结果；这是合法的仅流式结果，不是非法占位。当前 ABI 使用 JSON `Value` 字段，并非 `Option`，也没有独立的“未提供”状态，因此不能把 `null` 一概判为非法。
+
+双方都提供非 null 报告时，内容必须相等，包括明确的截断标记；冲突必须失败，不能静默相互覆盖。官方适配器当前在两条通道返回同一份真实报告。生命周期事实不能代替最终报告。
+
+SDK 在成功、回调失败和超时时均关闭该次调用的输出屏障，结束调用前必须处理在途输出的结果；屏障关闭后，迟到或脱离调用的回调不能继续写入。取消后仅允许在屏障仍开放时发送绑定原 Run 的收尾 record／fact，不允许切换到其他 Run、启动新进程、读取凭证或发起其他新的宿主操作。
+
+### 取消控制
+
+活动同步 Run 的取消通过发往**原有 SDK 请求**的 `cancel` 控制帧传递。适配器感知 `AgentContext` 的取消信号并停止原生工作；协作取消未能结束时，Runner 保留强制清理进程的职责。该路径不启动新 worker，也不调用独立的 `AgentOperation::Cancel` 回调。
+
+当前官方 Agent 全部同步执行，均使用上述活动请求控制路径。即使 Descriptor 不声明独立 `cancel` operation，它们仍可取消，`AgentInfo.cancellable` 保持 `true`。
+
+公共 `AgentOperation::Cancel` 用于带 `job_id` 的异步原生任务。只有回调真正请求取消该任务时才声明此能力，并通过 `poll` 确认停止状态；接受取消请求不等于任务已停止。不具备原生任务取消能力的 worker 返回 `unsupported`，不能声明只返回“已接受”、实际不执行取消的空回调。
+
+Runner 负责执行身份、并发、进程管理、记录和权威 Run 状态。原生完成、取消请求和已确认停止是不同结果；无法确认时报告 uncertain，核对时不能盲目重新提交。官方包使用相同 SDK 入口和 `args: ["sdk"]`，不经过官方 YAML 路径。
 
 ## 声明扩展
 
@@ -12,7 +66,7 @@
 
 配置采用 JSON Schema，由设备验证，不下载远程 schema 引用。运行时注册的回调必须与 manifest 一致。声明能力不等于获得授权；管理员授予权限，并将事件和 Hook 绑定到指定实例。
 
-`wakeit schema plugin-sdk` 提供公共数据结构、事件和 Hook 目录。Agent YAML 及输出事件保持 version 1；通用扩展 IPC 独立协商协议版本。
+`wakeit schema plugin-sdk` 提供公共数据结构、事件和 Hook 目录。兼容格式的 Agent YAML、任务及输出事件保持 version 1；插件 IPC 独立协商能力。旧宿主不支持新声明时应明确失败，不静默降级。
 
 ## 编写扩展
 
@@ -36,7 +90,7 @@ await plugin.serve()
 
 Rust 使用 [`wakeit-plugin-sdk`](../crates/wakeit-plugin-sdk)。`Plugin` 注册回调，`Context` 提供调用身份、取消信号和类型化宿主调用。原生二进制沿用平台 artifact 分发。
 
-其它语言可以实现 stdin/stdout 上的逐行 JSON-RPC 2.0。宿主发送 initialize、生命周期和 invoke；扩展在处理期间可反向调用宿主。请求 ID 关联乱序响应。标准输出只承载协议，诊断使用结构化日志。
+其它语言可以实现 stdin/stdout 上的逐行 JSON-RPC 2.0。宿主发送 initialize、生命周期、普通扩展 invoke 和类型化 Agent 的 agent.invoke；插件在处理期间可反向调用宿主。请求 ID 关联乱序响应。标准输出只承载协议，诊断使用结构化日志。
 
 ## 事件和 Hook
 
@@ -52,7 +106,7 @@ Hook 按配置顺序执行。Gateway 调用设备 Hook 时不持数据库行锁�
 
 ## 设备配置
 
-入口为“设备 → 指定设备 → 插件”，用于实例配置、凭证、处理器绑定和活动查询。CLI 使用同一管理契约：
+入口为“设备 → 指定设备 → 插件”，用于实例配置、处理器绑定和活动查询。“添加插件”可在同一表单中填写名称、配置、凭证并选择权限。默认不勾选任何权限，添加后启用需明确选择。若创建成功后设置中断，应继续设置已保存的实例，不重复创建；关闭表单前会保留填写内容。CLI 使用同一管理契约：
 
 ```sh
 wakeit --json plugin instance --runner RUNNER_ID catalog
@@ -67,6 +121,16 @@ wakeit --json plugin instance --runner RUNNER_ID configure --file settings.json
 调用固定代码版本和普通配置修订，修改不会覆盖已有投递的执行上下文。更新保留版本资源，升级验证配置和权限后再切换；失败候选不替换正常版本。更新包与激活实例是两个操作。
 
 网页安装、更新和删除代码包需要设备所有者明确允许：在 DATA_DIR/plugins-policy.json 中设置 `{"remote_package_management":true}`。配置和实例管理不等于允许任意远程 Shell。
+
+### 为 SDK Agent 选择实例
+
+SDK Agent 始终通过插件实例运行。Runner 启动时会为尚无实例的已安装插件资源创建默认实例。随 Runner 提供的官方 Agent 也遵循同一规则。只有初始配置有效、且未声明凭证和权限的新默认实例才会自动启用。如果插件已有且只有一个实例，Runner 会保留其设置并将它作为默认实例。Runner 不会重新启用已停用的实例，也不会重新创建已移除的默认实例。
+
+在“设备 → 指定设备 → 插件”中配置实例、授权所需权限并启用。如果有多个实例，可从已启用实例的菜单中选择“设为默认实例”。切换默认实例只影响未显式绑定实例的新 Run。
+
+自动化可以在任务或 DAG 节点配置中用 `agent_instance` 引用设备目录中的实例 UUID。它优先于本地 version 1 `runner.yaml` 中可选的 `agent_instances`（Agent ID 到实例 UUID 的映射）。两者均未设置时才使用默认实例。实例必须位于同一 Runner，且属于该 Agent 的相同安装来源和插件资源；实例缺失、停用或不匹配时，不会替换为其他实例。旧版命令型 Agent 不使用插件实例。
+
+Runner 将非秘密配置及其修订固定在 Run 本地快照中，`config.get` 读取该快照值，而非之后编辑的最新配置。凭证不进入快照：`credentials.get` 只按需即时读取已声明的槽，并核验实例当前可用性和权限。代码升级或普通配置变化不会替换已固定的执行上下文：保存的版本资源和配置快照仍可用于旧作业与会话。升级时未变更的凭证仍可读取；轮换或清除凭证后，旧调用不能继续读取该槽，需要新的已授权调用。停用／移除实例或撤销所需权限后，即使快照仍在，也会阻止后续宿主读取；撤销不会抹除已经交给受信本机代码的值，也不会改写已有 Run 快照。
 
 ## 宿主 API 与交互
 
@@ -91,3 +155,21 @@ OAuth 支持授权码＋PKCE 和设备授权，verifier 和 Token 保存在 Runn
 TypeScript 使用 `ctx.streams.events(runId, {after, kind, signal})`，Rust 使用 api::EventCursor，按游标读取公开过程。这沿用有保留期的执行记录，不为每个 token 建立普通耐久回调；截断与到期标记仍然可见。完成事件继续采用耐久投递。
 
 files.stat/read 提供修订校验的分块读取；files.watch/unwatch 仅监听明确授权的目录，消费落后时报告缺口。artifacts.register/export 建立授权引用，下载交互使用该产物 ID，不会把另一台设备的路径当作本地文件。
+
+## 原生交互环境
+
+`session_interactive` 返回 `InteractivePlan {cwd, argv, env}`。可选的 `env`
+采用带 `source` 的引用值：`literal` 表示普通文本，`inherited` 表示本地环境变量名，
+`credential` 表示已声明的凭证槽；具体文本或引用名放在 `value` 中。
+凭证引用只由所属 Runner 按绑定实例解析，不通过 RPC 计划传输凭证实值，也不进入保存的会话命令。
+计划不能继承或覆盖 Wakeit 的认证环境变量。
+
+依赖环境变量的计划可以用于本机 CLI 续聊或网页终端，但不能导出为可复制的 shell 命令；
+这与旧适配器 `env`／`env_from` 的边界一致。执行前仍由 Runner 核验精确会话、目录、
+执行范围与占用锁，不因 SDK 计划而绕过这些限制。
+
+对于 unknown 的 Run，可用 `wakeit run reconcile RUN_ID` 请求保存的 SDK 后端核对，
+DAG 节点加 `--node NODE_ID`。REST 对应 `POST /runs/{execution_id}/reconcile`。
+`ctx.runs.reconcile(runId)` 走实际观察路径，`runs.resolve` 则是另外的
+`{state,reason}` 人工确认。核对、离线恢复与重启都不会重新提交 Agent 工作；
+不支持或仍无法确认的结果继续保持 unknown。

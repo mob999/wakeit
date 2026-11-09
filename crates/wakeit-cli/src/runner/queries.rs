@@ -1,7 +1,8 @@
 //! Read-only device capabilities. Queries never enter the execution journal or durable queues.
+use super::agent_backend::{Agent, AgentOperation, AgentReply};
 use crate::runner::config::RunnerConfig;
 use crate::{
-    config::{AgentConfig, TaskConfig},
+    config::TaskConfig,
     process,
     protocol::{self, ModelCatalog, QueryError, QueryReply, QueryRequest},
 };
@@ -90,11 +91,8 @@ pub fn list_directories(
         json!({"path":current.to_string_lossy(),"parent":parent,"breadcrumbs":breadcrumbs,"directories":directories.into_iter().map(|(name,path)|json!({"name":name,"path":path})).collect::<Vec<_>>(),"next_cursor":next_cursor}),
     )
 }
-pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
-    let command = agent
-        .models
-        .as_ref()
-        .context("agent has no models interface")?;
+pub async fn models(agent: impl Into<Agent>, cwd: &str) -> Result<ModelCatalog> {
+    let agent = agent.into();
     let task = TaskConfig {
         dag: None,
         version: 1,
@@ -102,6 +100,7 @@ pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
         name: "Model query".into(),
         runner: "local".into(),
         agent: agent.id.clone(),
+        agent_instance: None,
         cwd: cwd.into(),
         prompt: String::new(),
         parameters: crate::config::resolve_parameters(&agent.parameters, &Default::default())?,
@@ -110,22 +109,40 @@ pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
         enabled: false,
         execution: Default::default(),
     };
-    let output = process::execute(
-        command,
-        &task,
-        Uuid::new_v4(),
-        None,
-        Duration::from_secs(25),
-        CancellationToken::new(),
-        None,
-    )
-    .await?;
-    ensure!(
-        output.code == Some(0) && output.stopped.is_none(),
-        "models command failed or timed out"
-    );
-    let catalog: ModelCatalog =
-        serde_json::from_str(&output.stdout).context("models command returned invalid JSON")?;
+    let catalog: ModelCatalog = if let Some(config) = agent.legacy() {
+        let command = config
+            .models
+            .as_ref()
+            .context("agent has no models interface")?;
+        let output = process::execute(
+            command,
+            &task,
+            Uuid::new_v4(),
+            None,
+            Duration::from_secs(25),
+            CancellationToken::new(),
+            None,
+        )
+        .await?;
+        ensure!(
+            output.code == Some(0) && output.stopped.is_none() && output.confirmed,
+            "models command failed or timed out"
+        );
+        serde_json::from_str(&output.stdout).context("models command returned invalid JSON")?
+    } else {
+        let request = agent.request(AgentOperation::Models, &task, None, Duration::from_secs(25));
+        let response = agent
+            .invoke(request, CancellationToken::new(), None)
+            .await?;
+        ensure!(
+            response.confirmed && response.stopped.is_none(),
+            "models request did not stop cleanly"
+        );
+        let AgentReply::Models(catalog) = response.reply else {
+            anyhow::bail!("invalid models reply")
+        };
+        catalog
+    };
     ensure!(
         catalog.version == 1 && catalog.models.len() <= 10000,
         "invalid models response version or size"
@@ -154,7 +171,7 @@ pub async fn models(agent: &AgentConfig, cwd: &str) -> Result<ModelCatalog> {
 pub async fn serve(
     client: async_nats::Client,
     config: Arc<RunnerConfig>,
-    agents: Arc<HashMap<String, AgentConfig>>,
+    agents: Arc<HashMap<String, Agent>>,
     journal: super::journal::Journal,
     runtime: Uuid,
     stop: CancellationToken,
@@ -219,16 +236,22 @@ pub async fn serve(
                     "list_sessions" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
                         process::validate_cwd(cwd,&config.allowed_roots)?;
-                        let agent=agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
-                        super::catalog::query(&journal,agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
+                        let agent_id=request.payload["agent"].as_str().context("agent is required")?;
+                        let mut agent=agents.get(agent_id).context("agent is unavailable")?.clone();
+                        let selected=request.payload.get("agent_instance").filter(|v|!v.is_null()).map(|v|serde_json::from_value::<Uuid>(v.clone())).transpose()?.or_else(||config.agent_instances.get(agent_id).copied());
+                        agent.select_instance(&journal.pool,selected).await?;
+                        super::catalog::query(&journal,&agent,cwd,request.payload["q"].as_str(),request.payload["cursor"].as_str()).await
                     }
                     "inspect_session" => {
                         let cwd = request.payload["cwd"].as_str().context("cwd is required")?;
                         process::validate_cwd(cwd, &config.allowed_roots)?;
-                        let agent = agents.get(request.payload["agent"].as_str().context("agent is required")?).context("agent is unavailable")?;
+                        let agent_id=request.payload["agent"].as_str().context("agent is required")?;
+                        let mut agent=agents.get(agent_id).context("agent is unavailable")?.clone();
+                        let selected=request.payload.get("agent_instance").filter(|v|!v.is_null()).map(|v|serde_json::from_value::<Uuid>(v.clone())).transpose()?.or_else(||config.agent_instances.get(agent_id).copied());
+                        agent.select_instance(&journal.pool,selected).await?;
                         let id=request.payload["id"].as_str().context("session ID is required")?;
                         let task:TaskConfig=serde_json::from_value(json!({"version":1,"id":"session-query","name":"session query","runner":config.name,"agent":agent.id,"cwd":cwd,"prompt":"","schedule":null}))?;
-                        let mut info=crate::runner::sessions::inspect(agent,&task,Uuid::new_v4(),id).await?;
+                        let mut info=crate::runner::sessions::inspect(&agent,&task,Uuid::new_v4(),id).await?;
                         info.title=journal.session_title(&agent.id,&info.id,&info.cwd,info.title.as_deref()).await?;
                         Ok(serde_json::to_value(info)?)
                     }
@@ -238,8 +261,10 @@ pub async fn serve(
                         let id = request.payload["agent"]
                             .as_str()
                             .context("agent is required")?;
-                        let agent = agents.get(id).context("agent is unavailable")?;
-                        Ok(serde_json::to_value(models(agent, cwd).await?)?)
+                        let mut agent = agents.get(id).context("agent is unavailable")?.clone();
+                        let selected=request.payload.get("agent_instance").filter(|v|!v.is_null()).map(|v|serde_json::from_value::<Uuid>(v.clone())).transpose()?.or_else(||config.agent_instances.get(id).copied());
+                        agent.select_instance(&journal.pool,selected).await?;
+                        Ok(serde_json::to_value(models(&agent, cwd).await?)?)
                     }
                     _ => anyhow::bail!("unsupported query action"),
                 }

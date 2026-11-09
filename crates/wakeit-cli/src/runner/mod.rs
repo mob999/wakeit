@@ -1,3 +1,4 @@
+pub mod agent_backend;
 mod catalog;
 pub mod config;
 mod execution;
@@ -10,10 +11,11 @@ pub(crate) mod service;
 pub mod sessions;
 mod terminal;
 
+use self::agent_backend::{Agent, AgentOperation, AgentReply};
 use crate::runner::config::RunnerConfig;
 use crate::{
     bus,
-    config::{AgentConfig, AgentMode, OutputFormat, TaskConfig, duration},
+    config::{AgentMode, OutputFormat, TaskConfig, duration},
     process::{self, LogSink},
     protocol::{self, AgentInfo, Assignment},
     runner::journal::{Journal, LocalRun},
@@ -35,6 +37,7 @@ use uuid::Uuid;
 struct Active {
     cancel: CancellationToken,
     stop: CancellationToken,
+    reconcile: Arc<tokio::sync::Notify>,
     deadline: tokio::time::Instant,
 }
 #[derive(Clone)]
@@ -42,7 +45,8 @@ struct Runner {
     config: Arc<RunnerConfig>,
     journal: Journal,
     extensions: crate::plugins::extensions::Runtime,
-    agents: Arc<HashMap<String, AgentConfig>>,
+    agents: Arc<HashMap<String, Agent>>,
+    agent_info: Arc<Mutex<Vec<AgentInfo>>>,
     runtime: Uuid,
     client: reqwest::Client,
     token: Arc<String>,
@@ -52,6 +56,27 @@ struct Runner {
     slots: Arc<Semaphore>,
 }
 impl Runner {
+    fn control_target(body: &Value) -> Result<Uuid> {
+        ensure!(
+            body["version"] == 1 && matches!(body["action"].as_str(), Some("cancel" | "reconcile")),
+            "unsupported Runner control"
+        );
+        body["run_id"]
+            .as_str()
+            .context("control run_id")?
+            .parse()
+            .context("invalid control Run identity")
+    }
+    async fn apply_control(&self, body: &Value) -> Result<()> {
+        let id = Self::control_target(body)?;
+        if body["action"] == "reconcile" {
+            return self.reconcile_run(id).await;
+        }
+        if let Some(active) = self.active.lock().await.get(&id) {
+            active.cancel.cancel();
+        }
+        self.journal.cancel(id).await
+    }
     async fn post(&self, path: &str, body: Value) -> Result<Value> {
         let r = self
             .client
@@ -114,18 +139,22 @@ impl Runner {
             .fetch_all(&self.journal.pool).await?;
         for saved in saved {
             let id: Uuid = saved.parse()?;
-            let Some(run) = self.journal.get(id).await? else {
+            let Some(mut run) = self.journal.get(id).await? else {
                 continue;
             };
+            run.agent.bind_saved_runner(&self.config.data_dir)?;
+            run.agent.runtime = Some(self.extensions.clone());
             let Some(mut session) = run.session else {
                 continue;
             };
-            if let Ok(command) = crate::runner::sessions::continuation_command(
+            if let Ok(command) = crate::runner::sessions::resolved_continuation_command(
                 &run.agent,
                 &run.assignment.task,
                 id,
                 &session.id,
-            ) {
+            )
+            .await
+            {
                 session.command = Some(command);
                 self.journal.save_session(id, session).await?;
             }
@@ -148,7 +177,7 @@ impl Runner {
             }
         }
         let active = self.config.concurrency - self.slots.available_permits();
-        let response=self.post("heartbeat",json!({"runtime_id":self.runtime,"claims":claims,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":self.config.concurrency,"active":active,"web_terminal":1,"unknown":self.journal.unknown_count().await?}})).await?;
+        let response=self.post("heartbeat",json!({"runtime_id":self.runtime,"claims":claims,"agents":self.agent_info.lock().await.clone(),"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":self.config.concurrency,"active":active,"web_terminal":1,"agent_instances":1,"unknown":self.journal.unknown_count().await?}})).await?;
         for id in response["closed"]
             .as_array()
             .into_iter()
@@ -166,56 +195,64 @@ impl Runner {
 }
 type UtcNow = chrono::Utc;
 
-pub async fn inspect(agent: &AgentConfig, cwd: &Path) -> AgentInfo {
-    let task = TaskConfig {
-        dag: None,
-        version: 1,
-        id: "probe".into(),
-        name: "probe".into(),
-        runner: "probe".into(),
-        agent: agent.id.clone(),
-        cwd: cwd.to_string_lossy().into(),
-        prompt: "probe".into(),
-        parameters: Default::default(),
-        session: None,
-        schedule: None,
-        enabled: false,
-        execution: Default::default(),
-    };
-    let out = if let Some(detect) = &agent.detect {
-        process::execute(
-            detect,
-            &task,
-            Uuid::new_v4(),
-            None,
-            Duration::from_secs(10),
-            CancellationToken::new(),
-            None,
-        )
-        .await
-        .ok()
+pub async fn inspect(agent: impl Into<Agent>, cwd: &Path) -> AgentInfo {
+    let agent = agent.into();
+    let task: TaskConfig = serde_json::from_value(json!({"version":1,"id":"probe","name":"probe","runner":"probe","agent":agent.id,"cwd":cwd,"prompt":"","parameters":{}})).expect("probe task");
+    let (available, version) = if let Some(legacy) = agent.legacy() {
+        if let Some(detect) = &legacy.detect {
+            let out = process::execute(
+                detect,
+                &task,
+                Uuid::new_v4(),
+                None,
+                Duration::from_secs(10),
+                CancellationToken::new(),
+                None,
+            )
+            .await;
+            (
+                out.as_ref()
+                    .is_ok_and(|o| o.code == Some(0) && o.stopped.is_none() && o.confirmed),
+                out.ok().map(|o| o.stdout.trim().to_owned()),
+            )
+        } else {
+            (true, None)
+        }
     } else {
-        None
-    };
-    let available = if agent.detect.is_some() {
-        out.as_ref()
-            .is_some_and(|o| o.code == Some(0) && o.stopped.is_none())
-    } else {
-        true
+        let request = agent.request(AgentOperation::Detect, &task, None, Duration::from_secs(10));
+        match agent.invoke(request, CancellationToken::new(), None).await {
+            Ok(result) if result.confirmed && result.stopped.is_none() => match result.reply {
+                AgentReply::Detection(info) => (info.available, info.version),
+                _ => (false, None),
+            },
+            _ => (false, None),
+        }
     };
     AgentInfo {
         id: agent.id.clone(),
         name: agent.name.clone(),
         logo: agent.logo.clone(),
         mode: agent.mode.clone(),
+        instance_id: match &agent.backend {
+            agent_backend::Backend::SdkBackend(b) => b.instance_id,
+            _ => None,
+        },
+        plugin_source: match &agent.backend {
+            agent_backend::Backend::SdkBackend(b) => Some(b.source.clone()),
+            _ => None,
+        },
+        plugin_resource: match &agent.backend {
+            agent_backend::Backend::SdkBackend(b) => Some(b.plugin.clone()),
+            _ => None,
+        },
         digest: agent.digest(),
         available,
-        version: out.map(|o| o.stdout.trim().to_owned()),
-        cancellable: agent.mode == AgentMode::Sync || agent.cancel.is_some(),
+        version,
+        cancellable: agent.mode == AgentMode::Sync || agent.supports(AgentOperation::Cancel),
         parameters: agent.parameters.clone(),
-        models_supported: agent.models.is_some(),
-        session_supported: agent.session.is_some(),
-        session_list_supported: agent.session.as_ref().is_some_and(|s| s.list.is_some()),
+        models_supported: agent.supports(AgentOperation::Models),
+        session_supported: agent.session_supported(),
+        session_list_supported: agent.supports(AgentOperation::SessionList),
         trace_supported: matches!(agent.output.format, OutputFormat::Events),
     }
 }
@@ -234,11 +271,7 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
     fs2::FileExt::try_lock_exclusive(&lock).context("another runner owns this data directory")?;
     let loaded = crate::plugins::load_agents(&config.agents, config.bundled_agents)?;
     crate::plugins::record_loaded(&config, &loaded.snapshot)?;
-    let agents = loaded.agents;
-    let mut info = Vec::new();
-    for a in agents.values() {
-        info.push(inspect(a, &std::env::current_dir()?).await);
-    }
+    let mut agents = loaded.agents;
     let journal = Journal::open(&config.data_dir, config.id).await?;
     let slots = Arc::new(Semaphore::new(config.concurrency));
     let config = Arc::new(config);
@@ -246,6 +279,20 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
     let extensions =
         crate::plugins::extensions::Runtime::new(config.clone(), journal.clone(), shutdown.clone())
             .await?;
+    for (id, agent) in &mut agents {
+        agent.bind_runner(&config.data_dir, None)?;
+        if let Err(error) = agent
+            .select_instance(&journal.pool, config.agent_instances.get(id).copied())
+            .await
+        {
+            tracing::warn!(agent = %id, %error, "Agent instance unavailable");
+        }
+        agent.runtime = Some(extensions.clone());
+    }
+    let mut info = Vec::new();
+    for agent in agents.values() {
+        info.push(inspect(agent, &std::env::current_dir()?).await);
+    }
     let runner = Runner {
         slots: slots.clone(),
         runtime: Uuid::new_v4(),
@@ -257,12 +304,38 @@ pub async fn start(config: RunnerConfig) -> Result<()> {
         extensions,
         journal,
         agents: Arc::new(agents),
+        agent_info: Arc::new(Mutex::new(info.clone())),
         active: Arc::new(Mutex::new(HashMap::new())),
         shutdown,
         run_locks: Arc::new(Mutex::new(HashMap::new())),
     };
+    let refresh_runner = runner.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! { _=refresh_runner.shutdown.cancelled()=>break, _=refresh_runner.extensions.changed()=>{} }
+            let mut advertised = Vec::new();
+            for (id, base) in refresh_runner.agents.iter() {
+                let mut agent = base.clone();
+                if agent
+                    .select_instance(
+                        &refresh_runner.journal.pool,
+                        refresh_runner.config.agent_instances.get(id).copied(),
+                    )
+                    .await
+                    .is_err()
+                {
+                    agent
+                        .bind_runner(&refresh_runner.config.data_dir, None)
+                        .ok();
+                }
+                advertised
+                    .push(inspect(&agent, &std::env::current_dir().unwrap_or_default()).await);
+            }
+            *refresh_runner.agent_info.lock().await = advertised;
+        }
+    });
     let extension_protocol = loop {
-        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::runner::queries::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0,"web_terminal":1}})).await {
+        match runner.post("hello",json!({"runtime_id":runner.runtime,"agents":info,"directory_roots":crate::runner::queries::directory_roots(&runner.config.allowed_roots),"concurrency":runner.config.concurrency,"info":{"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"version":env!("CARGO_PKG_VERSION"),"concurrency":runner.config.concurrency,"active":0,"web_terminal":1,"agent_instances":1}})).await {
             Ok(reply)=>{
                 if let Some(jwt)=reply["nats_jwt"].as_str(){
                     let existing=std::fs::read_to_string(&runner.config.credentials_file)?;
@@ -397,9 +470,51 @@ async fn control_loop(r: &Runner, js: &async_nats::jetstream::Context) -> Result
         .await
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     let mut messages = consumer.messages().await?;
+    let slots = Arc::new(Semaphore::new(8));
+    let mut observations = tokio::task::JoinSet::new();
     loop {
-        tokio::select! {_=r.shutdown.cancelled()=>break,msg=messages.next()=>{let Some(msg)=msg else{break};let msg=msg?;let body:Value=serde_json::from_slice(&msg.payload)?;if body["version"]!=1 || body["action"]!="cancel"{msg.ack_with(async_nats::jetstream::AckKind::Term).await.map_err(|e|anyhow::anyhow!(e.to_string()))?;continue}let id:Uuid=body["run_id"].as_str().context("cancel run_id")?.parse()?;r.journal.cancel(id).await?;if let Some(a)=r.active.lock().await.get(&id){a.cancel.cancel();}msg.double_ack().await.map_err(|e|anyhow::anyhow!(e.to_string()))?;}}
+        while let Some(result) = observations.try_join_next() {
+            if let Err(error) = result {
+                tracing::warn!(%error,"reconciliation worker stopped");
+            }
+        }
+        let msg = tokio::select! {_=r.shutdown.cancelled()=>break,msg=messages.next()=>match msg{Some(msg)=>msg?,None=>break}};
+        let body: Value = serde_json::from_slice(&msg.payload)?;
+        let Ok(id) = Runner::control_target(&body) else {
+            msg.ack_with(async_nats::jetstream::AckKind::Term)
+                .await
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+            continue;
+        };
+        if body["action"] == "cancel" {
+            r.apply_control(&body).await?;
+            msg.double_ack()
+                .await
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+        } else {
+            let Ok(permit) = slots.clone().try_acquire_owned() else {
+                msg.ack_with(async_nats::jetstream::AckKind::Nak(Some(
+                    Duration::from_secs(3),
+                )))
+                .await
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+                continue;
+            };
+            let runner = r.clone();
+            observations.spawn(async move {
+                let _permit = permit;
+                if let Err(error) = runner.apply_control(&body).await {
+                    tracing::warn!(run_id=%id,%error,"Run reconciliation was not completed");
+                    return;
+                }
+                let _ = msg.double_ack().await;
+            });
+        }
     }
+    let _ = tokio::time::timeout(Duration::from_secs(12), async {
+        while observations.join_next().await.is_some() {}
+    })
+    .await;
     Ok(())
 }
 async fn work_loop(r: &Runner, js: &async_nats::jetstream::Context) -> Result<()> {
@@ -520,6 +635,7 @@ pub async fn enroll(
         data_dir: dir.join("data"),
         concurrency: 2,
         agents: Vec::new(),
+        agent_instances: Default::default(),
         bundled_agents: true,
         allowed_roots: roots
             .iter()

@@ -1,4 +1,4 @@
-#[path = "../../../fixtures/official_agent.rs"]
+#[path = "support/legacy_agent.rs"]
 mod support;
 use chrono::Utc;
 use serde_json::{Value, json};
@@ -19,7 +19,8 @@ fn task(cwd: &str) -> TaskConfig {
         id: "trace-test".into(),
         name: "Trace".into(),
         runner: "fixture".into(),
-        agent: "third-party".into(),
+        agent: "synthetic-legacy".into(),
+        agent_instance: None,
         cwd: cwd.into(),
         prompt: "中文\n\" literal".into(),
         parameters: Default::default(),
@@ -106,7 +107,7 @@ async fn events_stream_live_to_durable_journal_and_result_survives_large_stdout(
     let journal = Journal::open(&dir.path().join("journal"), runner)
         .await
         .unwrap();
-    let a: AgentConfig = support::official_agent("codex");
+    let a: AgentConfig = support::legacy_agent();
     journal
         .insert(
             &Assignment {
@@ -393,7 +394,7 @@ async fn recording_sample(script: &str) -> (process::Output, Vec<Value>) {
     let journal = Journal::open(&dir.path().join("journal"), runner)
         .await
         .unwrap();
-    let agent: AgentConfig = support::official_agent("codex");
+    let agent: AgentConfig = support::legacy_agent();
     journal
         .insert(
             &Assignment {
@@ -524,7 +525,7 @@ async fn completed_process_waits_for_slow_journal_writes_without_becoming_unknow
                 task: t.clone(),
                 deadline: Utc::now() + chrono::Duration::hours(1),
             },
-            &support::official_agent("codex"),
+            &support::legacy_agent(),
         )
         .await
         .unwrap();

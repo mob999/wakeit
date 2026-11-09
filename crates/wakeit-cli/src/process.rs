@@ -22,6 +22,37 @@ pub struct Output {
     output_error: Option<String>,
 }
 impl Output {
+    pub(crate) fn job(value: serde_json::Value) -> Self {
+        Self {
+            code: Some(0),
+            stdout: value.to_string(),
+            result: None,
+            stopped: None,
+            confirmed: true,
+            stdout_truncated: false,
+            stderr: String::new(),
+            output_error: None,
+        }
+    }
+    pub(crate) fn agent(
+        code: Option<i32>,
+        result: serde_json::Value,
+        stopped: Option<&'static str>,
+        confirmed: bool,
+    ) -> Self {
+        let result = wakeit_core::capture::bounded_value(result, crate::trace::RECORD_LIMIT - 4096);
+        Self {
+            code,
+            stdout: String::new(),
+            result: Some(result),
+            stopped,
+            confirmed,
+            stdout_truncated: false,
+            stderr: String::new(),
+            output_error: None,
+        }
+    }
+
     /// Decode only a complete result. A display-sized prefix is never treated as
     /// valid JSON, nor exposed to downstream DAG nodes as complete text.
     pub fn result_value(&self, spec: &OutputSpec) -> Result<serde_json::Value> {
@@ -298,7 +329,7 @@ struct ReadOutput {
     truncated: bool,
     output_error: Option<String>,
 }
-async fn stream_record(
+pub(crate) async fn stream_record(
     record: anyhow::Result<crate::trace::StreamRecord>,
     sink: &Option<LogSink>,
     result: &mut Option<serde_json::Value>,
@@ -578,6 +609,53 @@ impl ProcessGroup {
             );
             Ok(group)
         }
+    }
+    /// Facts describe a native child, never the SDK worker or a live foreign process.
+    pub(crate) fn validate_native_pid(&self, pid: u32, worker: u32) -> Result<()> {
+        ensure!(
+            pid != 0 && pid != worker,
+            "native start fact identifies the SDK worker, not a child"
+        );
+        #[cfg(unix)]
+        {
+            let pid = i32::try_from(pid).context("invalid native process identity")?;
+            let group = unsafe { libc::getpgid(pid) };
+            // A fast native child may already have been reaped before its acknowledged fact arrives.
+            ensure!(
+                group == self.0
+                    || (group == -1
+                        && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)),
+                "native process does not belong to this Run process group"
+            );
+        }
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::{
+                Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, GetLastError},
+                System::{
+                    JobObjects::IsProcessInJob,
+                    Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
+                },
+            };
+            unsafe {
+                let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+                if process.is_null() {
+                    ensure!(
+                        GetLastError() == ERROR_INVALID_PARAMETER,
+                        "native process identity cannot be verified"
+                    );
+                } else {
+                    let mut member = 0;
+                    let queried = IsProcessInJob(process, self.0, &mut member);
+                    CloseHandle(process);
+                    ensure!(
+                        queried != 0 && member != 0,
+                        "native process does not belong to this Run Job"
+                    );
+                }
+            }
+        }
+        Ok(())
     }
     /// Interactive continuation must not release its session lease until every owned process is gone.
     pub(crate) async fn finish_confirmed(&self) -> bool {

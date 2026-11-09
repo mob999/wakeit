@@ -87,7 +87,11 @@ impl Runtime {
                     }
                 };
                 store::snapshot(&self.journal.pool, id).await?;
-                sqlx::query("UPDATE extension_instances SET root=?,declaration=?,version=?,config=?,revision=?,applied_revision=?,state='running',error=NULL WHERE id=? AND revision=?").bind(root.to_string_lossy().as_ref()).bind(json!(declaration).to_string()).bind(&version).bind(config.to_string()).bind(candidate.revision).bind(candidate.revision).bind(id.to_string()).bind(current.revision).execute(&self.journal.pool).await?;
+                let updated=sqlx::query("UPDATE extension_instances SET root=?,declaration=?,version=?,config=?,revision=?,applied_revision=?,state='running',error=NULL WHERE id=? AND revision=?").bind(root.to_string_lossy().as_ref()).bind(json!(declaration).to_string()).bind(&version).bind(config.to_string()).bind(candidate.revision).bind(candidate.revision).bind(id.to_string()).bind(current.revision).execute(&self.journal.pool).await?;
+                if updated.rows_affected() != 1 {
+                    peer.stop();
+                    bail!("instance revision changed during upgrade");
+                }
                 store::snapshot(&self.journal.pool, id).await?;
                 if let Some(old) = self.peers.lock().await.insert(id, peer) {
                     old.stop();
@@ -139,6 +143,14 @@ impl Runtime {
                     .unwrap_or_else(|| json!({"id":operation,"state":"not_found"})))
             }
             "catalog" => self.catalog().await,
+            "set_default" => {
+                let id = id.context("instance required")?;
+                let instance = self.instance(id).await?;
+                self.declaration(&instance.source, &instance.extension)?;
+                defaults::choose(&self.journal.pool, id).await?;
+                defaults::migrate_history(&self.journal.pool, &self.config.data_dir).await?;
+                Ok(json!({"instance_id":id,"is_default":true}))
+            }
             "create" => {
                 let source = params["source"].as_str().context("source required")?;
                 let extension = params["extension"].as_str().context("extension required")?;
@@ -156,8 +168,11 @@ impl Runtime {
                         existing.source == source && existing.extension == extension,
                         "instance ID reused for another plugin resource"
                     );
-                    sqlx::query("UPDATE extension_instances SET removed=0,state='disabled',revision=revision+1 WHERE id=? AND removed=1").bind(id.to_string()).execute(&self.journal.pool).await?;
-                    return Ok(serde_json::to_value(self.instance(id).await?)?);
+                    ensure!(
+                        existing.state != "removed",
+                        "plugin instance was removed; create a new instance instead"
+                    );
+                    return Ok(serde_json::to_value(existing)?);
                 }
 
                 sqlx::query("INSERT INTO extension_instances(id,source,extension,name,version,grants,config,root,declaration) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING")
@@ -219,6 +234,7 @@ impl Runtime {
                 let id = id.context("instance required")?;
                 if method == "enable" {
                     let instance = self.instance(id).await?;
+                    self.declaration(&instance.source, &instance.extension)?;
                     if instance.enabled && instance.state == "running" {
                         return Ok(serde_json::to_value(instance)?);
                     }
@@ -237,6 +253,7 @@ impl Runtime {
                     );
                     sqlx::query("UPDATE extension_instances SET enabled=1,state='starting',revision=revision+1,restart_attempts=0,next_start=NULL WHERE id=?").bind(id.to_string()).execute(&self.journal.pool).await?;
                     self.peer(id).await?;
+                    defaults::migrate_history(&self.journal.pool, &self.config.data_dir).await?;
                 } else {
                     sqlx::query("UPDATE extension_instances SET enabled=0,state='disabled',revision=revision+1 WHERE id=?").bind(id.to_string()).execute(&self.journal.pool).await?;
                     let active: Vec<String> = sqlx::query_scalar(
@@ -252,6 +269,7 @@ impl Runtime {
                             signal.cancel();
                         }
                     }
+                    self.cancel_agents(id).await;
                     self.watches
                         .lock()
                         .await
@@ -365,10 +383,15 @@ impl Runtime {
                 let id = id.context("instance required")?;
                 let instance = self.instance(id).await?;
                 ensure!(!instance.enabled, "disable extension before removal");
+                if params["clear_data"] == true {
+                    defaults::can_clear(&self.journal.pool, id).await?;
+                }
+
                 sqlx::query("UPDATE extension_instances SET removed=1,state='removed' WHERE id=?")
                     .bind(id.to_string())
                     .execute(&self.journal.pool)
                     .await?;
+                defaults::suppress(&self.journal.pool, id).await?;
                 if params["clear_data"] == true {
                     let mut tx = self.journal.pool.begin().await?;
                     for table in [

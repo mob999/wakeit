@@ -7,7 +7,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-wakeit-core = { path = "../wakeit-core" }
+wakeit-plugin-sdk = { path = "../wakeit-plugin-sdk" }
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }

@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use sqlx::Row;
 use uuid::Uuid;
 use wakeit_core::config::TaskConfig;
+use wakeit_core::protocol::AgentInfo;
 
 use crate::api::access::device;
 use crate::api::http::{ApiJson, Error, Result, true_value};
@@ -88,6 +89,8 @@ pub(crate) struct Heartbeat {
     #[serde(default)]
     claims: Vec<ClaimPair>,
     info: Value,
+    #[serde(default)]
+    agents: Option<Vec<AgentInfo>>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -104,6 +107,8 @@ pub(crate) struct Claim {
     claim_id: Uuid,
     runtime_id: Uuid,
     agent_digest: String,
+    #[serde(default)]
+    agent_instance: Option<Uuid>,
 }
 
 pub(crate) async fn hello(
@@ -148,6 +153,14 @@ pub(crate) async fn heartbeat(
             "runner process no longer owns device lease",
         ));
     }
+    if let Some(agents) = &b.agents {
+        sqlx::query("UPDATE runners SET agents=$3 WHERE id=$1 AND runtime_id=$2 AND NOT revoked")
+            .bind(id)
+            .bind(b.runtime_id)
+            .bind(json!(agents))
+            .execute(&s.pool)
+            .await?;
+    }
     let mut closed = Vec::new();
     for c in b.claims {
         let state: Option<String> = sqlx::query_scalar(
@@ -173,6 +186,7 @@ pub(crate) async fn claim(
     ApiJson(b): ApiJson<Claim>,
 ) -> Result<Json<Value>> {
     let runner = device(&s, &h).await?;
+
     let mut tx = s.pool.begin().await?;
     let task_row = sqlx::query("SELECT t.id,t.archived_at FROM tasks t JOIN runs r ON r.task_id=t.id AND r.workspace_id=t.workspace_id WHERE r.id=$1 AND r.runner_id=$2 FOR UPDATE OF t").bind(b.run_id).bind(runner).fetch_optional(&mut *tx).await?.ok_or_else(Error::missing)?;
     let graph_parent = crate::store::dag::lock_parent(&mut tx, b.run_id).await?;
@@ -238,6 +252,20 @@ pub(crate) async fn claim(
     }
     let workspace: Uuid = row.get("workspace_id");
     let task: TaskConfig = serde_json::from_value(row.get("config"))?;
+    if task.agent_instance.is_some() && task.agent_instance != b.agent_instance {
+        return Err(Error::conflict(
+            "execution selected another plugin instance",
+        ));
+    }
+    if let Some(instance) = b.agent_instance {
+        let valid:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_instances i WHERE i.id=$1 AND i.runner_id=$2 AND i.workspace_id=$3 AND i.enabled AND i.state!='removed' AND i.declaration->'agents' ? $4)")
+            .bind(instance).bind(runner).bind(workspace).bind(&task.agent).fetch_one(&mut *tx).await?;
+        if !valid {
+            return Err(Error::conflict(
+                "selected plugin instance is unavailable or not registered",
+            ));
+        }
+    }
     if task.execution.misfire == wakeit_core::config::Misfire::Skip
         && row.get::<String, _>("source") == "schedule"
         && claim_now - row.get::<DateTime<Utc>, _>("scheduled_at") > chrono::Duration::seconds(5)
@@ -284,6 +312,11 @@ pub(crate) async fn claim(
     let mut snapshot: Value = row
         .get::<Option<Value>, _>("execution_snapshot")
         .unwrap_or(json!({}));
+    let mut snapshot_changed = false;
+    if let Some(instance) = b.agent_instance {
+        snapshot["agent_instance"] = json!(instance);
+        snapshot_changed = true;
+    }
     let session_support:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM runners n,LATERAL jsonb_array_elements(n.agents) a WHERE n.id=$1 AND a->>'id'=$2 AND a->>'session_supported'='true')").bind(runner).bind(&task.agent).fetch_one(&mut *tx).await?;
     if task.session.is_none() && session_support && snapshot["session_title"].is_null() {
         let timezone: String =
@@ -294,11 +327,7 @@ pub(crate) async fn claim(
         snapshot["session_title"] = json!(wakeit_core::config::generated_session_title(
             &task.name, claim_now, &timezone
         )?);
-        sqlx::query("UPDATE runs SET execution_snapshot=$2 WHERE id=$1")
-            .bind(b.run_id)
-            .bind(&snapshot)
-            .execute(&mut *tx)
-            .await?;
+        snapshot_changed = true;
     }
     if let Some(parent) = graph_parent {
         sqlx::query(
@@ -308,7 +337,8 @@ pub(crate) async fn claim(
         .execute(&mut *tx)
         .await?;
     }
-    sqlx::query("UPDATE runs SET state='starting',claim_id=$2,runtime_id=$3,agent_digest=$4,started_at=now(),last_seen=now() WHERE id=$1").bind(b.run_id).bind(b.claim_id).bind(b.runtime_id).bind(b.agent_digest).execute(&mut *tx).await?;
+    sqlx::query("UPDATE runs SET state='starting',claim_id=$2,runtime_id=$3,agent_digest=$4,started_at=now(),last_seen=now(),execution_snapshot=COALESCE($5,execution_snapshot) WHERE id=$1")
+        .bind(b.run_id).bind(b.claim_id).bind(b.runtime_id).bind(b.agent_digest).bind(snapshot_changed.then_some(&snapshot)).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(Json(
         json!({"execute":true,"cancel_requested":false,"session_title":snapshot.get("session_title")}),

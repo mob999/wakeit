@@ -463,7 +463,7 @@ impl Runtime {
             command.args(args);
             ensure!(std::fs::canonicalize(&cwd)?==std::fs::canonicalize(&prepared.session.cwd)?,"interactive command changes session working directory");
             command.cwd(cwd); command.env("TERM","xterm-256color"); command.env("COLORTERM","truecolor"); command.env("PWD",&prepared.session.cwd);
-            for (key,value) in crate::process::render_environment(spec,&prepared.task,entry.run,None,None)? { command.env(key,value); }
+            for (key,value) in sessions::continuation_environment(spec,&prepared.task,entry.run,prepared.literal_environment)? { command.env(key,value); }
             marker=Some(sessions::mark_continuation(&self.config,entry.run,&prepared.session)?);
             sqlx::query("UPDATE local_terminals SET marker=? WHERE id=?").bind(marker.as_ref().map(|p|p.to_string_lossy().into_owned())).bind(entry.id.to_string()).execute(&self.journal.pool).await?;
             let (cols,rows)=wire::dimensions(&request.data)?;
@@ -504,7 +504,7 @@ impl Runtime {
                         }
                     },
                     _=tick.tick()=>{
-                        let terminate=entry.stop.is_cancelled() || shutdown.is_cancelled() || Instant::now()>*entry.lease.lock().unwrap();
+                        let terminate=prepared.instance_stop.is_cancelled() || entry.stop.is_cancelled() || shutdown.is_cancelled() || Instant::now()>*entry.lease.lock().unwrap();
                         if terminate && stopping.is_none(){group.terminate();stopping=Some(Instant::now());*entry.state.lock().unwrap()=json!({"state":"closing"});}
                         if stopping.is_some_and(|start|start.elapsed()>=Duration::from_secs(5)){group.kill();}
                         if let Some(status)=child.try_wait()?{break status}

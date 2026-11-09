@@ -25,6 +25,8 @@ pub struct Node {
     pub pre: Vec<String>,
     pub runner: String,
     pub agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_instance: Option<uuid::Uuid>,
     pub cwd: String,
     pub prompt: Prompt,
     #[serde(default)]
@@ -62,6 +64,7 @@ impl Node {
             name: format!("{} / {}", graph.name, self.name),
             runner: self.runner.clone(),
             agent: self.agent.clone(),
+            agent_instance: self.agent_instance,
             cwd: self.cwd.clone(),
             prompt,
             parameters: self.parameters.clone(),

@@ -82,7 +82,10 @@ impl Drop for Terminal {
 
 /// Success means that the native process and its owned descendants have stopped.
 /// An error tagged CommandStartedError requires retaining durable local occupancy.
-pub(crate) async fn execute(mut command: Command) -> Result<i32> {
+pub(crate) async fn execute(
+    mut command: Command,
+    stop: tokio_util::sync::CancellationToken,
+) -> Result<i32> {
     #[cfg(unix)]
     let terminal = Terminal::capture()?;
     #[cfg(unix)]
@@ -112,6 +115,12 @@ pub(crate) async fn execute(mut command: Command) -> Result<i32> {
                     Err(_) => { group.kill(); child.wait().await? },
                 }
             },
+            _ = stop.cancelled() => {
+                group.terminate();
+                match tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
+                    Ok(result)=>result?,Err(_)=>{group.kill();child.wait().await?},
+                }
+            },
             _ = terminated.recv() => {
                 group.terminate();
                 match tokio::time::timeout(Duration::from_secs(5), child.wait()).await {
@@ -124,6 +133,7 @@ pub(crate) async fn execute(mut command: Command) -> Result<i32> {
         let status = loop {
             tokio::select! {
                 result = child.wait() => break result?,
+                _ = stop.cancelled() => {group.terminate();group.kill();break child.wait().await?;},
                 result = tokio::signal::ctrl_c() => {
                     // The native child shares the console and receives Ctrl-C itself.
                     // TUIs may cancel the current turn without exiting; keep their terminal alive.
@@ -192,7 +202,7 @@ mod tests {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         // Some init processes retain orphan zombies. A conservative error is valid, but a writer must never survive.
-        if let Err(error) = execute(command).await {
+        if let Err(error) = execute(command, tokio_util::sync::CancellationToken::new()).await {
             assert!(error.downcast_ref::<CommandStartedError>().is_some());
         }
         tokio::time::sleep(Duration::from_millis(2200)).await;
@@ -232,7 +242,12 @@ mod tests {
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
-        assert_eq!(execute(command).await.unwrap(), 0);
+        assert_eq!(
+            execute(command, tokio_util::sync::CancellationToken::new())
+                .await
+                .unwrap(),
+            0
+        );
         assert_eq!(unsafe { libc::tcgetpgrp(0) }, unsafe { libc::getpgrp() });
         let mut restored = unsafe { std::mem::zeroed() };
         assert_eq!(unsafe { libc::tcgetattr(0, &mut restored) }, 0);

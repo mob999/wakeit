@@ -30,7 +30,7 @@ Implement the user's requested outcome directly. Read the relevant code and docs
 - Keep configuration and message protocol version `1` unless a protocol migration is explicitly required. Never edit a published database migration; add a new migration and checks.
 - When a public API changes, update the handler, types, OpenAPI/schema description and user-facing docs together.
 - Gateway owns HTTP in `api/`, identity in `auth/`, persistence/background state in `store/`, NATS in `transport/`, and shared state in `state.rs`.
-- CLI owns parsing in `commands/`, device execution in `runner/`, and local plugin management in `plugins/`; native Agent integration belongs to the `wakeit-agent-runtime` package; keep `main.rs` as the entry point. Shared task, Agent, DAG and protocol types belong in `wakeit-core`.
+- CLI owns parsing in `commands/`, device execution in `runner/`, and local plugin management in `plugins/`; native Agent integration belongs to `wakeit-agent-runtime` and consumes the public plugin SDK, not Core internals. Keep `main.rs` as the entry point. Public Agent/plugin wire contracts belong in `wakeit-plugin-protocol` and are exposed through `wakeit-plugin-sdk`; shared Task, DAG and scheduling/transport business types remain in `wakeit-core`.
 - WebUI owns router setup in `app/`, HTTP/DTOs in `api/`, shared UI in `components/`, and feature behavior in its feature directory.
 - Keep these directories shallow and responsibility-based. Do not add forwarding modules, blanket re-exports or wrappers solely to reorganize files.
 

@@ -10,8 +10,15 @@ import { Button, IconButton, Modal } from '../components/ui'
 import { ChoicePicker } from '../components/ChoicePicker'
 import { DetailTabs } from '../components/DetailTabs'
 import { ErrorToast } from '../components/Toast'
-import { PluginFields, schemaDefaults, type Schema } from './PluginFields'
+import { PluginFields, type Schema } from './PluginFields'
 import { PluginPackageActions } from './PluginPackageActions'
+import { PluginCreateDialog } from './PluginCreateDialog'
+import {
+  PluginSetupError,
+  submitPluginSetup,
+  type PluginSetupSession,
+  type PluginSetupDraft,
+} from './pluginSetup'
 import './plugins.css'
 type Declaration = {
   name: string
@@ -22,6 +29,7 @@ type Declaration = {
   credentials: Record<string, { label: string; description: string; required: boolean }>
   handlers: Record<string, { events: string[]; description: string }>
   hooks: Record<string, { stage: string; description: string }>
+  agents?: Record<string, { name: string }>
   actions: Record<
     string,
     { label: string; description: string; input: Schema; side_effects: boolean }
@@ -37,6 +45,7 @@ type Instance = {
   enabled: boolean
   revision: number
   applied_revision?: number
+  is_default?: boolean
   config?: unknown
   grants: string[]
   credential_status: Record<string, boolean>
@@ -85,8 +94,9 @@ export function RunnerPlugins({
   const [selected, setSelected] = useState('')
   const [tab, setTab] = useState('config')
   const [creating, setCreating] = useState(false)
-  const [createId, setCreateId] = useState(() => crypto.randomUUID())
-  const [createResource, setCreateResource] = useState('')
+  const setupSession = useRef<PluginSetupSession>({ id: crypto.randomUUID() })
+  const [setupSaved, setSetupSaved] = useState(false)
+  const [setupLocked, setSetupLocked] = useState(false)
   const [busy, setBusy] = useState(false)
   const control = (action: string, params: Record<string, unknown> = {}) =>
     api(`/runners/${runner.id}/plugins/control`, 'POST', { action, params })
@@ -119,12 +129,23 @@ export function RunnerPlugins({
   }
   const resources =
     catalog.data?.packages.flatMap((p) =>
-      Object.entries(p.extensions ?? {}).map(([id, d]) => ({
-        value: JSON.stringify([p.source, id]),
-        label: d.name,
-        description: p.name,
-        declaration: d,
-      })),
+      Object.entries(p.extensions ?? {}).map(([id, raw]) => {
+        const d = localized(raw, i18n.resolvedLanguage ?? i18n.language)
+        return {
+          value: JSON.stringify([p.source, id]),
+          label: d.name,
+          packageName: p.name,
+          version: p.version,
+          description: d.description,
+          agents: Object.values(d.agents ?? {}).map((agent) => agent.name),
+          events: Object.values(d.handlers).flatMap((handler) => handler.events),
+          hooks: Object.values(d.hooks).map((hook) => hook.stage),
+          actions: Object.values(d.actions).map((action) => action.label),
+          config: d.config,
+          credentials: d.credentials,
+          permissions: d.permissions,
+        }
+      }),
     ) ?? []
   return (
     <div className="plugin-workbench">
@@ -133,10 +154,12 @@ export function RunnerPlugins({
           <h2>{tr('plugins.title')}</h2>
           {admin && (
             <IconButton
-              label={tr('plugins.create')}
+              label={tr('pluginCreate.title')}
               disabled={!runner.online}
               onClick={() => {
-                setCreateId(crypto.randomUUID())
+                setupSession.current = { id: crypto.randomUUID() }
+                setSetupSaved(false)
+                setSetupLocked(false)
                 setCreating(true)
               }}
             >
@@ -173,7 +196,12 @@ export function RunnerPlugins({
             <div className="plugin-title">
               <div>
                 <h2>{instance.name}</h2>
-                <span className="text-muted">{instance.version}</span>
+                <span className="text-muted">
+                  {instance.version}
+                  {instance.is_default && Object.keys(instance.declaration.agents ?? {}).length > 0
+                    ? ` · ${tr('plugins.defaultInstance')}`
+                    : ''}
+                </span>
               </div>
               <div className="plugin-title-actions">
                 <span className="text-muted">
@@ -196,6 +224,11 @@ export function RunnerPlugins({
                 {admin && (
                   <PluginPackageActions
                     instance={instance}
+                    canSetDefault={
+                      instance.is_default === false &&
+                      instance.enabled &&
+                      Object.keys(instance.declaration.agents ?? {}).length > 0
+                    }
                     upgradeGrants={
                       catalog.data?.packages.find((p) => p.source === instance.source)?.extensions[
                         instance.extension
@@ -257,59 +290,48 @@ export function RunnerPlugins({
           </div>
         )}
       </div>
-      <Modal
+      <PluginCreateDialog
+        resources={resources}
         open={creating}
-        onOpenChange={setCreating}
-        title={tr('plugins.create')}
-        actions={
-          <>
-            <Button onClick={() => setCreating(false)}>{tr('取消')}</Button>
-            <Button
-              variant="solid"
-              disabled={!createResource || busy}
-              onClick={async () => {
-                const [source, extension] = JSON.parse(createResource)
-                const resource = resources.find((r) => r.value === createResource)!
-                const result = await mutate('create', {
-                  instance_id: createId,
-                  source,
-                  extension,
-                  config: schemaDefaults(resource.declaration.config) ?? {},
-                  grants: resource.declaration.permissions,
-                  name: resource.label,
-                })
-                if (result) {
-                  setSelected(result.id)
-                  setCreating(false)
-                }
-              }}
-            >
-              {tr('创建')}
-            </Button>
-          </>
-        }
-      >
-        <div className="p-5">
-          <ChoicePicker
-            label={tr('plugins.resource')}
-            value={createResource}
-            options={resources}
-            searchable
-            onChange={setCreateResource}
-          />
-          {createResource && (
-            <div className="plugin-permissions">
-              <h3>{tr('plugins.permissions')}</h3>
-              {resources
-                .find((r) => r.value === createResource)
-                ?.declaration.permissions.map((p) => (
-                  <div key={p}>{p}</div>
-                ))}
-            </div>
-          )}
-          {!resources.length && <p className="text-muted">{tr('plugins.noResources')}</p>}
-        </div>
-      </Modal>
+        onOpenChange={(open) => {
+          setCreating(open)
+          if (!open) {
+            setupSession.current = { id: crypto.randomUUID() }
+            setSetupSaved(false)
+            setSetupLocked(false)
+          }
+        }}
+        pending={busy}
+        loading={catalog.isPending}
+        offline={!runner.online}
+        loadError={catalog.error?.message}
+        setupSaved={setupSaved}
+        setupLocked={setupLocked}
+        onSubmit={async (draft: PluginSetupDraft) => {
+          setBusy(true)
+          setSetupLocked(true)
+          try {
+            const result = await submitPluginSetup(
+              control,
+              setupSession.current,
+              draft,
+              (created) => {
+                setSelected(created.id)
+                setSetupSaved(true)
+              },
+            )
+            setSelected(result.id)
+            toast(tr('已保存'))
+          } catch (error) {
+            if (error instanceof PluginSetupError)
+              throw new Error(tr(`pluginCreate.error.${error.code}`))
+            throw error
+          } finally {
+            setBusy(false)
+            await refresh()
+          }
+        }}
+      />
     </div>
   )
 }

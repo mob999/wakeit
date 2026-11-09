@@ -1,3 +1,6 @@
+import { Agent, AgentContext, type AgentRequest } from './agent.ts'
+export { Agent, AgentContext } from './agent.ts'
+export type { AgentDescriptor, AgentOperation, AgentRequest, AgentReply, ExecutionOutcome, AgentOutput, NativeFact, AgentFact, TraceNode, SessionInfo } from './agent.ts'
 /** Wakeit extension SDK. This is a stdio peer, not an in-process Runner module. */
 import { createInterface } from 'node:readline'
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -14,6 +17,12 @@ export type Event<T = Json> = {
   causation_id: string | null; correlation_id: string | null; source_runner_id: string | null
   origin: { kind: string; id: string | null; roles: string[] }; data: T
   snapshot_ref?: { event_id: string }; idempotency_key?: string
+}
+export interface RuntimeInfo {
+  runner_id: string; instance_id: string; sdk_protocol: number; version: string
+  platform: string; arch: string; invocation_id: string | null
+  /** Gateway-advertised browser URL, not the Runner connection address. Older hosts may omit it. */
+  public_url?: string | null
 }
 export type Invocation = {
   id: string; instance_id: string; operation_id: string; kind: 'event' | 'hook' | 'action' | 'provider'
@@ -37,21 +46,30 @@ export class PluginError extends Error {
     super(message); this.code = code; this.retryable = options.retryable ?? false; this.paths = options.paths ?? []
   }
 }
-const invocationContext = new AsyncLocalStorage<{ invocation: Invocation; signal: AbortSignal }>()
+const invocationContext = new AsyncLocalStorage<{ invocation?: Invocation; agent?: AgentContext; agentRequestId?: string; signal: AbortSignal }>()
 const pending = new Map<string, { resolve: (value: Json) => void; reject: (error: Error) => void }>()
 const controllers = new Map<string, AbortController>()
 let initialized = false
 function write(value: unknown) { process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...value as object }) + '\n') }
 async function host<T = Json>(method: string, params: ObjectValue = {}): Promise<T> {
-  const id = randomUUID()
   const context = invocationContext.getStore()
-  context?.signal.throwIfAborted()
+  context?.agent?.assertActive()
+  return rpc<T>(method, {
+    ...params,
+    ...(context?.invocation ? { invocation_id: context.invocation.id } : {}),
+    ...(context?.agentRequestId ? { agent_request_id: context.agentRequestId } : {}),
+  }, context?.agent?.workSignal ?? context?.signal)
+}
+async function rpc<T = Json>(method: string, params: ObjectValue = {}, signal?: AbortSignal): Promise<T> {
+  signal?.throwIfAborted()
+  const id = randomUUID()
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => { pending.delete(id); reject(context?.signal.reason ?? new Error('Invocation cancelled')) }
-    const done = () => context?.signal.removeEventListener('abort', onAbort)
+    const onAbort = () => { pending.delete(id); reject(signal?.reason ?? new Error('Invocation cancelled')) }
+    const done = () => signal?.removeEventListener('abort', onAbort)
     pending.set(id, { resolve: (value) => { done(); resolve(value as T) }, reject: (error) => { done(); reject(error) } })
-    context?.signal.addEventListener('abort', onAbort, { once: true })
-    write({ id, method, params: { ...params, ...(context ? { invocation_id: context.invocation.id } : {}) } })
+    signal?.addEventListener('abort', onAbort, { once: true })
+    try { write({ id, method, params }) }
+    catch (error) { pending.delete(id); done(); reject(error) }
   })
 }
 export class Domain {
@@ -75,16 +93,26 @@ export class Domain {
   }
 
 }
+export class Runs extends Domain {
+  constructor() { super('runs') }
+  reconcile(id: string, requestKey = randomUUID()) {
+    return this.call<{ ok: true; run_id: string; requested: true }>('reconcile', { id, request_key: requestKey })
+  }
+}
+export class Runtime extends Domain {
+  constructor() { super('runtime') }
+  info() { return this.call<RuntimeInfo>('info') }
+}
 export class Context {
   readonly invocation?: Invocation
   readonly signal: AbortSignal
   constructor(invocation?: Invocation, signal: AbortSignal = new AbortController().signal) { this.invocation = invocation; this.signal = signal }
-  tasks = new Domain('tasks'); templates = new Domain('templates'); runs = new Domain('runs')
+  tasks = new Domain('tasks'); templates = new Domain('templates'); runs = new Runs()
   dag = new Domain('dag'); schedule = new Domain('schedule'); workspace = new Domain('workspace')
   members = new Domain('members'); devices = new Domain('devices'); agents = new Domain('agents')
   models = new Domain('models'); sessions = new Domain('sessions'); results = new Domain('results')
   files = new Domain('files'); artifacts = new Domain('artifacts'); plugins = new Domain('plugins')
-  events = new Domain('events'); auth = new Domain('auth'); runtime = new Domain('runtime')
+  events = new Domain('events'); auth = new Domain('auth'); runtime = new Runtime()
   http = new Domain('http'); process = new Domain('process'); providers = new Domain('providers')
   config = {
     get: <T = ObjectValue>() => host<{ value: T; revision: number }>('config.get'),
@@ -125,6 +153,8 @@ type Handler = (input: Json, ctx: Context) => Json | void | Promise<Json | void>
 type HookHandler = (input: ObjectValue, ctx: Context) => Decision | Promise<Decision>
 export type Lifecycle = 'activate' | 'deactivate' | 'dispose' | 'validateConfig' | 'applyConfig' | 'migrateConfig' | 'health'
 export class Plugin {
+  private agents = new Map<string, Agent>()
+  agent(id: string, implementation: Agent) { implementation.validate(); this.add(this.agents, id, implementation); return this }
   private handlers = new Map<string, Handler>()
   private hooks = new Map<string, HookHandler>()
   private actions = new Map<string, Handler>()
@@ -153,10 +183,27 @@ export class Plugin {
           let result: unknown = null
           if (message.method === 'initialize') {
             if (params.protocol_version !== 1 || initialized) throw new PluginError('incompatible_protocol', 'Unsupported protocol or duplicate initialization')
+            for (const implementation of this.agents.values()) implementation.validate()
             initialized = true
-            result = { protocol_version: 1, handlers: [...this.handlers.keys()], hooks: [...this.hooks.keys()], actions: [...this.actions.keys()], providers: [...this.providers.keys()] }
+            result = { protocol_version: 1, agents: Object.fromEntries([...this.agents].map(([id, implementation]) => [id, implementation.descriptor])), handlers: [...this.handlers.keys()], hooks: [...this.hooks.keys()], actions: [...this.actions.keys()], providers: [...this.providers.keys()] }
           } else if (message.method === 'cancel') {
             const controller = controllers.get(String(params.id)); controller?.abort(new PluginError('cancelled', 'Invocation cancelled'))
+          } else if (message.method === 'agent.invoke') {
+            if (!initialized) throw new PluginError('not_initialized', 'Initialize before invoking')
+            const call = params as unknown as AgentRequest
+            const implementation = this.agents.get(call.agent)
+            if (!implementation) throw new PluginError('unknown_agent', 'Agent is not registered')
+            const controller = new AbortController()
+            const remaining = Date.parse(call.context.deadline) - Date.now()
+            if (!Number.isFinite(remaining) || remaining <= 0) throw new PluginError('expired', 'Agent request expired')
+            const timer = setTimeout(() => controller.abort(new PluginError('timeout', 'Agent request deadline exceeded')), remaining)
+            controllers.set(call.id, controller)
+            const context = new AgentContext(call, controller.signal, rpc)
+            try {
+              result = await invocationContext.run({ agent: context, agentRequestId: call.id, signal: controller.signal },
+                () => context.run(() => implementation.invoke(call, context)))
+            }
+            finally { clearTimeout(timer); controllers.delete(call.id) }
           } else if (message.method === 'invoke') {
             if (!initialized) throw new PluginError('not_initialized', 'Initialize before invoking')
             const call = params as unknown as Invocation

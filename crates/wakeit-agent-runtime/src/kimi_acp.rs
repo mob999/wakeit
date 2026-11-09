@@ -11,7 +11,7 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, ChildStdout, Command},
 };
-use wakeit_core::{
+use wakeit_plugin_sdk::{
     capture::bounded_value,
     sessions::SessionInfo,
     trace::{
@@ -227,7 +227,7 @@ impl Normalizer {
         self.finish_message(&mut out);
         if !self.answer.trim().is_empty() {
             out.push(StreamRecord::new(RecordData::Result(if self.shortened {
-                wakeit_core::capture::preview(&self.answer)
+                wakeit_plugin_sdk::capture::preview(&self.answer)
             } else {
                 json!(&self.answer)
             })));
@@ -252,29 +252,25 @@ async fn write(records: Vec<StreamRecord>) -> Result<()> {
 impl Rpc {
     async fn start(native: &[String]) -> Result<Self> {
         let executable = native.first().context("Kimi ACP command is required")?;
-        let mut spec = crate::config::CommandSpec {
-            command: executable.clone(),
-            args: native[1..].iter().cloned().map(Into::into).collect(),
-            ..Default::default()
-        };
-        crate::launch::normalize_native_command(&mut spec)?;
-        let args = spec
-            .args
-            .into_iter()
-            .filter_map(|a| match a {
-                crate::config::CommandArg::Literal(s) => Some(s),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let mut child = Command::new(spec.command)
+        let mut executable = executable.to_owned();
+        let mut args = native[1..].to_vec();
+        wakeit_plugin_sdk::native::normalize_native_command(&mut executable, &mut args)?;
+        let native = Command::new(executable)
             .args(args)
             .env("PWD", std::env::current_dir()?)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .kill_on_drop(true)
-            .spawn()
-            .context("start Kimi ACP")?;
+            .spawn();
+        let mut child = match native {
+            Ok(child) => child,
+            Err(error) => {
+                crate::official_io::start_failed(&error.to_string()).await?;
+                return Err(error).context("start Kimi ACP");
+            }
+        };
+        crate::official_io::started(child.id().context("native process ID unavailable")?).await?;
         let input = child.stdin.take().context("Kimi ACP stdin missing")?;
         let output = BufReader::new(child.stdout.take().context("Kimi ACP stdout missing")?);
         Ok(Self {
@@ -285,8 +281,8 @@ impl Rpc {
             frame: Vec::new(),
             session: None,
             normalizer: Normalizer::default(),
-            title: None,
-            cwd: wakeit_core::native_command::external_path(
+            title: crate::official_io::session_title(),
+            cwd: wakeit_plugin_sdk::native::external_path(
                 &std::env::current_dir()?.canonicalize()?,
             ),
         })
@@ -369,11 +365,18 @@ impl Rpc {
     }
     async fn stop(&mut self) -> Result<()> {
         self.input.take();
-        match tokio::time::timeout(Duration::from_secs(2), self.child.wait()).await {
-            Ok(status) => ensure!(status?.success(), "Kimi ACP exited unsuccessfully"),
+        match tokio::time::timeout_at(crate::official_io::cleanup_deadline(), self.child.wait())
+            .await
+        {
+            Ok(status) => {
+                let status = status?;
+                crate::official_io::finished(status.code()).await?;
+                ensure!(status.success(), "Kimi ACP exited unsuccessfully");
+            }
             Err(_) => {
                 self.child.kill().await?;
-                self.child.wait().await?;
+                let status = self.child.wait().await?;
+                crate::official_io::finished(status.code()).await?;
                 anyhow::bail!("Kimi ACP did not exit after closing stdin");
             }
         }
@@ -384,11 +387,11 @@ impl Rpc {
 async fn cancelled() {
     use tokio::signal::unix::{SignalKind, signal};
     let mut term = signal(SignalKind::terminate()).expect("SIGTERM handler");
-    tokio::select! {_=term.recv()=>{},_=tokio::signal::ctrl_c()=>{}}
+    tokio::select! {_=term.recv()=>{},_=tokio::signal::ctrl_c()=>{},_=crate::official_io::cancelled()=>{}}
 }
 #[cfg(not(unix))]
 async fn cancelled() {
-    let _ = tokio::signal::ctrl_c().await;
+    tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = crate::official_io::cancelled() => {} }
 }
 
 pub async fn run(native: &[String], model: Option<&str>, session: Option<&str>) -> Result<i32> {
@@ -396,12 +399,7 @@ pub async fn run(native: &[String], model: Option<&str>, session: Option<&str>) 
     if let Some(id) = session {
         crate::sessions::inspect("kimi-code", id, &cwd).await?;
     }
-    let mut bytes = Vec::new();
-    tokio::io::stdin()
-        .take(1024 * 1024 + 1)
-        .read_to_end(&mut bytes)
-        .await?;
-    ensure!(bytes.len() <= 1024 * 1024, "prompt exceeds 1 MiB");
+    let bytes = crate::official_io::input().await?;
     let prompt = String::from_utf8(bytes)?;
     ensure!(!prompt.trim().is_empty(), "prompt is empty");
     let mut rpc = Rpc::start(native).await?;
@@ -421,7 +419,7 @@ pub async fn run(native: &[String], model: Option<&str>, session: Option<&str>) 
             rpc.call("session/new", json!({"cwd": rpc.cwd, "mcpServers": []})).await?
                 ["sessionId"].as_str().context("Kimi ACP session ID missing")?.to_owned()
         };
-        wakeit_core::sessions::validate_id(&id)?;
+        wakeit_plugin_sdk::sessions::validate_id(&id)?;
         rpc.session = Some(id.clone());
         write(vec![StreamRecord::new(RecordData::Session(SessionInfo {
             version: 1, id: id.clone(), cwd: rpc.cwd.clone(), persisted: false, title: rpc.title.clone()
@@ -435,13 +433,14 @@ pub async fn run(native: &[String], model: Option<&str>, session: Option<&str>) 
         let request = rpc.request("session/prompt", json!({
             "sessionId": id, "prompt": [{"type": "text", "text": prompt}]
         })).await?;
+        crate::official_io::input_submitted(crate::official_io::context()).await?;
         let response = tokio::select! {
             result = rpc.receive(request) => result?,
             _ = cancelled() => {
                 rpc.send(json!({
                     "jsonrpc": "2.0", "method": "session/cancel", "params": {"sessionId": id}
                 })).await?;
-                if let Ok(response) = tokio::time::timeout(Duration::from_secs(2), rpc.receive(request)).await {
+                if let Ok(response) = tokio::time::timeout_at(crate::official_io::cleanup_deadline().min(tokio::time::Instant::now() + Duration::from_millis(500)), rpc.receive(request)).await {
                     response?;
                 }
                 write(rpc.normalizer.finish("cancelled")?).await?;

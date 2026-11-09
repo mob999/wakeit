@@ -15,6 +15,7 @@ const EMPTY_OPTIONS: Record<string, string[]> = {}
 export function ModelPicker({
   runner,
   agent,
+  agentInstance,
   cwd,
   values,
   onChange,
@@ -26,6 +27,7 @@ export function ModelPicker({
   submitting?: boolean
   runner?: Runner
   agent?: Agent
+  agentInstance?: string | null
   cwd: string
   values: Record<string, string>
   onChange: (v: Record<string, string>) => void
@@ -36,12 +38,14 @@ export function ModelPicker({
   const memory = useContext(EditorMemoryContext)
   const [custom, setCustom] = useEditorValue('model.custom', false)
   const [editing, setEditing] = useState(false)
+  const instance = agentInstance ?? agent?.instance_id
   const catalog = useQuery<ModelCatalog>({
-    queryKey: ['models', runner?.id, agent?.id, cwd, agent?.digest],
+    queryKey: ['models', runner?.id, agent?.id, instance, cwd, agent?.digest],
     enabled: memory?.active !== false && !!(runner?.online && agent?.models_supported && cwd),
     queryFn: () =>
       api(`/runners/${runner!.id}/agents/${encodeURIComponent(agent!.id)}/models/query`, 'POST', {
         cwd,
+        agent_instance: agentInstance,
       }),
     retry: false,
     refetchOnWindowFocus: false,

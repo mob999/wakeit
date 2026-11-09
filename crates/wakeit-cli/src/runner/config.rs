@@ -118,6 +118,9 @@ pub struct RunnerConfig {
     pub concurrency: usize,
     #[serde(default)]
     pub agents: Vec<PathBuf>,
+    /// Explicit local plugin instance used by each configured SDK Agent.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub agent_instances: std::collections::BTreeMap<String, uuid::Uuid>,
     #[serde(default)]
     pub bundled_agents: bool,
     #[serde(default)]

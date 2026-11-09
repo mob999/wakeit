@@ -4,6 +4,7 @@ pub mod manifest;
 pub mod source;
 mod store;
 use crate::config::AgentConfig;
+use crate::runner::agent_backend::{Agent, SdkBackend};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use source::Source;
@@ -44,11 +45,11 @@ pub struct AgentStamp {
 }
 pub type Snapshot = BTreeMap<String, AgentStamp>;
 pub struct LoadedAgents {
-    pub agents: HashMap<String, AgentConfig>,
+    pub agents: HashMap<String, Agent>,
     pub snapshot: Snapshot,
 }
 struct Selected {
-    agent: AgentConfig,
+    agent: Agent,
     stamp: AgentStamp,
 }
 
@@ -124,7 +125,31 @@ fn selected(registry: &Registry, files: &[PathBuf], bundled: bool) -> Result<Vec
                 revision: package.revision.clone(),
                 digest: agent.digest(),
             };
-            result.push(Selected { agent, stamp });
+            result.push(Selected {
+                agent: agent.into(),
+                stamp,
+            });
+        }
+        for (plugin_id, declaration) in &info.wakeit.plugins {
+            for id in declaration.agents.keys() {
+                if registry.agent_sources.get(id).is_some_and(|s| s != &source) {
+                    continue;
+                }
+                let agent = sdk_agent(&package, plugin_id, id, declaration)?;
+                if let Some(old) = owners.insert(id.clone(), source.clone()) {
+                    anyhow::bail!(
+                        "agent {id} is provided by both {old} and {source}; choose explicitly with plugin install SOURCE --replace-agent {id}"
+                    );
+                }
+                let stamp = AgentStamp {
+                    source: source.clone(),
+                    root: Some(package.root.clone()),
+                    version: Some(package.version.clone()),
+                    revision: package.revision.clone(),
+                    digest: agent.digest(),
+                };
+                result.push(Selected { agent, stamp });
+            }
         }
     }
     for path in files {
@@ -148,7 +173,10 @@ fn selected(registry: &Registry, files: &[PathBuf], bundled: bool) -> Result<Vec
             revision: None,
             digest: agent.digest(),
         };
-        result.push(Selected { agent, stamp });
+        result.push(Selected {
+            agent: agent.into(),
+            stamp,
+        });
     }
     for (id, source) in &registry.agent_sources {
         ensure!(
@@ -168,36 +196,61 @@ pub fn load_agents(files: &[PathBuf], bundled: bool) -> Result<LoadedAgents> {
     let mut agents = HashMap::new();
     let mut snapshot = Snapshot::new();
     for Selected { mut agent, stamp } in selected(&registry()?, files, bundled)? {
-        if let Some(root) = &stamp.root {
-            manifest::resolve(root, &mut agent)?;
-        } else {
-            crate::launch::normalize_commands(&mut agent)?;
+        if let Some(config) = match &mut agent.backend {
+            crate::runner::agent_backend::Backend::LegacyCommand(config) => Some(config),
+            _ => None,
+        } {
+            if let Some(root) = &stamp.root {
+                manifest::resolve(root, config)?;
+            } else {
+                crate::launch::normalize_commands(config)?;
+            }
         }
         snapshot.insert(agent.id.clone(), stamp);
         agents.insert(agent.id.clone(), agent);
     }
     Ok(LoadedAgents { agents, snapshot })
 }
-pub fn agent(id: &str) -> Result<AgentConfig> {
-    let registry = registry()?;
-    let mut found = None;
-    for package in packages(&registry, true)? {
-        let source = package.source.identity();
-        if registry.agent_sources.get(id).is_some_and(|s| s != &source) {
-            continue;
-        }
-        let info = manifest::read(&package.root)?;
-        if let Some(path) = info.wakeit.agents.get(id) {
-            ensure!(
-                found.is_none(),
-                "agent {id} has multiple sources; select one with --replace-agent"
-            );
-            let mut agent = manifest::definition(&package.root, id, path)?;
-            manifest::resolve(&package.root, &mut agent)?;
-            found = Some(agent);
-        }
-    }
-    found.with_context(|| format!("agent {id} is not provided by an enabled plugin"))
+pub fn agent(id: &str) -> Result<Agent> {
+    load_agents(&[], true)?
+        .agents
+        .remove(id)
+        .with_context(|| format!("agent {id} is not provided by an enabled plugin"))
+}
+
+fn sdk_agent(
+    package: &Package,
+    plugin: &str,
+    id: &str,
+    declaration: &wakeit_core::extensions::Extension,
+) -> Result<Agent> {
+    let root = package.root.canonicalize()?;
+    let command = if declaration.command.starts_with("./") {
+        manifest::executable(root.join(&declaration.command))
+    } else {
+        which::which(&declaration.command).context("plugin interpreter is unavailable")?
+    };
+    let root_text = wakeit_core::native_command::external_path(&root);
+    let args = declaration
+        .args
+        .iter()
+        .map(|arg| arg.replace("{{plugin.root}}", &root_text))
+        .collect();
+    Agent::sdk(SdkBackend {
+        instance_id: None,
+        legacy_stateless: false,
+        runtime_directory: None,
+        configuration: None,
+        id: id.into(),
+        plugin: plugin.into(),
+        descriptor: declaration.agents[id].clone(),
+        source: package.source.identity(),
+        version: package.version.clone(),
+        revision: package.revision.clone(),
+        root,
+        command,
+        args,
+    })
 }
 pub fn execute(source: &str, command: &str, args: &[String]) -> Result<()> {
     let identity = Source::parse(source, &std::env::current_dir()?)?.identity();
@@ -247,7 +300,7 @@ pub fn list() -> Result<serde_json::Value> {
         let mut row=serde_json::json!({"source":p.source.display(),"name":p.name,"version":p.version,"revision":p.revision,"pinned":p.pinned,"bundled":p.bundled,"root":p.root});
         match manifest::read(&p.root) {
             Ok(info)=>{
-                let agents=info.wakeit.agents.keys().collect::<Vec<_>>();
+                let agents=info.wakeit.agent_ids().collect::<Vec<_>>();
                 row["name"]=info.name.into();row["version"]=info.version.into();
                 row["enabled_agents"]=serde_json::json!(agents.iter().filter(|id|registry.agent_sources.get(**id).is_none_or(|s|s==&identity)).collect::<Vec<_>>());
                 row["agents"]=serde_json::json!(agents);

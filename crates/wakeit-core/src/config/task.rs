@@ -73,6 +73,8 @@ pub struct TaskConfig {
     pub runner: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_instance: Option<uuid::Uuid>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cwd: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -101,6 +103,8 @@ struct TaskConfigWire {
     runner: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    agent_instance: Option<uuid::Uuid>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     cwd: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -132,7 +136,7 @@ impl<'de> Deserialize<'de> for TaskConfig {
 fn task_schema(schema: &mut schemars::Schema) {
     schema.insert("oneOf".into(), serde_json::json!([
         {"required":["runner","agent","cwd","prompt"],"properties":{"dag":{"type":"null"},"runner":{"minLength":1},"agent":{"minLength":1},"cwd":{"minLength":1},"prompt":{"minLength":1}}},
-        {"required":["dag"],"properties":{"dag":{"type":"object"},"runner":{"maxLength":0},"agent":{"maxLength":0},"cwd":{"maxLength":0},"prompt":{"maxLength":0},"parameters":{"maxProperties":0},"session":{"type":"null"}}}
+        {"required":["dag"],"properties":{"dag":{"type":"object"},"runner":{"maxLength":0},"agent":{"maxLength":0},"cwd":{"maxLength":0},"prompt":{"maxLength":0},"parameters":{"maxProperties":0},"session":{"type":"null"},"agent_instance":{"type":"null"}}}
     ]));
 }
 
@@ -183,6 +187,7 @@ impl TaskConfig {
         if self.dag.is_some() {
             if !self.runner.is_empty()
                 || !self.agent.is_empty()
+                || self.agent_instance.is_some()
                 || !self.cwd.is_empty()
                 || !self.prompt.is_empty()
                 || !self.parameters.is_empty()

@@ -39,6 +39,7 @@ Cookie 写请求需要 `X-Wakeit-Request: 1`，浏览器 Origin 必须匹配 Gat
 | GET `/runs/{id}/stream?after=0` | SSE，事件名 run_event，支持 Last-Event-ID | Viewer |
 | POST `/runs/{id}/cancel` | 保存取消请求；确认完成后才进入 cancelled | Operator |
 | POST `/runs/{id}/retry` | 创建关联的新 Run | Operator |
+| POST `/runs/{id}/reconcile` | 请求保存的设备／SDK 后端核对 unknown 执行；不提交新工作或手填状态，返回后仍等待实际核验结果。DAG 使用实际节点 execution ID | Operator |
 | POST `/runs/{id}/resolve` | `{state,reason}`；仅 unknown，记录核对说明 | Operator |
 | GET `/runners`、`/agents` | 设备及其公开适配能力 | Viewer |
 | POST `/runners/enrollment` | 一次性设备注册 token，兑换时复核签发人的本区权限 | Operator |
@@ -75,6 +76,7 @@ InstanceRequest 包含 `expected_revision`、`values`、`unset`、命名 `bindin
 - `GET /api/v1/meta`：公开返回 Gateway 版本（如 `version:"0.4.3"`）、公开地址和登录方式。该版本不代表 CLI/Runner 版本。
 - `GET /api/v1/workspaces/{workspace-id}/runners/{id}/directories?path=...&cursor=...`：Admin/Operator 浏览 Runner 目录；无 path 时列根目录。
 - `POST /api/v1/workspaces/{workspace-id}/runners/{id}/agents/{agent}/models/query`：Admin/Operator 查询模型，请求 `{cwd:"绝对路径"}`，返回 ModelCatalog。
+- 模型查询、会话列表及会话检查的请求可选 `agent_instance`（UUID），用于在同一 Runner 上选择指定 SDK Agent 实例。任务和 DAG 节点配置也可使用此字段，优先于 Runner 的绑定和插件默认实例。设备插件管理可发送 `set_default`（参数 `{instance_id}`），目录用 `is_default` 标识当前默认实例。
 
 查询错误分别返回 400（目录/适配错误）、403（角色限制）、404（设备不存在或已吊销）、503（离线）、504（超时）。成功但无模型的响应是空数组。CLI 与 WebUI 保存 Task.parameters，Run.execution_snapshot 提供最终解析参数和工作目录。
 

@@ -8,6 +8,8 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Adapter {
+    /// Serve the unified plugin SDK protocol (Agent registration and invocation).
+    Sdk,
     /// Execute an official Agent adapter. Native arguments remain separate argv values.
     Run {
         id: String,
@@ -66,6 +68,7 @@ async fn main() {
 }
 async fn run(command: &Adapter) -> anyhow::Result<()> {
     match command {
+        Adapter::Sdk => wakeit_agent_runtime::official::serve().await?,
         Adapter::Run {
             id,
             model,

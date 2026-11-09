@@ -1,31 +1,9 @@
-use crate::config::{AgentMode, ParameterSpec, TaskConfig};
+use crate::config::TaskConfig;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
 use uuid::Uuid;
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
-pub struct AgentInfo {
-    pub id: String,
-    pub name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub logo: Option<String>,
-    pub mode: AgentMode,
-    pub digest: String,
-    pub available: bool,
-    pub version: Option<String>,
-    pub cancellable: bool,
-    #[serde(default)]
-    pub parameters: BTreeMap<String, ParameterSpec>,
-    #[serde(default)]
-    pub models_supported: bool,
-    #[serde(default)]
-    pub trace_supported: bool,
-    #[serde(default)]
-    pub session_supported: bool,
-    #[serde(default)]
-    pub session_list_supported: bool,
-}
+pub use wakeit_plugin_protocol::protocol::{AgentInfo, ModelCatalog, ModelEntry};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Assignment {
     pub version: u32,
@@ -67,21 +45,6 @@ pub fn consumer(id: Uuid, kind: &str) -> String {
     format!("r_{}_{}", id.simple(), kind)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ModelEntry {
-    pub id: String,
-    pub name: String,
-    pub parameters: BTreeMap<String, String>,
-    #[serde(default)]
-    pub parameter_options: BTreeMap<String, Vec<String>>,
-}
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ModelCatalog {
-    pub version: u32,
-    pub models: Vec<ModelEntry>,
-}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryRequest {
     pub version: u32,

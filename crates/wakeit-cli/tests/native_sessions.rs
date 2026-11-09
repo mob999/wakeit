@@ -1,5 +1,3 @@
-#[path = "../../../fixtures/official_agent.rs"]
-mod support;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -419,35 +417,115 @@ fn claude_inspection_and_catalog_prefer_actual_custom_title_over_stale_index() {
 }
 
 #[test]
-fn builtin_names_only_new_sessions_and_codex_has_a_metadata_rename_command() {
-    for protocol in ["codex", "claude-code", "pi", "opencode"] {
-        let agent: wakeit::config::AgentConfig = support::official_agent(protocol);
-        let session = agent.session.unwrap();
-        fn literals(spec: &wakeit::config::CommandSpec) -> Vec<&str> {
-            spec.args
-                .iter()
-                .filter_map(|arg| {
-                    if let wakeit::config::CommandArg::Literal(arg) = arg {
-                        Some(arg.as_str())
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-        }
-        assert!(!literals(&session.resume).contains(&"{{session.title}}"));
-        assert!(!literals(&session.interactive).contains(&"{{session.title}}"));
+fn official_sdk_names_only_new_sessions_and_declares_codex_metadata_rename() {
+    use chrono::Utc;
+    use uuid::Uuid;
+    use wakeit_agent_runtime::official_args::{interactive_args, native_args};
+    use wakeit_plugin_protocol::adapter::{
+        AgentContext, AgentDescriptor, AgentOperation, AgentRequest,
+    };
+
+    let manifest: Value =
+        serde_json::from_str(include_str!("../../../wakeit-plugin.json")).unwrap();
+    let title = "每日检查-wakeit-20261104-090000000 中文 ' \" $(literal) {{task.id}}";
+    for (protocol, resume, interactive) in [
+        (
+            "codex",
+            vec!["codex", "exec", "resume", ID, "--json", "-"],
+            vec!["codex", "resume", ID],
+        ),
+        (
+            "claude-code",
+            vec![
+                "claude",
+                "-p",
+                "--resume",
+                ID,
+                "--output-format",
+                "stream-json",
+                "--verbose",
+            ],
+            vec!["claude", "--resume", ID],
+        ),
+        (
+            "pi",
+            vec!["pi", "--session", ID, "--mode", "json", "--print"],
+            vec!["pi", "--session", ID],
+        ),
+        (
+            "opencode",
+            vec!["opencode", "run", "--session", ID, "--format", "json"],
+            vec!["opencode", "--session", ID],
+        ),
+    ] {
+        let descriptor: AgentDescriptor = serde_json::from_value(
+            manifest["wakeit"]["plugins"]["official"]["agents"][protocol].clone(),
+        )
+        .unwrap();
+        descriptor.validate().unwrap();
+        assert_eq!(
+            descriptor
+                .operations
+                .contains(&AgentOperation::SessionRename),
+            protocol == "codex",
+            "{protocol}"
+        );
+        let mut request = AgentRequest {
+            id: Uuid::new_v4(),
+            agent: protocol.into(),
+            operation: AgentOperation::Execute,
+            context: AgentContext {
+                cwd: ".".into(),
+                deadline: Utc::now() + chrono::Duration::minutes(1),
+                run_id: Some(Uuid::new_v4()),
+                task_id: Some("synthetic-session-task".into()),
+                parameters: Default::default(),
+                prompt: Some("synthetic prompt".into()),
+                session_id: None,
+                session_title: Some(title.into()),
+                job_id: None,
+            },
+            input: Value::Null,
+        };
+        request.validate(&descriptor).unwrap();
+        let args = native_args(&request, false).unwrap();
         if protocol == "codex" {
-            assert!(literals(session.rename.as_ref().unwrap()).contains(&"{{session.title}}"));
+            // Codex uses the SDK metadata rename operation, never an execution title flag.
+            assert!(!args.iter().any(|arg| arg == title));
+            request.operation = AgentOperation::SessionRename;
+            request.context.session_id = Some(ID.into());
+            request.context.prompt = None;
+            request.input = json!({"title":title});
+            request.validate(&descriptor).unwrap();
         } else {
-            let expected = if protocol == "opencode" {
+            let flag = if protocol == "opencode" {
                 "--title"
             } else {
                 "--name"
             };
-            let args = literals(&agent.submit);
-            let position = args.iter().position(|arg| *arg == expected).unwrap();
-            assert_eq!(args[position + 1], "{{session.title}}");
+            let positions: Vec<_> = args
+                .iter()
+                .enumerate()
+                .filter(|(_, arg)| arg.as_str() == flag)
+                .map(|(index, _)| index)
+                .collect();
+            assert_eq!(positions.len(), 1, "{protocol}: {args:?}");
+            assert_eq!(args[positions[0] + 1], title, "{protocol}");
         }
+        request.operation = AgentOperation::SessionResume;
+        request.context.session_id = Some(ID.into());
+        request.context.prompt = Some("resume prompt".into());
+        request.input = Value::Null;
+        request.validate(&descriptor).unwrap();
+        // Exact production argv protects identity and excludes accidental native renaming.
+        assert_eq!(native_args(&request, true).unwrap(), resume, "{protocol}");
+        request.operation = AgentOperation::SessionInteractive;
+        request.context.prompt = None;
+        request.validate(&descriptor).unwrap();
+        assert_eq!(
+            interactive_args(&request).unwrap(),
+            interactive,
+            "{protocol}"
+        );
     }
 }

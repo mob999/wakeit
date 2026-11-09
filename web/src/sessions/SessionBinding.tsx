@@ -4,6 +4,7 @@ import { SessionPicker } from './SessionPicker'
 export function SessionBinding({
   runner,
   agent,
+  agentInstance,
   cwd,
   value,
   disabled,
@@ -11,6 +12,7 @@ export function SessionBinding({
 }: {
   runner?: Runner
   agent?: Agent
+  agentInstance?: string | null
   cwd: string
   value: { id: string } | null
   disabled: boolean
@@ -18,9 +20,10 @@ export function SessionBinding({
 }) {
   return (
     <SessionPicker
-      key={`${runner?.id}/${agent?.id}/${agent?.digest}/${cwd}`}
+      key={`${runner?.id}/${agent?.id}/${agent?.digest}/${agentInstance ?? agent?.instance_id}/${cwd}`}
       runner={runner}
       agent={agent}
+      agentInstance={agentInstance}
       cwd={cwd}
       id={value?.id ?? ''}
       disabled={disabled}

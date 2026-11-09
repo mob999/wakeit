@@ -3,28 +3,39 @@ use serde_json::{Value, json};
 use std::os::unix::fs::PermissionsExt;
 use std::{fs, process::Command};
 
+fn fixture_dir() -> tempfile::TempDir {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.local");
+    fs::create_dir_all(&path).unwrap();
+    tempfile::tempdir_in(path).unwrap()
+}
+
 #[cfg(unix)]
 #[test]
-fn initialized_agent_survives_removing_the_installation_executable() {
-    let dir = tempfile::tempdir().unwrap();
+fn bundled_sdk_agent_is_detected_without_generating_agent_yaml() {
+    let dir = fixture_dir();
     let cli = env!("CARGO_BIN_EXE_wakeit");
-    let installer = dir.path().join("temporary-wakeit");
-    fs::copy(cli, &installer).unwrap();
     let bundle = dir.path().join("bundle");
     let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let manifest: Value =
         serde_json::from_slice(&fs::read(source.join("wakeit-plugin.json")).unwrap()).unwrap();
-    for path in manifest["wakeit"]["agents"].as_object().unwrap().values() {
-        let path = std::path::Path::new(path.as_str().unwrap());
-        fs::create_dir_all(bundle.join(path).parent().unwrap()).unwrap();
-        fs::copy(source.join(path), bundle.join(path)).unwrap();
-    }
+    assert!(
+        manifest["wakeit"]["agents"]
+            .as_object()
+            .is_none_or(|agents| agents.is_empty())
+    );
+    assert!(manifest["wakeit"]["plugins"]["official"]["agents"]["kimi-code"].is_object());
+    fs::create_dir_all(&bundle).unwrap();
     fs::copy(
         source.join("wakeit-plugin.json"),
         bundle.join("wakeit-plugin.json"),
     )
     .unwrap();
-    let helper = bundle.join("plugins/official/bin/wakeit-agent-runtime");
+    let entry = manifest["wakeit"]["plugins"]["official"]["command"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("./")
+        .unwrap();
+    let helper = bundle.join(entry);
     fs::create_dir_all(helper.parent().unwrap()).unwrap();
     fs::copy(
         std::path::Path::new(cli).with_file_name("wakeit-agent-runtime"),
@@ -32,22 +43,23 @@ fn initialized_agent_survives_removing_the_installation_executable() {
     )
     .unwrap();
     let agent = dir.path().join("kimi.yaml");
-    let initialized = Command::new(&installer)
+    let initialized = Command::new(cli)
         .env("WAKEIT_BUNDLED_PLUGIN_DIR", &bundle)
         .env("WAKEIT_PLUGIN_HOME", dir.path().join("plugins"))
         .args(["agent", "init", "kimi-code", "--file"])
         .arg(&agent)
         .output()
         .unwrap();
-    assert!(initialized.status.success(), "{initialized:?}");
-    fs::remove_file(installer).unwrap();
+    assert!(
+        !initialized.status.success(),
+        "SDK Agent unexpectedly generated YAML"
+    );
+    assert!(!agent.exists());
 
     let kimi = dir.path().join("kimi");
-    fs::write(
-        &kimi,
+    fs::write(&kimi,
         "#!/bin/sh\ncase \"$1\" in --help) printf 'acp --session\\n';; --version) printf '2.3.2\\n';; *) exit 1;; esac\n",
-    )
-    .unwrap();
+    ).unwrap();
     fs::set_permissions(&kimi, fs::Permissions::from_mode(0o755)).unwrap();
     let runner = dir.path().join("runner.yaml");
     fs::write(
@@ -55,7 +67,7 @@ fn initialized_agent_survives_removing_the_installation_executable() {
         json!({
             "version":1,"gateway":"http://127.0.0.1:1","id":uuid::Uuid::new_v4(),
             "name":"fixture","token_file":"unused","nats_url":"nats://127.0.0.1:1",
-            "credentials_file":"unused","data_dir":dir.path(),"agents":[agent]
+            "credentials_file":"unused","data_dir":dir.path(),"bundled_agents":true,"agents":[]
         })
         .to_string(),
     )
@@ -71,14 +83,24 @@ fn initialized_agent_survives_removing_the_installation_executable() {
         .output()
         .unwrap();
     assert!(doctor.status.success(), "{doctor:?}");
-    let agents: Value = serde_json::from_slice(&doctor.stdout).unwrap();
-    assert_eq!(agents[0]["available"], true);
-    assert_eq!(agents[0]["version"], "2.3.2");
+    let agents: Vec<Value> = serde_json::from_slice(&doctor.stdout).unwrap();
+    let detected: Vec<_> = agents
+        .iter()
+        .filter(|agent| agent["id"] == "kimi-code")
+        .collect();
+    assert_eq!(
+        detected.len(),
+        1,
+        "Official Agent is missing or declared twice"
+    );
+    assert_eq!(detected[0]["available"], true, "{detected:?}");
+    assert_eq!(detected[0]["version"], "2.3.2");
+    assert!(!agent.exists(), "Detection must not create Agent YAML");
 }
 
 #[test]
 fn agent_test_uses_configured_result_format_and_pointer() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = fixture_dir();
     let path = dir.path().join("agent.yaml");
     for (format, pointer, output, expected) in [
         (

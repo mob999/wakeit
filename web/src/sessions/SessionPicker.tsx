@@ -14,6 +14,7 @@ import { Button, IconButton } from '../components/ui'
 export function SessionPicker({
   runner,
   agent,
+  agentInstance,
   cwd,
   id,
   disabled,
@@ -21,6 +22,7 @@ export function SessionPicker({
 }: {
   runner?: Runner
   agent?: Agent
+  agentInstance?: string | null
   cwd: string
   id: string
   disabled: boolean
@@ -36,6 +38,7 @@ export function SessionPicker({
   const [query, setQuery] = useState('')
   const [labels, setLabels] = useEditorValue('session.labels', new Map<string, string>())
   const inputRef = useRef<HTMLInputElement>(null)
+  const instance = agentInstance ?? agent?.instance_id
   const canQuery = !!runner?.online && !!agent?.session_list_supported && !!cwd
 
   useEffect(() => {
@@ -47,12 +50,12 @@ export function SessionPicker({
   }, [open, manual])
   const canInspect = !!id && !!runner?.online && !!agent && !!cwd
   const inspection = useQuery({
-    queryKey: ['session-inspection', runner?.id, agent?.id, agent?.digest, cwd, id],
+    queryKey: ['session-inspection', runner?.id, agent?.id, agent?.digest, instance, cwd, id],
     queryFn: () =>
       api<{ title?: string | null }>(
         `/runners/${runner!.id}/agents/${encodeURIComponent(agent!.id)}/sessions/inspect`,
         'POST',
-        { cwd, id },
+        { cwd, id, agent_instance: agentInstance },
       ),
     enabled: canInspect && memory?.active !== false,
     retry: false,
@@ -68,12 +71,17 @@ export function SessionPicker({
   }, [inspection.data, id])
 
   const catalog = useInfiniteQuery({
-    queryKey: ['sessions', runner?.id, agent?.id, agent?.digest, cwd, query],
+    queryKey: ['sessions', runner?.id, agent?.id, agent?.digest, instance, cwd, query],
     queryFn: ({ pageParam }) =>
       api<SessionCatalog>(
         `/runners/${runner!.id}/agents/${encodeURIComponent(agent!.id)}/sessions/query`,
         'POST',
-        { cwd, ...(query ? { q: query } : {}), ...(pageParam ? { cursor: pageParam } : {}) },
+        {
+          cwd,
+          agent_instance: agentInstance,
+          ...(query ? { q: query } : {}),
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.next_cursor || undefined,

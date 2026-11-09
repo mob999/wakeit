@@ -1,11 +1,9 @@
-#[path = "../../../fixtures/official_agent.rs"]
-mod official;
 use wakeit_agent_runtime::goose::GooseNormalizer;
 mod support;
 use support::assert_single_report;
 
 use serde_json::{Value, json};
-use wakeit_core::trace::{RecordData, TraceKind, TraceState};
+use wakeit_plugin_sdk::trace::{RecordData, TraceKind, TraceState};
 
 fn message(content: Value) -> Value {
     json!({"type":"message","message":{"id":"native-1","role":"assistant","created":1792108800,"content":content,"metadata":{"userVisible":true,"agentVisible":true}}})
@@ -143,7 +141,7 @@ fn oversized_output_and_native_token_limit_never_become_a_complete_answer() {
     assert!(
         records
             .iter()
-            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit_core::trace::RECORD_LIMIT)
+            .all(|r| serde_json::to_vec(r).unwrap().len() < wakeit_plugin_sdk::trace::RECORD_LIMIT)
     );
     assert!(normalizer.accept(text(&chunk)).is_empty());
     normalizer.accept(json!({"type":"complete"}));
@@ -159,25 +157,56 @@ fn oversized_output_and_native_token_limit_never_become_a_complete_answer() {
 }
 
 #[test]
-fn yaml_uses_aaif_goose_native_stdin_without_claiming_unverified_capabilities() {
-    let config: Value = serde_json::to_value(official::official_agent("goose")).unwrap();
-    assert_eq!(config["id"], "goose");
-    assert!(config["models"].is_null());
-    assert!(config["session"].is_null());
-    let args = config["submit"]["args"].as_array().unwrap();
-    assert!(args.windows(2).any(|w| w == [json!("goose"), json!("run")]));
+fn sdk_native_arguments_keep_instructions_off_argv_and_advertise_only_supported_queries() {
+    use wakeit_plugin_sdk::adapter::{AgentDescriptor, AgentOperation, AgentRequest};
+    let manifest: Value =
+        serde_json::from_str(include_str!("../../../wakeit-plugin.json")).unwrap();
+    let descriptor: AgentDescriptor = serde_json::from_value(
+        manifest["wakeit"]["plugins"]["official"]["agents"]["goose"].clone(),
+    )
+    .unwrap();
+    let prompt = "Synthetic instructions\n--resume $(not-a-shell)";
+    let model = "synthetic model with spaces";
+    let request: AgentRequest = serde_json::from_value(json!({
+        "id": uuid::Uuid::new_v4(), "agent": "goose", "operation": "execute",
+        "context": {"cwd":"/synthetic", "deadline":chrono::Utc::now() + chrono::Duration::seconds(60),
+            "run_id":uuid::Uuid::new_v4(), "task_id":"synthetic", "prompt":prompt,
+            "parameters":json!({"model": model, "provider": "synthetic provider"})}
+    })).unwrap();
+    request.validate(&descriptor).unwrap();
+    let args = wakeit_agent_runtime::official_args::native_args(&request, false).unwrap();
+    let (input_flag, input_value) = ("--instructions", "-");
     assert!(
         args.windows(2)
-            .any(|w| w == [json!("--instructions"), json!("-")])
+            .any(|pair| pair[0] == input_flag && pair[1] == input_value)
     );
     assert!(
         args.windows(2)
-            .any(|w| w == [json!("--output-format"), json!("stream-json")])
+            .any(|pair| pair[0] == "--output-format" && pair[1] == "stream-json")
     );
-    assert_eq!(config["submit"]["stdin"], "{{task.prompt}}");
+    assert!(
+        args.windows(2)
+            .any(|pair| pair[0] == "--model" && pair[1] == model)
+    );
+    assert!(
+        args.windows(2)
+            .any(|pair| pair[0] == "--provider" && pair[1] == "synthetic provider")
+    );
+    assert!(!args.iter().any(|arg| arg.contains(prompt)));
     assert!(
         !args
             .iter()
             .any(|arg| arg == "--resume" || arg == "--no-session")
     );
+    assert!(!descriptor.operations.contains(&AgentOperation::Models));
+    for operation in [
+        AgentOperation::SessionList,
+        AgentOperation::SessionInspect,
+        AgentOperation::SessionResume,
+        AgentOperation::SessionRename,
+        AgentOperation::SessionInteractive,
+    ] {
+        assert!(!descriptor.operations.contains(&operation));
+    }
+    assert!(wakeit_agent_runtime::official_args::native_args(&request, true).is_err());
 }

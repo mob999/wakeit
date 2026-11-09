@@ -123,12 +123,16 @@ pub(crate) async fn directories(
 #[serde(deny_unknown_fields)]
 pub(crate) struct ModelsQuery {
     cwd: String,
+    #[serde(default)]
+    agent_instance: Option<Uuid>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SessionQuery {
     cwd: String,
+    #[serde(default)]
+    agent_instance: Option<Uuid>,
     id: String,
 }
 
@@ -136,6 +140,8 @@ pub(crate) struct SessionQuery {
 #[serde(deny_unknown_fields)]
 pub(crate) struct SessionsQuery {
     cwd: String,
+    #[serde(default)]
+    agent_instance: Option<Uuid>,
     cursor: Option<String>,
     q: Option<String>,
 }
@@ -160,7 +166,7 @@ pub(crate) async fn query_sessions(
             workspace,
             id,
             "list_sessions",
-            json!({"cwd":q.cwd,"agent":agent,"q":q.q,"cursor":q.cursor}),
+            json!({"cwd":q.cwd,"agent":agent,"agent_instance":q.agent_instance,"q":q.q,"cursor":q.cursor}),
             30,
         )
         .await?,
@@ -183,7 +189,7 @@ pub(crate) async fn inspect_session(
             workspace,
             id,
             "inspect_session",
-            json!({"cwd":q.cwd,"id":q.id,"agent":agent}),
+            json!({"cwd":q.cwd,"id":q.id,"agent":agent,"agent_instance":q.agent_instance}),
             30,
         )
         .await?,
@@ -205,7 +211,7 @@ pub(crate) async fn query_models(
             workspace,
             id,
             "list_models",
-            json!({"cwd":q.cwd,"agent":agent}),
+            json!({"cwd":q.cwd,"agent":agent,"agent_instance":q.agent_instance}),
             30,
         )
         .await?,
@@ -230,6 +236,17 @@ pub(crate) async fn device_query(
     .fetch_optional(&s.pool)
     .await?
     .ok_or_else(Error::missing)?;
+    if let Some(instance) = payload.get("agent_instance").filter(|v| !v.is_null()) {
+        let instance: Uuid = serde_json::from_value(instance.clone())
+            .map_err(|_| Error::bad("invalid Agent instance"))?;
+        let allowed:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM plugin_instances i JOIN runners r ON r.id=i.runner_id WHERE i.id=$1 AND i.runner_id=$2 AND i.workspace_id=$3 AND i.enabled AND i.state!='removed' AND r.info->>'agent_instances'='1' AND i.declaration->'agents' ? $4)")
+            .bind(instance).bind(id).bind(workspace).bind(payload["agent"].as_str().unwrap_or("")).fetch_one(&s.pool).await?;
+        if !allowed {
+            return Err(Error::bad(
+                "Runner does not support this Agent instance selection",
+            ));
+        }
+    }
     let runtime = row
         .get::<Option<Uuid>, _>("runtime_id")
         .ok_or_else(|| Error(StatusCode::SERVICE_UNAVAILABLE, "Runner 离线".into()))?;

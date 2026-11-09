@@ -1,5 +1,21 @@
 # 开发适配器
 
+新 Agent 接入使用统一插件 SDK：在 `wakeit-plugin.json` 的 `wakeit.plugins` 中声明入口及静态 Agent Descriptor，用 `Plugin.agent(id, Agent)` 注册能力。安装方式不变，插件仍装在 Runner 设备。以下 SDK 部分对应当前源码契约，不代表所有已发布 CLI 均已支持；先检查目标版本的 schema 和实际能力。
+
+## SDK Agent
+
+Descriptor 声明名称、logo、参数和真实支持的操作；同步使用 detect/execute，异步使用 detect/submit/poll。可选 models、reconcile 和 session 操作仅在实现后声明，不能把普通 action 当成 Agent。Rust 与 TypeScript SDK 都不依赖 Core、CLI 或 Gateway；Rust 公共 DTO 来自独立协议包，task API 使用公开 JSON 而非 Core TaskConfig。
+
+宿主通过 `agent.invoke` 发送类型化 AgentRequest。执行请求包含已授权的 cwd、deadline、参数、任务指令和运行身份，查询不接收任务指令。AgentContext 的 trace/log/session/result/record 输出保持 StreamRecord version 1，通过 `agent.record` 发送并等待确认；stdout 只放 JSON-RPC，不混入裸 JSONL 或原生输出。
+
+同步 Run 在原有活动 SDK 请求上接收 cancel 控制帧，由 AgentContext 传递取消信号，Runner 保留强制清理。当前官方 Agent 全部同步，仍可取消，不需要声明独立 cancel operation。独立 cancel 仅用于带 job_id 的异步原生任务，需实际请求取消并由 poll 确认停止；无此能力返回 unsupported，不注册仅返回“已接受”的空回调。
+
+Runner 保留执行身份、并发、日志持久化及进程归属。取消请求不等于已停止，无法确认时报告 uncertain，不能自动重跑。会话必须精确绑定，inspect 不创建会话。官方包从 `wakeit.plugins.official` 读取 Descriptor，以 `args: ["sdk"]` 启动，不读取或生成官方 Agent YAML。
+
+## 兼容命令／YAML 适配器
+
+以下是用户已有 YAML 和脚本适配器的兼容方式，不是官方 SDK Agent 的生成路径。SDK Agent 无需运行 `wakeit agent init`。
+
 先确认本机 Agent 是同步命令还是异步服务，以及它实际支持的参数和输出。复杂 HTTP/SDK 协议可用 Python/Node 包装，Runner 核心无需修改。
 
 从 `assets/sync-agent.yaml` 或 `assets/async-agent.yaml` 开始。异步 HTTP 包装示例为 assets/async-adapter.py；可直接试跑的无副作用同步事件示例为 assets/events-agent.yaml 和 assets/events-adapter.py，复制到本机后把 args 改为实际脚本绝对路径。固定 version: 1，命令由 command + 独立 args + 可选 stdin 组成，不拼 shell。
@@ -51,7 +67,7 @@ parameters 必须与适配声明对应。没接口只手填，空列表或失败
 
 异步 `agent test` 只提交并查询一次；完整轮询、重启恢复和取消需通过隔离 Runner/Run 检查。Windows 脚本入口显式指定解释器，路径/中文/空格通过独立参数传递。
 
-## 可选会话能力
+## 兼容 YAML 的会话能力
 
 同步适配可以声明 `session.inspect`、`session.resume`、`session.interactive` 三个 CommandSpec。inspect 必须只查询原生会话是否已存在，不能推理或创建；resume 用于非交互追加任务，interactive 用于本机交互续聊。使用 `{{session.id}}` 独立传参。会话缺失时失败，不回退普通 submit 或使用 last/continue 一类隐含选择。
 
@@ -68,12 +84,12 @@ WebUI 的续聊复制来自 interactive 命令的原生 argv 与 cwd，不包含
 不能在 submit 命名的适配可选配 `session.rename: CommandSpec`，以 `{{session.id}}` 和 `{{session.title}}` 在执行后更新原生名称；仅对新会话调用。rename 后读取 inspect，title 必须与期望完全一致。不支持或保存失败时保留实际信息与错误，不伪造成功标题、不重跑 Agent。Codex 通过原生辅助命令 rename，支持原生命名的其他适配在 submit 传入名称。缺少原生标题时，Runner 以 Agent ID 和原生会话 ID 保存本地显示名，不要求所有适配实现 rename；绑定已有会话不改名。
 
 
-内置模板 ID 为 `codex`、`claude-code`、`pi`、`opencode`、`kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。新增适配可用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect <id>` 只读检查原生帮助/版本。Kimi Code 2.x 支持只读会话索引、精确绑定和续聊，并通过原生 `provider list --json` 查询已配置模型；agy 支持原生模型查询，但未声明 Wakeit 会话能力。Cursor、Cline、Goose、Qwen Code 提供公开过程及最终结果，Copilot 提供原生最终文本；这些适配的模型手填，不声明未经验证的模型和会话目录。Cursor 默认不强制应用文件修改，Copilot 不自动授予工具权限，Cline 一次性模式沿用原生自动批准默认值，Goose 沿用原生无人值守模式。配置事件输出不意味着支持模型或会话发现，不增加静态模型目录兜底。任务选择器仅展示 Runner 检测到的 Agent；Runner Agents 页仍展示完整安装状态。
+官方 Agent ID 为 `codex`、`claude-code`、`pi`、`opencode`、`kimi-code`、`agy`、`gemini-cli`、`cursor`、`copilot`、`cline`、`goose`、`qwen-code`。新增适配可用 `wakeit plugin exec git:github.com/mob999/wakeit adapter -- detect <id>` 只读检查原生帮助/版本。Kimi Code 2.x 支持只读会话索引、精确绑定和续聊，并通过原生 `provider list --json` 查询已配置模型；agy 支持原生模型查询，但未声明 Wakeit 会话能力。Cursor、Cline、Goose、Qwen Code 提供公开过程及最终结果，Copilot 提供原生最终文本；这些适配的模型手填，不声明未经验证的模型和会话目录。Cursor 默认不强制应用文件修改，Copilot 不自动授予工具权限，Cline 一次性模式沿用原生自动批准默认值，Goose 沿用原生无人值守模式。配置事件输出不意味着支持模型或会话发现，不增加静态模型目录兜底。任务选择器仅展示 Runner 检测到的 Agent；Runner Agents 页仍展示完整安装状态。
 
 普通 `log.diagnostic` 只写日志。明确损失过程记录时，可给同一 version-1 log 添加可选 `recording_issue`（`content_shortened` / `event_limit` / `event_unsupported` / `event_parse_failed` / `event_too_large` / `content_limit`）；Runner 按原因去重生成 `trace_status`，不改变执行结果。内容明确为截断预览时，Runner 也会记录 `content_shortened`。未知历史原因不能由日志文案推测。
 
-插件管理：`wakeit plugin install <Git URL或本地目录>`，用 `list` 查看、`update [来源]` 更新、`remove <来源>` 移除；Runner 下次启动生效。包根清单 `wakeit-plugin.json` 声明 version 1 协议和 Agent YAML；命令相对包根目录解析，参数中的包内文件可用 `{{plugin.root}}`。官方适配器预装，第三方也可只写脚本并输出现有 events 协议。
+插件管理：`wakeit plugin install <Git URL或本地目录>`，用 `list` 查看、`update [来源]` 更新、`remove <来源>` 移除；Runner 下次启动生效。包根清单 `wakeit-plugin.json` 保持 version 1，SDK 入口使用 `wakeit.plugins`，用户已有 `wakeit.agents`／独立 YAML 仍兼容；命令相对包根目录解析，参数中的包内文件可用 `{{plugin.root}}`。官方适配器预装，第三方兼容脚本仍可输出现有 events 协议。
 
-官方插件的新建与恢复统一调用 `run <agent-id> [--session ID] [--model MODEL] -- <原生命令及参数>`。Kimi 使用原生 ACP（`kimi acp`），不启动 HTTP／WebSocket 服务；普通第三方脚本继续沿用 command/stdin/events 契约。
+官方插件的新建与恢复走 SDK Agent 回调，由适配器构造独立 argv；`adapter -- run …` 仅保留为独立诊断入口。Kimi 使用原生 ACP（`kimi acp`），不启动 HTTP／WebSocket 服务；普通第三方脚本继续沿用 command/stdin/events 契约。
 
-通用插件可在 manifest 的 extensions 中声明事件、Hook、配置和动作；不要求包含 Agent。使用 `wakeit schema plugin-sdk` 读取契约，`wakeit --json plugin instance --runner ID catalog` 查看实例，`plugin instance --runner ID configure --file FILE` 与 WebUI 共用配置契约。凭证留在 Runner，保存使用 expected_revision 和 operation_id，秘密更新区分 keep/replace/clear，不把真实凭证放进任务或仓库。完整协议见[插件 SDK](https://github.com/mob999/wakeit/blob/main/docs/plugin-sdk-zh.md)。
+通用插件在 manifest 的 plugins 中统一声明事件、Hook、配置和动作，旧 extensions 字段仅作兼容输入；不要求包含 Agent。使用 `wakeit schema plugin-sdk` 读取契约，`wakeit --json plugin instance --runner ID catalog` 查看实例，`plugin instance --runner ID configure --file FILE` 与 WebUI 共用配置契约。凭证留在 Runner，保存使用 expected_revision 和 operation_id，秘密更新区分 keep/replace/clear，不把真实凭证放进任务或仓库。完整协议见[插件 SDK](https://github.com/mob999/wakeit/blob/main/docs/plugin-sdk-zh.md)。
