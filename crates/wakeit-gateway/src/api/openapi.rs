@@ -111,6 +111,7 @@ pub fn document() -> Value {
     add!("Agent", wakeit_core::config::AgentConfig);
     add!("Schedule", wakeit_core::config::Schedule);
     add!("Login", crate::api::sessions::Login);
+    add!("GitLabTokenLogin", crate::api::gitlab::GitLabTokenLogin);
     add!("Changelog", crate::api::changelog::Changelog);
     add!("DeviceIntent", crate::api::device_grants::Intent);
     add!("DeviceToken", crate::api::device_grants::TokenRequest);
@@ -209,6 +210,9 @@ pub fn document() -> Value {
     for (path, methods) in [
         ("/auth/github/start", vec!["get"]),
         ("/auth/github/callback", vec!["get"]),
+        ("/auth/gitlab/start", vec!["get"]),
+        ("/auth/gitlab/callback", vec!["get"]),
+        ("/auth/gitlab/token", vec!["post"]),
         ("/meta", vec!["get"]),
         ("/changelog", vec!["get"]),
         ("/runners/{id}/directories", vec!["get"]),
@@ -297,6 +301,7 @@ pub fn document() -> Value {
                 ("/users/{id}/password", "post") => Some("Password"),
                 ("/tasks/{id}/archive" | "/tasks/{id}/restore", "post") => Some("ArchiveTask"),
                 ("/session", "post") => Some("Login"),
+                ("/auth/gitlab/token", "post") => Some("GitLabTokenLogin"),
                 ("/oauth/device/code", "post") => Some("DeviceIntent"),
                 ("/oauth/token", "post") => Some("DeviceToken"),
                 ("/runners/connect", "post") => Some("RunnerConnect"),
@@ -624,6 +629,21 @@ pub fn document() -> Value {
                     op["parameters"] = json!([{"name":"state","in":"query","required":true,"schema":{"type":"string"}},{"name":"code","in":"query","schema":{"type":"string"}},{"name":"error","in":"query","schema":{"type":"string"}}]);
                     op["responses"]["200"] = json!({"description":"Same-origin navigation document establishes the Strict Wakeit session before returning to the application. No GitHub access token is returned.","content":{"text/html":{"schema":{"type":"string"}}}});
                     op["responses"]["303"] = json!({"description":"Authorization denied; returns to login without a session."});
+                }
+            }
+            if path.starts_with("/auth/gitlab/") {
+                op["security"] = json!([]);
+                if path.ends_with("/start") {
+                    op["parameters"] = json!([{"name":"return_to","in":"query","schema":{"type":"string","maxLength":2048},"description":"A local application path. Absolute, protocol-relative and API paths are rejected."}]);
+                    op["responses"]["303"] = json!({"description":"GitLab authorization redirect with S256 PKCE, read_user scope, state and a short-lived HttpOnly SameSite=Lax browser-binding cookie."});
+                } else if path.ends_with("/callback") {
+                    op["parameters"] = json!([{"name":"state","in":"query","required":true,"schema":{"type":"string"}},{"name":"code","in":"query","schema":{"type":"string"}},{"name":"error","in":"query","schema":{"type":"string"}}]);
+                    op["responses"]["200"] = json!({"description":"Same-origin navigation document establishes the Strict Wakeit session before returning to the application. No GitLab access token is returned.","content":{"text/html":{"schema":{"type":"string"}}}});
+                    op["responses"]["303"] = json!({"description":"Authorization denied; returns to login without a session."});
+                } else if path.ends_with("/token") {
+                    op["description"] = json!(
+                        "Verifies a GitLab Personal Access Token against the configured GitLab origin and establishes a Strict Wakeit browser session without storing the GitLab token. Requires X-Wakeit-Request: 1."
+                    );
                 }
             }
             if matches!(path, "/session" | "/invites/accept" | "/device/enroll") && method == "post"

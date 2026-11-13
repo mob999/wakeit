@@ -4,10 +4,19 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { t as tr, roleName } from '../i18n'
 import { api } from '../api/client'
-import { type User } from '../api/types'
+import { type AuthMeta, type User } from '../api/types'
 import { Button, Field } from '../components/ui'
 import { LanguageSwitch } from '../components/LanguageSwitch'
 import { BrandMark } from '../components/BrandMark'
+
+function originHost(raw?: string) {
+  if (!raw) return undefined
+  try {
+    return new URL(raw).host
+  } catch {
+    return undefined
+  }
+}
 
 export function InvitationPage({ user }: { user?: User }) {
   useTranslation()
@@ -22,9 +31,11 @@ export function InvitationPage({ user }: { user?: User }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [gitlabToken, setGitlabToken] = useState('')
   useEffect(() => {
     setPassword('')
     setConfirm('')
+    setGitlabToken('')
     setSignup(false)
   }, [token])
   const invitation = useQuery<{ workspace_id: string; workspace: string; role: string }>({
@@ -32,13 +43,21 @@ export function InvitationPage({ user }: { user?: User }) {
     queryFn: () => api('/invites/inspect', 'POST', { token }),
     retry: false,
   })
-  const meta = useQuery<{ auth?: { mode: string } }>({
+  const meta = useQuery<{ auth?: AuthMeta }>({
     queryKey: ['meta'],
     queryFn: () => api('/meta'),
   })
+  const mode = meta.data?.auth?.mode
+  const github = mode === 'github'
+  const gitlab = mode === 'gitlab' ? meta.data?.auth?.gitlab : undefined
+  const gitlabHost = originHost(gitlab?.url)
   const accept = useMutation({
     mutationFn: async () => {
       if (user) return api<{ workspace_id: string }>('/invites/accept', 'POST', { token })
+      if (mode === 'gitlab') {
+        await api('/auth/gitlab/token', 'POST', { token: gitlabToken.trim() })
+        return api<{ workspace_id: string }>('/invites/accept', 'POST', { token })
+      }
       if (signup) {
         if (password !== confirm) throw new Error(tr('两次输入的密码不一致'))
         const result = await api<{ workspace_id: string }>('/invites/accept', 'POST', {
@@ -55,10 +74,11 @@ export function InvitationPage({ user }: { user?: User }) {
     onSuccess: (result) => {
       setPassword('')
       setConfirm('')
+      setGitlabToken('')
       location.assign(`/w/${result.workspace_id}/`)
     },
   })
-  const github = meta.data?.auth?.mode === 'github'
+  const canSubmit = Boolean(user || (!github && mode !== 'gitlab') || gitlab?.allow_token)
   return (
     <div className="login-wrap">
       <LanguageSwitch className="login-language" />
@@ -99,6 +119,37 @@ export function InvitationPage({ user }: { user?: User }) {
                 >
                   {tr('使用 GitHub 登录')}
                 </Button>
+              ) : mode === 'gitlab' ? (
+                <>
+                  {gitlab?.oauth && (
+                    <Button
+                      variant={gitlab.allow_token ? undefined : 'solid'}
+                      type="button"
+                      onClick={() =>
+                        location.assign(
+                          `/api/v1/auth/gitlab/start?return_to=${encodeURIComponent(location.pathname + location.hash)}`,
+                        )
+                      }
+                    >
+                      {tr('使用 GitLab 登录')}
+                    </Button>
+                  )}
+                  {gitlab?.allow_token && (
+                    <Field
+                      label={tr('GitLab 个人访问令牌')}
+                      hint={gitlabHost ? `${gitlabHost} · read_user` : 'read_user'}
+                    >
+                      <input
+                        required
+                        type="password"
+                        autoComplete="off"
+                        value={gitlabToken}
+                        disabled={accept.isPending}
+                        onChange={(event) => setGitlabToken(event.target.value)}
+                      />
+                    </Field>
+                  )}
+                </>
               ) : (
                 <>
                   <Field label={tr('用户名')}>
@@ -148,7 +199,7 @@ export function InvitationPage({ user }: { user?: User }) {
                   </Button>
                 </>
               )}
-              {(user || !github) && (
+              {canSubmit && (
                 <Button variant="solid" type="submit" disabled={accept.isPending}>
                   {tr('加入工作区')}
                 </Button>

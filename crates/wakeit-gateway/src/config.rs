@@ -45,6 +45,8 @@ pub struct GatewayAuth {
     #[serde(default)]
     pub github: Option<GitHubAuth>,
     #[serde(default)]
+    pub gitlab: Option<GitLabAuth>,
+    #[serde(default)]
     pub demo_workspace: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +54,17 @@ pub struct GatewayAuth {
 pub struct GitHubAuth {
     pub client_id_env: String,
     pub client_secret_env: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitLabAuth {
+    pub url: String,
+    #[serde(default)]
+    pub client_id_env: Option<String>,
+    #[serde(default)]
+    pub client_secret_env: Option<String>,
+    #[serde(default)]
+    pub allow_token: bool,
 }
 fn local_auth() -> String {
     "local".into()
@@ -66,6 +79,7 @@ impl Default for GatewayAuth {
             mode: local_auth(),
             allow_registration: false,
             github: None,
+            gitlab: None,
             demo_workspace: false,
         }
     }

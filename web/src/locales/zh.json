@@ -983,5 +983,17 @@
   "preset.emptyObject": "空对象",
   "preset.typeBoolean": "布尔",
   "preset.formatDirectory": "格式：设备上的目录路径",
-  "preset.formatRepository": "格式：Git 仓库地址"
+  "preset.formatRepository": "格式：Git 仓库地址",
+  "GitLab 授权已取消": "GitLab 授权已取消",
+  "使用 GitLab 登录": "使用 GitLab 登录",
+  "使用令牌登录": "使用令牌登录",
+  "GitLab 个人访问令牌": "GitLab 个人访问令牌",
+  "GitLab OAuth is not configured": "未配置 GitLab OAuth",
+  "GitLab token login is disabled": "未启用 GitLab 令牌登录",
+  "invalid GitLab token": "GitLab 个人访问令牌无效",
+  "GitLab account is not active": "GitLab 账号未启用",
+  "GitLab login is unavailable; try again": "GitLab 登录暂不可用，请重试",
+  "GitLab identity is unavailable; try again": "无法验证 GitLab 身份，请重试",
+  "invalid or expired GitLab login": "GitLab 登录已过期或无效，请重试",
+  "GitLab login browser does not match; try again": "浏览器会话不匹配，请重新登录"
 }

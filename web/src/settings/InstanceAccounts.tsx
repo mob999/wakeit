@@ -114,7 +114,7 @@ export function InstanceAccounts({ user }: { user: User }) {
     queryKey: ['meta'],
     queryFn: () => api('/meta'),
   })
-  const local = meta.data?.auth?.mode !== 'github'
+  const local = meta.data?.auth?.mode === 'local'
   return (
     <div className="workspace-home">
       <header className="workspace-home-header">

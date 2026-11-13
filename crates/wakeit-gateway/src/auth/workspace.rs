@@ -42,14 +42,14 @@ pub async fn authorize(
     if identity.kind == "api" && identity.workspace_id != Some(workspace) {
         return Ok(None);
     }
-    let row=sqlx::query("SELECT w.is_demo,m.role,m.active,u.active AS user_active,EXISTS(SELECT 1 FROM user_identities i WHERE i.user_id=u.id AND i.provider='github') AS github FROM workspaces w JOIN users u ON u.id=$2 LEFT JOIN workspace_members m ON m.workspace_id=w.id AND m.user_id=u.id WHERE w.id=$1")
+    let row=sqlx::query("SELECT w.is_demo,m.role,m.active,u.active AS user_active,EXISTS(SELECT 1 FROM user_identities i WHERE i.user_id=u.id AND i.provider IN ('github','gitlab')) AS external_identity FROM workspaces w JOIN users u ON u.id=$2 LEFT JOIN workspace_members m ON m.workspace_id=w.id AND m.user_id=u.id WHERE w.id=$1")
         .bind(workspace).bind(identity.id).fetch_optional(pool).await?;
     Ok(row.and_then(|r| {
         if !r.get::<bool, _>("user_active") {
             return None;
         }
         let demo = r.get::<bool, _>("is_demo");
-        if demo && identity.kind == "session" && r.get::<bool, _>("github") {
+        if demo && identity.kind == "session" && r.get::<bool, _>("external_identity") {
             return Some(WorkspaceContext {
                 role: "viewer".into(),
                 demo: true,

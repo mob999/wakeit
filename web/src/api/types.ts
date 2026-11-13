@@ -271,3 +271,12 @@ export type MomentOverview = {
 }
 
 export type PageResult<T> = { items: T[]; total: number; page: number; page_size: number }
+export type AuthMeta = {
+  mode: string
+  allow_registration?: boolean
+  gitlab?: {
+    url: string
+    oauth: boolean
+    allow_token: boolean
+  }
+}

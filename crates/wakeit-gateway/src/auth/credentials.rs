@@ -74,8 +74,8 @@ pub async fn bootstrap(pool: &PgPool, username: &str, pw: &str) -> Result<()> {
 
 pub(crate) fn validate_github(config: &GatewayConfig) -> anyhow::Result<()> {
     anyhow::ensure!(
-        ["local", "github"].contains(&config.auth.mode.as_str()),
-        "auth.mode must be local or github"
+        ["local", "github", "gitlab"].contains(&config.auth.mode.as_str()),
+        "auth.mode must be local, github or gitlab"
     );
     wakeit_core::device_auth::validate_url(&config.public_url)?;
     anyhow::ensure!(
@@ -88,16 +88,42 @@ pub(crate) fn validate_github(config: &GatewayConfig) -> anyhow::Result<()> {
                 .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'),
         "invalid session cookie name"
     );
-    if config.auth.mode == "github" {
-        github_credentials(config)?;
-        anyhow::ensure!(
-            !config.auth.allow_registration,
-            "password registration cannot be enabled in GitHub mode"
-        );
+    match config.auth.mode.as_str() {
+        "github" => {
+            github_credentials(config)?;
+            anyhow::ensure!(
+                !config.auth.allow_registration,
+                "password registration cannot be enabled in GitHub mode"
+            );
+        }
+        "gitlab" => {
+            let provider = config.auth.gitlab.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("GitLab authentication configuration is required")
+            })?;
+            gitlab_origin(config)?;
+            anyhow::ensure!(
+                provider.client_id_env.is_some() || provider.allow_token,
+                "GitLab authentication requires client_id_env or allow_token"
+            );
+            if provider.client_secret_env.is_some() {
+                anyhow::ensure!(
+                    provider.client_id_env.is_some(),
+                    "GitLab client_secret_env requires client_id_env"
+                );
+            }
+            if provider.client_id_env.is_some() {
+                gitlab_oauth_credentials(config)?;
+            }
+            anyhow::ensure!(
+                !config.auth.allow_registration,
+                "password registration cannot be enabled in GitLab mode"
+            );
+        }
+        _ => {}
     }
     anyhow::ensure!(
-        !config.auth.demo_workspace || config.auth.mode == "github",
-        "demo workspace requires GitHub authentication"
+        !config.auth.demo_workspace || matches!(config.auth.mode.as_str(), "github" | "gitlab"),
+        "demo workspace requires GitHub or GitLab authentication"
     );
     Ok(())
 }
@@ -115,5 +141,50 @@ pub(crate) fn github_credentials(config: &GatewayConfig) -> anyhow::Result<(Stri
         !id.trim().is_empty() && !secret.trim().is_empty(),
         "GitHub credentials must not be empty"
     );
+    Ok((id, secret))
+}
+pub(crate) fn gitlab_origin(config: &GatewayConfig) -> anyhow::Result<String> {
+    let provider = config
+        .auth
+        .gitlab
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("GitLab authentication configuration is required"))?;
+    wakeit_core::device_auth::validate_url(provider.url.trim()).map_err(|_| {
+        anyhow::anyhow!(
+            "GitLab URL must be an HTTPS origin without credentials, path, query or fragment (HTTP is allowed only on loopback)"
+        )
+    })
+}
+pub(crate) fn gitlab_oauth_credentials(
+    config: &GatewayConfig,
+) -> anyhow::Result<(String, Option<String>)> {
+    let provider = config
+        .auth
+        .gitlab
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("GitLab authentication configuration is required"))?;
+    let id_env = provider
+        .client_id_env
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("GitLab OAuth is not configured"))?;
+    let id = std::env::var(id_env)
+        .map_err(|_| anyhow::anyhow!("GitLab Client ID environment variable is missing"))?;
+    anyhow::ensure!(
+        !id.trim().is_empty(),
+        "GitLab credentials must not be empty"
+    );
+    let secret = match &provider.client_secret_env {
+        Some(secret_env) => {
+            let value = std::env::var(secret_env).map_err(|_| {
+                anyhow::anyhow!("GitLab Client Secret environment variable is missing")
+            })?;
+            anyhow::ensure!(
+                !value.trim().is_empty(),
+                "GitLab credentials must not be empty"
+            );
+            Some(value)
+        }
+        None => None,
+    };
     Ok((id, secret))
 }
