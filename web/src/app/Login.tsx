@@ -7,23 +7,43 @@ import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowUpRight } from '../components/icons'
 import { api } from '../api/client'
+import { type AuthMeta } from '../api/types'
 import { useQueryClient } from '@tanstack/react-query'
+
+function originHost(raw?: string) {
+  if (!raw) return undefined
+  try {
+    return new URL(raw).host
+  } catch {
+    return undefined
+  }
+}
 
 export function Login() {
   useTranslation()
   const client = useQueryClient()
-  const meta = useQuery<{ auth?: { mode: string; allow_registration: boolean } }>({
+  const meta = useQuery<{ auth?: AuthMeta }>({
     queryKey: ['meta'],
     queryFn: () => api('/meta'),
   })
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [gitlabToken, setGitlabToken] = useState('')
   const [signup, setSignup] = useState(false)
-  const returnTo = new URLSearchParams(location.search).get('return_to')
+  const params = new URLSearchParams(location.search)
+  const returnTo = params.get('return_to')
+  const authError = params.get('auth_error')
   const next = returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : undefined
+  const mode = meta.data?.auth?.mode
+  const gitlab = mode === 'gitlab' ? meta.data?.auth?.gitlab : undefined
+  const gitlabHost = originHost(gitlab?.url)
   const login = useMutation({
     mutationFn: async () => {
+      if (mode === 'gitlab') {
+        await api('/auth/gitlab/token', 'POST', { token: gitlabToken.trim() })
+        return
+      }
       if (signup) {
         if (password !== confirm) throw new Error(tr('两次输入的密码不一致'))
         await api('/register', 'POST', { username: username.trim(), password })
@@ -33,6 +53,7 @@ export function Login() {
     onSuccess: () => {
       setPassword('')
       setConfirm('')
+      setGitlabToken('')
       if (next) location.assign(next)
       else client.invalidateQueries({ queryKey: ['me'] })
     },
@@ -52,9 +73,8 @@ export function Login() {
       >
         <h1 className="card-header">{signup ? tr('创建账号') : tr('欢迎回来')}</h1>
         <div className="card-body">
-          {new URLSearchParams(location.search).get('auth_error') === 'github_denied' && (
-            <ErrorToast error={tr('GitHub 授权已取消')} />
-          )}
+          {authError === 'github_denied' && <ErrorToast error={tr('GitHub 授权已取消')} />}
+          {authError === 'gitlab_denied' && <ErrorToast error={tr('GitLab 授权已取消')} />}
           {meta.isPending ? (
             <span className="quiet text-muted">{tr('加载中…')}</span>
           ) : meta.error ? (
@@ -64,7 +84,7 @@ export function Login() {
                 {tr('重试')}
               </Button>
             </>
-          ) : meta.data?.auth?.mode === 'github' ? (
+          ) : mode === 'github' ? (
             <Button
               variant="solid"
               type="button"
@@ -76,6 +96,53 @@ export function Login() {
             >
               {tr('使用 GitHub 登录')}
             </Button>
+          ) : mode === 'gitlab' ? (
+            <>
+              {gitlab?.oauth && (
+                <Button
+                  variant="solid"
+                  type="button"
+                  onClick={() =>
+                    location.assign(
+                      `/api/v1/auth/gitlab/start?return_to=${encodeURIComponent(next ?? location.pathname + location.search)}`,
+                    )
+                  }
+                >
+                  {tr('使用 GitLab 登录')}
+                </Button>
+              )}
+              {gitlab?.allow_token && (
+                <>
+                  <Field
+                    label={tr('GitLab 个人访问令牌')}
+                    hint={gitlabHost ? `${gitlabHost} · read_user` : 'read_user'}
+                  >
+                    <input
+                      aria-label={tr('GitLab 个人访问令牌')}
+                      type="password"
+                      autoComplete="off"
+                      value={gitlabToken}
+                      onChange={(event) => setGitlabToken(event.target.value)}
+                      required
+                      disabled={login.isPending}
+                    />
+                  </Field>
+                  {login.error && <ErrorToast error={login.error.message} />}
+                  <Button
+                    variant={gitlab.oauth ? undefined : 'solid'}
+                    type="submit"
+                    disabled={login.isPending}
+                  >
+                    {login.isPending
+                      ? tr('正在连接…')
+                      : gitlab.oauth
+                        ? tr('使用令牌登录')
+                        : tr('使用 GitLab 登录')}
+                    <ArrowUpRight size={14} />
+                  </Button>
+                </>
+              )}
+            </>
           ) : (
             <>
               <Field label={tr('用户名')}>

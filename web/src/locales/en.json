@@ -983,5 +983,17 @@
   "preset.emptyObject": "Empty object",
   "preset.typeBoolean": "Boolean",
   "preset.formatDirectory": "Format: directory path on the device",
-  "preset.formatRepository": "Format: Git repository address"
+  "preset.formatRepository": "Format: Git repository address",
+  "GitLab 授权已取消": "GitLab authorization was cancelled",
+  "使用 GitLab 登录": "Sign in with GitLab",
+  "使用令牌登录": "Sign in with token",
+  "GitLab 个人访问令牌": "GitLab personal access token",
+  "GitLab OAuth is not configured": "GitLab OAuth is not configured",
+  "GitLab token login is disabled": "GitLab token sign-in is disabled",
+  "invalid GitLab token": "Invalid GitLab personal access token",
+  "GitLab account is not active": "GitLab account is not active",
+  "GitLab login is unavailable; try again": "GitLab sign-in is unavailable. Try again.",
+  "GitLab identity is unavailable; try again": "GitLab identity is unavailable. Try again.",
+  "invalid or expired GitLab login": "Invalid or expired GitLab sign-in. Try again.",
+  "GitLab login browser does not match; try again": "GitLab sign-in browser does not match. Try again."
 }

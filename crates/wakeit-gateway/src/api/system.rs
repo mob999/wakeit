@@ -66,7 +66,19 @@ pub(crate) async fn metrics(State(s): State<App>, h: HeaderMap) -> Result<Respon
 
 pub(crate) async fn meta(State(s): State<App>) -> Json<Value> {
     let version = env!("CARGO_PKG_VERSION");
-    Json(
-        json!({"version":version,"public_url":s.config.public_url,"auth":{"mode":s.config.auth.mode,"allow_registration":s.config.auth.allow_registration}}),
-    )
+    let mut auth = json!({
+        "mode": s.config.auth.mode,
+        "allow_registration": s.config.auth.allow_registration,
+    });
+    if s.config.auth.mode == "gitlab"
+        && let Some(gitlab) = &s.config.auth.gitlab
+        && let Ok(url) = crate::auth::credentials::gitlab_origin(&s.config)
+    {
+        auth["gitlab"] = json!({
+            "url": url,
+            "oauth": gitlab.client_id_env.is_some(),
+            "allow_token": gitlab.allow_token,
+        });
+    }
+    Json(json!({"version":version,"public_url":s.config.public_url,"auth":auth}))
 }

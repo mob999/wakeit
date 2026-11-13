@@ -89,4 +89,19 @@ fn openapi_exposes_task_template_contract() {
             .iter()
             .any(|kind| kind == "template")
     );
+    for (path, method) in [
+        ("/api/v1/auth/gitlab/start", "get"),
+        ("/api/v1/auth/gitlab/callback", "get"),
+        ("/api/v1/auth/gitlab/token", "post"),
+    ] {
+        assert!(
+            doc["paths"][path][method].is_object(),
+            "missing {method} {path}"
+        );
+    }
+    assert_eq!(
+        doc["paths"]["/api/v1/auth/gitlab/token"]["post"]["requestBody"]["content"]["application/json"]
+            ["schema"]["$ref"],
+        "#/components/schemas/GitLabTokenLogin"
+    );
 }

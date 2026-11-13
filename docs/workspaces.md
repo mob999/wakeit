@@ -43,7 +43,25 @@ First login creates only the global account. The user can then create a workspac
 wakeit-gateway grant-instance-admin --config gateway.yaml --user-id ACCOUNT_UUID
 ```
 
-`demo_workspace: true` requires GitHub mode and creates synthetic, non-executable examples once. GitHub-authenticated sessions receive read-only demo access without membership rows. No device registration, task mutation, API Key issuance, directory/model/session query or continuation is allowed there. Do not seed the demo from real execution data.
+`demo_workspace: true` requires GitHub or GitLab mode and creates synthetic, non-executable examples once. Externally authenticated sessions receive read-only demo access without membership rows. No device registration, task mutation, API Key issuance, directory/model/session query or continuation is allowed there. Do not seed the demo from real execution data.
+
+## Self-hosted GitLab authentication
+
+Set `auth.mode: gitlab` with the canonical HTTPS origin of your GitLab instance (loopback HTTP is allowed only for local development). You can enable OAuth 2.0 browser redirects, Personal Access Token sign-in, or both:
+
+```yaml
+auth:
+  mode: gitlab
+  gitlab:
+    url: https://gitlab.example.com
+    client_id_env: WAKEIT_GITLAB_CLIENT_ID
+    client_secret_env: WAKEIT_GITLAB_CLIENT_SECRET
+    allow_token: true
+```
+
+For OAuth 2.0, register a GitLab Application with scope `read_user` and callback `https://wakeit.example.com/api/v1/auth/gitlab/callback`. `client_secret_env` may be omitted for public PKCE applications. When `allow_token: true` is set, users can also sign in directly with a `read_user` Personal Access Token without registering an OAuth Application.
+
+GitLab access tokens and Personal Access Tokens are used once to verify `/api/v4/user` and are never stored or returned. Accounts bind to `{gitlab_url}:{immutable_user_id}`, so username changes preserve the account and accounts from different GitLab instances never collide. Use `wakeit-gateway grant-instance-admin` to designate an instance administrator by Wakeit account UUID.
 
 ## CLI and Runners
 

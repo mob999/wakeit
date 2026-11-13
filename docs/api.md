@@ -138,7 +138,7 @@ Run.session增加可空command，为Runner执行时生成的原生Agent续聊命
 
 ## Device authorization
 
-GitHub login is configured per Gateway. `GET /api/v1/auth/github/start?return_to=/…` starts an authorization-code flow with S256 PKCE and a short-lived browser-binding cookie. `GET /api/v1/auth/github/callback` consumes the state once, verifies the immutable GitHub account ID and establishes a global Wakeit browser session. These routes request no repository/email scope and never return GitHub tokens. `/meta` exposes `auth.mode` and `auth.allow_registration`, never credentials. See [Workspace deployment](workspaces.md) for configuration and demo isolation.
+GitHub and self-hosted GitLab logins are configured per Gateway. `GET /api/v1/auth/github/start?return_to=/…` and `GET /api/v1/auth/gitlab/start?return_to=/…` start authorization-code flows with S256 PKCE and a short-lived browser-binding cookie; their `/callback` routes consume the state once, verify the immutable provider account ID and establish a global Wakeit browser session. When `auth.gitlab.allow_token` is enabled, `POST /api/v1/auth/gitlab/token` verifies `{token}` against the configured GitLab `/api/v4/user` endpoint with `X-Wakeit-Request: 1` and establishes a session without storing the GitLab token. `/meta` exposes `auth.mode`, `auth.allow_registration`, and non-secret `auth.gitlab` (`{url,oauth,allow_token}`), never credentials. See [Workspace deployment](workspaces.md) for configuration and demo isolation.
 
 `GET /api/v1/meta` adds `public_url` and `install` (explicit official release, manifest, checksums and package base URL). No secrets are included. The topbar Agent Prompt uses this configured origin.
 

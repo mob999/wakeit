@@ -47,7 +47,7 @@ async fn list(State(s): State<App>, h: HeaderMap) -> Result<Json<Value>> {
         ));
     }
     let items:Vec<Value>=sqlx::query_scalar("SELECT jsonb_build_object('id',w.id,'name',w.name,'role',m.role,'is_demo',w.is_demo,'is_default',w.is_default) FROM workspaces w JOIN workspace_members m ON m.workspace_id=w.id WHERE m.user_id=$1 AND m.active AND NOT w.is_demo ORDER BY w.created_at,w.id").bind(u.id).fetch_all(&s.pool).await?;
-    let demo:Option<Value>=sqlx::query_scalar("SELECT jsonb_build_object('id',id,'name',name,'role','viewer','is_demo',true) FROM workspaces WHERE is_demo AND EXISTS(SELECT 1 FROM user_identities WHERE user_id=$1 AND provider='github')").bind(u.id).fetch_optional(&s.pool).await?;
+    let demo:Option<Value>=sqlx::query_scalar("SELECT jsonb_build_object('id',id,'name',name,'role','viewer','is_demo',true) FROM workspaces WHERE is_demo AND EXISTS(SELECT 1 FROM user_identities WHERE user_id=$1 AND provider IN ('github','gitlab'))").bind(u.id).fetch_optional(&s.pool).await?;
     Ok(Json(json!({"items":items,"demo":demo})))
 }
 #[derive(Deserialize)]

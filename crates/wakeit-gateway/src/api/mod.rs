@@ -7,6 +7,7 @@ pub(crate) mod device_grants;
 pub(crate) mod events;
 pub(crate) mod files;
 pub(crate) mod github;
+pub(crate) mod gitlab;
 pub(crate) mod http;
 pub(crate) mod moments;
 pub(crate) mod nodes;
@@ -156,6 +157,7 @@ pub fn router(app: App) -> Router {
         .merge(crate::api::workspaces::routes())
         .merge(crate::api::changelog::routes())
         .merge(crate::api::github::routes())
+        .merge(crate::api::gitlab::routes())
         .route("/api/v1/meta", get(system::meta))
         .route("/api/v1/session", post(sessions::login).get(sessions::me).delete(sessions::logout))
         .route("/api/v1/instance/users", get(accounts::users).post(accounts::create_user))
